@@ -52,7 +52,7 @@ function SportAffiliateBanner({ sport }: { sport: string }) {
               </div>
               <div>
                 <p className="text-xs font-black text-emerald-400 uppercase tracking-wider">DraftKings Sportsbook</p>
-                <p className="text-[10px] text-slate-400">Place {sport} prop bets</p>
+                <p className="text-[11px] text-slate-400">Place {sport} prop bets</p>
               </div>
             </div>
             <ExternalLink className="w-4 h-4 text-emerald-500/50" />
@@ -75,7 +75,7 @@ function SportAffiliateBanner({ sport }: { sport: string }) {
               </div>
               <div>
                 <p className="text-xs font-black text-blue-400 uppercase tracking-wider">FanDuel Sportsbook</p>
-                <p className="text-[10px] text-slate-400">Place {sport} prop bets</p>
+                <p className="text-[11px] text-slate-400">Place {sport} prop bets</p>
               </div>
             </div>
             <ExternalLink className="w-4 h-4 text-blue-500/50" />
@@ -145,8 +145,8 @@ function PropCard({ prop, index }: { prop: PropBet; index: number }) {
       data-testid={`prop-card-${index}`}
     >
       <div className="flex items-start justify-between mb-3">
-        <span className="text-[10px] font-bold text-slate-500">{prop.team} vs {prop.opponent}</span>
-        <div className={`px-2 py-0.5 rounded text-[10px] font-black ${
+        <span className="text-[11px] font-bold text-slate-400">{prop.team} vs {prop.opponent}</span>
+        <div className={`px-2 py-0.5 rounded text-[11px] font-black ${
           Number(prop.confidence) >= 75
             ? "bg-emerald-500/20 text-emerald-400"
             : Number(prop.confidence) >= 65
@@ -158,11 +158,11 @@ function PropCard({ prop, index }: { prop: PropBet; index: number }) {
       </div>
 
       <h3 className="text-base font-bold text-white mb-1" data-testid={`prop-player-${index}`}>{prop.playerName}</h3>
-      <p className="text-xs text-slate-500 mb-3">{prop.gameInfo}</p>
+      <p className="text-xs text-slate-400 mb-3">{prop.gameInfo}</p>
 
       <div className="flex items-center justify-between bg-slate-900/50 rounded-xl px-4 py-3 border border-slate-800/50">
         <div>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">{prop.propType}</p>
+          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">{prop.propType}</p>
           <p className="text-lg font-black text-white">{prop.line}</p>
         </div>
         <div className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-black text-sm ${
@@ -191,7 +191,7 @@ function LockedPropCard({ index, sport }: { index: number; sport: string }) {
       <div className="absolute inset-0 backdrop-blur-sm bg-slate-900/60 z-10 flex flex-col items-center justify-center">
         <Lock className="w-7 h-7 text-amber-500/60 mb-2" />
         <p className="text-sm font-bold text-slate-300 mb-1">Pro Pick</p>
-        <p className="text-[10px] text-slate-500 mb-2">Higher confidence pick</p>
+        <p className="text-[11px] text-slate-400 mb-2">Higher confidence pick</p>
         <Link href="/pricing">
           <Button size="sm" className="text-xs">
             <Crown className="w-3 h-3 mr-1" /> Unlock
@@ -304,7 +304,7 @@ export default function PropBets() {
               {(() => { const Icon = SPORT_ICON_COMPONENTS[sport]; return Icon ? <Icon className="w-6 h-6 text-emerald-400" /> : null; })()}
               <h2 className="text-2xl font-black text-white tracking-tight">{sport}</h2>
               {sportProps.length > 0 && (
-                <Badge variant="outline" className="text-[10px] font-bold border-slate-700 text-slate-400">
+                <Badge variant="outline" className="text-[11px] font-bold border-slate-700 text-slate-400">
                   {sportProps.length} pick{sportProps.length !== 1 ? "s" : ""}
                 </Badge>
               )}
@@ -314,7 +314,7 @@ export default function PropBets() {
 
             {sportProps.length === 0 && isPro ? (
               <div className="py-10 text-center bg-slate-800/20 rounded-2xl border border-dashed border-slate-800/50 mb-6">
-                <p className="text-slate-500 text-sm">No {sport} props available today</p>
+                <p className="text-slate-400 text-sm">No {sport} props available today</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-2">
@@ -346,7 +346,7 @@ export default function PropBets() {
       )}
 
       <div className="border-t border-slate-800 pt-8 mt-4">
-        <p className="text-[10px] text-slate-600 text-center max-w-2xl mx-auto leading-relaxed" data-testid="affiliate-disclaimer">
+        <p className="text-[11px] text-slate-400 text-center max-w-2xl mx-auto leading-relaxed" data-testid="affiliate-disclaimer">
           Affiliate Disclosure: EliteLineup AI may earn a commission from links to DraftKings and FanDuel.
           Must be 21+ and present in states where DFS/sports betting is legal. Please play responsibly.
           If you or someone you know has a gambling problem, call 1-800-GAMBLER.

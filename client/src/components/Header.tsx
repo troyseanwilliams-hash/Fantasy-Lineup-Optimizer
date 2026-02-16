@@ -93,7 +93,7 @@ export function Header() {
                           <Link href={`/optimizer/${dkSlate.id}`}>
                             <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-dk`}>
                               <div className="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center mr-2 shrink-0">
-                                <span className="text-emerald-400 font-black text-[9px]">DK</span>
+                                <span className="text-emerald-400 font-black text-[11px]">DK</span>
                               </div>
                               <span className="text-sm font-bold text-slate-300">{sport} DK Builder</span>
                             </DropdownMenuItem>
@@ -101,7 +101,7 @@ export function Header() {
                         ) : (
                           <DropdownMenuItem disabled className="opacity-50" data-testid={`sport-menu-${sport.toLowerCase()}-dk`}>
                             <div className="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center mr-2 shrink-0">
-                              <span className="text-emerald-400 font-black text-[9px]">DK</span>
+                              <span className="text-emerald-400 font-black text-[11px]">DK</span>
                             </div>
                             <span className="text-sm font-bold text-slate-300">{sport} DK Builder</span>
                           </DropdownMenuItem>
@@ -110,7 +110,7 @@ export function Header() {
                           <Link href={`/optimizer/${fdSlate.id}`}>
                             <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-fd`}>
                               <div className="w-6 h-6 rounded bg-blue-500/20 flex items-center justify-center mr-2 shrink-0">
-                                <span className="text-blue-400 font-black text-[9px]">FD</span>
+                                <span className="text-blue-400 font-black text-[11px]">FD</span>
                               </div>
                               <span className="text-sm font-bold text-slate-300">{sport} FD Builder</span>
                             </DropdownMenuItem>
@@ -118,7 +118,7 @@ export function Header() {
                         ) : (
                           <DropdownMenuItem disabled className="opacity-50" data-testid={`sport-menu-${sport.toLowerCase()}-fd`}>
                             <div className="w-6 h-6 rounded bg-blue-500/20 flex items-center justify-center mr-2 shrink-0">
-                              <span className="text-blue-400 font-black text-[9px]">FD</span>
+                              <span className="text-blue-400 font-black text-[11px]">FD</span>
                             </div>
                             <span className="text-sm font-bold text-slate-300">{sport} FD Builder</span>
                           </DropdownMenuItem>
@@ -178,11 +178,11 @@ export function Header() {
               <div className="hidden md:flex flex-col items-end">
                 <span className="text-sm font-bold text-white">{user.firstName || user.email?.split('@')[0]}</span>
                 {subData?.tier === "pro" ? (
-                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[9px] font-black px-1.5 py-0">
+                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[11px] font-black px-1.5 py-0">
                     <Crown className="w-3 h-3 mr-0.5" /> PRO
                   </Badge>
                 ) : (
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Free Plan</span>
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Free Plan</span>
                 )}
               </div>
               <div className="h-10 w-px bg-slate-800"></div>

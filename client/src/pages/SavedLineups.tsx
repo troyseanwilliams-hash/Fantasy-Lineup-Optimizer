@@ -153,7 +153,7 @@ export default function SavedLineups() {
         <div className="py-24 text-center bg-slate-800/20 rounded-3xl border-2 border-dashed border-slate-800/50">
           <Zap className="w-16 h-16 text-slate-700 mx-auto mb-6" />
           <h5 className="text-xl font-bold text-slate-300 mb-2" data-testid="no-lineups-message">No Saved Lineups</h5>
-          <p className="text-slate-500 max-w-sm mx-auto">Once you optimize a lineup, save it to your vault to track performance and export to DFS sites.</p>
+          <p className="text-slate-400 max-w-sm mx-auto">Once you optimize a lineup, save it to your vault to track performance and export to DFS sites.</p>
         </div>
       )}
     </div>
@@ -200,10 +200,10 @@ function LineupCard({
       >
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <Badge className={`${isFD ? "bg-blue-500/10 text-blue-400" : "bg-emerald-500/10 text-emerald-400"} border-0 text-[10px] font-black uppercase`}>
+            <Badge className={`${isFD ? "bg-blue-500/10 text-blue-400" : "bg-emerald-500/10 text-emerald-400"} border-0 text-[11px] font-black uppercase`}>
               {lineup.sport} {platformLabel}
             </Badge>
-            <span className="text-slate-500 text-xs font-medium">
+            <span className="text-slate-400 text-xs font-medium">
               {new Date(lineup.createdAt).toLocaleDateString()}
             </span>
           </div>
@@ -213,11 +213,11 @@ function LineupCard({
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-6">
             <div className="text-right">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Proj</p>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Proj</p>
               <p className="text-lg font-bold text-emerald-400" data-testid={`lineup-proj-${lineup.id}`}>{Number(lineup.totalProjectedPoints).toFixed(1)}</p>
             </div>
             <div className="text-right">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Salary</p>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Salary</p>
               <p className="text-lg font-bold text-white" data-testid={`lineup-salary-${lineup.id}`}>${lineup.totalSalary.toLocaleString()}</p>
             </div>
           </div>
@@ -266,7 +266,7 @@ function LineupCard({
               isUpdating={isUpdating}
             />
           ) : (
-            <p className="text-slate-500">Failed to load lineup details.</p>
+            <p className="text-slate-400">Failed to load lineup details.</p>
           )}
         </div>
       )}
@@ -305,7 +305,7 @@ function ExpandedRoster({
       <div className="overflow-x-auto">
         <table className="w-full" data-testid={`roster-table-${lineup.id}`}>
           <thead>
-            <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800">
+            <tr className="text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-800">
               <th className="text-left py-2 pr-4 w-16">Slot</th>
               <th className="text-left py-2 pr-4">Player</th>
               <th className="text-left py-2 pr-4 w-16">Pos</th>
@@ -393,8 +393,8 @@ function ExpandedRoster({
             <tr>
               <td colSpan={8} className="pt-1 pb-2">
                 <div className="flex items-center gap-2">
-                  <DollarSign className="w-3 h-3 text-slate-500" />
-                  <span className="text-xs text-slate-500">
+                  <DollarSign className="w-3 h-3 text-slate-400" />
+                  <span className="text-xs text-slate-400">
                     Remaining: ${(config.salaryCap - lineup.totalSalary).toLocaleString()} / ${config.salaryCap.toLocaleString()} cap
                   </span>
                 </div>
@@ -415,12 +415,12 @@ function ExpandedRoster({
             </Button>
           </div>
           {eligibleReplacements.length === 0 ? (
-            <p className="text-sm text-slate-500 py-4">No eligible replacements found within salary cap.</p>
+            <p className="text-sm text-slate-400 py-4">No eligible replacements found within salary cap.</p>
           ) : (
             <div className="max-h-64 overflow-y-auto rounded-lg border border-slate-800">
               <table className="w-full">
                 <thead className="sticky top-0 bg-slate-900/95">
-                  <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                  <tr className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
                     <th className="text-left py-2 px-3">Player</th>
                     <th className="text-left py-2 px-3">Pos</th>
                     <th className="text-left py-2 px-3">Team</th>

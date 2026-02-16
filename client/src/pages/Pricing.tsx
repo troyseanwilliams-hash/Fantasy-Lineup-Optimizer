@@ -33,13 +33,13 @@ export default function Pricing() {
         {/* Free Plan */}
         <Card className={`bg-slate-800/30 border-slate-800 p-8 relative ${currentTier === "free" ? "ring-2 ring-slate-600" : ""}`} data-testid="plan-free">
           {currentTier === "free" && (
-            <Badge className="absolute -top-3 left-6 bg-slate-700 text-slate-300 text-[10px] font-black">CURRENT PLAN</Badge>
+            <Badge className="absolute -top-3 left-6 bg-slate-700 text-slate-300 text-[11px] font-black">CURRENT PLAN</Badge>
           )}
           <div className="mb-6">
             <h3 className="text-2xl font-black text-white mb-2">Free</h3>
             <div className="flex items-baseline gap-1">
               <span className="text-4xl font-black text-white">$0</span>
-              <span className="text-slate-500 font-bold">/month</span>
+              <span className="text-slate-400 font-bold">/month</span>
             </div>
           </div>
           <ul className="space-y-3 mb-8">
@@ -59,12 +59,12 @@ export default function Pricing() {
               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
               <span>Lock & exclude players</span>
             </li>
-            <li className="flex items-center gap-3 text-sm text-slate-500">
-              <Lock className="w-4 h-4 text-slate-600 flex-shrink-0" />
+            <li className="flex items-center gap-3 text-sm text-slate-400">
+              <Lock className="w-4 h-4 text-slate-400 flex-shrink-0" />
               <span>No CSV export</span>
             </li>
-            <li className="flex items-center gap-3 text-sm text-slate-500">
-              <Lock className="w-4 h-4 text-slate-600 flex-shrink-0" />
+            <li className="flex items-center gap-3 text-sm text-slate-400">
+              <Lock className="w-4 h-4 text-slate-400 flex-shrink-0" />
               <span>No multi-lineup generation</span>
             </li>
           </ul>
@@ -82,9 +82,9 @@ export default function Pricing() {
         {/* Pro Plan */}
         <Card className={`bg-slate-800/30 border-amber-500/30 p-8 relative ${currentTier === "pro" ? "ring-2 ring-amber-500" : ""}`} data-testid="plan-pro">
           {currentTier === "pro" ? (
-            <Badge className="absolute -top-3 left-6 bg-amber-500 text-black text-[10px] font-black">CURRENT PLAN</Badge>
+            <Badge className="absolute -top-3 left-6 bg-amber-500 text-black text-[11px] font-black">CURRENT PLAN</Badge>
           ) : (
-            <Badge className="absolute -top-3 left-6 bg-amber-500/20 text-amber-400 border-amber-500/30 text-[10px] font-black">RECOMMENDED</Badge>
+            <Badge className="absolute -top-3 left-6 bg-amber-500/20 text-amber-400 border-amber-500/30 text-[11px] font-black">RECOMMENDED</Badge>
           )}
           <div className="mb-6">
             <h3 className="text-2xl font-black text-white mb-2 flex items-center gap-2">
@@ -92,7 +92,7 @@ export default function Pricing() {
             </h3>
             <div className="flex items-baseline gap-1">
               <span className="text-4xl font-black text-white">$9.99</span>
-              <span className="text-slate-500 font-bold">/month</span>
+              <span className="text-slate-400 font-bold">/month</span>
             </div>
           </div>
           <ul className="space-y-3 mb-8">
@@ -134,7 +134,7 @@ export default function Pricing() {
               >
                 <Crown className="w-4 h-4 mr-2" /> Coming Soon
               </Button>
-              <p className="text-[10px] text-slate-500 text-center mt-2">Payment integration coming soon</p>
+              <p className="text-[11px] text-slate-400 text-center mt-2">Payment integration coming soon</p>
             </>
           )}
         </Card>
