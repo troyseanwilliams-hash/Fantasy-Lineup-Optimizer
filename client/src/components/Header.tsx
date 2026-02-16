@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
@@ -11,11 +10,8 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
   DropdownMenuLabel,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
-import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, Users, LayoutGrid } from "lucide-react";
+import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 
@@ -93,45 +89,26 @@ export function Header() {
                           </DropdownMenuItem>
                         </Link>
 
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-builder`}>
-                            <Zap className="w-4 h-4 mr-2 text-emerald-400" />
-                            <span className="text-sm font-bold text-slate-300">Lineup Builder</span>
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuSubContent className="bg-slate-900 border-slate-800">
-                            {dkSlate && (
-                              <Link href={`/optimizer/${dkSlate.id}`}>
-                                <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-dk`}>
-                                  <div className="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center mr-2 shrink-0">
-                                    <span className="text-emerald-400 font-black text-[9px]">DK</span>
-                                  </div>
-                                  <div>
-                                    <p className="text-sm font-bold text-white">DraftKings</p>
-                                    <p className="text-[10px] text-slate-500">{dkSlate.name}</p>
-                                  </div>
-                                </DropdownMenuItem>
-                              </Link>
-                            )}
-                            {fdSlate && (
-                              <Link href={`/optimizer/${fdSlate.id}`}>
-                                <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-fd`}>
-                                  <div className="w-6 h-6 rounded bg-blue-500/20 flex items-center justify-center mr-2 shrink-0">
-                                    <span className="text-blue-400 font-black text-[9px]">FD</span>
-                                  </div>
-                                  <div>
-                                    <p className="text-sm font-bold text-white">FanDuel</p>
-                                    <p className="text-[10px] text-slate-500">{fdSlate.name}</p>
-                                  </div>
-                                </DropdownMenuItem>
-                              </Link>
-                            )}
-                            {!dkSlate && !fdSlate && (
-                              <DropdownMenuItem disabled className="opacity-50">
-                                <span className="text-sm text-slate-500">No slates available</span>
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuSubContent>
-                        </DropdownMenuSub>
+                        {dkSlate && (
+                          <Link href={`/optimizer/${dkSlate.id}`}>
+                            <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-dk`}>
+                              <div className="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center mr-2 shrink-0">
+                                <span className="text-emerald-400 font-black text-[9px]">DK</span>
+                              </div>
+                              <span className="text-sm font-bold text-slate-300">DraftKings Builder</span>
+                            </DropdownMenuItem>
+                          </Link>
+                        )}
+                        {fdSlate && (
+                          <Link href={`/optimizer/${fdSlate.id}`}>
+                            <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-fd`}>
+                              <div className="w-6 h-6 rounded bg-blue-500/20 flex items-center justify-center mr-2 shrink-0">
+                                <span className="text-blue-400 font-black text-[9px]">FD</span>
+                              </div>
+                              <span className="text-sm font-bold text-slate-300">FanDuel Builder</span>
+                            </DropdownMenuItem>
+                          </Link>
+                        )}
 
                         <Link href={`/props?sport=${sport}`}>
                           <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-props`}>
