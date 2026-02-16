@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Zap, Trophy, ChevronRight, Loader2, Calendar, Clock, Crown } from "lucide-react";
+import { Zap, Trophy, ChevronRight, Loader2, Calendar, Clock, Crown, TrendingUp } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -134,47 +134,72 @@ export default function Home() {
             {sportSlates.map(slate => {
               const isFD = slate.platform === "fanduel";
               return (
-                <Link key={slate.id} href={`/optimizer/${slate.id}`}>
-                  <Card className={`group cursor-pointer bg-slate-800/30 border-slate-800 p-6 transition-all duration-300 hover:shadow-xl ${isFD ? "hover:border-blue-500/40 hover:shadow-blue-500/5" : "hover:border-emerald-500/40 hover:shadow-emerald-500/5"}`} data-testid={`slate-card-${slate.id}`}>
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className={`inline-block text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${isFD ? "bg-blue-500/10 text-blue-400" : "bg-emerald-500/10 text-emerald-400"}`}>
-                            {slate.sport}
-                          </span>
-                          <Badge className={`text-[9px] font-black ${isFD ? "bg-blue-500/20 text-blue-400 border-blue-500/30" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"}`}>
-                            {isFD ? "FanDuel" : "DraftKings"}
-                          </Badge>
-                        </div>
-                        <h4 className={`text-xl font-bold text-white transition-colors ${isFD ? "group-hover:text-blue-400" : "group-hover:text-emerald-400"}`}>
-                          {slate.name}
-                        </h4>
+                <Card
+                  key={slate.id}
+                  className="group cursor-pointer bg-slate-800/30 border-slate-800 p-6 transition-all hover-elevate"
+                  data-testid={`slate-card-${slate.id}`}
+                  onClick={() => setLocation(`/optimizer/${slate.id}`)}
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`inline-block text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${isFD ? "bg-blue-500/10 text-blue-400" : "bg-emerald-500/10 text-emerald-400"}`}>
+                          {slate.sport}
+                        </span>
+                        <Badge className={`text-[9px] font-black ${isFD ? "bg-blue-500/20 text-blue-400 border-blue-500/30" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"}`}>
+                          {isFD ? "FanDuel" : "DraftKings"}
+                        </Badge>
                       </div>
-                      <ChevronRight className={`w-5 h-5 text-slate-600 group-hover:translate-x-1 transition-all ${isFD ? "group-hover:text-blue-400" : "group-hover:text-emerald-400"}`} />
+                      <h4 className="text-xl font-bold text-white">
+                        {slate.name}
+                      </h4>
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-slate-500">
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="w-4 h-4" />
-                        <span>{new Date(slate.startTime).toLocaleDateString()}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="w-4 h-4" />
-                        <span>{new Date(slate.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-600">
-                        {getSlateCapInfo(slate)}
-                      </span>
+                    <ChevronRight className="w-5 h-5 text-slate-600" />
+                  </div>
+                  <div className="flex items-center gap-4 text-sm text-slate-500">
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4" />
+                      <span>{new Date(slate.startTime).toLocaleDateString()}</span>
                     </div>
-                    <div className={`mt-4 pt-4 border-t border-slate-800 flex items-center text-sm font-bold ${isFD ? "text-blue-400" : "text-emerald-400"}`}>
-                      <Zap className="w-4 h-4 mr-2 fill-current" />
-                      Open Optimizer
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="w-4 h-4" />
+                      <span>{new Date(slate.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                     </div>
-                  </Card>
-                </Link>
+                    <span className="text-[10px] font-bold text-slate-600">
+                      {getSlateCapInfo(slate)}
+                    </span>
+                  </div>
+                  <div className={`mt-4 pt-4 border-t border-slate-800 flex items-center text-sm font-bold ${isFD ? "text-blue-400" : "text-emerald-400"}`}>
+                    <Zap className="w-4 h-4 mr-2 fill-current" />
+                    Open Optimizer
+                  </div>
+                </Card>
               );
             })}
           </div>
         )}
+      </div>
+
+      <div className="mt-10 pt-8 border-t border-slate-800">
+        <Link href="/props">
+          <Card
+            className="cursor-pointer bg-gradient-to-r from-emerald-900/20 to-slate-900/50 border-emerald-700/20 p-6 transition-all hover-elevate"
+            data-testid="prop-bets-cta"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                  <TrendingUp className="w-6 h-6 text-emerald-400" />
+                </div>
+                <div>
+                  <h4 className="text-lg font-black text-white mb-1">AI Prop Bets</h4>
+                  <p className="text-sm text-slate-400">Daily AI-generated player prop picks across all sports</p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-slate-600" />
+            </div>
+          </Card>
+        </Link>
       </div>
     </div>
   );
