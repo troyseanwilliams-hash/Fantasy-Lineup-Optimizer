@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, Crown, Zap, Lock } from "lucide-react";
+import { Check, Crown, Zap, Lock, Trophy, Sparkles } from "lucide-react";
 
 export default function Pricing() {
   const { user } = useAuth();
@@ -16,20 +16,20 @@ export default function Pricing() {
   const currentTier = subData?.tier || "free";
 
   return (
-    <div className="container mx-auto px-4 py-16 max-w-4xl">
+    <div className="container mx-auto px-4 py-16 max-w-6xl">
       <div className="text-center mb-16">
         <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 font-bold text-sm px-3 py-1 mb-6">
           <Crown className="w-4 h-4 mr-1" /> Pricing
         </Badge>
         <h1 className="text-5xl font-black text-white mb-4 tracking-tight">
-          Choose Your Plan
+          Choose Your Edge
         </h1>
         <p className="text-lg text-slate-400 max-w-xl mx-auto">
-          Start free with 1 lineup per sport. Upgrade to Pro for unlimited power.
+          Start free, then level up your DFS strategy with more lineups and powerful tools.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
         {/* Free Plan */}
         <Card className={`bg-slate-800/30 border-slate-800 p-8 relative ${currentTier === "free" ? "ring-2 ring-slate-600" : ""}`} data-testid="plan-free">
           {currentTier === "free" && (
@@ -41,11 +41,12 @@ export default function Pricing() {
               <span className="text-4xl font-black text-white">$0</span>
               <span className="text-slate-400 font-bold">/month</span>
             </div>
+            <p className="text-xs text-slate-500 mt-2">Get started with the basics</p>
           </div>
           <ul className="space-y-3 mb-8">
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <span>1 saved lineup per sport (4 total)</span>
+              <span>1 saved team per sport</span>
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
@@ -60,22 +61,89 @@ export default function Pricing() {
               <span>Lock & exclude players</span>
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-400">
-              <Lock className="w-4 h-4 text-slate-400 flex-shrink-0" />
+              <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
               <span>No CSV export</span>
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-400">
-              <Lock className="w-4 h-4 text-slate-400 flex-shrink-0" />
+              <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
               <span>No multi-lineup generation</span>
             </li>
+            <li className="flex items-center gap-3 text-sm text-slate-400">
+              <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
+              <span>No AI boost analysis</span>
+            </li>
           </ul>
-          {currentTier === "free" ? (
+          <Button variant="outline" className="w-full h-12 border-slate-700 text-slate-400 font-bold" disabled>
+            {currentTier === "free" ? "Current Plan" : "Included"}
+          </Button>
+        </Card>
+
+        {/* Competitive Plan */}
+        <Card className={`bg-slate-800/30 border-emerald-500/30 p-8 relative ${currentTier === "competitive" ? "ring-2 ring-emerald-500" : ""}`} data-testid="plan-competitive">
+          {currentTier === "competitive" ? (
+            <Badge className="absolute -top-3 left-6 bg-emerald-500 text-black text-[11px] font-black">CURRENT PLAN</Badge>
+          ) : currentTier === "free" ? (
+            <Badge className="absolute -top-3 left-6 bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[11px] font-black">POPULAR</Badge>
+          ) : null}
+          <div className="mb-6">
+            <h3 className="text-2xl font-black text-white mb-2 flex items-center gap-2">
+              Competitive <Trophy className="w-5 h-5 text-emerald-400" />
+            </h3>
+            <div className="flex items-baseline gap-1">
+              <span className="text-4xl font-black text-white">$9.99</span>
+              <span className="text-slate-400 font-bold">/month</span>
+            </div>
+            <p className="text-xs text-emerald-400/70 mt-2">For serious DFS players</p>
+          </div>
+          <ul className="space-y-3 mb-8">
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span className="font-bold">20 saved teams per sport</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>DraftKings & FanDuel support</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>LP-based optimization</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>Lock & exclude players</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span className="font-bold">CSV export to DK & FD</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span className="font-bold">Multi-lineup generation</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-400">
+              <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
+              <span>No AI boost analysis</span>
+            </li>
+          </ul>
+          {currentTier === "competitive" ? (
+            <Button className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-black font-black" disabled>
+              <Trophy className="w-4 h-4 mr-2" /> Active
+            </Button>
+          ) : currentTier === "pro" ? (
             <Button variant="outline" className="w-full h-12 border-slate-700 text-slate-400 font-bold" disabled>
-              Current Plan
+              Included in Pro
             </Button>
           ) : (
-            <Button variant="outline" className="w-full h-12 border-slate-700 text-slate-400 font-bold" disabled>
-              Included
-            </Button>
+            <>
+              <Button
+                className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-black font-black shadow-lg shadow-emerald-500/20"
+                data-testid="upgrade-competitive-btn"
+                disabled
+              >
+                <Trophy className="w-4 h-4 mr-2" /> Coming Soon
+              </Button>
+              <p className="text-[11px] text-slate-400 text-center mt-2">Payment integration coming soon</p>
+            </>
           )}
         </Card>
 
@@ -84,21 +152,22 @@ export default function Pricing() {
           {currentTier === "pro" ? (
             <Badge className="absolute -top-3 left-6 bg-amber-500 text-black text-[11px] font-black">CURRENT PLAN</Badge>
           ) : (
-            <Badge className="absolute -top-3 left-6 bg-amber-500/20 text-amber-400 border-amber-500/30 text-[11px] font-black">RECOMMENDED</Badge>
+            <Badge className="absolute -top-3 left-6 bg-amber-500/20 text-amber-400 border-amber-500/30 text-[11px] font-black">MAX EDGE</Badge>
           )}
           <div className="mb-6">
             <h3 className="text-2xl font-black text-white mb-2 flex items-center gap-2">
-              Pro <Crown className="w-5 h-5 text-amber-400" />
+              Pro <Sparkles className="w-5 h-5 text-amber-400" />
             </h3>
             <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-black text-white">$9.99</span>
+              <span className="text-4xl font-black text-white">$19.99</span>
               <span className="text-slate-400 font-bold">/month</span>
             </div>
+            <p className="text-xs text-amber-400/70 mt-2">Dominate every slate</p>
           </div>
           <ul className="space-y-3 mb-8">
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
-              <span className="font-bold">Up to 20 saved lineups</span>
+              <span className="font-bold">150 saved teams per sport</span>
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
@@ -114,11 +183,15 @@ export default function Pricing() {
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
-              <span className="font-bold">CSV lineup export</span>
+              <span className="font-bold">CSV export to DK & FD</span>
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
-              <span className="font-bold">Multi-lineup generation</span>
+              <span className="font-bold">Multi-lineup generation (up to 20)</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <span className="font-bold text-amber-300">AI boost analysis & injury tracking</span>
             </li>
           </ul>
           {currentTier === "pro" ? (

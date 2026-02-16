@@ -69,12 +69,13 @@ Preferred communication style: Simple, everyday language.
 - **Links**: Update placeholder URLs in `shared/affiliate-config.ts` with actual affiliate tracking links
 
 ### Subscription System
-- **Free tier**: 1 saved lineup per sport (4 total across NBA, NHL, MLB, NFL)
-- **Pro tier**: 20 saved lineups total, export functionality
-- **Per-sport limits**: Backend checks per-sport count for free users via `getLineupCountBySport()`, total count for pro users
-- **Subscription API**: `/api/subscription` returns `sportCounts` object with per-sport lineup counts
+- **Free tier**: 1 saved team per sport, no CSV export, no multi-lineup generation, no AI boost
+- **Competitive tier** ($9.99/mo): 20 saved teams per sport, CSV export, multi-lineup generation
+- **Pro tier** ($19.99/mo): 150 saved teams per sport, CSV export, multi-lineup generation, AI boost analysis & injury tracking
+- **Per-sport limits**: Backend checks per-sport count via `getLineupCountBySport()` with tier-based max (1/20/150)
+- **Subscription API**: `/api/subscription` returns `tier`, `sportCounts`, `maxLineupsPerSport`
 - **Payment**: Stripe integration not yet connected (marked "Coming Soon" on pricing page)
-- **TODO**: Set up Replit Stripe connector (connector:ccfg_stripe_01K611P4YQR0SZM11XFRQJC44Y) when ready to enable payments
+- **TODO**: Set up Replit Stripe connector when ready to enable payments
 
 ### Shared Code
 The `shared/` directory contains code used by both client and server:

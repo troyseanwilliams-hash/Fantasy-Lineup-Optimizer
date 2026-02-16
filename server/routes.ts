@@ -133,23 +133,19 @@ export async function registerRoutes(
 
       const sub = await storage.getSubscription(userId);
       const tier = sub?.tier || "free";
+      const maxPerSport = tier === "pro" ? 150 : tier === "competitive" ? 20 : 1;
 
-      if (tier === "pro") {
-        const totalCount = await storage.getLineupCount(userId);
-        if (totalCount >= 20) {
-          return res.status(403).json({ 
-            message: "You've reached the maximum of 20 saved lineups.",
-            requiresUpgrade: false
-          });
-        }
-      } else {
-        const sportCount = await storage.getLineupCountBySport(userId, input.sport);
-        if (sportCount >= 1) {
-          return res.status(403).json({ 
-            message: `Free plan allows 1 saved lineup per sport. Upgrade to Pro for up to 20 lineups.`,
-            requiresUpgrade: true
-          });
-        }
+      const sportCount = await storage.getLineupCountBySport(userId, input.sport);
+      if (sportCount >= maxPerSport) {
+        const upgradeMsg = tier === "free"
+          ? "Free plan allows 1 saved team per sport. Upgrade to Competitive for 20 teams or Pro for 150 teams per sport."
+          : tier === "competitive"
+          ? "Competitive plan allows 20 saved teams per sport. Upgrade to Pro for 150 teams per sport."
+          : "You've reached the maximum of 150 saved teams per sport.";
+        return res.status(403).json({ 
+          message: upgradeMsg,
+          requiresUpgrade: tier !== "pro"
+        });
       }
 
       const lineup = await storage.createLineup({ ...input, userId });
@@ -249,11 +245,14 @@ export async function registerRoutes(
       sportCounts[sport] = await storage.getLineupCountBySport(userId, sport);
     }
 
+    const maxLineupsPerSport = tier === "pro" ? 150 : tier === "competitive" ? 20 : 1;
+
     res.json({
       tier,
       status: sub?.status || "active",
       lineupCount,
-      maxLineups: tier === "pro" ? 20 : 4,
+      maxLineups: maxLineupsPerSport,
+      maxLineupsPerSport,
       sportCounts,
     });
   });
