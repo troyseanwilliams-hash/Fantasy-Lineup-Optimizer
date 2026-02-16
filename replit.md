@@ -25,7 +25,7 @@ Preferred communication style: Simple, everyday language.
 ### Key Pages
 - **Home** (`/`): Landing page for unauthenticated users, slate dashboard for authenticated users (shows main slates only with platform badges)
 - **Optimizer** (`/optimizer/:id`): Full-screen lineup builder with player table, lock/exclude controls, custom projections, LP optimization, platform-aware slot display
-- **Saved Lineups** (`/lineups`): "Vault" of previously saved optimized lineups
+- **Saved Lineups** (`/lineups`): "Vault" with expandable lineup cards, full roster table with slot assignments, inline player swap (position/salary-constrained), and CSV export (Pro only)
 - **Pricing** (`/pricing`): Subscription tiers (Free vs Pro) with feature comparison
 - **Prop Bets** (`/props`): AI-generated daily prop picks organized per sport, with DraftKings/FanDuel affiliate marketing links (DFS + Sportsbook)
 - **News** (`/news/:sport`): Live sport-specific player news from ESPN's public API, with sport tabs to switch between NBA/NHL/MLB

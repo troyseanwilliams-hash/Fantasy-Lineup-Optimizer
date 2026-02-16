@@ -5,7 +5,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import solver from "javascript-lp-solver";
-import { getPlatformConfig, ACTIVE_SPORTS, type Platform } from "@shared/platform-config";
+import { getPlatformConfig, ACTIVE_SPORTS, assignPlayersToSlots, type Platform } from "@shared/platform-config";
 
 import { type OptimizationConstraints, type Player, type Slate, type InsertProp } from "@shared/schema";
 import {
@@ -163,6 +163,69 @@ export async function registerRoutes(
     }
   });
   
+  app.get("/api/lineups/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const id = Number(req.params.id);
+    const lineup = await storage.getLineup(id);
+    if (!lineup) return res.sendStatus(404);
+    const userId = (req.user as any).claims.sub;
+    if (lineup.userId !== userId) return res.sendStatus(403);
+
+    const allPlayers = await storage.getPlayersBySlate(lineup.slateId);
+    const rosterPlayers = allPlayers.filter(p => lineup.playerIds.includes(p.id));
+    res.json({ ...lineup, players: rosterPlayers, allPlayers });
+  });
+
+  app.patch("/api/lineups/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const id = Number(req.params.id);
+    const lineup = await storage.getLineup(id);
+    if (!lineup) return res.sendStatus(404);
+    const userId = (req.user as any).claims.sub;
+    if (lineup.userId !== userId) return res.sendStatus(403);
+
+    const { playerIds } = req.body;
+    if (!Array.isArray(playerIds) || playerIds.length === 0) {
+      return res.status(400).json({ message: "playerIds array required" });
+    }
+
+    const allPlayers = await storage.getPlayersBySlate(lineup.slateId);
+    const rosterPlayers = allPlayers.filter(p => playerIds.includes(p.id));
+
+    if (rosterPlayers.length !== playerIds.length) {
+      return res.status(400).json({ message: "One or more player IDs are invalid for this slate" });
+    }
+
+    const slate = await storage.getSlate(lineup.slateId);
+    if (!slate) return res.status(400).json({ message: "Slate not found" });
+
+    const config = getPlatformConfig(slate.sport, lineup.platform as Platform);
+    if (rosterPlayers.length !== config.rosterSize) {
+      return res.status(400).json({ message: `Roster must have exactly ${config.rosterSize} players` });
+    }
+
+    const totalSalary = rosterPlayers.reduce((s, p) => s + p.salary, 0);
+    if (totalSalary > config.salaryCap) {
+      return res.status(400).json({ message: `Total salary $${totalSalary.toLocaleString()} exceeds cap of $${config.salaryCap.toLocaleString()}` });
+    }
+
+    const slotResult = assignPlayersToSlots(rosterPlayers, config.slots, slate.sport);
+    const unfilledSlots = config.slots.filter(s => !slotResult[s]);
+    if (unfilledSlots.length > 0) {
+      return res.status(400).json({ message: `Cannot fill all roster slots. Missing: ${unfilledSlots.map(s => s.replace(/\d+$/, "")).join(", ")}` });
+    }
+
+    const totalProjectedPoints = rosterPlayers.reduce((s, p) => s + Number(p.projectedPoints), 0);
+
+    const updated = await storage.updateLineup(id, {
+      playerIds,
+      totalSalary,
+      totalProjectedPoints: totalProjectedPoints.toFixed(1),
+    });
+
+    res.json({ ...updated, players: rosterPlayers });
+  });
+
   app.delete(api.lineups.delete.path, async (req, res) => {
       if (!req.isAuthenticated()) return res.sendStatus(401);
       const id = Number(req.params.id);
