@@ -338,12 +338,12 @@ export default function PropBets() {
         <div className="mt-4 mb-12 text-center bg-gradient-to-r from-amber-900/20 via-amber-800/10 to-amber-900/20 border border-amber-700/20 rounded-2xl p-8" data-testid="unlock-all-cta">
           <Crown className="w-10 h-10 text-amber-500/60 mx-auto mb-3" />
           <h3 className="text-xl font-black text-white mb-2">
-            {tier === "competitive" ? "Get 20 Picks Per Sport" : "Unlock More Daily Picks"}
+            {tier === "competitive" ? "Get Up to 15 Picks Per Sport" : "Unlock More Daily Picks"}
           </h3>
           <p className="text-slate-400 text-sm mb-5 max-w-md mx-auto">
             {tier === "competitive"
-              ? "Upgrade to Pro ($19.99/mo) for 20 AI-powered prop picks per sport with higher confidence ratings."
-              : "Upgrade your plan for more AI-powered prop picks across all sports. Competitive gets 8 per sport, Pro gets 20."}
+              ? "Upgrade to Pro ($19.99/mo) for up to 15 AI-powered prop picks per sport with higher confidence ratings."
+              : "Upgrade your plan for more AI-powered prop picks across all sports. Competitive gets up to 8, Pro gets up to 15."}
           </p>
           <Link href="/pricing">
             <Button data-testid="unlock-all-btn">
