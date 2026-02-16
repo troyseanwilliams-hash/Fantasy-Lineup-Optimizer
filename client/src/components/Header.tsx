@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
@@ -10,81 +11,19 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
   DropdownMenuLabel,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
-import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, Users } from "lucide-react";
+import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, Users, LayoutGrid } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 
-const SPORT_META: Record<string, { icon: typeof Dribbble; color: string }> = {
-  NBA: { icon: Dribbble, color: "text-orange-400" },
-  NHL: { icon: Activity, color: "text-cyan-400" },
-  MLB: { icon: Target, color: "text-red-400" },
+const SPORT_META: Record<string, { icon: typeof Dribbble; color: string; bgColor: string }> = {
+  NBA: { icon: Dribbble, color: "text-orange-400", bgColor: "bg-orange-500/20" },
+  NHL: { icon: Activity, color: "text-cyan-400", bgColor: "bg-cyan-500/20" },
+  MLB: { icon: Target, color: "text-red-400", bgColor: "bg-red-500/20" },
 };
-
-function SportMenu({ sport, slates, location }: { sport: string; slates: Slate[]; location: string }) {
-  const meta = SPORT_META[sport] || { icon: Dribbble, color: "text-slate-400" };
-  const Icon = meta.icon;
-  const sportSlates = slates.filter(s => s.sport === sport && s.isMain);
-  const dkSlate = sportSlates.find(s => s.platform === "draftkings");
-  const fdSlate = sportSlates.find(s => s.platform === "fanduel");
-  const isActive = sportSlates.some(s => location === `/optimizer/${s.id}`);
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          className={`flex items-center space-x-1.5 font-bold text-sm tracking-wide transition-colors cursor-pointer outline-none ${
-            isActive ? "text-[#10B981]" : "text-slate-400 hover:text-white"
-          }`}
-          data-testid={`sport-menu-${sport.toLowerCase()}`}
-        >
-          <Icon className="w-4 h-4" />
-          <span>{sport}</span>
-          <ChevronDown className="w-3 h-3 opacity-50" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56 bg-slate-900 border-slate-800">
-        <DropdownMenuLabel className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Lineup Builder</DropdownMenuLabel>
-        {dkSlate && (
-          <Link href={`/optimizer/${dkSlate.id}`}>
-            <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-dk`}>
-              <div className="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center mr-2 shrink-0">
-                <span className="text-emerald-400 font-black text-[9px]">DK</span>
-              </div>
-              <div>
-                <p className="text-sm font-bold text-white">DraftKings</p>
-                <p className="text-[10px] text-slate-500">{dkSlate.name}</p>
-              </div>
-            </DropdownMenuItem>
-          </Link>
-        )}
-        {fdSlate && (
-          <Link href={`/optimizer/${fdSlate.id}`}>
-            <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-fd`}>
-              <div className="w-6 h-6 rounded bg-blue-500/20 flex items-center justify-center mr-2 shrink-0">
-                <span className="text-blue-400 font-black text-[9px]">FD</span>
-              </div>
-              <div>
-                <p className="text-sm font-bold text-white">FanDuel</p>
-                <p className="text-[10px] text-slate-500">{fdSlate.name}</p>
-              </div>
-            </DropdownMenuItem>
-          </Link>
-        )}
-        <DropdownMenuSeparator className="bg-slate-800" />
-        <DropdownMenuLabel className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Coming Soon</DropdownMenuLabel>
-        <DropdownMenuItem className="cursor-default opacity-50" disabled>
-          <Newspaper className="w-4 h-4 mr-2 text-slate-500" />
-          <span className="text-sm text-slate-500">{sport} News</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem className="cursor-default opacity-50" disabled>
-          <Users className="w-4 h-4 mr-2 text-slate-500" />
-          <span className="text-sm text-slate-500">Player Updates</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
 
 export function Header() {
   const { user, logout } = useAuth();
@@ -118,11 +57,91 @@ export function Header() {
           </Link>
 
           <nav className="hidden lg:flex items-center space-x-6">
-            {user && ACTIVE_SPORTS.map(sport => (
-              <SportMenu key={sport} sport={sport} slates={mainSlates} location={location} />
-            ))}
+            {user && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer outline-none text-slate-400 hover:text-white"
+                    data-testid="sport-selector"
+                  >
+                    <LayoutGrid className="w-4 h-4" />
+                    <span>Sports</span>
+                    <ChevronDown className="w-3 h-3 opacity-50" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-64 bg-slate-900 border-slate-800">
+                  {ACTIVE_SPORTS.map((sport, idx) => {
+                    const meta = SPORT_META[sport] || { icon: Dribbble, color: "text-slate-400", bgColor: "bg-slate-500/20" };
+                    const Icon = meta.icon;
+                    const dkSlate = mainSlates.find(s => s.sport === sport && s.platform === "draftkings");
+                    const fdSlate = mainSlates.find(s => s.sport === sport && s.platform === "fanduel");
 
-            <div className="w-px h-5 bg-slate-800" />
+                    return (
+                      <div key={sport}>
+                        {idx > 0 && <DropdownMenuSeparator className="bg-slate-800" />}
+                        <DropdownMenuLabel className="flex items-center gap-2 py-2">
+                          <div className={`w-6 h-6 rounded flex items-center justify-center ${meta.bgColor}`}>
+                            <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
+                          </div>
+                          <span className="text-xs font-black text-white uppercase tracking-wider">{sport}</span>
+                        </DropdownMenuLabel>
+
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-builder`}>
+                            <Zap className="w-4 h-4 mr-2 text-emerald-400" />
+                            <span className="text-sm font-bold text-slate-300">Lineup Builder</span>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent className="bg-slate-900 border-slate-800">
+                            {dkSlate && (
+                              <Link href={`/optimizer/${dkSlate.id}`}>
+                                <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-dk`}>
+                                  <div className="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center mr-2 shrink-0">
+                                    <span className="text-emerald-400 font-black text-[9px]">DK</span>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-bold text-white">DraftKings</p>
+                                    <p className="text-[10px] text-slate-500">{dkSlate.name}</p>
+                                  </div>
+                                </DropdownMenuItem>
+                              </Link>
+                            )}
+                            {fdSlate && (
+                              <Link href={`/optimizer/${fdSlate.id}`}>
+                                <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-fd`}>
+                                  <div className="w-6 h-6 rounded bg-blue-500/20 flex items-center justify-center mr-2 shrink-0">
+                                    <span className="text-blue-400 font-black text-[9px]">FD</span>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-bold text-white">FanDuel</p>
+                                    <p className="text-[10px] text-slate-500">{fdSlate.name}</p>
+                                  </div>
+                                </DropdownMenuItem>
+                              </Link>
+                            )}
+                            {!dkSlate && !fdSlate && (
+                              <DropdownMenuItem disabled className="opacity-50">
+                                <span className="text-sm text-slate-500">No slates available</span>
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+
+                        <DropdownMenuItem className="cursor-default opacity-50" disabled>
+                          <Newspaper className="w-4 h-4 mr-2 text-slate-600" />
+                          <span className="text-sm text-slate-500">News</span>
+                          <span className="ml-auto text-[9px] text-slate-600 font-bold">SOON</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="cursor-default opacity-50" disabled>
+                          <Users className="w-4 h-4 mr-2 text-slate-600" />
+                          <span className="text-sm text-slate-500">Player Updates</span>
+                          <span className="ml-auto text-[9px] text-slate-600 font-bold">SOON</span>
+                        </DropdownMenuItem>
+                      </div>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
 
             <Link href="/props">
               <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
