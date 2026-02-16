@@ -31,6 +31,10 @@ export const players = pgTable("players", {
   projectedPoints: numeric("projected_points").notNull(),
   opponent: text("opponent"),
   gameInfo: text("game_info"),
+  injuryStatus: text("injury_status"),
+  injuryDetail: text("injury_detail"),
+  boostScore: numeric("boost_score"),
+  boostReason: text("boost_reason"),
 });
 
 export const insertPlayerSchema = createInsertSchema(players).omit({ id: true });
@@ -93,6 +97,26 @@ export const insertPropSchema = createInsertSchema(props).omit({ id: true });
 export type Prop = typeof props.$inferSelect;
 export type InsertProp = z.infer<typeof insertPropSchema>;
 
+// --- ALERTS ---
+export const alerts = pgTable("alerts", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  lineupId: integer("lineup_id").references(() => lineups.id),
+  playerId: integer("player_id").references(() => players.id),
+  playerName: text("player_name").notNull(),
+  sport: text("sport").notNull(),
+  type: text("type").notNull().default("injury"),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  severity: text("severity").notNull().default("info"),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAlertSchema = createInsertSchema(alerts).omit({ id: true, createdAt: true });
+export type Alert = typeof alerts.$inferSelect;
+export type InsertAlert = z.infer<typeof insertAlertSchema>;
+
 // --- OPTIMIZATION TYPES ---
 export const optimizationConstraintSchema = z.object({
   slateId: z.number(),
@@ -115,3 +139,29 @@ export const optimizeResponseSchema = z.object({
 });
 
 export type OptimizeResponse = z.infer<typeof optimizeResponseSchema>;
+
+export const proOptimizationConstraintSchema = optimizationConstraintSchema.extend({
+  lineupCount: z.number().min(1).max(20).default(1),
+  useBoosts: z.boolean().default(true),
+  useInjuryAdjustments: z.boolean().default(true),
+});
+
+export type ProOptimizationConstraints = z.infer<typeof proOptimizationConstraintSchema>;
+
+export const proOptimizeResponseSchema = z.object({
+  lineups: z.array(optimizeResponseSchema),
+  boostsSummary: z.array(z.object({
+    playerId: z.number(),
+    playerName: z.string(),
+    boostScore: z.number(),
+    boostReason: z.string(),
+  })).optional(),
+  injurySummary: z.array(z.object({
+    playerId: z.number(),
+    playerName: z.string(),
+    status: z.string(),
+    detail: z.string(),
+  })).optional(),
+});
+
+export type ProOptimizeResponse = z.infer<typeof proOptimizeResponseSchema>;

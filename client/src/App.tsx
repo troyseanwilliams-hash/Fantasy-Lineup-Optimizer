@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 
 import Home from "@/pages/Home";
 import Optimizer from "@/pages/Optimizer";
+import ProOptimizer from "@/pages/ProOptimizer";
 import SavedLineups from "@/pages/SavedLineups";
 import PropBets from "@/pages/PropBets";
 import Admin from "@/pages/Admin";
@@ -20,7 +21,7 @@ import { Footer } from "@/components/Footer";
 function Router() {
   const { user, isLoading } = useAuth();
   const [location] = useLocation();
-  const isOptimizer = location.startsWith("/optimizer");
+  const isOptimizer = location.startsWith("/optimizer") || location.startsWith("/pro-optimizer");
 
   if (isLoading) {
     return (
@@ -37,6 +38,7 @@ function Router() {
         <Switch>
           <Route path="/" component={Home} />
           <Route path="/optimizer/:id" component={Optimizer} />
+          <Route path="/pro-optimizer/:id" component={ProOptimizer} />
           <Route path="/lineups" component={SavedLineups} />
           <Route path="/props" component={PropBets} />
           <Route path="/news/:sport" component={News} />

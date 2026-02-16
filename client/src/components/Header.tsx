@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -11,9 +12,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid } from "lucide-react";
+import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
+
+interface AlertItem {
+  id: number;
+  title: string;
+  message: string;
+  severity: string;
+  sport: string;
+  type: string;
+  isRead: boolean;
+  createdAt: string;
+}
 
 const SPORT_META: Record<string, { icon: typeof Dribbble; color: string; bgColor: string }> = {
   NBA: { icon: Dribbble, color: "text-orange-400", bgColor: "bg-orange-500/20" },
@@ -35,7 +47,31 @@ export function Header() {
     enabled: !!user,
   });
 
+  const { data: alertsData } = useQuery<{ alerts: AlertItem[]; unreadCount: number }>({
+    queryKey: ["/api/alerts"],
+    enabled: !!user,
+    refetchInterval: 60000,
+  });
+
+  const markAllReadMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/alerts/read-all");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/alerts"] });
+    },
+  });
+
   const mainSlates = slates?.filter(s => s.isMain) || [];
+  const isPro = subData?.tier === "pro";
+  const unreadCount = alertsData?.unreadCount || 0;
+  const recentAlerts = alertsData?.alerts?.slice(0, 8) || [];
+
+  const severityIcon = (severity: string) => {
+    if (severity === "critical") return <XCircle className="w-4 h-4 text-red-400 shrink-0" />;
+    if (severity === "warning") return <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />;
+    return <Info className="w-4 h-4 text-blue-400 shrink-0" />;
+  };
 
   return (
     <header className="bg-[#0F172A] border-b border-slate-800 sticky top-0 z-50">
@@ -65,7 +101,7 @@ export function Header() {
                     <ChevronDown className="w-3 h-3 opacity-50" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-64 bg-slate-900 border-slate-800">
+                <DropdownMenuContent align="start" className="w-72 bg-slate-900 border-slate-800">
                   {ACTIVE_SPORTS.map((sport, idx) => {
                     const meta = SPORT_META[sport] || { icon: Dribbble, color: "text-slate-400", bgColor: "bg-slate-500/20" };
                     const Icon = meta.icon;
@@ -124,6 +160,50 @@ export function Header() {
                           </DropdownMenuItem>
                         )}
 
+                        {isPro && dkSlate ? (
+                          <Link href={`/pro-optimizer/${dkSlate.id}`}>
+                            <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-pro-dk`}>
+                              <div className="w-6 h-6 rounded bg-amber-500/20 flex items-center justify-center mr-2 shrink-0">
+                                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                              </div>
+                              <span className="text-sm font-bold text-amber-300">{sport} Pro DK</span>
+                              <Crown className="w-3.5 h-3.5 text-amber-400 ml-auto" />
+                            </DropdownMenuItem>
+                          </Link>
+                        ) : (
+                          <Link href="/pricing">
+                            <DropdownMenuItem className={`cursor-pointer ${isPro ? "opacity-50" : ""}`} data-testid={`sport-menu-${sport.toLowerCase()}-pro-dk`}>
+                              <div className="w-6 h-6 rounded bg-amber-500/10 flex items-center justify-center mr-2 shrink-0">
+                                <Lock className="w-3 h-3 text-amber-500/50" />
+                              </div>
+                              <span className="text-sm font-bold text-slate-500">{sport} Pro DK</span>
+                              <Crown className="w-3.5 h-3.5 text-amber-500/40 ml-auto" />
+                            </DropdownMenuItem>
+                          </Link>
+                        )}
+
+                        {isPro && fdSlate ? (
+                          <Link href={`/pro-optimizer/${fdSlate.id}`}>
+                            <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-pro-fd`}>
+                              <div className="w-6 h-6 rounded bg-amber-500/20 flex items-center justify-center mr-2 shrink-0">
+                                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                              </div>
+                              <span className="text-sm font-bold text-amber-300">{sport} Pro FD</span>
+                              <Crown className="w-3.5 h-3.5 text-amber-400 ml-auto" />
+                            </DropdownMenuItem>
+                          </Link>
+                        ) : (
+                          <Link href="/pricing">
+                            <DropdownMenuItem className={`cursor-pointer ${isPro ? "opacity-50" : ""}`} data-testid={`sport-menu-${sport.toLowerCase()}-pro-fd`}>
+                              <div className="w-6 h-6 rounded bg-amber-500/10 flex items-center justify-center mr-2 shrink-0">
+                                <Lock className="w-3 h-3 text-amber-500/50" />
+                              </div>
+                              <span className="text-sm font-bold text-slate-500">{sport} Pro FD</span>
+                              <Crown className="w-3.5 h-3.5 text-amber-500/40 ml-auto" />
+                            </DropdownMenuItem>
+                          </Link>
+                        )}
+
                         <Link href={`/props?sport=${sport}`}>
                           <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-props`}>
                             <TrendingUp className="w-4 h-4 mr-2 text-purple-400" />
@@ -175,9 +255,66 @@ export function Header() {
         <div className="flex items-center space-x-6">
           {user ? (
             <div className="flex items-center space-x-4">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="relative p-2 rounded-lg hover:bg-slate-800 transition-colors" data-testid="alerts-bell">
+                    <Bell className="w-5 h-5 text-slate-400" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-[11px] font-black text-white" data-testid="alerts-badge">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-80 bg-slate-900 border-slate-800 max-h-96 overflow-y-auto">
+                  <DropdownMenuLabel className="flex items-center justify-between">
+                    <span className="text-xs font-black text-white uppercase tracking-wider">Alerts</span>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={() => markAllReadMutation.mutate()}
+                        className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 cursor-pointer"
+                        data-testid="mark-all-read"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-slate-800" />
+                  {recentAlerts.length === 0 ? (
+                    <div className="py-6 text-center">
+                      <Bell className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                      <p className="text-sm text-slate-400">No alerts yet</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Injury updates for your lineups will appear here</p>
+                    </div>
+                  ) : (
+                    recentAlerts.map(alert => (
+                      <div
+                        key={alert.id}
+                        className={`px-3 py-2.5 border-b border-slate-800/50 ${alert.isRead ? "opacity-60" : ""}`}
+                        data-testid={`alert-item-${alert.id}`}
+                      >
+                        <div className="flex items-start gap-2">
+                          {severityIcon(alert.severity)}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-white truncate">{alert.title}</p>
+                            <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">{alert.message}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge className="text-[11px] font-bold bg-slate-800 text-slate-400 border-slate-700 px-1.5 py-0">{alert.sport}</Badge>
+                              {!alert.isRead && (
+                                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               <div className="hidden md:flex flex-col items-end">
                 <span className="text-sm font-bold text-white">{user.firstName || user.email?.split('@')[0]}</span>
-                {subData?.tier === "pro" ? (
+                {isPro ? (
                   <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[11px] font-black px-1.5 py-0">
                     <Crown className="w-3 h-3 mr-0.5" /> PRO
                   </Badge>
