@@ -42,7 +42,7 @@ export default function SavedLineups() {
   });
 
   const tier = subscription?.tier || "free";
-  const isPaid = tier === "pro" || tier === "competitive";
+  const isPaid = tier === "pro" || tier === "star";
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -94,7 +94,7 @@ export default function SavedLineups() {
 
   function handleExportCSV(lineup: LineupWithPlayers) {
     if (!isPaid) {
-      toast({ title: "Paid Feature", description: "Upgrade to Competitive or Pro to export lineups.", variant: "destructive" });
+      toast({ title: "Paid Feature", description: "Upgrade to Star or Pro to export lineups.", variant: "destructive" });
       return;
     }
     const csv = buildLineupCSV(lineup);
@@ -110,7 +110,7 @@ export default function SavedLineups() {
 
   async function handleBulkExport() {
     if (!isPaid) {
-      toast({ title: "Paid Feature", description: "Upgrade to Competitive or Pro to export lineups.", variant: "destructive" });
+      toast({ title: "Paid Feature", description: "Upgrade to Star or Pro to export lineups.", variant: "destructive" });
       return;
     }
     if (selectedIds.size === 0) {

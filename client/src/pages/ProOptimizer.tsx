@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useRoute, useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -46,8 +46,8 @@ export default function ProOptimizer() {
   const [sortKey, setSortKey] = useState<SortKey>("projectedPoints");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [lineupCount, setLineupCount] = useState(5);
-  const [useBoosts, setUseBoosts] = useState(true);
-  const [useInjuryAdjustments, setUseInjuryAdjustments] = useState(true);
+  const [useBoosts, setUseBoosts] = useState(false);
+  const [useInjuryAdjustments, setUseInjuryAdjustments] = useState(false);
 
   const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"] });
   const slate = useMemo(() => slates?.find(s => s.id === slateId), [slates, slateId]);
@@ -76,6 +76,16 @@ export default function ProOptimizer() {
   });
 
   const isPro = subData?.tier === "pro" || subData?.tier === "premium";
+  const isStar = subData?.tier === "star";
+  const hasPaidAccess = isPro || isStar;
+  const maxLineupSlider = isPro ? 20 : 5;
+
+  useEffect(() => {
+    if (isPro) {
+      setUseBoosts(true);
+      setUseInjuryAdjustments(true);
+    }
+  }, [isPro]);
 
   const optimizeMutation = useMutation<ProOptimizeResponse, Error, any>({
     mutationFn: async (constraints) => {
@@ -260,21 +270,21 @@ export default function ProOptimizer() {
     </th>
   );
 
-  if (!isPro && !isLoading) {
+  if (!hasPaidAccess && !isLoading) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center px-4">
         <Card className="max-w-md w-full p-8 bg-slate-900 border-amber-500/30 text-center">
           <div className="mx-auto w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mb-6">
             <Crown className="w-8 h-8 text-amber-400" />
           </div>
-          <h2 className="text-2xl font-black text-white mb-3" data-testid="text-pro-locked-title">Optimizer Pro</h2>
+          <h2 className="text-2xl font-black text-white mb-3" data-testid="text-pro-locked-title">Advanced Optimizer</h2>
           <p className="text-slate-400 mb-6 text-sm" data-testid="text-pro-locked-desc">
-            Unlock Optimizer Pro to generate up to 20 unique lineups at once with AI-powered boosts and injury adjustments.
+            Unlock the advanced optimizer to generate multiple unique lineups at once. Star gets up to 5 lineups, Pro gets up to 20 with AI boosts and injury adjustments.
           </p>
           <Link href="/pricing">
             <Button className="bg-amber-500 text-black font-black w-full" data-testid="button-upgrade-pro">
               <Crown className="w-4 h-4 mr-2" />
-              Upgrade to Pro
+              View Plans
             </Button>
           </Link>
         </Card>
@@ -322,14 +332,18 @@ export default function ProOptimizer() {
 
           <div className="h-4 w-px bg-slate-700 flex-shrink-0" />
 
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <label className="text-[10px] font-black text-slate-400 uppercase">Boosts</label>
-            <Switch checked={useBoosts} onCheckedChange={setUseBoosts} data-testid="toggle-boosts" className="scale-90" />
-          </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <label className="text-[10px] font-black text-slate-400 uppercase">Injuries</label>
-            <Switch checked={useInjuryAdjustments} onCheckedChange={setUseInjuryAdjustments} data-testid="toggle-injuries" className="scale-90" />
-          </div>
+          {isPro && (
+            <>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <label className="text-[10px] font-black text-slate-400 uppercase">Boosts</label>
+                <Switch checked={useBoosts} onCheckedChange={setUseBoosts} data-testid="toggle-boosts" className="scale-90" />
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <label className="text-[10px] font-black text-slate-400 uppercase">Injuries</label>
+                <Switch checked={useInjuryAdjustments} onCheckedChange={setUseInjuryAdjustments} data-testid="toggle-injuries" className="scale-90" />
+              </div>
+            </>
+          )}
 
           <div className="h-4 w-px bg-slate-700 flex-shrink-0" />
 
@@ -337,9 +351,9 @@ export default function ProOptimizer() {
             <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Qty</span>
             <Slider
               value={[lineupCount]}
-              onValueChange={(v) => setLineupCount(v[0])}
+              onValueChange={(v) => setLineupCount(Math.min(v[0], maxLineupSlider))}
               min={1}
-              max={20}
+              max={maxLineupSlider}
               step={1}
               className="w-20"
               data-testid="slider-lineup-count"

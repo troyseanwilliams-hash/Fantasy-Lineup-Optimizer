@@ -64,7 +64,8 @@ export function Header() {
 
   const mainSlates = slates?.filter(s => s.isMain) || [];
   const isPro = subData?.tier === "pro";
-  const isPaid = subData?.tier === "pro" || subData?.tier === "competitive";
+  const isStar = subData?.tier === "star";
+  const isPaid = isPro || isStar;
   const unreadCount = alertsData?.unreadCount || 0;
   const recentAlerts = alertsData?.alerts?.slice(0, 8) || [];
 
@@ -142,6 +143,28 @@ export function Header() {
                             <span className="text-sm font-bold text-slate-300">{sport} DK Builder</span>
                           </DropdownMenuItem>
                         )}
+                        {isStar && dkSlate ? (
+                          <Link href={`/optimizer-pro/${dkSlate.id}`}>
+                            <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-star-dk`}>
+                              <div className="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center mr-2 shrink-0">
+                                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                              </div>
+                              <span className="text-sm font-bold text-emerald-300">{sport} Star DK</span>
+                              <Trophy className="w-3.5 h-3.5 text-emerald-400 ml-auto" />
+                            </DropdownMenuItem>
+                          </Link>
+                        ) : !isPaid ? (
+                          <Link href="/pricing">
+                            <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-star-dk`}>
+                              <div className="w-6 h-6 rounded bg-emerald-500/10 flex items-center justify-center mr-2 shrink-0">
+                                <Lock className="w-3 h-3 text-emerald-500/50" />
+                              </div>
+                              <span className="text-sm font-bold text-slate-500">{sport} Star DK</span>
+                              <Trophy className="w-3.5 h-3.5 text-emerald-500/40 ml-auto" />
+                            </DropdownMenuItem>
+                          </Link>
+                        ) : null}
+
                         {isPro && dkSlate ? (
                           <Link href={`/optimizer-pro/${dkSlate.id}`}>
                             <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-pro-dk`}>
@@ -152,9 +175,9 @@ export function Header() {
                               <Crown className="w-3.5 h-3.5 text-amber-400 ml-auto" />
                             </DropdownMenuItem>
                           </Link>
-                        ) : (
+                        ) : !isStar ? (
                           <Link href="/pricing">
-                            <DropdownMenuItem className={`cursor-pointer ${isPro ? "opacity-50" : ""}`} data-testid={`sport-menu-${sport.toLowerCase()}-pro-dk`}>
+                            <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-pro-dk`}>
                               <div className="w-6 h-6 rounded bg-amber-500/10 flex items-center justify-center mr-2 shrink-0">
                                 <Lock className="w-3 h-3 text-amber-500/50" />
                               </div>
@@ -162,7 +185,7 @@ export function Header() {
                               <Crown className="w-3.5 h-3.5 text-amber-500/40 ml-auto" />
                             </DropdownMenuItem>
                           </Link>
-                        )}
+                        ) : null}
 
                         <Link href={`/props?sport=${sport}`}>
                           <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-props`}>
@@ -285,9 +308,9 @@ export function Header() {
                         <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[11px] font-black px-1.5 py-0">
                           <Crown className="w-3 h-3 mr-0.5" /> PRO
                         </Badge>
-                      ) : subData?.tier === "competitive" ? (
+                      ) : subData?.tier === "star" ? (
                         <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[11px] font-black px-1.5 py-0">
-                          <Trophy className="w-3 h-3 mr-0.5" /> COMPETITIVE
+                          <Trophy className="w-3 h-3 mr-0.5" /> STAR
                         </Badge>
                       ) : (
                         <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Free Plan</span>
@@ -307,7 +330,7 @@ export function Header() {
                       </DropdownMenuItem>
                     </Link>
                   )}
-                  {subData?.tier === "competitive" && (
+                  {subData?.tier === "star" && (
                     <Link href="/pricing">
                       <DropdownMenuItem className="cursor-pointer" data-testid="menu-upgrade">
                         <Crown className="w-4 h-4 mr-2 text-amber-400" />

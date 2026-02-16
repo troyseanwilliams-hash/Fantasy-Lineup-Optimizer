@@ -744,7 +744,7 @@ export default function Optimizer() {
           {currentLineup?.lineup && (
             <>
               {(() => {
-                const maxPerSport = subData?.tier === "pro" ? 150 : subData?.tier === "competitive" ? 20 : 1;
+                const maxPerSport = subData?.tier === "pro" ? 150 : subData?.tier === "star" ? 20 : 1;
                 const sportCount = subData?.sportCounts?.[sport] || 0;
                 const atLimit = sportCount >= maxPerSport;
                 if (atLimit) {
@@ -756,9 +756,9 @@ export default function Optimizer() {
                       </div>
                       <p className="text-xs text-slate-300 leading-relaxed">
                         {subData?.tier === "free" ? (
-                          <>Free accounts can save 1 team per sport. Upgrade to <span className="font-black text-emerald-400">Competitive ($9.99/mo)</span> for 20 teams or <span className="font-black text-amber-400">Pro ($19.99/mo)</span> for 150 teams per sport, plus CSV export to DraftKings & FanDuel.</>
-                        ) : subData?.tier === "competitive" ? (
-                          <>Competitive accounts can save 20 teams per sport. Upgrade to <span className="font-black text-amber-400">Pro ($19.99/mo)</span> for 150 teams per sport with AI boost analysis.</>
+                          <>Free accounts can save 1 team per sport. Upgrade to <span className="font-black text-emerald-400">Star ($9.99/mo)</span> for 20 teams or <span className="font-black text-amber-400">Pro ($19.99/mo)</span> for 150 teams per sport, plus CSV export to DraftKings.</>
+                        ) : subData?.tier === "star" ? (
+                          <>Star accounts can save 20 teams per sport. Upgrade to <span className="font-black text-amber-400">Pro ($19.99/mo)</span> for 150 teams per sport with AI boost analysis.</>
                         ) : (
                           <>You've reached the maximum of 150 saved teams for {sport}.</>
                         )}

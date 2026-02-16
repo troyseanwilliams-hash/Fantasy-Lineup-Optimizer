@@ -183,8 +183,8 @@ function PropCard({ prop, index }: { prop: PropBet; index: number }) {
 }
 
 function LockedPropCard({ index, sport, tier }: { index: number; sport: string; tier: string }) {
-  const upgradeLabel = tier === "competitive" ? "Pro Pick" : "Premium Pick";
-  const upgradeText = tier === "competitive" ? "Upgrade to Pro" : "Upgrade Plan";
+  const upgradeLabel = tier === "star" ? "Pro Pick" : "Premium Pick";
+  const upgradeText = tier === "star" ? "Upgrade to Pro" : "Upgrade Plan";
   return (
     <Card
       className="bg-slate-800/20 border-slate-800/50 p-5 relative overflow-hidden"
@@ -242,7 +242,7 @@ export default function PropBets() {
 
   const tier = data?.tier || "free";
   const isPro = tier === "pro";
-  const isPaid = tier === "pro" || tier === "competitive";
+  const isPaid = tier === "pro" || tier === "star";
 
   const propsBySport: Record<string, PropBet[]> = {};
   if (data?.props) {
@@ -289,7 +289,7 @@ export default function PropBets() {
         {!isPro && (
           <Link href="/pricing">
             <Button data-testid="upgrade-props-btn">
-              <Crown className="w-4 h-4 mr-2" /> {tier === "competitive" ? "Upgrade to Pro" : "Unlock More Picks"}
+              <Crown className="w-4 h-4 mr-2" /> {tier === "star" ? "Upgrade to Pro" : "Unlock More Picks"}
             </Button>
           </Link>
         )}
@@ -338,16 +338,16 @@ export default function PropBets() {
         <div className="mt-4 mb-12 text-center bg-gradient-to-r from-amber-900/20 via-amber-800/10 to-amber-900/20 border border-amber-700/20 rounded-2xl p-8" data-testid="unlock-all-cta">
           <Crown className="w-10 h-10 text-amber-500/60 mx-auto mb-3" />
           <h3 className="text-xl font-black text-white mb-2">
-            {tier === "competitive" ? "Get Up to 15 Picks Per Sport" : "Unlock More Daily Picks"}
+            {tier === "star" ? "Get Up to 15 Picks Per Sport" : "Unlock More Daily Picks"}
           </h3>
           <p className="text-slate-400 text-sm mb-5 max-w-md mx-auto">
-            {tier === "competitive"
+            {tier === "star"
               ? "Upgrade to Pro ($19.99/mo) for up to 15 AI-powered prop picks per sport with higher confidence ratings."
-              : "Upgrade your plan for more AI-powered prop picks across all sports. Competitive gets up to 8, Pro gets up to 15."}
+              : "Upgrade your plan for more AI-powered prop picks across all sports. Star gets up to 8, Pro gets up to 15."}
           </p>
           <Link href="/pricing">
             <Button data-testid="unlock-all-btn">
-              <Crown className="w-4 h-4 mr-2" /> {tier === "competitive" ? "Upgrade to Pro" : "View Plans"}
+              <Crown className="w-4 h-4 mr-2" /> {tier === "star" ? "Upgrade to Pro" : "View Plans"}
             </Button>
           </Link>
         </div>
