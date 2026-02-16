@@ -27,6 +27,7 @@ Preferred communication style: Simple, everyday language.
 - **Optimizer** (`/optimizer/:id`): Full-screen lineup builder with player table, lock/exclude controls, custom projections, LP optimization, platform-aware slot display
 - **Saved Lineups** (`/lineups`): "Vault" of previously saved optimized lineups
 - **Pricing** (`/pricing`): Subscription tiers (Free vs Pro) with feature comparison
+- **Prop Bets** (`/props`): AI-generated daily prop picks organized per sport, with DraftKings/FanDuel affiliate marketing links (DFS + Sportsbook)
 - **Admin** (`/admin`): Slate creation, player bulk upload (JSON), and database seeding
 
 ### Backend
@@ -59,6 +60,12 @@ Preferred communication style: Simple, everyday language.
 4. **players** - Player pool per slate (name, team, position, salary, fppg, projected points, opponent, game info)
 5. **lineups** - Saved optimized lineups per user (player IDs array, total salary, total projected points, platform)
 6. **subscriptions** - User subscription tiers (userId, tier: free/pro, status, stripeCustomerId, stripeSubscriptionId)
+7. **props** - Daily AI-generated prop bets (sport, playerName, team, opponent, propType, line, pick, confidence, isLocked, createdDate)
+
+### Affiliate Marketing
+- **Config**: `shared/affiliate-config.ts` contains placeholder affiliate URLs for DraftKings and FanDuel (DFS + Sportsbook)
+- **Display**: Affiliate banners shown on Prop Bets page per sport section (sportsbook) and at page top (DFS)
+- **Links**: Update placeholder URLs in `shared/affiliate-config.ts` with actual affiliate tracking links
 
 ### Subscription System
 - **Free tier**: 1 saved lineup per sport (4 total across NBA, NHL, MLB, NFL)
@@ -73,6 +80,7 @@ The `shared/` directory contains code used by both client and server:
 - `schema.ts` - Drizzle table definitions and Zod schemas
 - `platform-config.ts` - Platform-specific roster configurations (DK/FD)
 - `routes.ts` - API route definitions with paths, methods, input/output schemas, and a `buildUrl` helper
+- `affiliate-config.ts` - DraftKings/FanDuel affiliate URLs and sport-specific promo text
 - `seed_data.ts` - Sample NBA player/slate data for both DK and FD platforms
 - `models/auth.ts` - Auth-related table definitions
 

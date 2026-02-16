@@ -1,13 +1,12 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "@/hooks/use-auth";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
-import { Lock, TrendingUp, Crown, Zap, ArrowUpRight, ArrowDownRight } from "lucide-react";
-import { SPORT_ORDER, type Sport } from "@shared/platform-config";
+import { Lock, Crown, Zap, ArrowUpRight, ArrowDownRight, ExternalLink, Trophy, Activity, Target, Dribbble } from "lucide-react";
+import { SPORT_ORDER } from "@shared/platform-config";
+import { AFFILIATE_LINKS, AFFILIATE_PROMOS } from "@shared/affiliate-config";
 
 interface PropBet {
   id: number;
@@ -31,20 +30,215 @@ interface PropsResponse {
   freeCount: number;
 }
 
+function SportAffiliateBanner({ sport }: { sport: string }) {
+  const promo = AFFILIATE_PROMOS[sport];
+  if (!promo) return null;
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6" data-testid={`affiliate-banner-${sport.toLowerCase()}`}>
+      <a
+        href={AFFILIATE_LINKS.draftkings.sportsbook.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block"
+        data-testid={`affiliate-dk-sportsbook-${sport.toLowerCase()}`}
+      >
+        <div className="bg-gradient-to-r from-emerald-900/40 to-emerald-800/20 border border-emerald-700/30 rounded-xl p-4 transition-all hover-elevate">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                <span className="text-emerald-400 font-black text-xs">DK</span>
+              </div>
+              <div>
+                <p className="text-xs font-black text-emerald-400 uppercase tracking-wider">DraftKings Sportsbook</p>
+                <p className="text-[10px] text-slate-400">Place {sport} prop bets</p>
+              </div>
+            </div>
+            <ExternalLink className="w-4 h-4 text-emerald-500/50" />
+          </div>
+          <p className="text-xs text-slate-300">{promo.dk}</p>
+        </div>
+      </a>
+      <a
+        href={AFFILIATE_LINKS.fanduel.sportsbook.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block"
+        data-testid={`affiliate-fd-sportsbook-${sport.toLowerCase()}`}
+      >
+        <div className="bg-gradient-to-r from-blue-900/40 to-blue-800/20 border border-blue-700/30 rounded-xl p-4 transition-all hover-elevate">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                <span className="text-blue-400 font-black text-xs">FD</span>
+              </div>
+              <div>
+                <p className="text-xs font-black text-blue-400 uppercase tracking-wider">FanDuel Sportsbook</p>
+                <p className="text-[10px] text-slate-400">Place {sport} prop bets</p>
+              </div>
+            </div>
+            <ExternalLink className="w-4 h-4 text-blue-500/50" />
+          </div>
+          <p className="text-xs text-slate-300">{promo.fd}</p>
+        </div>
+      </a>
+    </div>
+  );
+}
+
+function DfsAffiliateBanner() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10" data-testid="affiliate-dfs-banner">
+      <a
+        href={AFFILIATE_LINKS.draftkings.dfs.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block"
+        data-testid="affiliate-dk-dfs"
+      >
+        <div className="bg-gradient-to-r from-emerald-900/30 to-slate-900/50 border border-emerald-700/20 rounded-xl p-5 transition-all hover-elevate">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                <span className="text-emerald-400 font-black text-sm">DK</span>
+              </div>
+              <div>
+                <p className="text-sm font-black text-white">{AFFILIATE_LINKS.draftkings.dfs.label}</p>
+                <p className="text-xs text-slate-400">{AFFILIATE_LINKS.draftkings.dfs.description}</p>
+              </div>
+            </div>
+            <ExternalLink className="w-4 h-4 text-emerald-500/50" />
+          </div>
+        </div>
+      </a>
+      <a
+        href={AFFILIATE_LINKS.fanduel.dfs.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block"
+        data-testid="affiliate-fd-dfs"
+      >
+        <div className="bg-gradient-to-r from-blue-900/30 to-slate-900/50 border border-blue-700/20 rounded-xl p-5 transition-all hover-elevate">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                <span className="text-blue-400 font-black text-sm">FD</span>
+              </div>
+              <div>
+                <p className="text-sm font-black text-white">{AFFILIATE_LINKS.fanduel.dfs.label}</p>
+                <p className="text-xs text-slate-400">{AFFILIATE_LINKS.fanduel.dfs.description}</p>
+              </div>
+            </div>
+            <ExternalLink className="w-4 h-4 text-blue-500/50" />
+          </div>
+        </div>
+      </a>
+    </div>
+  );
+}
+
+function PropCard({ prop, index }: { prop: PropBet; index: number }) {
+  return (
+    <Card
+      className="bg-slate-800/30 border-slate-800 p-5 transition-all hover-elevate"
+      data-testid={`prop-card-${index}`}
+    >
+      <div className="flex items-start justify-between mb-3">
+        <span className="text-[10px] font-bold text-slate-500">{prop.team} vs {prop.opponent}</span>
+        <div className={`px-2 py-0.5 rounded text-[10px] font-black ${
+          Number(prop.confidence) >= 75
+            ? "bg-emerald-500/20 text-emerald-400"
+            : Number(prop.confidence) >= 65
+            ? "bg-amber-500/20 text-amber-400"
+            : "bg-slate-700/50 text-slate-400"
+        }`} data-testid={`prop-confidence-${index}`}>
+          {Number(prop.confidence).toFixed(0)}%
+        </div>
+      </div>
+
+      <h3 className="text-base font-bold text-white mb-1" data-testid={`prop-player-${index}`}>{prop.playerName}</h3>
+      <p className="text-xs text-slate-500 mb-3">{prop.gameInfo}</p>
+
+      <div className="flex items-center justify-between bg-slate-900/50 rounded-xl px-4 py-3 border border-slate-800/50">
+        <div>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">{prop.propType}</p>
+          <p className="text-lg font-black text-white">{prop.line}</p>
+        </div>
+        <div className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-black text-sm ${
+          prop.pick === "Over"
+            ? "bg-emerald-500/20 text-emerald-400"
+            : "bg-red-500/20 text-red-400"
+        }`} data-testid={`prop-pick-${index}`}>
+          {prop.pick === "Over" ? (
+            <ArrowUpRight className="w-4 h-4" />
+          ) : (
+            <ArrowDownRight className="w-4 h-4" />
+          )}
+          {prop.pick}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function LockedPropCard({ index, sport }: { index: number; sport: string }) {
+  return (
+    <Card
+      className="bg-slate-800/20 border-slate-800/50 p-5 relative overflow-hidden"
+      data-testid={`prop-locked-${sport.toLowerCase()}-${index}`}
+    >
+      <div className="absolute inset-0 backdrop-blur-sm bg-slate-900/60 z-10 flex flex-col items-center justify-center">
+        <Lock className="w-7 h-7 text-amber-500/60 mb-2" />
+        <p className="text-sm font-bold text-slate-300 mb-1">Pro Pick</p>
+        <p className="text-[10px] text-slate-500 mb-2">Higher confidence pick</p>
+        <Link href="/pricing">
+          <Button size="sm" className="text-xs">
+            <Crown className="w-3 h-3 mr-1" /> Unlock
+          </Button>
+        </Link>
+      </div>
+      <div className="opacity-20">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-12 h-3 bg-slate-700 rounded" />
+          <div className="w-16 h-3 bg-slate-700 rounded" />
+        </div>
+        <div className="w-32 h-5 bg-slate-700 rounded mb-2" />
+        <div className="w-24 h-3 bg-slate-700 rounded mb-3" />
+        <div className="bg-slate-900/50 rounded-xl px-4 py-3">
+          <div className="w-20 h-3 bg-slate-700 rounded mb-2" />
+          <div className="w-12 h-6 bg-slate-700 rounded" />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+const SPORT_ICON_COMPONENTS: Record<string, typeof Trophy> = {
+  NBA: Dribbble,
+  NHL: Activity,
+  MLB: Target,
+  NFL: Trophy,
+};
+
 export default function PropBets() {
-  const { user } = useAuth();
-  const [selectedSport, setSelectedSport] = useState<string>("ALL");
 
   const { data, isLoading } = useQuery<PropsResponse>({
-    queryKey: ["/api/props", selectedSport === "ALL" ? undefined : selectedSport],
-    queryFn: async () => {
-      const params = selectedSport !== "ALL" ? `?sport=${selectedSport}` : "";
-      const res = await fetch(`/api/props${params}`);
-      return res.json();
-    },
+    queryKey: ["/api/props"],
   });
 
   const isPro = data?.tier === "pro";
+
+  const propsBySport: Record<string, PropBet[]> = {};
+  if (data?.props) {
+    for (const prop of data.props) {
+      if (!propsBySport[prop.sport]) propsBySport[prop.sport] = [];
+      propsBySport[prop.sport].push(prop);
+    }
+  }
+
+  const lockedPerSport = data && !isPro && data.lockedCount
+    ? Math.max(1, Math.floor(data.lockedCount / SPORT_ORDER.length))
+    : 0;
 
   if (isLoading) {
     return (
@@ -59,7 +253,7 @@ export default function PropBets() {
 
   return (
     <div className="container mx-auto px-4 py-12">
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-10 gap-4">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
         <div>
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-4xl font-black text-white tracking-tight" data-testid="prop-bets-title">Prop Bets</h1>
@@ -68,7 +262,7 @@ export default function PropBets() {
             </Badge>
           </div>
           <p className="text-slate-400">
-            Daily AI-generated player prop picks ranked by confidence.
+            Daily AI-generated player prop picks organized by sport.
             {!isPro && (
               <span className="text-amber-400 font-bold ml-1">
                 {data?.freeCount || 3} free picks daily
@@ -78,139 +272,74 @@ export default function PropBets() {
         </div>
         {!isPro && (
           <Link href="/pricing">
-            <Button className="bg-amber-500 hover:bg-amber-600 text-black font-black shadow-lg shadow-amber-500/20" data-testid="upgrade-props-btn">
+            <Button data-testid="upgrade-props-btn">
               <Crown className="w-4 h-4 mr-2" /> Unlock All Picks
             </Button>
           </Link>
         )}
       </div>
 
-      <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-2" data-testid="sport-filter">
-        {["ALL", ...SPORT_ORDER].map(sport => (
-          <Button
-            key={sport}
-            variant={selectedSport === sport ? "default" : "outline"}
-            size="sm"
-            onClick={() => setSelectedSport(sport)}
-            className={`font-bold text-xs px-4 ${
-              selectedSport === sport
-                ? "bg-emerald-500 text-white hover:bg-emerald-600"
-                : "border-slate-700 text-slate-400 hover:text-white hover:border-slate-600"
-            }`}
-            data-testid={`sport-filter-${sport.toLowerCase()}`}
-          >
-            {sport}
-          </Button>
-        ))}
-      </div>
+      <DfsAffiliateBanner />
 
-      {(!data?.props || data.props.length === 0) && !data?.lockedCount ? (
-        <div className="py-24 text-center bg-slate-800/20 rounded-3xl border-2 border-dashed border-slate-800/50">
-          <TrendingUp className="w-16 h-16 text-slate-700 mx-auto mb-6" />
-          <h5 className="text-xl font-bold text-slate-300 mb-2">No Props Available</h5>
-          <p className="text-slate-500 max-w-sm mx-auto">Props are generated daily from player projections. Check back soon!</p>
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" data-testid="props-grid">
-            {data?.props.map((prop, index) => (
-              <Card
-                key={prop.id}
-                className="bg-slate-800/30 border-slate-800 hover:border-slate-700 p-6 transition-all group"
-                data-testid={`prop-card-${index}`}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px] font-black">
-                      {prop.sport}
-                    </Badge>
-                    <span className="text-[10px] font-bold text-slate-500">{prop.team} vs {prop.opponent}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className={`px-2 py-0.5 rounded text-[10px] font-black ${
-                      Number(prop.confidence) >= 75
-                        ? "bg-emerald-500/20 text-emerald-400"
-                        : Number(prop.confidence) >= 65
-                        ? "bg-amber-500/20 text-amber-400"
-                        : "bg-slate-700/50 text-slate-400"
-                    }`} data-testid={`prop-confidence-${index}`}>
-                      {Number(prop.confidence).toFixed(0)}%
-                    </div>
-                  </div>
-                </div>
+      {SPORT_ORDER.map(sport => {
+        const sportProps = propsBySport[sport] || [];
+        const hasContent = sportProps.length > 0 || (!isPro && lockedPerSport > 0);
+        if (!hasContent && !isPro) return null;
 
-                <h3 className="text-lg font-bold text-white mb-1" data-testid={`prop-player-${index}`}>{prop.playerName}</h3>
-                <p className="text-sm text-slate-500 mb-4">{prop.gameInfo}</p>
-
-                <div className="flex items-center justify-between bg-slate-900/50 rounded-xl px-4 py-3 border border-slate-800/50">
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">{prop.propType}</p>
-                    <p className="text-xl font-black text-white">{prop.line}</p>
-                  </div>
-                  <div className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-black text-sm ${
-                    prop.pick === "Over"
-                      ? "bg-emerald-500/20 text-emerald-400"
-                      : "bg-red-500/20 text-red-400"
-                  }`} data-testid={`prop-pick-${index}`}>
-                    {prop.pick === "Over" ? (
-                      <ArrowUpRight className="w-4 h-4" />
-                    ) : (
-                      <ArrowDownRight className="w-4 h-4" />
-                    )}
-                    {prop.pick}
-                  </div>
-                </div>
-              </Card>
-            ))}
-
-            {!isPro && data?.lockedCount && data.lockedCount > 0 && (
-              Array.from({ length: Math.min(data.lockedCount, 6) }).map((_, i) => (
-                <Card
-                  key={`locked-${i}`}
-                  className="bg-slate-800/20 border-slate-800/50 p-6 relative overflow-hidden"
-                  data-testid={`prop-locked-${i}`}
-                >
-                  <div className="absolute inset-0 backdrop-blur-sm bg-slate-900/60 z-10 flex flex-col items-center justify-center">
-                    <Lock className="w-8 h-8 text-amber-500/60 mb-3" />
-                    <p className="text-sm font-bold text-slate-300 mb-1">Pro Pick</p>
-                    <p className="text-[10px] text-slate-500 mb-3">Higher confidence pick</p>
-                    <Link href="/pricing">
-                      <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs">
-                        <Crown className="w-3 h-3 mr-1" /> Unlock
-                      </Button>
-                    </Link>
-                  </div>
-                  <div className="opacity-20">
-                    <div className="flex items-center gap-2 mb-4">
-                      <div className="w-12 h-3 bg-slate-700 rounded" />
-                      <div className="w-16 h-3 bg-slate-700 rounded" />
-                    </div>
-                    <div className="w-32 h-5 bg-slate-700 rounded mb-2" />
-                    <div className="w-24 h-3 bg-slate-700 rounded mb-4" />
-                    <div className="bg-slate-900/50 rounded-xl px-4 py-3">
-                      <div className="w-20 h-3 bg-slate-700 rounded mb-2" />
-                      <div className="w-12 h-6 bg-slate-700 rounded" />
-                    </div>
-                  </div>
-                </Card>
-              ))
-            )}
-          </div>
-
-          {!isPro && data?.lockedCount && data.lockedCount > 6 && (
-            <div className="mt-8 text-center">
-              <p className="text-slate-500 text-sm mb-4">
-                + {data.lockedCount - 6} more locked picks available with Pro
-              </p>
-              <Link href="/pricing">
-                <Button className="bg-amber-500 hover:bg-amber-600 text-black font-black">
-                  <Crown className="w-4 h-4 mr-2" /> See All {data.totalCount} Picks
-                </Button>
-              </Link>
+        return (
+          <section key={sport} className="mb-12" data-testid={`sport-section-${sport.toLowerCase()}`}>
+            <div className="flex items-center gap-3 mb-4">
+              {(() => { const Icon = SPORT_ICON_COMPONENTS[sport]; return Icon ? <Icon className="w-6 h-6 text-emerald-400" /> : null; })()}
+              <h2 className="text-2xl font-black text-white tracking-tight">{sport}</h2>
+              {sportProps.length > 0 && (
+                <Badge variant="outline" className="text-[10px] font-bold border-slate-700 text-slate-400">
+                  {sportProps.length} pick{sportProps.length !== 1 ? "s" : ""}
+                </Badge>
+              )}
             </div>
-          )}
-        </>
+
+            <SportAffiliateBanner sport={sport} />
+
+            {sportProps.length === 0 && isPro ? (
+              <div className="py-10 text-center bg-slate-800/20 rounded-2xl border border-dashed border-slate-800/50 mb-6">
+                <p className="text-slate-500 text-sm">No {sport} props available today</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-2">
+                {sportProps.map((prop, idx) => (
+                  <PropCard key={prop.id} prop={prop} index={prop.id} />
+                ))}
+                {!isPro && Array.from({ length: Math.min(lockedPerSport, 3) }).map((_, i) => (
+                  <LockedPropCard key={`locked-${sport}-${i}`} index={i} sport={sport} />
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })}
+
+      {!isPro && data?.lockedCount && data.lockedCount > 0 && (
+        <div className="mt-4 mb-12 text-center bg-gradient-to-r from-amber-900/20 via-amber-800/10 to-amber-900/20 border border-amber-700/20 rounded-2xl p-8" data-testid="unlock-all-cta">
+          <Crown className="w-10 h-10 text-amber-500/60 mx-auto mb-3" />
+          <h3 className="text-xl font-black text-white mb-2">Unlock All {data.totalCount} Daily Picks</h3>
+          <p className="text-slate-400 text-sm mb-5 max-w-md mx-auto">
+            Upgrade to Pro for unlimited AI-powered prop picks across all sports with higher confidence ratings.
+          </p>
+          <Link href="/pricing">
+            <Button data-testid="unlock-all-btn">
+              <Crown className="w-4 h-4 mr-2" /> Upgrade to Pro
+            </Button>
+          </Link>
+        </div>
       )}
+
+      <div className="border-t border-slate-800 pt-8 mt-4">
+        <p className="text-[10px] text-slate-600 text-center max-w-2xl mx-auto leading-relaxed" data-testid="affiliate-disclaimer">
+          Affiliate Disclosure: EliteLineup AI may earn a commission from links to DraftKings and FanDuel.
+          Must be 21+ and present in states where DFS/sports betting is legal. Please play responsibly.
+          If you or someone you know has a gambling problem, call 1-800-GAMBLER.
+        </p>
+      </div>
     </div>
   );
 }
