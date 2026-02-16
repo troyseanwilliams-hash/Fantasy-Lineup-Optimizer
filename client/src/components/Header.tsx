@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LayoutDashboard, Zap, Archive, Settings, LogOut, ShieldAlert, Crown } from "lucide-react";
+import { LayoutDashboard, Zap, Archive, Settings, LogOut, ShieldAlert, Crown, TrendingUp } from "lucide-react";
 
 export function Header() {
   const { user, logout } = useAuth();
@@ -16,6 +16,7 @@ export function Header() {
 
   const links = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/props", label: "Props", icon: TrendingUp },
     { href: "/lineups", label: "Vault", icon: Archive },
     { href: "/pricing", label: "Pricing", icon: Crown },
     { href: "/admin", label: "Admin", icon: ShieldAlert },

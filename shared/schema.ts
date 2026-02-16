@@ -72,6 +72,27 @@ export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({
 export type Subscription = typeof subscriptions.$inferSelect;
 export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
 
+// --- PROP BETS ---
+export const props = pgTable("props", {
+  id: serial("id").primaryKey(),
+  sport: text("sport").notNull(),
+  playerId: integer("player_id").references(() => players.id),
+  playerName: text("player_name").notNull(),
+  team: text("team").notNull(),
+  opponent: text("opponent"),
+  propType: text("prop_type").notNull(),
+  line: numeric("line").notNull(),
+  pick: text("pick").notNull(),
+  confidence: numeric("confidence").notNull(),
+  gameInfo: text("game_info"),
+  isLocked: boolean("is_locked").notNull().default(false),
+  createdDate: date("created_date").notNull().defaultNow(),
+});
+
+export const insertPropSchema = createInsertSchema(props).omit({ id: true });
+export type Prop = typeof props.$inferSelect;
+export type InsertProp = z.infer<typeof insertPropSchema>;
+
 // --- OPTIMIZATION TYPES ---
 export const optimizationConstraintSchema = z.object({
   slateId: z.number(),

@@ -9,6 +9,7 @@ import { Loader2 } from "lucide-react";
 import Home from "@/pages/Home";
 import Optimizer from "@/pages/Optimizer";
 import SavedLineups from "@/pages/SavedLineups";
+import PropBets from "@/pages/PropBets";
 import Admin from "@/pages/Admin";
 import Pricing from "@/pages/Pricing";
 import NotFound from "@/pages/not-found";
@@ -36,6 +37,7 @@ function Router() {
           <Route path="/" component={Home} />
           <Route path="/optimizer/:id" component={Optimizer} />
           <Route path="/lineups" component={SavedLineups} />
+          <Route path="/props" component={PropBets} />
           <Route path="/pricing" component={Pricing} />
           <Route path="/admin" component={Admin} />
           <Route component={NotFound} />

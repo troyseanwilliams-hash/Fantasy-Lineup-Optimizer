@@ -1,11 +1,12 @@
 import { db } from "./db";
 import { eq, and, inArray } from "drizzle-orm";
 import {
-  slates, players, lineups, subscriptions,
+  slates, players, lineups, subscriptions, props,
   type Slate, type InsertSlate,
   type Player, type InsertPlayer,
   type Lineup, type InsertLineup,
-  type Subscription, type InsertSubscription
+  type Subscription, type InsertSubscription,
+  type Prop, type InsertProp
 } from "@shared/schema";
 
 import { authStorage, type IAuthStorage } from "./replit_integrations/auth/storage";
@@ -29,6 +30,10 @@ export interface IStorage extends IAuthStorage {
 
   getSubscription(userId: string): Promise<Subscription | undefined>;
   upsertSubscription(sub: InsertSubscription): Promise<Subscription>;
+
+  getPropsByDate(date: string, sport?: string): Promise<Prop[]>;
+  bulkCreateProps(props: InsertProp[]): Promise<Prop[]>;
+  clearPropsByDate(date: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -113,6 +118,24 @@ export class DatabaseStorage implements IStorage {
     }
     const [created] = await db.insert(subscriptions).values(sub).returning();
     return created;
+  }
+
+  async getPropsByDate(date: string, sport?: string): Promise<Prop[]> {
+    if (sport) {
+      return await db.select().from(props).where(
+        and(eq(props.createdDate, date), eq(props.sport, sport))
+      );
+    }
+    return await db.select().from(props).where(eq(props.createdDate, date));
+  }
+
+  async bulkCreateProps(insertProps: InsertProp[]): Promise<Prop[]> {
+    if (insertProps.length === 0) return [];
+    return await db.insert(props).values(insertProps).returning();
+  }
+
+  async clearPropsByDate(date: string): Promise<void> {
+    await db.delete(props).where(eq(props.createdDate, date));
   }
 }
 

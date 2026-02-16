@@ -7,7 +7,7 @@ import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import solver from "javascript-lp-solver";
 import { getPlatformConfig, type Platform } from "@shared/platform-config";
 
-import { type OptimizationConstraints, type Player, type Slate } from "@shared/schema";
+import { type OptimizationConstraints, type Player, type Slate, type InsertProp } from "@shared/schema";
 import {
   NBA_SLATE_FEB_19_DK, NBA_SLATE_FEB_19_FD, NBA_PLAYERS_FEB_19_DK, NBA_PLAYERS_FEB_19_FD,
   NHL_SLATE_FEB_20_DK, NHL_SLATE_FEB_20_FD, NHL_PLAYERS_FEB_20_DK, NHL_PLAYERS_FEB_20_FD,
@@ -204,7 +204,132 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/props", async (req, res) => {
+    const validSports = ["NBA", "NHL", "MLB", "NFL"];
+    const rawSport = req.query.sport as string | undefined;
+    const sport = rawSport && validSports.includes(rawSport) ? rawSport : undefined;
+    const today = new Date().toISOString().split("T")[0];
+    const allProps = await storage.getPropsByDate(today, sport);
+    
+    const sorted = allProps.sort((a, b) => Number(b.confidence) - Number(a.confidence));
+
+    if (req.isAuthenticated()) {
+      const userId = (req.user as any).claims.sub;
+      const sub = await storage.getSubscription(userId);
+      const tier = sub?.tier || "free";
+      if (tier === "pro") {
+        return res.json({ props: sorted, tier: "pro", totalCount: sorted.length, freeCount: 3 });
+      }
+    }
+
+    const freeProps = sorted.filter(p => !p.isLocked).slice(0, 3);
+    const lockedCount = sorted.length - freeProps.length;
+    res.json({ props: freeProps, tier: "free", totalCount: sorted.length, lockedCount, freeCount: 3 });
+  });
+
   return httpServer;
+}
+
+const PROP_TYPES_BY_SPORT: Record<string, { type: string; baseMultiplier: number; unit: string }[]> = {
+  NBA: [
+    { type: "Points", baseMultiplier: 0.45, unit: "pts" },
+    { type: "Rebounds", baseMultiplier: 0.18, unit: "reb" },
+    { type: "Assists", baseMultiplier: 0.22, unit: "ast" },
+    { type: "Pts+Reb+Ast", baseMultiplier: 0.85, unit: "PRA" },
+    { type: "3-Pointers", baseMultiplier: 0.08, unit: "3PM" },
+  ],
+  NHL: [
+    { type: "Points", baseMultiplier: 0.55, unit: "pts" },
+    { type: "Shots on Goal", baseMultiplier: 0.75, unit: "SOG" },
+    { type: "Saves", baseMultiplier: 2.5, unit: "saves" },
+    { type: "Goals", baseMultiplier: 0.2, unit: "goals" },
+  ],
+  MLB: [
+    { type: "Strikeouts", baseMultiplier: 0.65, unit: "K" },
+    { type: "Hits+Runs+RBI", baseMultiplier: 0.55, unit: "H+R+RBI" },
+    { type: "Total Bases", baseMultiplier: 0.45, unit: "TB" },
+    { type: "Hits", baseMultiplier: 0.3, unit: "hits" },
+  ],
+  NFL: [
+    { type: "Pass Yards", baseMultiplier: 5.0, unit: "yds" },
+    { type: "Rush Yards", baseMultiplier: 1.5, unit: "yds" },
+    { type: "Receptions", baseMultiplier: 0.3, unit: "rec" },
+    { type: "Pass TDs", baseMultiplier: 0.12, unit: "TDs" },
+    { type: "Rec Yards", baseMultiplier: 1.2, unit: "yds" },
+  ],
+};
+
+function seededRandom(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+export async function generateDailyProps(date: string) {
+  await storage.clearPropsByDate(date);
+  
+  const slates = await storage.getSlates();
+  const mainSlates = slates.filter(s => s.isMain);
+  const allProps: InsertProp[] = [];
+  const dateSeed = date.split("-").join("").slice(0, 8);
+  
+  for (const sport of ["NBA", "NHL", "MLB", "NFL"]) {
+    const sportSlates = mainSlates.filter(s => s.sport === sport);
+    if (sportSlates.length === 0) continue;
+    
+    const slate = sportSlates[0];
+    const players = await storage.getPlayersBySlate(slate.id);
+    if (players.length === 0) continue;
+    
+    const propTypes = PROP_TYPES_BY_SPORT[sport] || [];
+    const sortedPlayers = [...players].sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
+    const topPlayers = sortedPlayers.slice(0, Math.min(15, sortedPlayers.length));
+    const rand = seededRandom(Number(dateSeed) + sport.charCodeAt(0));
+
+    for (const player of topPlayers) {
+      const propType = propTypes[Math.floor(rand() * propTypes.length)];
+      const fppg = Number(player.projectedPoints) || 0;
+      const playerFppg = Number(player.fppg) || 0;
+      if (fppg <= 0 || playerFppg <= 0) continue;
+
+      const rawLine = fppg * propType.baseMultiplier;
+      const line = Math.round(rawLine * 2) / 2;
+      if (line <= 0) continue;
+
+      const edge = (fppg - playerFppg) / Math.max(playerFppg, 1);
+      const varianceBonus = rand() * 0.15;
+      const confidence = Math.min(95, Math.max(52, 65 + edge * 100 + varianceBonus * 100));
+      const pick = rand() > 0.45 ? "Over" : "Under";
+
+      allProps.push({
+        sport,
+        playerId: player.id,
+        playerName: player.name,
+        team: player.team,
+        opponent: player.opponent || "",
+        propType: propType.type,
+        line: line.toString(),
+        pick,
+        confidence: confidence.toFixed(1),
+        gameInfo: player.gameInfo || "",
+        isLocked: false,
+        createdDate: date,
+      });
+    }
+  }
+
+  allProps.sort((a, b) => Number(b.confidence) - Number(a.confidence));
+
+  const FREE_PICKS = 3;
+  for (let i = 0; i < allProps.length; i++) {
+    allProps[i].isLocked = i >= FREE_PICKS;
+  }
+
+  if (allProps.length > 0) {
+    await storage.bulkCreateProps(allProps);
+  }
 }
 
 function buildPositionVariables(position: string, sport: string): Record<string, number> {
@@ -382,5 +507,12 @@ export async function seedDatabase(forceRefresh = false) {
 
       console.log(`Seeded database with DK and FD ${seed.sport} main slates`);
     }
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+  const existingProps = await storage.getPropsByDate(today);
+  if (existingProps.length === 0) {
+    await generateDailyProps(today);
+    console.log("Generated daily prop bets");
   }
 }
