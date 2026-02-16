@@ -1,4 +1,4 @@
-import { Switch, Route, Link } from "wouter";
+import { Switch, Route, Link, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -16,6 +16,8 @@ import { Footer } from "@/components/Footer";
 
 function Router() {
   const { user, isLoading } = useAuth();
+  const [location] = useLocation();
+  const isOptimizer = location.startsWith("/optimizer");
 
   if (isLoading) {
     return (
@@ -26,9 +28,9 @@ function Router() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-[var(--bg-dark)]">
+    <div className={`flex flex-col ${isOptimizer ? "h-screen overflow-hidden" : "min-h-screen"} bg-[var(--bg-dark)]`}>
       <Header />
-      <main className="flex-grow">
+      <main className={isOptimizer ? "flex-1 overflow-hidden" : "flex-grow"}>
         <Switch>
           <Route path="/" component={Home} />
           <Route path="/optimizer/:id" component={Optimizer} />
@@ -37,7 +39,7 @@ function Router() {
           <Route component={NotFound} />
         </Switch>
       </main>
-      <Footer />
+      {!isOptimizer && <Footer />}
     </div>
   );
 }

@@ -173,14 +173,15 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
 
   // Add positional constraints
   if (sport === 'NBA') {
-    // DraftKings NBA: PG, SG, SF, PF, C, G, F, Util
+    // DraftKings NBA: PG, SG, SF, PF, C, G, F, UTIL
+    // Need 3 guards (PG+SG+G slots) and 3 forwards (SF+PF+F slots)
     model.constraints.PG = { min: 1 };
     model.constraints.SG = { min: 1 };
     model.constraints.SF = { min: 1 };
     model.constraints.PF = { min: 1 };
-    model.constraints.C = { min: 1 };
-    model.constraints.G = { min: 1 }; // G = PG or SG
-    model.constraints.F = { min: 1 }; // F = SF or PF
+    model.constraints.C = { min: 1, max: 2 };
+    model.constraints.G = { min: 3 }; // PG + SG + G = 3 guard slots
+    model.constraints.F = { min: 3 }; // SF + PF + F = 3 forward slots
   } else {
     // NFL: QB, RB, RB, WR, WR, WR, TE, FLEX, DST
     model.constraints.QB = { equal: 1 };
@@ -216,9 +217,13 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
     model.variables[variableName] = variable;
     model.ints[variableName] = 1;
 
+    // Binary constraint: each player can be selected at most once
+    model.constraints[`bound_${variableName}`] = { max: 1 };
+    variable[`bound_${variableName}`] = 1;
+
     if (isLocked) {
-      model.constraints[variableName] = { equal: 1 };
-      model.variables[variableName][variableName] = 1;
+      model.constraints[`lock_${variableName}`] = { equal: 1 };
+      variable[`lock_${variableName}`] = 1;
     }
   });
 
@@ -229,7 +234,7 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
   }
 
   const selectedPlayerIds = Object.keys(result)
-    .filter(k => k.startsWith('p') && result[k] === 1)
+    .filter(k => k.startsWith('p') && result[k] > 0.5)
     .map(k => Number(k.substring(1)));
 
   const selectedPlayers = pool.filter(p => selectedPlayerIds.includes(p.id));
