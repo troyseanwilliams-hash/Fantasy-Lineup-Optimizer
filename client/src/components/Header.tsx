@@ -143,7 +143,7 @@ export function Header() {
                             <span className="text-sm font-bold text-slate-300">{sport} DK Builder</span>
                           </DropdownMenuItem>
                         )}
-                        {isStar && dkSlate ? (
+                        {isPaid && dkSlate ? (
                           <Link href={`/optimizer-pro/${dkSlate.id}`}>
                             <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-star-dk`}>
                               <div className="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center mr-2 shrink-0">
@@ -153,7 +153,7 @@ export function Header() {
                               <Trophy className="w-3.5 h-3.5 text-emerald-400 ml-auto" />
                             </DropdownMenuItem>
                           </Link>
-                        ) : !isPaid ? (
+                        ) : (
                           <Link href="/pricing">
                             <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-star-dk`}>
                               <div className="w-6 h-6 rounded bg-emerald-500/10 flex items-center justify-center mr-2 shrink-0">
@@ -163,7 +163,7 @@ export function Header() {
                               <Trophy className="w-3.5 h-3.5 text-emerald-500/40 ml-auto" />
                             </DropdownMenuItem>
                           </Link>
-                        ) : null}
+                        )}
 
                         {isPro && dkSlate ? (
                           <Link href={`/optimizer-pro/${dkSlate.id}`}>
@@ -175,7 +175,7 @@ export function Header() {
                               <Crown className="w-3.5 h-3.5 text-amber-400 ml-auto" />
                             </DropdownMenuItem>
                           </Link>
-                        ) : !isStar ? (
+                        ) : (
                           <Link href="/pricing">
                             <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-pro-dk`}>
                               <div className="w-6 h-6 rounded bg-amber-500/10 flex items-center justify-center mr-2 shrink-0">
@@ -185,7 +185,7 @@ export function Header() {
                               <Crown className="w-3.5 h-3.5 text-amber-500/40 ml-auto" />
                             </DropdownMenuItem>
                           </Link>
-                        ) : null}
+                        )}
 
                         <Link href={`/props?sport=${sport}`}>
                           <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-props`}>
