@@ -50,7 +50,7 @@ export default function Home() {
           >
             Get Started Free
           </Button>
-          <p className="text-sm text-slate-500 mt-4">1 free optimized lineup. Upgrade for more.</p>
+          <p className="text-sm text-slate-400 mt-4">1 free optimized lineup. Upgrade for more.</p>
         </div>
       </div>
     );
