@@ -500,16 +500,17 @@ export default function ProOptimizer() {
                     return (
                       <Card key={idx} className="bg-slate-800/60 border-slate-700/50 p-3" data-testid={`lineup-card-${idx}`}>
                         <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-3">
                             <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[11px] font-black">
                               #{idx + 1}
                             </Badge>
-                            <span className="text-[11px] font-bold text-emerald-400" data-testid={`text-lineup-proj-${idx}`}>
-                              {lineupData.totalProjectedPoints?.toFixed(1)} pts
-                            </span>
-                            <span className="text-[11px] font-bold text-slate-400" data-testid={`text-lineup-salary-${idx}`}>
-                              ${lineupData.totalSalary?.toLocaleString()}
-                            </span>
+                            <div className="flex items-center gap-1.5 bg-emerald-500/10 rounded px-2 py-0.5 border border-emerald-500/20" data-testid={`text-lineup-proj-${idx}`}>
+                              <span className="text-[10px] font-bold text-emerald-500/70 uppercase">FP</span>
+                              <span className="text-sm font-black text-emerald-400 tabular-nums">{lineupData.totalProjectedPoints?.toFixed(1)}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 bg-slate-700/50 rounded px-2 py-0.5 border border-slate-600/30" data-testid={`text-lineup-salary-${idx}`}>
+                              <span className="text-sm font-black text-white tabular-nums">${lineupData.totalSalary?.toLocaleString()}</span>
+                            </div>
                           </div>
                           <Button
                             size="sm"
