@@ -28,12 +28,12 @@ export function PlayerTable({
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-900/50 border-b border-slate-800">
-              <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Player</th>
-              <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Pos</th>
-              <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Team</th>
-              <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Salary</th>
-              <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Proj</th>
-              <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Actions</th>
+              <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest">Player</th>
+              <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">Pos</th>
+              <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">Team</th>
+              <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest text-right">Salary</th>
+              <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest text-right">Proj</th>
+              <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800">
@@ -46,7 +46,7 @@ export function PlayerTable({
               >
                 <td className="px-6 py-4">
                   <div className="font-bold text-white group-hover:text-[#10B981] transition-colors">{player.name}</div>
-                  <div className="text-[10px] text-slate-500 font-bold uppercase">{player.gameInfo}</div>
+                  <div className="text-[11px] text-slate-400 font-bold uppercase">{player.gameInfo}</div>
                 </td>
                 <td className="px-6 py-4 text-center">
                   <Badge variant="outline" className="border-slate-700 text-slate-400 font-bold bg-slate-900/50">

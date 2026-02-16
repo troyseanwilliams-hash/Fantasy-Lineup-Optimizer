@@ -23,12 +23,12 @@ export function LineupCard({ lineup, playersMap, onDelete, index }: LineupCardPr
           </div>
           <div>
             <h4 className="font-bold text-white text-sm">Lineup #{index !== undefined ? index + 1 : '1'}</h4>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Optimized Proj</p>
+            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">Optimized Proj</p>
           </div>
         </div>
         <div className="text-right">
           <div className="text-lg font-black text-emerald-400">{Number(totalPoints).toFixed(2)}</div>
-          <div className="text-[10px] font-bold text-slate-500">${totalSalary?.toLocaleString()}</div>
+          <div className="text-[11px] font-bold text-slate-400">${totalSalary?.toLocaleString()}</div>
         </div>
       </div>
       <CardContent className="p-0">
@@ -36,17 +36,17 @@ export function LineupCard({ lineup, playersMap, onDelete, index }: LineupCardPr
           {players.map((player: Player) => (
             <div key={player.id} className="px-6 py-3 flex items-center justify-between hover:bg-slate-800/20 transition-colors">
               <div className="flex items-center gap-3">
-                <div className="w-7 h-7 rounded bg-slate-800 flex items-center justify-center text-[9px] font-black text-slate-500 border border-slate-700">
+                <div className="w-7 h-7 rounded bg-slate-800 flex items-center justify-center text-[11px] font-black text-slate-400 border border-slate-700">
                   {player.position}
                 </div>
                 <div>
                   <div className="text-xs font-bold text-slate-200">{player.name}</div>
-                  <div className="text-[9px] text-slate-500 font-bold uppercase">{player.team}</div>
+                  <div className="text-[11px] text-slate-400 font-bold uppercase">{player.team}</div>
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-[10px] font-bold text-slate-300">{player.projectedPoints}</div>
-                <div className="text-[9px] text-slate-600 font-mono">${player.salary?.toLocaleString()}</div>
+                <div className="text-[11px] font-bold text-slate-300">{player.projectedPoints}</div>
+                <div className="text-[11px] text-slate-400 font-mono">${player.salary?.toLocaleString()}</div>
               </div>
             </div>
           ))}
