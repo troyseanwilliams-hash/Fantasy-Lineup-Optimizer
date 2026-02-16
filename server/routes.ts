@@ -1,13 +1,11 @@
 import type { Express } from "express";
 import type { Server } from "http";
-import { createServer } from "http";
 import { storage } from "./storage";
-import { api, errorSchemas } from "@shared/routes";
+import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
+import solver from "javascript-lp-solver";
 
-// Optimization logic (simple greedy + random sort for MVP, in a real app use ILP solver)
-// Since we don't have 'javascript-lp-solver' installed yet, I'll write a simple heuristic.
 import { type OptimizationConstraints, type Player } from "@shared/schema";
 
 export async function registerRoutes(
@@ -71,6 +69,9 @@ export async function registerRoutes(
   app.post(api.optimizer.optimize.path, async (req, res) => {
     try {
       const constraints = api.optimizer.optimize.input.parse(req.body);
+      const slate = await storage.getSlate(constraints.slateId);
+      if (!slate) return res.status(404).json({ message: "Slate not found" });
+
       const allPlayers = await storage.getPlayersBySlate(constraints.slateId);
       
       if (allPlayers.length === 0) {
@@ -86,9 +87,8 @@ export async function registerRoutes(
         };
       });
 
-      // Simple Constraint Solver (Heuristic for MVP)
-      // In a real production app, use 'javascript-lp-solver'
-      const result = solveLineup(pool, constraints);
+      // Use Linear Programming solver for optimal lineup
+      const result = solveLineup(pool, constraints, slate.sport);
 
       if (result.error) {
         return res.status(400).json(result);
@@ -151,61 +151,87 @@ export async function registerRoutes(
   return httpServer;
 }
 
-// --- Simple Heuristic Solver ---
-// NOTE: This is a placeholder. Real DFS optimization requires Knapsack/ILP solvers.
-// We'll filter, sort by value (Points/Salary), and fill slots.
-function solveLineup(pool: Player[], constraints: OptimizationConstraints) {
-  // 1. Filter excluded players
-  let available = pool.filter(p => !constraints.excludedPlayerIds.includes(p.id));
-  
-  // 2. Separate locked players
-  const locked = available.filter(p => constraints.lockedPlayerIds.includes(p.id));
-  available = available.filter(p => !constraints.lockedPlayerIds.includes(p.id));
+// Optimization logic using Linear Programming
+function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport: string) {
+  const model: any = {
+    optimize: "projectedPoints",
+    opType: "max",
+    constraints: {
+      salary: { max: constraints.maxSalary || 50000 },
+      rosterSize: { equal: sport === 'NBA' ? 8 : 9 },
+    },
+    variables: {},
+    ints: {}
+  };
 
-  // 3. Define Roster Spots (Example: NFL Classic)
-  // For MVP generic, we'll try to just maximize points under salary cap
-  // Assuming a generic roster size of 9 for now (DK NFL Style)
-  // QB, RB, RB, WR, WR, WR, TE, FLEX, DST
-  // NOTE: A proper solver needs strict positional requirements.
-  
-  // Let's implement a simplified "Generic Flex" optimization for MVP demo
-  // We just want highest points for < $50,000 salary with 9 players.
-  
-  const SALARY_CAP = constraints.maxSalary || 50000;
-  const ROSTER_SIZE = 9;
-  
-  let currentLineup = [...locked];
-  let currentSalary = currentLineup.reduce((sum, p) => sum + p.salary, 0);
-  
-  if (currentSalary > SALARY_CAP) {
-    return { error: "Locked players exceed salary cap", lineup: [], totalSalary: 0, totalProjectedPoints: 0 };
+  // Add positional constraints
+  if (sport === 'NBA') {
+    // DraftKings NBA: PG, SG, SF, PF, C, G, F, Util
+    model.constraints.PG = { min: 1 };
+    model.constraints.SG = { min: 1 };
+    model.constraints.SF = { min: 1 };
+    model.constraints.PF = { min: 1 };
+    model.constraints.C = { min: 1 };
+    model.constraints.G = { min: 1 }; // G = PG or SG
+    model.constraints.F = { min: 1 }; // F = SF or PF
+  } else {
+    // NFL: QB, RB, RB, WR, WR, WR, TE, FLEX, DST
+    model.constraints.QB = { equal: 1 };
+    model.constraints.RB = { min: 2 };
+    model.constraints.WR = { min: 3 };
+    model.constraints.TE = { min: 1 };
+    model.constraints.DST = { equal: 1 };
   }
-  
-  // Sort remaining by Value (Points / Salary) to greedy fill
-  // Add some randomness to avoid identical lineups every time if value is close
-  available.sort((a, b) => {
-      const valA = Number(a.projectedPoints) / a.salary;
-      const valB = Number(b.projectedPoints) / b.salary;
-      return valB - valA; // Descending
+
+  pool.forEach(p => {
+    if (constraints.excludedPlayerIds.includes(p.id)) return;
+
+    const isLocked = constraints.lockedPlayerIds.includes(p.id);
+    const variableName = `p${p.id}`;
+    
+    const variable: any = {
+      projectedPoints: Number(p.projectedPoints),
+      salary: p.salary,
+      rosterSize: 1,
+    };
+
+    // Position handling
+    if (sport === 'NBA') {
+      if (p.position.includes('PG')) { variable.PG = 1; variable.G = 1; }
+      if (p.position.includes('SG')) { variable.SG = 1; variable.G = 1; }
+      if (p.position.includes('SF')) { variable.SF = 1; variable.F = 1; }
+      if (p.position.includes('PF')) { variable.PF = 1; variable.F = 1; }
+      if (p.position.includes('C')) { variable.C = 1; }
+    } else {
+      variable[p.position] = 1;
+    }
+
+    model.variables[variableName] = variable;
+    model.ints[variableName] = 1;
+
+    if (isLocked) {
+      model.constraints[variableName] = { equal: 1 };
+      model.variables[variableName][variableName] = 1;
+    }
   });
 
-  for (const player of available) {
-    if (currentLineup.length >= ROSTER_SIZE) break;
-    if (currentSalary + player.salary <= SALARY_CAP) {
-      currentLineup.push(player);
-      currentSalary += player.salary;
-    }
+  const result = solver.Solve(model);
+
+  if (!result.feasible) {
+    return { error: "Could not find a feasible lineup with these constraints.", lineup: [], totalSalary: 0, totalProjectedPoints: 0 };
   }
 
-  if (currentLineup.length < ROSTER_SIZE) {
-     return { error: "Could not fill roster with valid players under cap.", lineup: [], totalSalary: 0, totalProjectedPoints: 0 };
-  }
+  const selectedPlayerIds = Object.keys(result)
+    .filter(k => k.startsWith('p') && result[k] === 1)
+    .map(k => Number(k.substring(1)));
 
-  const totalPoints = currentLineup.reduce((sum, p) => sum + Number(p.projectedPoints), 0);
-  
+  const selectedPlayers = pool.filter(p => selectedPlayerIds.includes(p.id));
+  const totalSalary = selectedPlayers.reduce((sum, p) => sum + p.salary, 0);
+  const totalPoints = selectedPlayers.reduce((sum, p) => sum + Number(p.projectedPoints), 0);
+
   return {
-    lineup: currentLineup,
-    totalSalary: currentSalary,
+    lineup: selectedPlayers,
+    totalSalary,
     totalProjectedPoints: totalPoints
   };
 }
@@ -214,39 +240,60 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints) {
 export async function seedDatabase() {
     const existingSlates = await storage.getSlates();
     if (existingSlates.length === 0) {
-        const slate = await storage.createSlate({
+        // NFL Slate
+        const nflSlate = await storage.createSlate({
             sport: "NFL",
-            name: "Week 1 Main Slate",
-            startTime: new Date(Date.now() + 86400000) // Tomorrow
+            name: "NFL Main Slate",
+            startTime: new Date(Date.now() + 86400000)
         });
         
-        // Seed some players
-        const teams = ["KC", "BUF", "PHI", "DAL", "SF", "CIN"];
-        const positions = ["QB", "RB", "WR", "TE", "DST"];
-        
-        const players: any[] = [];
-        
-        // Generate 50 dummy players
-        for(let i=1; i<=50; i++) {
-            const pos = positions[Math.floor(Math.random() * positions.length)];
-            const team = teams[Math.floor(Math.random() * teams.length)];
-            const salary = 3000 + Math.floor(Math.random() * 60) * 100; // 3000 - 9000
-            const fppg = 5 + Math.random() * 20;
-            
-            players.push({
-                slateId: slate.id,
-                name: `Player ${i} (${pos})`,
-                team: team,
+        const nflPositions = ["QB", "RB", "WR", "TE", "DST"];
+        const nflPlayers: any[] = [];
+        for(let i=1; i<=40; i++) {
+            const pos = nflPositions[i % 5];
+            const salary = 3000 + Math.floor(Math.random() * 60) * 100;
+            const fppg = (5 + Math.random() * 20).toFixed(1);
+            nflPlayers.push({
+                slateId: nflSlate.id,
+                name: `NFL Player ${i}`,
+                team: "TEAM",
                 position: pos,
-                salary: salary,
-                fppg: fppg.toFixed(1),
-                projectedPoints: (fppg * (0.9 + Math.random() * 0.2)).toFixed(1), // +/- 10% of FPPG
+                salary,
+                fppg,
+                projectedPoints: fppg,
                 opponent: "OPP",
-                gameInfo: `${team} vs OPP`
+                gameInfo: "TEAM @ OPP"
             });
         }
+        await storage.bulkCreatePlayers(nflPlayers);
+
+        // NBA Slate
+        const nbaSlate = await storage.createSlate({
+            sport: "NBA",
+            name: "NBA Tonight",
+            startTime: new Date(Date.now() + 43200000)
+        });
+
+        const nbaPositions = ["PG", "SG", "SF", "PF", "C"];
+        const nbaPlayers: any[] = [];
+        for(let i=1; i<=40; i++) {
+            const pos = nbaPositions[i % 5];
+            const salary = 3500 + Math.floor(Math.random() * 65) * 100;
+            const fppg = (15 + Math.random() * 35).toFixed(1);
+            nbaPlayers.push({
+                slateId: nbaSlate.id,
+                name: `NBA Player ${i}`,
+                team: "TEAM",
+                position: pos,
+                salary,
+                fppg,
+                projectedPoints: fppg,
+                opponent: "OPP",
+                gameInfo: "TEAM @ OPP"
+            });
+        }
+        await storage.bulkCreatePlayers(nbaPlayers);
         
-        await storage.bulkCreatePlayers(players);
-        console.log("Seeded database with slate and players");
+        console.log("Seeded database with NFL and NBA slates");
     }
 }
