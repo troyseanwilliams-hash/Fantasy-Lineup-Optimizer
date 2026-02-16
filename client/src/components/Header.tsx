@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard } from "lucide-react";
+import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 
@@ -64,6 +64,7 @@ export function Header() {
 
   const mainSlates = slates?.filter(s => s.isMain) || [];
   const isPro = subData?.tier === "pro";
+  const isPaid = subData?.tier === "pro" || subData?.tier === "competitive";
   const unreadCount = alertsData?.unreadCount || 0;
   const recentAlerts = alertsData?.alerts?.slice(0, 8) || [];
 
@@ -325,6 +326,10 @@ export function Header() {
                         <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[11px] font-black px-1.5 py-0">
                           <Crown className="w-3 h-3 mr-0.5" /> PRO
                         </Badge>
+                      ) : subData?.tier === "competitive" ? (
+                        <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[11px] font-black px-1.5 py-0">
+                          <Trophy className="w-3 h-3 mr-0.5" /> COMPETITIVE
+                        </Badge>
                       ) : (
                         <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Free Plan</span>
                       )}
@@ -335,7 +340,15 @@ export function Header() {
                 <DropdownMenuContent align="end" className="w-56 bg-slate-900 border-slate-800">
                   <DropdownMenuLabel className="text-slate-400 text-xs font-bold uppercase tracking-wider">Account</DropdownMenuLabel>
                   <DropdownMenuSeparator className="bg-slate-800" />
-                  {!isPro && (
+                  {!isPaid && (
+                    <Link href="/pricing">
+                      <DropdownMenuItem className="cursor-pointer" data-testid="menu-upgrade">
+                        <Crown className="w-4 h-4 mr-2 text-amber-400" />
+                        <span className="text-sm font-bold text-amber-300">Upgrade Plan</span>
+                      </DropdownMenuItem>
+                    </Link>
+                  )}
+                  {subData?.tier === "competitive" && (
                     <Link href="/pricing">
                       <DropdownMenuItem className="cursor-pointer" data-testid="menu-upgrade">
                         <Crown className="w-4 h-4 mr-2 text-amber-400" />
