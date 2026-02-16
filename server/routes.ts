@@ -6,7 +6,8 @@ import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import solver from "javascript-lp-solver";
 
-import { type OptimizationConstraints, type Player } from "@shared/schema";
+import { type OptimizationConstraints, type Player, type Slate } from "@shared/schema";
+import { NBA_SLATE_FEB_19, NBA_PLAYERS_FEB_19 } from "@shared/seed_data";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -244,62 +245,50 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
 
 // --- SEED DATA ---
 export async function seedDatabase() {
-    const existingSlates = await storage.getSlates();
-    if (existingSlates.length === 0) {
-        // NFL Slate
-        const nflSlate = await storage.createSlate({
-            sport: "NFL",
-            name: "NFL Main Slate",
-            startTime: new Date(Date.now() + 86400000)
-        });
-        
-        const nflPositions = ["QB", "RB", "WR", "TE", "DST"];
-        const nflPlayers: any[] = [];
-        for(let i=1; i<=40; i++) {
-            const pos = nflPositions[i % 5];
-            const salary = 3000 + Math.floor(Math.random() * 60) * 100;
-            const fppg = (5 + Math.random() * 20).toFixed(1);
-            nflPlayers.push({
-                slateId: nflSlate.id,
-                name: `NFL Player ${i}`,
-                team: "TEAM",
-                position: pos,
-                salary,
-                fppg,
-                projectedPoints: fppg,
-                opponent: "OPP",
-                gameInfo: "TEAM @ OPP"
-            });
-        }
-        await storage.bulkCreatePlayers(nflPlayers);
+  const existingSlates = await storage.getSlates();
+  const nbaSlateExists = existingSlates.some(s => s.name === "NBA Feb 19 Main Slate");
 
-        // NBA Slate
-        const nbaSlate = await storage.createSlate({
-            sport: "NBA",
-            name: "NBA Tonight",
-            startTime: new Date(Date.now() + 43200000)
-        });
+  if (!nbaSlateExists) {
+    // NFL Slate (keep existing or update)
+    const nflSlate = await storage.createSlate({
+      sport: "NFL",
+      name: "NFL Main Slate",
+      startTime: new Date(Date.now() + 86400000)
+    });
 
-        const nbaPositions = ["PG", "SG", "SF", "PF", "C"];
-        const nbaPlayers: any[] = [];
-        for(let i=1; i<=40; i++) {
-            const pos = nbaPositions[i % 5];
-            const salary = 3500 + Math.floor(Math.random() * 65) * 100;
-            const fppg = (15 + Math.random() * 35).toFixed(1);
-            nbaPlayers.push({
-                slateId: nbaSlate.id,
-                name: `NBA Player ${i}`,
-                team: "TEAM",
-                position: pos,
-                salary,
-                fppg,
-                projectedPoints: fppg,
-                opponent: "OPP",
-                gameInfo: "TEAM @ OPP"
-            });
-        }
-        await storage.bulkCreatePlayers(nbaPlayers);
-        
-        console.log("Seeded database with NFL and NBA slates");
+    const nflPositions = ["QB", "RB", "WR", "TE", "DST"];
+    const nflPlayers: any[] = [];
+    for (let i = 1; i <= 40; i++) {
+      const pos = nflPositions[i % 5];
+      const salary = 3000 + Math.floor(Math.random() * 60) * 100;
+      const fppg = (5 + Math.random() * 20).toFixed(1);
+      nflPlayers.push({
+        slateId: nflSlate.id,
+        name: `NFL Player ${i}`,
+        team: "TEAM",
+        position: pos,
+        salary,
+        fppg,
+        projectedPoints: fppg,
+        opponent: "OPP",
+        gameInfo: "TEAM @ OPP"
+      });
     }
+    await storage.bulkCreatePlayers(nflPlayers);
+
+    // Current Real NBA Slate for Feb 19
+    const nbaSlate = await storage.createSlate({
+      sport: "NBA",
+      name: NBA_SLATE_FEB_19.name,
+      startTime: NBA_SLATE_FEB_19.startTime
+    });
+
+    const playersWithSlate = NBA_PLAYERS_FEB_19.map(p => ({
+      ...p,
+      slateId: nbaSlate.id
+    }));
+    await storage.bulkCreatePlayers(playersWithSlate as any);
+
+    console.log("Seeded database with Feb 19 NBA slate and sample NFL data");
+  }
 }
