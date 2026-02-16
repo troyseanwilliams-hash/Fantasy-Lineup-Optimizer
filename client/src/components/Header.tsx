@@ -241,14 +241,16 @@ export function Header() {
                 <span>Pricing</span>
               </div>
             </Link>
-            <Link href="/admin">
-              <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                location === "/admin" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
-              }`} data-testid="nav-admin">
-                <ShieldAlert className="w-4 h-4" />
-                <span>Admin</span>
-              </div>
-            </Link>
+            {user?.isAdmin && (
+              <Link href="/admin">
+                <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
+                  location === "/admin" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
+                }`} data-testid="nav-admin">
+                  <ShieldAlert className="w-4 h-4" />
+                  <span>Admin</span>
+                </div>
+              </Link>
+            )}
           </nav>
         </div>
 
