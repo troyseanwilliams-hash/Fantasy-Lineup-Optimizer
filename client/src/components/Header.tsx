@@ -107,7 +107,6 @@ export function Header() {
                     const meta = SPORT_META[sport] || { icon: Dribbble, color: "text-slate-400", bgColor: "bg-slate-500/20" };
                     const Icon = meta.icon;
                     const dkSlate = mainSlates.find(s => s.sport === sport && s.platform === "draftkings");
-                    const fdSlate = mainSlates.find(s => s.sport === sport && s.platform === "fanduel");
 
                     return (
                       <div key={sport}>
@@ -143,24 +142,6 @@ export function Header() {
                             <span className="text-sm font-bold text-slate-300">{sport} DK Builder</span>
                           </DropdownMenuItem>
                         )}
-                        {fdSlate ? (
-                          <Link href={`/optimizer/${fdSlate.id}`}>
-                            <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-fd`}>
-                              <div className="w-6 h-6 rounded bg-blue-500/20 flex items-center justify-center mr-2 shrink-0">
-                                <span className="text-blue-400 font-black text-[11px]">FD</span>
-                              </div>
-                              <span className="text-sm font-bold text-slate-300">{sport} FD Builder</span>
-                            </DropdownMenuItem>
-                          </Link>
-                        ) : (
-                          <DropdownMenuItem disabled className="opacity-50" data-testid={`sport-menu-${sport.toLowerCase()}-fd`}>
-                            <div className="w-6 h-6 rounded bg-blue-500/20 flex items-center justify-center mr-2 shrink-0">
-                              <span className="text-blue-400 font-black text-[11px]">FD</span>
-                            </div>
-                            <span className="text-sm font-bold text-slate-300">{sport} FD Builder</span>
-                          </DropdownMenuItem>
-                        )}
-
                         {isPro && dkSlate ? (
                           <Link href={`/optimizer-pro/${dkSlate.id}`}>
                             <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-pro-dk`}>
@@ -178,28 +159,6 @@ export function Header() {
                                 <Lock className="w-3 h-3 text-amber-500/50" />
                               </div>
                               <span className="text-sm font-bold text-slate-500">{sport} Pro DK</span>
-                              <Crown className="w-3.5 h-3.5 text-amber-500/40 ml-auto" />
-                            </DropdownMenuItem>
-                          </Link>
-                        )}
-
-                        {isPro && fdSlate ? (
-                          <Link href={`/optimizer-pro/${fdSlate.id}`}>
-                            <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-pro-fd`}>
-                              <div className="w-6 h-6 rounded bg-amber-500/20 flex items-center justify-center mr-2 shrink-0">
-                                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                              </div>
-                              <span className="text-sm font-bold text-amber-300">{sport} Pro FD</span>
-                              <Crown className="w-3.5 h-3.5 text-amber-400 ml-auto" />
-                            </DropdownMenuItem>
-                          </Link>
-                        ) : (
-                          <Link href="/pricing">
-                            <DropdownMenuItem className={`cursor-pointer ${isPro ? "opacity-50" : ""}`} data-testid={`sport-menu-${sport.toLowerCase()}-pro-fd`}>
-                              <div className="w-6 h-6 rounded bg-amber-500/10 flex items-center justify-center mr-2 shrink-0">
-                                <Lock className="w-3 h-3 text-amber-500/50" />
-                              </div>
-                              <span className="text-sm font-bold text-slate-500">{sport} Pro FD</span>
                               <Crown className="w-3.5 h-3.5 text-amber-500/40 ml-auto" />
                             </DropdownMenuItem>
                           </Link>
