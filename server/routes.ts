@@ -6,6 +6,7 @@ import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import solver from "javascript-lp-solver";
 import { getPlatformConfig, ACTIVE_SPORTS, assignPlayersToSlots, type Platform } from "@shared/platform-config";
+import { XMLParser } from "fast-xml-parser";
 
 import { type OptimizationConstraints, type ProOptimizationConstraints, type Player, type Slate, type InsertProp, type InsertAlert, proOptimizationConstraintSchema } from "@shared/schema";
 import {
@@ -302,12 +303,26 @@ export async function registerRoutes(
     }
   });
 
-  const ESPN_NEWS_URLS: Record<string, string> = {
-    NBA: "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/news",
-    NHL: "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/news",
-    MLB: "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/news",
-    NFL: "https://site.api.espn.com/apis/site/v2/sports/football/nfl/news",
+  const ROTOBALLER_RSS_URLS: Record<string, string> = {
+    NBA: "https://www.rotoballer.com/category/nba/feed",
+    NHL: "https://www.rotoballer.com/category/nhl/feed",
+    MLB: "https://www.rotoballer.com/category/mlb/feed",
+    NFL: "https://www.rotoballer.com/category/nfl/feed",
   };
+
+  const xmlParser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: "@_",
+  });
+
+  function extractImageFromHtml(html: string): string | null {
+    const match = html?.match(/src="(https?:\/\/[^"]+\.(jpg|jpeg|png|webp)[^"]*)"/i);
+    return match ? match[1] : null;
+  }
+
+  function stripHtmlTags(html: string): string {
+    return html?.replace(/<[^>]*>/g, "").replace(/\[&#8230;\]/g, "...").replace(/&#8217;/g, "'").replace(/&#8216;/g, "'").replace(/&#8220;/g, '"').replace(/&#8221;/g, '"').replace(/&#038;/g, "&").replace(/&amp;/g, "&").replace(/&#039;/g, "'").trim() || "";
+  }
 
   app.get("/api/news/:sport", async (req, res) => {
     try {
@@ -316,25 +331,40 @@ export async function registerRoutes(
       if (!validSports.includes(sport)) {
         return res.status(400).json({ error: "Invalid sport" });
       }
-      const url = ESPN_NEWS_URLS[sport];
+      const url = ROTOBALLER_RSS_URLS[sport];
       if (!url) {
         return res.status(400).json({ error: "Invalid sport" });
       }
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: { "User-Agent": "EliteLineupAI/1.0" },
+      });
       if (!response.ok) {
         return res.status(502).json({ error: "Failed to fetch news" });
       }
-      const data = await response.json() as any;
-      const articles = (data.articles || []).map((a: any) => ({
-        id: a.dataSourceIdentifier || String(a.links?.web?.href || Math.random()),
-        headline: a.headline || "",
-        description: a.description || "",
-        published: a.published || "",
-        type: a.type || "Article",
-        imageUrl: a.images?.[0]?.url || null,
-        linkUrl: a.links?.web?.href || null,
-        categories: (a.categories || []).map((c: any) => c.description || c.type).filter(Boolean),
-      }));
+      const xmlText = await response.text();
+      const parsed = xmlParser.parse(xmlText);
+      const items = parsed?.rss?.channel?.item || [];
+      const itemsArr = Array.isArray(items) ? items : [items];
+
+      const articles = itemsArr.slice(0, 25).map((item: any, idx: number) => {
+        const rawDesc = String(item.description || "");
+        const imageUrl = extractImageFromHtml(rawDesc);
+        const cleanDesc = stripHtmlTags(rawDesc);
+        const categories = Array.isArray(item.category)
+          ? item.category.filter((c: any) => typeof c === "string").slice(0, 3)
+          : typeof item.category === "string" ? [item.category] : [];
+
+        return {
+          id: item.guid || String(idx),
+          headline: item.title || "",
+          description: cleanDesc.length > 200 ? cleanDesc.substring(0, 200) + "..." : cleanDesc,
+          published: item.pubDate || "",
+          type: "Article",
+          imageUrl,
+          linkUrl: item.link || null,
+          categories,
+        };
+      });
       res.json({ sport, articles });
     } catch (err) {
       console.error("News fetch error:", err);
