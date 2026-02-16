@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { Lock, Crown, Zap, ArrowUpRight, ArrowDownRight, ExternalLink, Trophy, Activity, Target, Dribbble } from "lucide-react";
-import { SPORT_ORDER } from "@shared/platform-config";
+import { ACTIVE_SPORTS } from "@shared/platform-config";
 import { AFFILIATE_LINKS, AFFILIATE_PROMOS } from "@shared/affiliate-config";
 
 interface PropBet {
@@ -237,7 +237,7 @@ export default function PropBets() {
   }
 
   const lockedPerSport = data && !isPro && data.lockedCount
-    ? Math.max(1, Math.floor(data.lockedCount / SPORT_ORDER.length))
+    ? Math.max(1, Math.floor(data.lockedCount / ACTIVE_SPORTS.length))
     : 0;
 
   if (isLoading) {
@@ -281,7 +281,7 @@ export default function PropBets() {
 
       <DfsAffiliateBanner />
 
-      {SPORT_ORDER.map(sport => {
+      {ACTIVE_SPORTS.map(sport => {
         const sportProps = propsBySport[sport] || [];
         const hasContent = sportProps.length > 0 || (!isPro && lockedPerSport > 0);
         if (!hasContent && !isPro) return null;

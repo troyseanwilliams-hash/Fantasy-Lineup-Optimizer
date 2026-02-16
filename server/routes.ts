@@ -5,7 +5,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import solver from "javascript-lp-solver";
-import { getPlatformConfig, type Platform } from "@shared/platform-config";
+import { getPlatformConfig, ACTIVE_SPORTS, type Platform } from "@shared/platform-config";
 
 import { type OptimizationConstraints, type Player, type Slate, type InsertProp } from "@shared/schema";
 import {
@@ -205,7 +205,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/props", async (req, res) => {
-    const validSports = ["NBA", "NHL", "MLB", "NFL"];
+    const validSports = ACTIVE_SPORTS as readonly string[];
     const rawSport = req.query.sport as string | undefined;
     const sport = rawSport && validSports.includes(rawSport) ? rawSport : undefined;
     const today = new Date().toISOString().split("T")[0];
@@ -275,7 +275,7 @@ export async function generateDailyProps(date: string) {
   const allProps: InsertProp[] = [];
   const dateSeed = date.split("-").join("").slice(0, 8);
   
-  for (const sport of ["NBA", "NHL", "MLB", "NFL"]) {
+  for (const sport of ACTIVE_SPORTS) {
     const sportSlates = mainSlates.filter(s => s.sport === sport);
     if (sportSlates.length === 0) continue;
     
