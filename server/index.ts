@@ -101,9 +101,16 @@ app.use((req, res, next) => {
     () => {
       log(`serving on port ${port}`);
 
-      storage.deleteExpiredLineups().then(count => {
-        if (count > 0) log(`Cleaned up ${count} expired lineup(s) on startup`, "cron");
-      }).catch(err => console.error("Startup lineup cleanup failed:", err));
+      (async () => {
+        try {
+          const delCount = await storage.deleteExpiredLineups();
+          if (delCount > 0) log(`Cleaned up ${delCount} expired lineup(s) on startup`, "cron");
+          await seedDatabase();
+          log("Startup seed check completed", "cron");
+        } catch (err) {
+          console.error("Startup initialization failed:", err);
+        }
+      })();
 
       cron.schedule("0 1 * * *", async () => {
         try {
