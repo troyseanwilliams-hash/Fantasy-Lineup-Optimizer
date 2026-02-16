@@ -1,4 +1,5 @@
 import { users, type User, type UpsertUser } from "@shared/models/auth";
+import { subscriptions } from "@shared/schema";
 import { db } from "../../db";
 import { eq } from "drizzle-orm";
 
@@ -27,6 +28,16 @@ class AuthStorage implements IAuthStorage {
         },
       })
       .returning();
+
+    const [existingSub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, user.id));
+    if (!existingSub) {
+      await db.insert(subscriptions).values({
+        userId: user.id,
+        tier: "pro",
+        status: "active",
+      }).onConflictDoNothing();
+    }
+
     return user;
   }
 }
