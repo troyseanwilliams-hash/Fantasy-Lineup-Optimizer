@@ -270,6 +270,13 @@ export default function Optimizer() {
                 {config.shortLabel}
               </Badge>
             </div>
+            {slate && (
+              <div className="flex items-center gap-2" data-testid="slate-date">
+                <span className={`text-xs font-black ${platform === "fanduel" ? "text-blue-400/70" : "text-emerald-400/70"}`}>
+                  {new Date(slate.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+                </span>
+              </div>
+            )}
             <div className="ml-auto flex items-center gap-2">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Slate:</span>
               <select
@@ -280,7 +287,7 @@ export default function Optimizer() {
               >
                 {mainSlates.map(s => (
                   <option key={s.id} value={s.id}>
-                    {s.platform === "fanduel" ? "FD" : "DK"} - {s.name}
+                    {s.platform === "fanduel" ? "FD" : "DK"} - {s.name} — {new Date(s.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                   </option>
                 ))}
               </select>
