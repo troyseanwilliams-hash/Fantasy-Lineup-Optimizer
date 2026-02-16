@@ -4,7 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { buildUrl } from "@shared/routes";
 import type { Player, Slate, OptimizeResponse } from "@shared/schema";
-import { getPlatformConfig, assignPlayersToSlots, getSlotDisplayName, type Platform } from "@shared/platform-config";
+import { getPlatformConfig, assignPlayersToSlots, getSlotDisplayName, positionFitsSlot, type Platform } from "@shared/platform-config";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Lock, Unlock, X, Zap, RefreshCw, Save, Search,
   ChevronDown, ChevronUp, ArrowUpDown, Heart, Loader2,
-  DollarSign, Target, TrendingUp, RotateCcw, Crown
+  DollarSign, Target, TrendingUp, RotateCcw, Crown, Plus, UserPlus
 } from "lucide-react";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "fppg" | "value";
@@ -35,6 +35,8 @@ export default function Optimizer() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [lineupName, setLineupName] = useState("");
   const [removedSlots, setRemovedSlots] = useState<Set<string>>(new Set());
+  const [replacingSlot, setReplacingSlot] = useState<string | null>(null);
+  const [manualReplacements, setManualReplacements] = useState<Record<string, Player>>({});
 
   const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"] });
   const slate = useMemo(() => slates?.find(s => s.id === slateId), [slates, slateId]);
@@ -69,6 +71,8 @@ export default function Optimizer() {
     },
     onSuccess: () => {
       setRemovedSlots(new Set());
+      setReplacingSlot(null);
+      setManualReplacements({});
     }
   });
 
@@ -169,8 +173,11 @@ export default function Optimizer() {
     removedSlots.forEach(slot => {
       if (assigned[slot]) assigned[slot] = null;
     });
+    Object.entries(manualReplacements).forEach(([slot, player]) => {
+      assigned[slot] = player;
+    });
     return assigned;
-  }, [currentLineup, config.slots, removedSlots]);
+  }, [currentLineup, config.slots, removedSlots, manualReplacements]);
 
   const activeLineupPlayers = useMemo(() => {
     if (!lineupSlots) return [];
@@ -215,13 +222,47 @@ export default function Optimizer() {
     setExcludedIds([]);
     setCustomProjections({});
     setRemovedSlots(new Set());
+    setReplacingSlot(null);
+    setManualReplacements({});
     optimizeMutation.reset();
     setLineupName("");
   };
 
   const handleRemoveFromSlot = (slot: string) => {
     setRemovedSlots(prev => new Set(prev).add(slot));
+    setManualReplacements(prev => {
+      const next = { ...prev };
+      delete next[slot];
+      return next;
+    });
   };
+
+  const handleSelectReplacement = (player: Player) => {
+    if (!replacingSlot) return;
+    setManualReplacements(prev => ({ ...prev, [replacingSlot]: player }));
+    setRemovedSlots(prev => {
+      const next = new Set(prev);
+      next.delete(replacingSlot);
+      return next;
+    });
+    setReplacingSlot(null);
+  };
+
+  const remainingSalary = useMemo(() => {
+    return config.salaryCap - totalSalary;
+  }, [config.salaryCap, totalSalary]);
+
+  const replacementEligiblePlayers = useMemo(() => {
+    if (!replacingSlot || !players) return [];
+    const lineupPlayerIds = new Set(activeLineupPlayers.map(p => p.id));
+    return players.filter(p => {
+      if (lineupPlayerIds.has(p.id)) return false;
+      if (excludedIds.includes(p.id)) return false;
+      if (!positionFitsSlot(p.position, replacingSlot, sport)) return false;
+      if (p.salary > remainingSalary) return false;
+      return true;
+    });
+  }, [replacingSlot, players, activeLineupPlayers, excludedIds, sport, remainingSalary]);
 
   const handleSlateChange = (newSlateId: string) => {
     handleReset();
@@ -351,13 +392,46 @@ export default function Optimizer() {
           </div>
         </div>
 
+        {/* Replacement Mode Banner */}
+        {replacingSlot && (
+          <div className={`px-4 py-2.5 border-b flex items-center justify-between ${
+            platform === "fanduel" ? "bg-blue-500/10 border-blue-500/30" : "bg-emerald-500/10 border-emerald-500/30"
+          }`} data-testid="replacement-banner">
+            <div className="flex items-center gap-2">
+              <UserPlus className={`w-4 h-4 ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`} />
+              <span className="text-sm font-bold text-white">
+                Select a <span className={platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}>{getSlotDisplayName(replacingSlot)}</span> replacement
+              </span>
+              <Badge className={`text-[11px] font-black ${platform === "fanduel" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"}`}>
+                Budget: ${remainingSalary.toLocaleString()}
+              </Badge>
+              <span className="text-[11px] font-bold text-slate-400">
+                {replacementEligiblePlayers.length} eligible
+              </span>
+            </div>
+            <button
+              onClick={() => setReplacingSlot(null)}
+              className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800 transition-all"
+              data-testid="cancel-replacement"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* Player Table */}
         <div className="flex-1 overflow-auto">
           <table className="w-full text-left border-collapse min-w-[700px]">
             <thead className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800">
               <tr className="text-slate-400">
-                <th className="px-3 py-3 w-10 text-center text-[11px] font-black uppercase">Lock</th>
-                <th className="px-3 py-3 w-10 text-center text-[11px] font-black uppercase">Excl</th>
+                {replacingSlot ? (
+                  <th className="px-3 py-3 w-10 text-center text-[11px] font-black uppercase">Pick</th>
+                ) : (
+                  <>
+                    <th className="px-3 py-3 w-10 text-center text-[11px] font-black uppercase">Lock</th>
+                    <th className="px-3 py-3 w-10 text-center text-[11px] font-black uppercase">Excl</th>
+                  </>
+                )}
                 <SortHeader label="Pos" field="position" />
                 <SortHeader label="Player" field="name" />
                 <SortHeader label="Team" field="team" />
@@ -372,40 +446,71 @@ export default function Optimizer() {
               {filteredPlayers.map(player => {
                 const isLocked = lockedIds.includes(player.id);
                 const isInLineup = activeLineupPlayers.some(p => p.id === player.id);
+                const isEligibleReplacement = replacingSlot ? replacementEligiblePlayers.some(p => p.id === player.id) : false;
+                const isIneligible = replacingSlot && !isEligibleReplacement && !isInLineup;
                 return (
                   <tr
                     key={player.id}
-                    className={`group transition-colors hover:bg-slate-800/30 ${isLocked ? `${platform === "fanduel" ? "bg-blue-500/5" : "bg-emerald-500/5"}` : ""} ${isInLineup ? "bg-slate-800/20" : ""}`}
+                    className={`group transition-colors ${
+                      isIneligible ? "opacity-30" :
+                      isEligibleReplacement ? `${platform === "fanduel" ? "hover:bg-blue-500/10 bg-blue-500/5" : "hover:bg-emerald-500/10 bg-emerald-500/5"} cursor-pointer` :
+                      `hover:bg-slate-800/30 ${isLocked ? `${platform === "fanduel" ? "bg-blue-500/5" : "bg-emerald-500/5"}` : ""} ${isInLineup ? "bg-slate-800/20" : ""}`
+                    }`}
                     data-testid={`player-row-${player.id}`}
+                    onClick={isEligibleReplacement ? () => handleSelectReplacement(player) : undefined}
                   >
-                    <td className="px-3 py-2 text-center">
-                      <button
-                        onClick={() => {
-                          setLockedIds(prev => prev.includes(player.id) ? prev.filter(i => i !== player.id) : [...prev, player.id]);
-                          setExcludedIds(prev => prev.filter(i => i !== player.id));
-                        }}
-                        data-testid={`lock-${player.id}`}
-                        className={`p-1.5 rounded-md transition-all ${
-                          isLocked
-                            ? `${platform === "fanduel" ? "bg-blue-500" : "bg-emerald-500"} text-white shadow-md`
-                            : `text-slate-400 ${platform === "fanduel" ? "hover:text-blue-400" : "hover:text-emerald-400"} hover:bg-slate-800`
-                        }`}
-                      >
-                        {isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-                      </button>
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <button
-                        onClick={() => {
-                          setExcludedIds(prev => [...prev, player.id]);
-                          setLockedIds(prev => prev.filter(i => i !== player.id));
-                        }}
-                        data-testid={`exclude-${player.id}`}
-                        className="p-1.5 rounded-md text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
+                    {replacingSlot ? (
+                      <td className="px-3 py-2 text-center">
+                        {isEligibleReplacement ? (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleSelectReplacement(player); }}
+                            data-testid={`select-replacement-${player.id}`}
+                            className={`p-1.5 rounded-md transition-all ${
+                              platform === "fanduel"
+                                ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500 hover:text-white"
+                                : "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white"
+                            }`}
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        ) : isInLineup ? (
+                          <span className={`text-[11px] font-black ${platform === "fanduel" ? "text-blue-500" : "text-emerald-500"}`}>IN</span>
+                        ) : (
+                          <span className="text-slate-600 text-[11px]">--</span>
+                        )}
+                      </td>
+                    ) : (
+                      <>
+                        <td className="px-3 py-2 text-center">
+                          <button
+                            onClick={() => {
+                              setLockedIds(prev => prev.includes(player.id) ? prev.filter(i => i !== player.id) : [...prev, player.id]);
+                              setExcludedIds(prev => prev.filter(i => i !== player.id));
+                            }}
+                            data-testid={`lock-${player.id}`}
+                            className={`p-1.5 rounded-md transition-all ${
+                              isLocked
+                                ? `${platform === "fanduel" ? "bg-blue-500" : "bg-emerald-500"} text-white shadow-md`
+                                : `text-slate-400 ${platform === "fanduel" ? "hover:text-blue-400" : "hover:text-emerald-400"} hover:bg-slate-800`
+                            }`}
+                          >
+                            {isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                          </button>
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <button
+                            onClick={() => {
+                              setExcludedIds(prev => [...prev, player.id]);
+                              setLockedIds(prev => prev.filter(i => i !== player.id));
+                            }}
+                            data-testid={`exclude-${player.id}`}
+                            className="p-1.5 rounded-md text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </>
+                    )}
                     <td className="px-3 py-2">
                       <span className={`font-mono text-[11px] font-bold ${platform === "fanduel" ? "text-blue-400/80" : "text-emerald-400/80"}`}>{player.position}</span>
                     </td>
@@ -418,7 +523,14 @@ export default function Optimizer() {
                     </td>
                     <td className="px-3 py-2 text-xs font-bold text-slate-400 uppercase">{player.team}</td>
                     <td className="px-3 py-2 text-xs text-slate-400 uppercase hidden lg:table-cell">{player.opponent}</td>
-                    <td className="px-3 py-2 font-mono text-sm font-bold text-white">${player.salary.toLocaleString()}</td>
+                    <td className="px-3 py-2 font-mono text-sm font-bold text-white">
+                      ${player.salary.toLocaleString()}
+                      {isEligibleReplacement && (
+                        <span className={`block text-[11px] ${platform === "fanduel" ? "text-blue-400/60" : "text-emerald-400/60"}`}>
+                          fits budget
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 font-mono text-xs text-slate-400">{player.fppg}</td>
                     <td className="px-3 py-2">
                       <Input
@@ -599,9 +711,28 @@ export default function Optimizer() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex-1 px-3 py-3 text-sm text-slate-400 font-medium">
-                    Make a Pick
-                  </div>
+                  <button
+                    className={`flex-1 px-3 py-3 text-left flex items-center gap-2 transition-all rounded-r-lg ${
+                      currentLineup?.lineup
+                        ? `cursor-pointer ${
+                            replacingSlot === slot
+                              ? `${platform === "fanduel" ? "bg-blue-500/10 text-blue-400" : "bg-emerald-500/10 text-emerald-400"}`
+                              : `text-slate-400 hover:text-white ${platform === "fanduel" ? "hover:bg-blue-500/5" : "hover:bg-emerald-500/5"}`
+                          }`
+                        : "cursor-default text-slate-400"
+                    }`}
+                    onClick={() => {
+                      if (currentLineup?.lineup) {
+                        setReplacingSlot(replacingSlot === slot ? null : slot);
+                      }
+                    }}
+                    data-testid={`pick-slot-${slot}`}
+                  >
+                    <Plus className={`w-4 h-4 ${replacingSlot === slot ? (platform === "fanduel" ? "text-blue-400" : "text-emerald-400") : "text-slate-600"}`} />
+                    <span className="text-sm font-bold">
+                      {replacingSlot === slot ? "Selecting..." : "Make a Pick"}
+                    </span>
+                  </button>
                 )}
               </div>
             );
