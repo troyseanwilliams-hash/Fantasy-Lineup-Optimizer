@@ -183,8 +183,9 @@ function PropCard({ prop, index }: { prop: PropBet; index: number }) {
 }
 
 function LockedPropCard({ index, sport, tier }: { index: number; sport: string; tier: string }) {
-  const upgradeLabel = tier === "star" ? "Pro Pick" : "Premium Pick";
-  const upgradeText = tier === "star" ? "Upgrade to Pro" : "Upgrade Plan";
+  const isGuest = tier === "guest";
+  const upgradeLabel = isGuest ? "Locked Pick" : tier === "star" ? "Pro Pick" : "Premium Pick";
+  const upgradeText = isGuest ? "Sign In to Unlock" : tier === "star" ? "Upgrade to Pro" : "Upgrade Plan";
   return (
     <Card
       className="bg-slate-800/20 border-slate-800/50 p-5 relative overflow-hidden"
@@ -193,12 +194,18 @@ function LockedPropCard({ index, sport, tier }: { index: number; sport: string; 
       <div className="absolute inset-0 backdrop-blur-sm bg-slate-900/60 z-10 flex flex-col items-center justify-center">
         <Lock className="w-7 h-7 text-amber-500/60 mb-2" />
         <p className="text-sm font-bold text-slate-300 mb-1">{upgradeLabel}</p>
-        <p className="text-[11px] text-slate-400 mb-2">Higher confidence pick</p>
-        <Link href="/pricing">
-          <Button size="sm" className="text-xs">
-            <Crown className="w-3 h-3 mr-1" /> {upgradeText}
+        <p className="text-[11px] text-slate-400 mb-2">{isGuest ? "Create an account to view picks" : "Higher confidence pick"}</p>
+        {isGuest ? (
+          <Button size="sm" className="text-xs" onClick={() => window.location.href = '/api/login'}>
+            <Lock className="w-3 h-3 mr-1" /> {upgradeText}
           </Button>
-        </Link>
+        ) : (
+          <Link href="/pricing">
+            <Button size="sm" className="text-xs">
+              <Crown className="w-3 h-3 mr-1" /> {upgradeText}
+            </Button>
+          </Link>
+        )}
       </div>
       <div className="opacity-20">
         <div className="flex items-center gap-2 mb-3">
@@ -240,7 +247,8 @@ export default function PropBets() {
     }
   }, [sportParam, data, isLoading]);
 
-  const tier = data?.tier || "free";
+  const tier = data?.tier || "guest";
+  const isGuest = tier === "guest";
   const isPro = tier === "pro";
   const isPaid = tier === "pro" || tier === "star";
 
@@ -252,9 +260,11 @@ export default function PropBets() {
     }
   }
 
-  const lockedPerSport = data && !isPro && data.lockedCount
-    ? Math.max(1, Math.floor(data.lockedCount / ACTIVE_SPORTS.length))
-    : 0;
+  const lockedPerSport = isGuest
+    ? 3
+    : data && !isPro && data.lockedCount
+      ? Math.max(1, Math.floor(data.lockedCount / ACTIVE_SPORTS.length))
+      : 0;
 
   if (isLoading) {
     return (
@@ -279,14 +289,22 @@ export default function PropBets() {
           </div>
           <p className="text-slate-400">
             Daily AI-generated player prop picks organized by sport.
-            {!isPro && (
+            {isGuest ? (
+              <span className="text-amber-400 font-bold ml-1">
+                Sign in to unlock picks
+              </span>
+            ) : !isPro && (
               <span className="text-amber-400 font-bold ml-1">
                 {data?.maxPerSport || 2} picks per sport
               </span>
             )}
           </p>
         </div>
-        {!isPro && (
+        {isGuest ? (
+          <Button onClick={() => window.location.href = '/api/login'} data-testid="signin-props-btn">
+            <Lock className="w-4 h-4 mr-2" /> Sign In to Unlock
+          </Button>
+        ) : !isPro && (
           <Link href="/pricing">
             <Button data-testid="upgrade-props-btn">
               <Crown className="w-4 h-4 mr-2" /> {tier === "star" ? "Upgrade to Pro" : "Unlock More Picks"}
@@ -299,7 +317,7 @@ export default function PropBets() {
 
       {ACTIVE_SPORTS.map(sport => {
         const sportProps = propsBySport[sport] || [];
-        const hasContent = sportProps.length > 0 || (!isPro && lockedPerSport > 0);
+        const hasContent = sportProps.length > 0 || isGuest || (!isPro && lockedPerSport > 0);
         if (!hasContent && !isPro) return null;
 
         return (
@@ -316,7 +334,7 @@ export default function PropBets() {
 
             <SportAffiliateBanner sport={sport} />
 
-            {sportProps.length === 0 && isPro ? (
+            {sportProps.length === 0 && !isGuest && isPro ? (
               <div className="py-10 text-center bg-slate-800/20 rounded-2xl border border-dashed border-slate-800/50 mb-6">
                 <p className="text-slate-400 text-sm">No {sport} props available today</p>
               </div>
@@ -325,7 +343,7 @@ export default function PropBets() {
                 {sportProps.map((prop, idx) => (
                   <PropCard key={prop.id} prop={prop} index={prop.id} />
                 ))}
-                {!isPro && Array.from({ length: Math.min(lockedPerSport, 3) }).map((_, i) => (
+                {(isGuest || !isPro) && Array.from({ length: Math.min(lockedPerSport, 3) }).map((_, i) => (
                   <LockedPropCard key={`locked-${sport}-${i}`} index={i} sport={sport} tier={tier} />
                 ))}
               </div>
@@ -334,22 +352,30 @@ export default function PropBets() {
         );
       })}
 
-      {!isPro && data?.lockedCount && data.lockedCount > 0 && (
+      {!isPro && (isGuest || (data?.lockedCount && data.lockedCount > 0)) && (
         <div className="mt-4 mb-12 text-center bg-gradient-to-r from-amber-900/20 via-amber-800/10 to-amber-900/20 border border-amber-700/20 rounded-2xl p-8" data-testid="unlock-all-cta">
           <Crown className="w-10 h-10 text-amber-500/60 mx-auto mb-3" />
           <h3 className="text-xl font-black text-white mb-2">
-            {tier === "star" ? "Get Up to 15 Picks Per Sport" : "Unlock More Daily Picks"}
+            {isGuest ? "Sign In to Unlock AI Picks" : tier === "star" ? "Get Up to 15 Picks Per Sport" : "Unlock More Daily Picks"}
           </h3>
           <p className="text-slate-400 text-sm mb-5 max-w-md mx-auto">
-            {tier === "star"
-              ? "Upgrade to Pro ($19.99/mo) for up to 15 AI-powered prop picks per sport with higher confidence ratings."
-              : "Upgrade your plan for more AI-powered prop picks across all sports. Star gets up to 8, Pro gets up to 15."}
+            {isGuest
+              ? "Create a free account to start seeing AI-powered prop picks. Upgrade for even more picks across all sports."
+              : tier === "star"
+                ? "Upgrade to Pro ($19.99/mo) for up to 15 AI-powered prop picks per sport with higher confidence ratings."
+                : "Upgrade your plan for more AI-powered prop picks across all sports. Star gets up to 8, Pro gets up to 15."}
           </p>
-          <Link href="/pricing">
-            <Button data-testid="unlock-all-btn">
-              <Crown className="w-4 h-4 mr-2" /> {tier === "star" ? "Upgrade to Pro" : "View Plans"}
+          {isGuest ? (
+            <Button onClick={() => window.location.href = '/api/login'} data-testid="unlock-all-btn">
+              <Lock className="w-4 h-4 mr-2" /> Sign In
             </Button>
-          </Link>
+          ) : (
+            <Link href="/pricing">
+              <Button data-testid="unlock-all-btn">
+                <Crown className="w-4 h-4 mr-2" /> {tier === "star" ? "Upgrade to Pro" : "View Plans"}
+              </Button>
+            </Link>
+          )}
         </div>
       )}
 

@@ -472,18 +472,25 @@ export async function registerRoutes(
     const sorted = allProps.sort((a, b) => Number(b.confidence) - Number(a.confidence));
 
     let tier = "free";
+    let isAuthenticated = false;
     if (req.isAuthenticated()) {
+      isAuthenticated = true;
       const userId = (req.user as any).claims.sub;
       const sub = await storage.getSubscription(userId);
       tier = sub?.tier || "free";
     }
 
-    const maxPerSport = tier === "pro" ? 15 : tier === "star" ? 8 : 2;
+    const maxPerSport = !isAuthenticated ? 0 : tier === "pro" ? 15 : tier === "star" ? 8 : 2;
 
     const propsBySport: Record<string, typeof sorted> = {};
     for (const prop of sorted) {
       if (!propsBySport[prop.sport]) propsBySport[prop.sport] = [];
       propsBySport[prop.sport].push(prop);
+    }
+
+    if (!isAuthenticated) {
+      const lockedCount = sorted.length;
+      return res.json({ props: [], tier: "guest", totalCount: sorted.length, lockedCount, maxPerSport: 0 });
     }
 
     if (tier === "pro") {
