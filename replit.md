@@ -98,6 +98,15 @@ The `shared/` directory contains code used by both client and server:
 - **PostgreSQL Database**: Connected via `DATABASE_URL` environment variable. Used for all data storage including auth sessions
 - **Replit Auth (OIDC)**: Authentication via `ISSUER_URL` (defaults to `https://replit.com/oidc`). Requires `REPL_ID` and `SESSION_SECRET` environment variables
 
+### Live Data Integration
+- **DraftKings Public API**: Primary data source for DFS player pools. Fetches real active player salaries, positions, and game info from DK's unauthenticated contest/draftables endpoints. No API key required.
+  - Endpoints: `draftkings.com/lobby/getcontests?sport={SPORT}` → `api.draftkings.com/draftgroups/v1/draftgroups/{id}/draftables`
+  - Supports NBA, NHL, MLB, NFL. Falls back to static seed data when DK returns no valid data (e.g., MLB pre-season)
+  - FanDuel data is derived from DK data with salary ratios based on platform salary caps
+- **Ball Don't Lie API**: Previously used for NBA data, replaced by DraftKings API for more accurate DFS-specific player pools
+- **ESPN Public API**: Used for live sport-specific news articles on the News page
+- **Data module**: `server/balldontlie.ts` handles all DK API fetching, player processing, and static fallbacks
+
 ### Key NPM Packages
 - `drizzle-orm` + `drizzle-kit` - Database ORM and migration tooling
 - `javascript-lp-solver` - Linear Programming solver for lineup optimization
