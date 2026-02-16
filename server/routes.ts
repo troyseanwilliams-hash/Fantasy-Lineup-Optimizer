@@ -459,7 +459,7 @@ export async function registerRoutes(
       tier = sub?.tier || "free";
     }
 
-    const maxPerSport = tier === "pro" ? 20 : tier === "competitive" ? 8 : 2;
+    const maxPerSport = tier === "pro" ? 15 : tier === "competitive" ? 8 : 2;
 
     const propsBySport: Record<string, typeof sorted> = {};
     for (const prop of sorted) {
