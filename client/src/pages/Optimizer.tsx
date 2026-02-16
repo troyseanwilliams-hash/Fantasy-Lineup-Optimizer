@@ -96,17 +96,21 @@ export default function Optimizer() {
     const gameMap = new Map<string, { away: string; home: string; time: string }>();
     players.forEach(p => {
       if (p.gameInfo) {
-        const key = p.gameInfo;
-        if (!gameMap.has(key)) {
-          const parts = p.gameInfo.split(" ");
-          const time = parts[parts.length - 1] || "";
-          const teams = p.gameInfo.replace(time, "").trim();
-          const [away, home] = teams.includes("@")
-            ? teams.split(" @ ").map(s => s.trim())
-            : teams.includes("vs")
-              ? teams.split(" vs ").map(s => s.trim())
-              : [p.team, p.opponent || ""];
-          gameMap.set(key, { away, home, time });
+        const parts = p.gameInfo.split(" ");
+        const time = parts[parts.length - 1] || "";
+        const teams = p.gameInfo.replace(time, "").trim();
+        let away: string, home: string;
+        if (teams.includes("@")) {
+          [away, home] = teams.split(" @ ").map(s => s.trim());
+        } else if (teams.includes("vs")) {
+          [home, away] = teams.split(" vs ").map(s => s.trim());
+        } else {
+          away = p.opponent || "";
+          home = p.team;
+        }
+        const sortedKey = [away, home].sort().join("-");
+        if (!gameMap.has(sortedKey)) {
+          gameMap.set(sortedKey, { away, home, time });
         }
       }
     });
@@ -283,18 +287,25 @@ export default function Optimizer() {
             </div>
           </div>
 
-          {/* Game Matchup Cards */}
+          {/* Game Scoreboard Cards */}
           <div className="px-4 pb-3 flex gap-2 overflow-x-auto scrollbar-hide">
             {games.map((game, i) => (
               <div
                 key={i}
-                className={`flex-shrink-0 bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 flex items-center gap-2 text-xs transition-colors cursor-default ${platform === "fanduel" ? "hover:border-blue-500/30" : "hover:border-emerald-500/30"}`}
+                className={`flex-shrink-0 bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 min-w-[100px] transition-colors cursor-default ${platform === "fanduel" ? "hover:border-blue-500/30" : "hover:border-emerald-500/30"}`}
                 data-testid={`game-card-${i}`}
               >
-                <span className="font-black text-white">{game.away}</span>
-                <span className="text-slate-500 text-[10px]">@</span>
-                <span className="font-black text-white">{game.home}</span>
-                <span className="text-[9px] text-slate-500 font-bold ml-1">{game.time}</span>
+                <div className="flex items-center justify-between gap-3 mb-1">
+                  <span className="text-xs font-black text-white">{game.away}</span>
+                  <span className="text-xs font-bold text-slate-500">0</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-black text-white">{game.home}</span>
+                  <span className="text-xs font-bold text-slate-500">0</span>
+                </div>
+                <div className={`text-[9px] font-bold mt-1.5 pt-1.5 border-t border-slate-700/50 text-center ${platform === "fanduel" ? "text-blue-400/60" : "text-emerald-400/60"}`}>
+                  {game.time}
+                </div>
               </div>
             ))}
           </div>
