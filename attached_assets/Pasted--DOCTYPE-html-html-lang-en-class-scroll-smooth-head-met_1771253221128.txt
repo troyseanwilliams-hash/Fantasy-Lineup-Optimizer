@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProLineup AI | Smart Sports Betting & DFS Optimizer</title>
+    <meta name="description" content="AI-driven sports lineup builder and prop betting insights. Optimize your DFS strategy with real-time web data analysis.">
+    <meta name="keywords" content="DFS, Lineup Builder, Sports Betting, AI Sports, Prop Bets, NFL, NBA, MLB">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="ProLineup AI - Dominate Your Leagues">
+    <meta property="og:description" content="The most advanced AI-powered lineup optimizer and prop betting tool.">
+    
+    <!-- Twitter -->
+    <meta name="twitter:title" content="ProLineup AI">
+    <meta name="twitter:description" content="AI-driven sports lineup builder and prop betting insights.">
+
+    <script src="https://resource.trickle.so/vendor_lib/unpkg/react@18/umd/react.production.min.js"></script>
+    <script src="https://resource.trickle.so/vendor_lib/unpkg/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://resource.trickle.so/vendor_lib/unpkg/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
+    <link href="https://resource.trickle.so/vendor_lib/unpkg/lucide-static@0.516.0/font/lucide.css" rel="stylesheet">
+
+    <script>
+        // Initialize Chart.js to avoid conflicts
+        const ChartJS = window.Chart;
+    </script>
+
+    <style type="text/tailwindcss">
+    @layer theme {
+        :root {
+            --primary: #10B981; /* Emerald 500 */
+            --primary-hover: #059669; /* Emerald 600 */
+            --secondary: #3B82F6; /* Blue 500 */
+            --bg-dark: #0F172A; /* Slate 900 */
+            --bg-card: #1E293B; /* Slate 800 */
+            --text-main: #F8FAFC; /* Slate 50 */
+            --text-muted: #94A3B8; /* Slate 400 */
+            --accent-danger: #EF4444;
+        }
+    }
+
+    @layer base {
+        body {
+            @apply bg-[var(--bg-dark)] text-[var(--text-main)] font-sans antialiased;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            @apply font-bold tracking-tight;
+        }
+    }
+
+    @layer components {
+        .btn {
+            @apply inline-flex items-center justify-center px-6 py-3 rounded-lg font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[var(--bg-dark)];
+        }
+        .btn-primary {
+            @apply bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] focus:ring-[var(--primary)];
+        }
+        .btn-secondary {
+            @apply bg-[var(--bg-card)] text-white hover:bg-slate-700 border border-slate-700 focus:ring-slate-500;
+        }
+        .card {
+            @apply bg-[var(--bg-card)] border border-slate-700 rounded-xl p-6 shadow-xl;
+        }
+        .nav-link {
+            @apply text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors duration-200;
+        }
+        .input-dark {
+            @apply bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2 w-full focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none;
+        }
+    }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <!-- Main App Entry -->
+    <script type="text/babel" src="components/SettingsModal.js"></script>
+    <script type="text/babel" src="components/Header.js"></script>
+    <script type="text/babel" src="components/Footer.js"></script>
+    <script type="text/babel" src="components/PaymentModal.js"></script>
+    <script type="text/babel" src="app.js"></script>
+</body>
+</html>

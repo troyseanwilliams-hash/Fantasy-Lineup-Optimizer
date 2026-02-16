@@ -7,28 +7,29 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Upload, FileJson } from "lucide-react";
+import { Loader2, Plus, Upload, FileJson, Database } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
 
 const EXAMPLE_JSON = `[
   {
-    "name": "Patrick Mahomes",
-    "team": "KC",
-    "position": "QB",
-    "salary": 7800,
-    "fppg": "24.5",
-    "projectedPoints": "26.2",
-    "opponent": "LV",
-    "gameInfo": "KC @ LV 4:25PM"
+    "name": "LeBron James",
+    "team": "LAL",
+    "position": "SF/PF",
+    "salary": 9800,
+    "fppg": "48.5",
+    "projectedPoints": "52.2",
+    "opponent": "GSW",
+    "gameInfo": "LAL @ GSW 10:00PM"
   },
   {
-    "name": "Travis Kelce",
-    "team": "KC",
-    "position": "TE",
-    "salary": 6400,
-    "fppg": "15.2",
-    "projectedPoints": "18.5",
-    "opponent": "LV",
-    "gameInfo": "KC @ LV 4:25PM"
+    "name": "Stephen Curry",
+    "team": "GSW",
+    "position": "PG",
+    "salary": 10200,
+    "fppg": "50.2",
+    "projectedPoints": "54.5",
+    "opponent": "LAL",
+    "gameInfo": "LAL @ GSW 10:00PM"
   }
 ]`;
 
@@ -37,9 +38,20 @@ export default function Admin() {
   const { mutate: uploadPlayers, isPending: isUploading } = useBulkCreatePlayers();
   const { toast } = useToast();
 
+  const seedMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/admin/seed", { method: "POST" });
+      if (!res.ok) throw new Error("Seeding failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "Database seeded with sample NFL and NBA slates." });
+    }
+  });
+
   const [slateForm, setSlateForm] = useState({
     name: "",
-    sport: "NFL",
+    sport: "NBA",
     startTime: "",
   });
 
@@ -58,7 +70,7 @@ export default function Admin() {
       onSuccess: (data) => {
         toast({ title: "Slate Created", description: `ID: ${data.id}` });
         setUploadForm(prev => ({ ...prev, slateId: String(data.id) }));
-        setSlateForm({ name: "", sport: "NFL", startTime: "" });
+        setSlateForm({ name: "", sport: "NBA", startTime: "" });
       },
       onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" })
     });
@@ -68,7 +80,6 @@ export default function Admin() {
     e.preventDefault();
     try {
       const players = JSON.parse(uploadForm.jsonData);
-      // Ensure slateId is attached to each player object before sending
       const playersWithSlate = players.map((p: any) => ({ ...p, slateId: Number(uploadForm.slateId) }));
       
       uploadPlayers({
@@ -87,43 +98,53 @@ export default function Admin() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navigation />
+    <div className="container mx-auto px-4 py-12 space-y-12">
+      <div className="flex justify-between items-center">
+        <h1 className="text-4xl font-bold text-white tracking-tight">Admin Control Center</h1>
+        <Button 
+          onClick={() => seedMutation.mutate()} 
+          disabled={seedMutation.isPending}
+          variant="outline"
+          className="border-slate-700 text-slate-300 hover:bg-slate-800"
+        >
+          {seedMutation.isPending ? <Loader2 className="animate-spin mr-2" /> : <Database className="w-4 h-4 mr-2" />}
+          Seed Sample Data
+        </Button>
+      </div>
       
-      <main className="max-w-4xl mx-auto px-4 py-12 space-y-12">
-        {/* Create Slate Section */}
-        <div className="bg-card rounded-2xl p-8 border border-border shadow-lg">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+        <div className="card">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-              <Plus className="w-6 h-6 text-primary" />
+            <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+              <Plus className="w-6 h-6 text-[#10B981]" />
             </div>
-            <h2 className="text-2xl font-display font-bold text-white">Create New Slate</h2>
+            <h2 className="text-2xl font-bold text-white">Create New Slate</h2>
           </div>
 
           <form onSubmit={handleCreateSlate} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Sport</Label>
+                <Label className="text-slate-400">Sport</Label>
                 <Select 
                   value={slateForm.sport} 
                   onValueChange={(val) => setSlateForm(prev => ({ ...prev, sport: val }))}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-slate-900 border-slate-700">
                     <SelectValue placeholder="Select sport" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-slate-900 border-slate-700 text-white">
                     <SelectItem value="NFL">NFL</SelectItem>
                     <SelectItem value="NBA">NBA</SelectItem>
                     <SelectItem value="MLB">MLB</SelectItem>
-                    <SelectItem value="NHL">NHL</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               
               <div className="space-y-2">
-                <Label>Slate Name</Label>
+                <Label className="text-slate-400">Slate Name</Label>
                 <Input 
-                  placeholder="e.g. Week 1 Main Slate" 
+                  placeholder="e.g. NBA Main Slate" 
+                  className="input-dark"
                   value={slateForm.name}
                   onChange={e => setSlateForm(prev => ({ ...prev, name: e.target.value }))}
                   required
@@ -131,9 +152,10 @@ export default function Admin() {
               </div>
 
               <div className="space-y-2">
-                <Label>Start Time</Label>
+                <Label className="text-slate-400">Start Time</Label>
                 <Input 
                   type="datetime-local" 
+                  className="input-dark"
                   value={slateForm.startTime}
                   onChange={e => setSlateForm(prev => ({ ...prev, startTime: e.target.value }))}
                   required
@@ -141,27 +163,27 @@ export default function Admin() {
               </div>
             </div>
 
-            <Button type="submit" disabled={isCreatingSlate} className="w-full">
+            <Button type="submit" disabled={isCreatingSlate} className="btn-primary w-full h-12 text-lg font-bold">
               {isCreatingSlate ? <Loader2 className="animate-spin" /> : "Create Slate"}
             </Button>
           </form>
         </div>
 
-        {/* Upload Players Section */}
-        <div className="bg-card rounded-2xl p-8 border border-border shadow-lg">
+        <div className="card">
            <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-              <Upload className="w-6 h-6 text-emerald-400" />
+            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+              <Upload className="w-6 h-6 text-blue-400" />
             </div>
-            <h2 className="text-2xl font-display font-bold text-white">Seed Player Data</h2>
+            <h2 className="text-2xl font-bold text-white">Import Player Pool</h2>
           </div>
 
           <form onSubmit={handleUploadPlayers} className="space-y-6">
             <div className="space-y-2">
-              <Label>Target Slate ID</Label>
+              <Label className="text-slate-400">Target Slate ID</Label>
               <Input 
-                placeholder="Enter Slate ID from above" 
+                placeholder="Enter Slate ID" 
                 type="number"
+                className="input-dark"
                 value={uploadForm.slateId}
                 onChange={e => setUploadForm(prev => ({ ...prev, slateId: e.target.value }))}
                 required
@@ -170,37 +192,35 @@ export default function Admin() {
 
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <Label>Player Data (JSON)</Label>
-                <Button 
+                <Label className="text-slate-400">Player Data (JSON)</Label>
+                <button 
                   type="button" 
-                  variant="ghost" 
-                  size="xs" 
-                  className="text-primary h-auto p-0"
+                  className="text-[#10B981] text-xs font-bold hover:underline"
                   onClick={() => setUploadForm(prev => ({ ...prev, jsonData: EXAMPLE_JSON }))}
                 >
-                  Load Example JSON
-                </Button>
+                  Load NBA Example
+                </button>
               </div>
               <Textarea 
-                className="font-mono text-xs min-h-[300px]"
-                placeholder="Paste JSON array of player objects..."
+                className="input-dark font-mono text-xs min-h-[300px]"
+                placeholder="Paste player JSON array..."
                 value={uploadForm.jsonData}
                 onChange={e => setUploadForm(prev => ({ ...prev, jsonData: e.target.value }))}
                 required
               />
             </div>
 
-            <Button type="submit" disabled={isUploading} variant="secondary" className="w-full">
+            <Button type="submit" disabled={isUploading} className="w-full h-12 bg-slate-700 hover:bg-slate-600 text-white font-bold">
               {isUploading ? <Loader2 className="animate-spin" /> : (
-                <>
+                <div className="flex items-center">
                   <FileJson className="w-4 h-4 mr-2" />
-                  Upload Data
-                </>
+                  Upload Player Data
+                </div>
               )}
             </Button>
           </form>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

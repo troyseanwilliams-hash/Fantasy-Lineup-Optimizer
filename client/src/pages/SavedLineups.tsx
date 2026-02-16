@@ -1,91 +1,123 @@
-import { useLineups, useDeleteLineup } from "@/hooks/use-lineups";
-import { useSlates, useSlatePlayers } from "@/hooks/use-slates";
-import { Navigation } from "@/components/Navigation";
-import { LineupCard } from "@/components/LineupCard";
-import { Loader2, AlertCircle } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Trophy, TrendingUp, Zap, Search, Trash2 } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Link } from "wouter";
+import { useMutation } from "@tanstack/react-query";
+import { api, buildUrl } from "@shared/routes";
+import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useMemo } from "react";
-import { Player } from "@shared/schema";
 
 export default function SavedLineups() {
-  const { data: lineups, isLoading: isLineupsLoading } = useLineups();
-  // For a real app we'd probably fetch players differently, but here we just grab all slates 
-  // and hope we can resolve players. In production you'd likely store player snapshot in lineup 
-  // or fetch players by IDs for the specific lineup.
-  // For this demo, let's just fetch all slates and get players for the first active slate 
-  // as a simplification or create a new endpoint to resolve players.
-  // Actually, let's fetch slates and then fetch players for relevant slate IDs.
-  // Due to React Query hook rules, this is tricky in a loop.
-  // Better approach: Since we don't have a "getPlayersByIds" endpoint, 
-  // let's just rely on what we have. A robust solution would need a bulk player fetch endpoint.
-  // We'll stub the player lookup for now with a note or try to fetch for the most common slate.
-  
-  // WORKAROUND: We will just assume we are viewing lineups for the first slate available 
-  // or that we only care about the latest slate. 
-  // In a real app: Implement `usePlayersByIds(ids)`
-  
-  const { data: slates } = useSlates();
-  const firstSlateId = slates?.[0]?.id;
-  const { data: players } = useSlatePlayers(firstSlateId || 0);
-
-  const { mutate: deleteLineup } = useDeleteLineup();
+  const { user } = useAuth();
   const { toast } = useToast();
 
-  const playersMap = useMemo(() => {
-    const map = new Map<number, Player>();
-    players?.forEach(p => map.set(p.id, p));
-    return map;
-  }, [players]);
+  const { data: lineups, isLoading } = useQuery({
+    queryKey: ["/api/lineups"],
+  });
 
-  const handleDelete = (id: number) => {
-    if (confirm("Are you sure you want to delete this lineup?")) {
-      deleteLineup(id, {
-        onSuccess: () => toast({ title: "Lineup deleted" }),
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(buildUrl(api.lineups.delete.path, { id }), {
+        method: "DELETE",
       });
+      if (!res.ok) throw new Error("Failed to delete lineup");
+    },
+    onSuccess: () => {
+      toast({ title: "Lineup Deleted", description: "The lineup has been removed from your vault." });
+      queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
     }
-  };
+  });
 
-  if (isLineupsLoading) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="container mx-auto px-4 py-12">
+        <Skeleton className="h-12 w-48 bg-slate-800 mb-8" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map(i => <Skeleton key={i} className="h-64 bg-slate-800 rounded-2xl" />)}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navigation />
-      
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <h1 className="text-3xl font-display font-bold text-white mb-8">Saved Lineups</h1>
-        
-        {!players && (
-           <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 p-4 rounded-lg mb-8 flex items-center gap-3">
-             <AlertCircle className="w-5 h-5" />
-             <p>Note: Only displaying detailed player data for the most recent slate due to demo API limitations.</p>
-           </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {lineups && lineups.length > 0 ? (
-            lineups.map((lineup, index) => (
-              <div key={lineup.id} className="h-full">
-                <LineupCard 
-                  lineup={lineup} 
-                  playersMap={playersMap} 
-                  onDelete={handleDelete}
-                  index={index}
-                />
-              </div>
-            ))
-          ) : (
-            <div className="col-span-full py-20 text-center text-muted-foreground bg-card rounded-2xl border border-dashed border-border">
-              <p>No saved lineups yet. Go to the Optimizer to build some!</p>
-            </div>
-          )}
+    <div className="container mx-auto px-4 py-12">
+      <div className="flex items-center justify-between mb-12">
+        <div>
+          <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">Lineup Vault</h1>
+          <p className="text-slate-400">Your optimized winning combinations.</p>
         </div>
-      </main>
+        <Link href="/">
+          <Button className="btn-primary">
+            Build New Lineup
+          </Button>
+        </Link>
+      </div>
+
+      {lineups?.length ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {lineups.map((lineup: any) => (
+            <Card key={lineup.id} className="card bg-slate-800/30 border-slate-800 hover:border-slate-700 p-8 transition-all">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-black px-2 py-0.5 rounded uppercase">
+                      {lineup.sport}
+                    </span>
+                    <span className="text-slate-500 text-[10px] font-bold">
+                      {new Date(lineup.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <h3 className="text-2xl font-bold text-white">{lineup.name || "Optimized Lineup"}</h3>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => deleteMutation.mutate(lineup.id)}
+                  className="text-slate-500 hover:text-red-400"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-8">
+                <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800/50">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Projection</p>
+                  <p className="text-2xl font-bold text-[var(--primary)]">{Number(lineup.totalProjectedPoints).toFixed(1)}</p>
+                </div>
+                <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800/50">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Salary</p>
+                  <p className="text-2xl font-bold text-white">${lineup.totalSalary.toLocaleString()}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-6 border-t border-slate-800">
+                <div className="flex -space-x-2">
+                  {[1,2,3,4].map(i => (
+                    <div key={i} className="w-8 h-8 rounded-full bg-slate-700 border-2 border-slate-800 flex items-center justify-center text-[10px] font-bold text-white">
+                      P
+                    </div>
+                  ))}
+                  <div className="w-8 h-8 rounded-full bg-slate-900 border-2 border-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-500">
+                    +{lineup.playerIds.length - 4}
+                  </div>
+                </div>
+                <Button variant="outline" className="text-slate-300 border-slate-700">
+                  View Full Roster
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="py-24 text-center bg-slate-800/20 rounded-3xl border-2 border-dashed border-slate-800/50">
+          <Zap className="w-16 h-16 text-slate-700 mx-auto mb-6" />
+          <h5 className="text-xl font-bold text-slate-300 mb-2">No Saved Lineups</h5>
+          <p className="text-slate-500 max-w-sm mx-auto">Once you optimize a lineup, save it to your vault to track performance and export to DFS sites.</p>
+        </div>
+      )}
     </div>
   );
 }

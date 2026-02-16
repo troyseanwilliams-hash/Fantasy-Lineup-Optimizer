@@ -1,71 +1,57 @@
-import { type Player, type Lineup } from "@shared/schema";
-import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
+import { type Player, type OptimizeResponse } from "@shared/schema";
+import { Card, CardContent } from "@/components/ui/card";
+import { Zap } from "lucide-react";
 
 interface LineupCardProps {
-  lineup: Lineup | { playerIds: number[], totalSalary: number, totalProjectedPoints: any, lineup?: Player[] };
-  playersMap: Map<number, Player>;
+  lineup: OptimizeResponse | any;
+  playersMap?: Map<number, Player>;
   onDelete?: (id: number) => void;
   index?: number;
 }
 
 export function LineupCard({ lineup, playersMap, onDelete, index }: LineupCardProps) {
-  // If we have direct player objects (from optimizer), use them. Otherwise lookup from map.
-  // The 'lineup' property on the first type argument comes from the OptimizeResponse schema
-  const playersList = 'lineup' in lineup && Array.isArray(lineup.lineup) 
-    ? lineup.lineup 
-    : lineup.playerIds.map(id => playersMap.get(id)).filter(Boolean) as Player[];
+  const players = lineup.lineup || lineup.playerIds?.map((id: number) => playersMap?.get(id)).filter(Boolean) || [];
+  const totalSalary = lineup.totalSalary;
+  const totalPoints = lineup.totalProjectedPoints;
 
-  // Sort by position order is nice to have but we'll stick to array order for now
-  
   return (
-    <div className="bg-card rounded-xl border border-border shadow-lg overflow-hidden flex flex-col h-full hover:border-primary/50 transition-colors group">
-      <div className="p-4 border-b border-border bg-black/20 flex justify-between items-center">
-        <div>
-           <h3 className="font-display text-lg text-white">
-            Lineup {index !== undefined ? `#${index + 1}` : ''}
-            {'name' in lineup && lineup.name && <span className="text-muted-foreground ml-2 text-sm font-sans normal-case">({lineup.name})</span>}
-           </h3>
-           <div className="flex gap-4 mt-1">
-             <span className="text-xs font-mono text-emerald-400">
-               SAL: ${(lineup.totalSalary).toLocaleString()}
-             </span>
-             <span className="text-xs font-mono text-primary">
-               PROJ: {Number(lineup.totalProjectedPoints).toFixed(2)}
-             </span>
-           </div>
+    <Card className="card border-slate-800 bg-slate-800/30 overflow-hidden hover:border-emerald-500/30 transition-all">
+      <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900/20">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+            <Zap className="w-4 h-4 text-emerald-400 fill-current" />
+          </div>
+          <div>
+            <h4 className="font-bold text-white text-sm">Lineup #{index !== undefined ? index + 1 : '1'}</h4>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Optimized Proj</p>
+          </div>
         </div>
-        {'id' in lineup && onDelete && (
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-            onClick={() => onDelete(lineup.id)}
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        )}
+        <div className="text-right">
+          <div className="text-lg font-black text-emerald-400">{Number(totalPoints).toFixed(2)}</div>
+          <div className="text-[10px] font-bold text-slate-500">${totalSalary?.toLocaleString()}</div>
+        </div>
       </div>
-      
-      <div className="divide-y divide-border/50">
-        {playersList.map((player) => (
-          <div key={player.id} className="p-3 flex items-center justify-between hover:bg-white/5 transition-colors">
-            <div className="flex items-center gap-3">
-              <span className="w-8 font-mono text-xs font-bold text-muted-foreground bg-secondary/50 rounded px-1.5 py-0.5 text-center">
-                {player.position}
-              </span>
-              <div>
-                <p className="text-sm font-medium text-white">{player.name}</p>
-                <p className="text-[10px] text-muted-foreground uppercase">{player.team} vs {player.opponent}</p>
+      <CardContent className="p-0">
+        <div className="divide-y divide-slate-800/50">
+          {players.map((player: Player) => (
+            <div key={player.id} className="px-6 py-3 flex items-center justify-between hover:bg-slate-800/20 transition-colors">
+              <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded bg-slate-800 flex items-center justify-center text-[9px] font-black text-slate-500 border border-slate-700">
+                  {player.position}
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-slate-200">{player.name}</div>
+                  <div className="text-[9px] text-slate-500 font-bold uppercase">{player.team}</div>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] font-bold text-slate-300">{player.projectedPoints}</div>
+                <div className="text-[9px] text-slate-600 font-mono">${player.salary?.toLocaleString()}</div>
               </div>
             </div>
-            <div className="text-right">
-              <p className="font-mono text-xs text-emerald-400/80">${player.salary}</p>
-              <p className="font-mono text-xs text-primary/80">{player.projectedPoints}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

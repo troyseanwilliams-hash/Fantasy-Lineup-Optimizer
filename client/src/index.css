@@ -1,84 +1,60 @@
-@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* Dark Mode Default Theme Base */
-  --background: 222 47% 11%;
-  --foreground: 210 40% 98%;
+@layer base {
+  :root {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 161 72% 40%; /* #10B981 */
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 91.2% 59.8%; /* #3B82F6 */
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 161 72% 40%;
+    --radius: 0.75rem;
 
-  --card: 224 35% 15%;
-  --card-foreground: 210 40% 98%;
-
-  --popover: 224 35% 15%;
-  --popover-foreground: 210 40% 98%;
-
-  --primary: 190 100% 50%; /* Electric Cyan */
-  --primary-foreground: 222 47% 11%;
-
-  --secondary: 217 33% 20%;
-  --secondary-foreground: 210 40% 98%;
-
-  --muted: 217 33% 17%;
-  --muted-foreground: 215 20% 65%;
-
-  --accent: 142 71% 45%; /* Neon Green for positive stats */
-  --accent-foreground: 144 100% 98%;
-
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 210 40% 98%;
-
-  --border: 217 33% 20%;
-  --input: 217 33% 20%;
-  --ring: 190 100% 50%;
-
-  --radius: 0.5rem;
-
-  --font-display: 'Chakra Petch', sans-serif;
-  --font-body: 'Inter', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+    /* ProLineup Custom Variables */
+    --bg-dark: #0F172A;
+    --bg-card: #1E293B;
+    --text-main: #F8FAFC;
+    --text-muted: #94A3B8;
+    --primary-hex: #10B981;
+    --primary-hover: #059669;
+  }
 }
 
 @layer base {
+  * {
+    @apply border-slate-800;
+  }
   body {
-    @apply bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary;
-    font-family: var(--font-body);
-  }
-
-  h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-display);
-    @apply font-bold tracking-tight text-white uppercase;
+    @apply bg-[#0F172A] text-[#F8FAFC] font-sans antialiased;
   }
 }
 
-@layer utilities {
-  .text-glow {
-    text-shadow: 0 0 10px hsla(var(--primary), 0.5);
+@layer components {
+  .btn-primary {
+    @apply bg-[#10B981] text-white hover:bg-[#059669] transition-all duration-200 shadow-lg shadow-emerald-500/10;
   }
-  
-  .glass-panel {
-    @apply bg-card/80 backdrop-blur-md border border-white/5 shadow-xl;
+  .card {
+    @apply bg-[#1E293B] border border-slate-700 rounded-xl p-6 shadow-xl;
   }
-
-  .stat-value {
-    font-family: var(--font-mono);
+  .input-dark {
+    @apply bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2 w-full focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] outline-none transition-all;
   }
-}
-
-/* Custom Scrollbar for dense data tables */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  background: hsl(var(--background));
-}
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--secondary));
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--primary) / 0.5);
+  .nav-link {
+    @apply text-slate-400 hover:text-[#10B981] transition-colors duration-200 font-medium;
+  }
 }
