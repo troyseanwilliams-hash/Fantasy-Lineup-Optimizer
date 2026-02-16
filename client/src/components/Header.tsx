@@ -31,7 +31,7 @@ export function Header() {
                 <Zap className="text-white w-6 h-6 fill-current" />
               </div>
               <span className="text-2xl font-black tracking-tighter text-white uppercase">
-                PRO<span className="text-[#10B981]">LINEUP</span>
+                ELITE<span className="text-[#10B981]">LINEUP</span>
               </span>
             </div>
           </Link>
