@@ -68,7 +68,7 @@ export default function News() {
             <h1 className="text-3xl font-black text-white tracking-tight" data-testid="news-title">
               {sport} News
             </h1>
-            <p className="text-slate-400 text-sm mt-0.5">Latest player news and updates from ESPN</p>
+            <p className="text-slate-400 text-sm mt-0.5">Fantasy sports news and analysis from RotoBaller</p>
           </div>
         </div>
 
@@ -188,7 +188,7 @@ export default function News() {
       )}
 
       <div className="mt-8 text-center">
-        <p className="text-[11px] text-slate-400">News powered by ESPN</p>
+        <p className="text-[11px] text-slate-400">News powered by <a href="https://www.rotoballer.com" target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400">RotoBaller</a></p>
       </div>
     </div>
   );
