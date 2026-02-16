@@ -743,30 +743,50 @@ export default function Optimizer() {
         <div className="p-4 border-t border-slate-800 bg-slate-900/60 space-y-3">
           {currentLineup?.lineup && (
             <>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Lineup name (optional)"
-                  className="bg-slate-800 border-slate-700 text-sm h-9"
-                  value={lineupName}
-                  onChange={e => setLineupName(e.target.value)}
-                  data-testid="lineup-name-input"
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleSave}
-                  disabled={saveLineupMutation.isPending || !user || (subData?.tier !== "pro" && (subData?.sportCounts?.[sport] || 0) >= 1)}
-                  className={`flex-1 h-10 text-white font-bold text-sm ${
-                    platform === "fanduel"
-                      ? "bg-blue-600 hover:bg-blue-700"
-                      : "bg-blue-600 hover:bg-blue-700"
-                  }`}
-                  data-testid="save-lineup-btn"
-                >
-                  {saveLineupMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Heart className="w-4 h-4 mr-2" />}
-                  Save Lineup
-                </Button>
-              </div>
+              {subData?.tier !== "pro" && (subData?.sportCounts?.[sport] || 0) >= 1 ? (
+                <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-3 space-y-2" data-testid="free-limit-notice">
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="text-sm font-bold text-amber-300">Vault Limit Reached</span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Free accounts can save 1 team per sport. Upgrade to Pro for up to <span className="font-black text-amber-400">20 saved teams</span> per sport, plus CSV export to DraftKings & FanDuel.
+                  </p>
+                  <Link href="/pricing">
+                    <Button className="w-full h-9 bg-amber-500 hover:bg-amber-600 text-black font-bold text-sm mt-1" data-testid="upgrade-from-save">
+                      <Crown className="w-4 h-4 mr-2" />
+                      Upgrade to Pro
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                <>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Lineup name (optional)"
+                      className="bg-slate-800 border-slate-700 text-sm h-9"
+                      value={lineupName}
+                      onChange={e => setLineupName(e.target.value)}
+                      data-testid="lineup-name-input"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleSave}
+                      disabled={saveLineupMutation.isPending || !user}
+                      className={`flex-1 h-10 text-white font-bold text-sm ${
+                        platform === "fanduel"
+                          ? "bg-blue-600 hover:bg-blue-700"
+                          : "bg-blue-600 hover:bg-blue-700"
+                      }`}
+                      data-testid="save-lineup-btn"
+                    >
+                      {saveLineupMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Heart className="w-4 h-4 mr-2" />}
+                      Save Lineup
+                    </Button>
+                  </div>
+                </>
+              )}
             </>
           )}
           <div className="grid grid-cols-2 gap-3">
