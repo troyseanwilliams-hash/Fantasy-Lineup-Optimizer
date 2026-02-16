@@ -1,12 +1,13 @@
 import { db } from "./db";
-import { eq, and, inArray, lt, gte } from "drizzle-orm";
+import { eq, and, inArray, lt, gte, desc } from "drizzle-orm";
 import {
-  slates, players, lineups, subscriptions, props,
+  slates, players, lineups, subscriptions, props, alerts,
   type Slate, type InsertSlate,
   type Player, type InsertPlayer,
   type Lineup, type InsertLineup,
   type Subscription, type InsertSubscription,
-  type Prop, type InsertProp
+  type Prop, type InsertProp,
+  type Alert, type InsertAlert
 } from "@shared/schema";
 
 import { authStorage, type IAuthStorage } from "./replit_integrations/auth/storage";
@@ -20,6 +21,8 @@ export interface IStorage extends IAuthStorage {
   getPlayersBySlate(slateId: number): Promise<Player[]>;
   createPlayer(player: InsertPlayer): Promise<Player>;
   bulkCreatePlayers(players: InsertPlayer[]): Promise<Player[]>;
+  updatePlayerBoosts(slateId: number, boosts: { playerId: number; boostScore: string; boostReason: string }[]): Promise<void>;
+  updatePlayerInjuries(updates: { playerId: number; injuryStatus: string; injuryDetail: string }[]): Promise<void>;
 
   getLineups(userId: string): Promise<Lineup[]>;
   createLineup(lineup: InsertLineup): Promise<Lineup>;
@@ -29,6 +32,7 @@ export interface IStorage extends IAuthStorage {
   getLineupCount(userId: string): Promise<number>;
   getLineupCountBySport(userId: string, sport: string): Promise<number>;
   deleteExpiredLineups(): Promise<number>;
+  getAllActiveLineups(): Promise<Lineup[]>;
 
   getSubscription(userId: string): Promise<Subscription | undefined>;
   upsertSubscription(sub: InsertSubscription): Promise<Subscription>;
@@ -36,6 +40,13 @@ export interface IStorage extends IAuthStorage {
   getPropsByDate(date: string, sport?: string): Promise<Prop[]>;
   bulkCreateProps(props: InsertProp[]): Promise<Prop[]>;
   clearPropsByDate(date: string): Promise<void>;
+
+  getAlerts(userId: string): Promise<Alert[]>;
+  getUnreadAlertCount(userId: string): Promise<number>;
+  createAlert(alert: InsertAlert): Promise<Alert>;
+  bulkCreateAlerts(alerts: InsertAlert[]): Promise<Alert[]>;
+  markAlertRead(id: number, userId: string): Promise<void>;
+  markAllAlertsRead(userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -72,6 +83,22 @@ export class DatabaseStorage implements IStorage {
 
   async bulkCreatePlayers(insertPlayers: InsertPlayer[]): Promise<Player[]> {
     return await db.insert(players).values(insertPlayers).returning();
+  }
+
+  async updatePlayerBoosts(slateId: number, boosts: { playerId: number; boostScore: string; boostReason: string }[]): Promise<void> {
+    for (const boost of boosts) {
+      await db.update(players)
+        .set({ boostScore: boost.boostScore, boostReason: boost.boostReason })
+        .where(and(eq(players.id, boost.playerId), eq(players.slateId, slateId)));
+    }
+  }
+
+  async updatePlayerInjuries(updates: { playerId: number; injuryStatus: string; injuryDetail: string }[]): Promise<void> {
+    for (const update of updates) {
+      await db.update(players)
+        .set({ injuryStatus: update.injuryStatus, injuryDetail: update.injuryDetail })
+        .where(eq(players.id, update.playerId));
+    }
   }
 
   async getLineups(userId: string): Promise<Lineup[]> {
@@ -137,6 +164,14 @@ export class DatabaseStorage implements IStorage {
     return deleted.length;
   }
 
+  async getAllActiveLineups(): Promise<Lineup[]> {
+    const now = new Date();
+    const activeSlateIds = await db.select({ id: slates.id }).from(slates).where(gte(slates.startTime, now));
+    if (activeSlateIds.length === 0) return [];
+    const ids = activeSlateIds.map(s => s.id);
+    return await db.select().from(lineups).where(inArray(lineups.slateId, ids));
+  }
+
   async getSubscription(userId: string): Promise<Subscription | undefined> {
     const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId));
     return sub;
@@ -171,6 +206,40 @@ export class DatabaseStorage implements IStorage {
 
   async clearPropsByDate(date: string): Promise<void> {
     await db.delete(props).where(eq(props.createdDate, date));
+  }
+
+  async getAlerts(userId: string): Promise<Alert[]> {
+    return await db.select().from(alerts)
+      .where(eq(alerts.userId, userId))
+      .orderBy(desc(alerts.createdAt));
+  }
+
+  async getUnreadAlertCount(userId: string): Promise<number> {
+    const rows = await db.select().from(alerts)
+      .where(and(eq(alerts.userId, userId), eq(alerts.isRead, false)));
+    return rows.length;
+  }
+
+  async createAlert(alert: InsertAlert): Promise<Alert> {
+    const [created] = await db.insert(alerts).values(alert).returning();
+    return created;
+  }
+
+  async bulkCreateAlerts(insertAlerts: InsertAlert[]): Promise<Alert[]> {
+    if (insertAlerts.length === 0) return [];
+    return await db.insert(alerts).values(insertAlerts).returning();
+  }
+
+  async markAlertRead(id: number, userId: string): Promise<void> {
+    await db.update(alerts)
+      .set({ isRead: true })
+      .where(and(eq(alerts.id, id), eq(alerts.userId, userId)));
+  }
+
+  async markAllAlertsRead(userId: string): Promise<void> {
+    await db.update(alerts)
+      .set({ isRead: true })
+      .where(eq(alerts.userId, userId));
   }
 }
 

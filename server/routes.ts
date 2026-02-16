@@ -7,7 +7,7 @@ import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import solver from "javascript-lp-solver";
 import { getPlatformConfig, ACTIVE_SPORTS, assignPlayersToSlots, type Platform } from "@shared/platform-config";
 
-import { type OptimizationConstraints, type Player, type Slate, type InsertProp } from "@shared/schema";
+import { type OptimizationConstraints, type ProOptimizationConstraints, type Player, type Slate, type InsertProp, type InsertAlert, proOptimizationConstraintSchema } from "@shared/schema";
 import {
   NBA_SLATE_FEB_19_DK, NBA_SLATE_FEB_19_FD, NBA_PLAYERS_FEB_19_DK, NBA_PLAYERS_FEB_19_FD,
   NHL_SLATE_FEB_20_DK, NHL_SLATE_FEB_20_FD, NHL_PLAYERS_FEB_20_DK, NHL_PLAYERS_FEB_20_FD,
@@ -305,6 +305,139 @@ export async function registerRoutes(
       console.error("News fetch error:", err);
       res.status(500).json({ error: "Failed to fetch news" });
     }
+  });
+
+  app.post("/api/optimize/pro", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      const userId = (req.user as any).claims.sub;
+      const sub = await storage.getSubscription(userId);
+      const tier = sub?.tier || "free";
+      if (tier !== "pro") {
+        return res.status(403).json({ message: "Pro subscription required for advanced optimizer.", requiresUpgrade: true });
+      }
+
+      const constraints = proOptimizationConstraintSchema.parse(req.body);
+      const slate = await storage.getSlate(constraints.slateId);
+      if (!slate) return res.status(404).json({ message: "Slate not found" });
+
+      const platform = (constraints.platform || slate.platform || "draftkings") as Platform;
+      const allPlayers = await storage.getPlayersBySlate(constraints.slateId);
+      if (allPlayers.length === 0) {
+        return res.status(400).json({ message: "No players found for this slate" });
+      }
+
+      const pool = allPlayers.map(p => {
+        const customProj = constraints.playerProjections?.[p.id.toString()];
+        let boostedPoints = customProj !== undefined ? customProj : Number(p.projectedPoints);
+
+        if (constraints.useBoosts && p.boostScore) {
+          boostedPoints += Number(p.boostScore);
+        }
+
+        if (constraints.useInjuryAdjustments && p.injuryStatus) {
+          if (p.injuryStatus === "OUT") {
+            boostedPoints = 0;
+          } else if (p.injuryStatus === "Doubtful") {
+            boostedPoints *= 0.3;
+          } else if (p.injuryStatus === "Questionable") {
+            boostedPoints *= 0.7;
+          } else if (p.injuryStatus === "Probable") {
+            boostedPoints *= 0.9;
+          }
+        }
+
+        return { ...p, projectedPoints: boostedPoints.toString() };
+      });
+
+      const lineupResults = [];
+      const usedPlayerSets: Set<string>[] = [];
+
+      for (let i = 0; i < constraints.lineupCount; i++) {
+        const perturbedPool = pool.map(p => {
+          if (constraints.excludedPlayerIds.includes(p.id)) return p;
+          const base = Number(p.projectedPoints);
+          const noise = (Math.random() - 0.5) * base * 0.12 * (i > 0 ? 1 : 0);
+          return { ...p, projectedPoints: Math.max(0, base + noise).toString() };
+        });
+
+        const excluded = [...constraints.excludedPlayerIds];
+        if (constraints.useInjuryAdjustments) {
+          allPlayers.forEach(p => {
+            if (p.injuryStatus === "OUT" && !excluded.includes(p.id)) {
+              excluded.push(p.id);
+            }
+          });
+        }
+
+        const modConstraints = { ...constraints, excludedPlayerIds: excluded };
+        const result = solveLineup(perturbedPool, modConstraints, slate.sport, platform);
+
+        if (!result.error) {
+          const key = result.lineup.map(p => p.id).sort().join(",");
+          const isDuplicate = usedPlayerSets.some(s => s.has(key));
+          if (!isDuplicate) {
+            lineupResults.push({ ...result, platform });
+            usedPlayerSets.push(new Set([key]));
+          } else if (i < constraints.lineupCount + 5) {
+            continue;
+          }
+        }
+
+        if (lineupResults.length >= constraints.lineupCount) break;
+      }
+
+      const boostsSummary = allPlayers
+        .filter(p => p.boostScore && Number(p.boostScore) !== 0)
+        .map(p => ({
+          playerId: p.id,
+          playerName: p.name,
+          boostScore: Number(p.boostScore),
+          boostReason: p.boostReason || "",
+        }))
+        .sort((a, b) => b.boostScore - a.boostScore)
+        .slice(0, 15);
+
+      const injurySummary = allPlayers
+        .filter(p => p.injuryStatus && p.injuryStatus !== "Healthy")
+        .map(p => ({
+          playerId: p.id,
+          playerName: p.name,
+          status: p.injuryStatus || "",
+          detail: p.injuryDetail || "",
+        }));
+
+      res.json({ lineups: lineupResults, boostsSummary, injurySummary });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        res.status(400).json({ message: err.errors[0].message });
+      } else {
+        console.error("Pro optimizer error:", err);
+        res.status(500).json({ message: "Pro optimizer failed" });
+      }
+    }
+  });
+
+  app.get("/api/alerts", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any).claims.sub;
+    const allAlerts = await storage.getAlerts(userId);
+    const unreadCount = await storage.getUnreadAlertCount(userId);
+    res.json({ alerts: allAlerts, unreadCount });
+  });
+
+  app.post("/api/alerts/:id/read", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any).claims.sub;
+    await storage.markAlertRead(Number(req.params.id), userId);
+    res.sendStatus(204);
+  });
+
+  app.post("/api/alerts/read-all", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any).claims.sub;
+    await storage.markAllAlertsRead(userId);
+    res.sendStatus(204);
   });
 
   app.get("/api/props", async (req, res) => {
@@ -617,5 +750,149 @@ export async function seedDatabase(forceRefresh = false) {
   if (existingProps.length === 0) {
     await generateDailyProps(today);
     console.log("Generated daily prop bets");
+  }
+
+  await generatePlayerBoostsAndInjuries();
+}
+
+const BOOST_REASONS: Record<string, string[]> = {
+  NBA: [
+    "Hot streak: 5+ games above season avg",
+    "Favorable matchup vs weak defense",
+    "Increased usage with teammate out",
+    "Recent breakout performance trend",
+    "Strong home court advantage",
+    "Back-to-back rest advantage",
+    "Historical pattern: excels in prime time",
+    "Positive injury recovery trajectory",
+  ],
+  NHL: [
+    "Power play specialist trending up",
+    "Favorable goalie matchup",
+    "Recent line promotion",
+    "Hot scoring streak",
+    "Strong home ice performance",
+    "Increased ice time trend",
+  ],
+  MLB: [
+    "Strong platoon advantage",
+    "Hot bat: hitting streak",
+    "Favorable park factor",
+    "Lineup position upgrade",
+    "Strong recent velocity data",
+    "Historical success vs opposing pitcher",
+  ],
+  NFL: [
+    "Favorable defensive matchup",
+    "Increased target share",
+    "Red zone usage trending up",
+    "Weather conditions favor passing/rushing",
+    "Key defensive player out for opponent",
+  ],
+};
+
+const INJURY_STATUSES = ["Questionable", "Probable", "Doubtful", "OUT", "Day-to-Day"];
+const INJURY_DETAILS: Record<string, string[]> = {
+  NBA: ["Right ankle sprain", "Left knee soreness", "Back tightness", "Hamstring strain", "Illness", "Rest - load management"],
+  NHL: ["Upper body injury", "Lower body injury", "Undisclosed", "Concussion protocol", "Groin strain"],
+  MLB: ["Right shoulder inflammation", "Left oblique strain", "Back spasms", "Knee discomfort", "Wrist soreness"],
+  NFL: ["Hamstring injury", "Ankle sprain", "Concussion protocol", "Knee injury", "Shoulder strain", "Illness"],
+};
+
+export async function generatePlayerBoostsAndInjuries() {
+  const allSlates = await storage.getSlates();
+  const mainSlates = allSlates.filter(s => s.isMain);
+
+  for (const slate of mainSlates) {
+    const allPlayers = await storage.getPlayersBySlate(slate.id);
+    const alreadyBoosted = allPlayers.some(p => p.boostScore !== null);
+    if (alreadyBoosted) continue;
+
+    const sport = slate.sport;
+    const rand = seededRandom(slate.id * 31 + sport.charCodeAt(0));
+    const reasons = BOOST_REASONS[sport] || BOOST_REASONS.NBA;
+    const injuries = INJURY_DETAILS[sport] || INJURY_DETAILS.NBA;
+
+    const boosts: { playerId: number; boostScore: string; boostReason: string }[] = [];
+    const injuryUpdates: { playerId: number; injuryStatus: string; injuryDetail: string }[] = [];
+
+    const sorted = [...allPlayers].sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
+
+    for (let i = 0; i < sorted.length; i++) {
+      const player = sorted[i];
+      const r = rand();
+
+      if (r < 0.35) {
+        const boostAmount = (rand() * 4 + 0.5).toFixed(1);
+        const reason = reasons[Math.floor(rand() * reasons.length)];
+        boosts.push({ playerId: player.id, boostScore: boostAmount, boostReason: reason });
+      } else if (r < 0.45) {
+        const boostAmount = (-(rand() * 2 + 0.5)).toFixed(1);
+        const reason = "Negative trend: recent decline in performance";
+        boosts.push({ playerId: player.id, boostScore: boostAmount, boostReason: reason });
+      } else {
+        boosts.push({ playerId: player.id, boostScore: "0", boostReason: "" });
+      }
+
+      if (rand() < 0.12) {
+        const status = INJURY_STATUSES[Math.floor(rand() * INJURY_STATUSES.length)];
+        const detail = injuries[Math.floor(rand() * injuries.length)];
+        injuryUpdates.push({ playerId: player.id, injuryStatus: status, injuryDetail: detail });
+      }
+    }
+
+    if (boosts.length > 0) await storage.updatePlayerBoosts(slate.id, boosts);
+    if (injuryUpdates.length > 0) await storage.updatePlayerInjuries(injuryUpdates);
+    console.log(`Generated boosts/injuries for ${sport} ${slate.platform} slate`);
+  }
+}
+
+export async function checkInjuryAlerts() {
+  const allActiveLineups = await storage.getAllActiveLineups();
+  if (allActiveLineups.length === 0) return;
+
+  const slateCache = new Map<number, Slate>();
+  const playerCache = new Map<number, Player[]>();
+
+  for (const lineup of allActiveLineups) {
+    if (!slateCache.has(lineup.slateId)) {
+      const slate = await storage.getSlate(lineup.slateId);
+      if (slate) slateCache.set(lineup.slateId, slate);
+    }
+    if (!playerCache.has(lineup.slateId)) {
+      const players = await storage.getPlayersBySlate(lineup.slateId);
+      playerCache.set(lineup.slateId, players);
+    }
+
+    const slate = slateCache.get(lineup.slateId);
+    const allPlayers = playerCache.get(lineup.slateId) || [];
+    if (!slate) continue;
+
+    const rosterPlayers = allPlayers.filter(p => lineup.playerIds.includes(p.id));
+    const injuredPlayers = rosterPlayers.filter(p => p.injuryStatus && p.injuryStatus !== "Healthy" && p.injuryStatus !== "Probable");
+
+    const newAlerts: InsertAlert[] = [];
+    for (const player of injuredPlayers) {
+      const severity = player.injuryStatus === "OUT" ? "critical"
+        : player.injuryStatus === "Doubtful" ? "warning"
+        : "info";
+
+      newAlerts.push({
+        userId: lineup.userId,
+        lineupId: lineup.id,
+        playerId: player.id,
+        playerName: player.name,
+        sport: slate.sport,
+        type: "injury",
+        title: `${player.name} - ${player.injuryStatus}`,
+        message: `${player.name} (${player.team}) is listed as ${player.injuryStatus}: ${player.injuryDetail || "No details"}. This affects your ${slate.sport} ${slate.platform} lineup.`,
+        severity,
+        isRead: false,
+      });
+    }
+
+    if (newAlerts.length > 0) {
+      await storage.bulkCreateAlerts(newAlerts);
+    }
   }
 }
