@@ -126,15 +126,16 @@ export default function Pricing() {
               <Crown className="w-4 h-4 mr-2" /> Active
             </Button>
           ) : (
-            <Button
-              className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-black font-black shadow-lg shadow-amber-500/20"
-              data-testid="upgrade-pro-btn"
-              onClick={() => {
-                window.location.href = "/api/create-checkout";
-              }}
-            >
-              <Crown className="w-4 h-4 mr-2" /> Upgrade to Pro
-            </Button>
+            <>
+              <Button
+                className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-black font-black shadow-lg shadow-amber-500/20"
+                data-testid="upgrade-pro-btn"
+                disabled
+              >
+                <Crown className="w-4 h-4 mr-2" /> Coming Soon
+              </Button>
+              <p className="text-[10px] text-slate-500 text-center mt-2">Payment integration coming soon</p>
+            </>
           )}
         </Card>
       </div>
