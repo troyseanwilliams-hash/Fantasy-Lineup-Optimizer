@@ -3,6 +3,7 @@ import { registerRoutes, seedDatabase, generateDailyProps } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import cron from "node-cron";
+import { storage } from "./storage";
 
 const app = express();
 const httpServer = createServer(app);
@@ -100,9 +101,15 @@ app.use((req, res, next) => {
     () => {
       log(`serving on port ${port}`);
 
+      storage.deleteExpiredLineups().then(count => {
+        if (count > 0) log(`Cleaned up ${count} expired lineup(s) on startup`, "cron");
+      }).catch(err => console.error("Startup lineup cleanup failed:", err));
+
       cron.schedule("0 1 * * *", async () => {
         try {
           log("Starting scheduled seed data refresh", "cron");
+          const expiredCount = await storage.deleteExpiredLineups();
+          if (expiredCount > 0) log(`Cleaned up ${expiredCount} expired lineup(s)`, "cron");
           await seedDatabase(true);
           const today = new Date().toISOString().split("T")[0];
           await generateDailyProps(today);
