@@ -54,6 +54,21 @@ export default function SavedLineups() {
     }
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const res = await apiRequest("POST", "/api/lineups/bulk-delete", { ids });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Lineups Deleted", description: `${data.deleted} lineup${data.deleted > 1 ? "s" : ""} removed from your vault.` });
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
+    },
+    onError: () => {
+      toast({ title: "Delete Failed", description: "Could not delete selected lineups.", variant: "destructive" });
+    }
+  });
+
   const updateMutation = useMutation({
     mutationFn: async ({ id, playerIds }: { id: number; playerIds: number[] }) => {
       const res = await apiRequest("PATCH", `/api/lineups/${id}`, { playerIds });
@@ -191,7 +206,7 @@ export default function SavedLineups() {
           <p className="text-slate-400">Your optimized winning combinations. Click to expand, swap players, and export.</p>
         </div>
         <div className="flex items-center gap-3">
-          {isPaid && lineups && lineups.length > 0 && (
+          {lineups && lineups.length > 0 && (
             <>
               <Button
                 variant="outline"
@@ -207,13 +222,25 @@ export default function SavedLineups() {
                 )}
               </Button>
               {selectedIds.size > 0 && (
-                <Button
-                  onClick={handleBulkExport}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                  data-testid="bulk-export-btn"
-                >
-                  <Download className="w-4 h-4 mr-2" /> Export {selectedIds.size} Lineup{selectedIds.size > 1 ? "s" : ""}
-                </Button>
+                <>
+                  <Button
+                    variant="destructive"
+                    onClick={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}
+                    disabled={bulkDeleteMutation.isPending}
+                    data-testid="bulk-delete-btn"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" /> Delete {selectedIds.size} Lineup{selectedIds.size > 1 ? "s" : ""}
+                  </Button>
+                  {isPaid && (
+                    <Button
+                      onClick={handleBulkExport}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                      data-testid="bulk-export-btn"
+                    >
+                      <Download className="w-4 h-4 mr-2" /> Export {selectedIds.size} Lineup{selectedIds.size > 1 ? "s" : ""}
+                    </Button>
+                  )}
+                </>
               )}
             </>
           )}
@@ -297,19 +324,17 @@ function LineupCard({
         data-testid={`lineup-header-${lineup.id}`}
       >
         <div className="flex items-center gap-4">
-          {isPaid && (
-            <button
-              onClick={e => { e.stopPropagation(); onToggleSelect(); }}
-              className="flex-shrink-0"
-              data-testid={`select-lineup-${lineup.id}`}
-            >
-              {isSelected ? (
-                <CheckSquare className="w-5 h-5 text-emerald-400" />
-              ) : (
-                <Square className="w-5 h-5 text-slate-600 hover:text-slate-400" />
-              )}
-            </button>
-          )}
+          <button
+            onClick={e => { e.stopPropagation(); onToggleSelect(); }}
+            className="flex-shrink-0"
+            data-testid={`select-lineup-${lineup.id}`}
+          >
+            {isSelected ? (
+              <CheckSquare className="w-5 h-5 text-emerald-400" />
+            ) : (
+              <Square className="w-5 h-5 text-slate-600 hover:text-slate-400" />
+            )}
+          </button>
           <div className="flex items-center gap-2">
             <Badge className={`${isFD ? "bg-blue-500/10 text-blue-400" : "bg-emerald-500/10 text-emerald-400"} border-0 text-[11px] font-black uppercase`}>
               {lineup.sport} {platformLabel}
