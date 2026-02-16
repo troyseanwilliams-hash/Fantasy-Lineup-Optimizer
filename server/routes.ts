@@ -14,7 +14,7 @@ import {
   MLB_SLATE_FEB_20_DK, MLB_SLATE_FEB_20_FD, MLB_PLAYERS_FEB_20_DK, MLB_PLAYERS_FEB_20_FD,
   NFL_SLATE_FEB_20_DK, NFL_SLATE_FEB_20_FD, NFL_PLAYERS_FEB_20_DK, NFL_PLAYERS_FEB_20_FD,
 } from "@shared/seed_data";
-import { fetchNBALiveData, getRollingSlateDate } from "./balldontlie";
+import { fetchAllSportsLiveData, getRollingSlateDate } from "./balldontlie";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -721,58 +721,68 @@ export async function seedDatabase(forceRefresh = false) {
 
   const existingSlates = await storage.getSlates();
 
-  let nbaLiveData = null;
+  let liveData = new Map<string, any>();
   try {
-    nbaLiveData = await fetchNBALiveData();
-    if (nbaLiveData) {
-      console.log(`[BDL] Fetched live NBA data: ${nbaLiveData.dkPlayers.length} DK players, ${nbaLiveData.games.length} games`);
+    liveData = await fetchAllSportsLiveData();
+    for (const [sport, data] of Array.from(liveData.entries())) {
+      console.log(`[DK] Live ${sport}: ${data.dkPlayers.length} DK players, ${data.games.length} games`);
     }
   } catch (err) {
-    console.error("[BDL] Error fetching live NBA data, falling back to static:", err);
+    console.error("[DK] Error fetching live data, falling back to static:", err);
   }
 
-  const rollingNHL = getRollingSlateDate("NHL");
-  const rollingMLB = getRollingSlateDate("MLB");
-  const rollingNFL = getRollingSlateDate("NFL");
-
-  const sportSeeds = [
-    {
-      sport: "NBA",
-      dkSlate: nbaLiveData
-        ? { name: "NBA Main Slate", startTime: nbaLiveData.slateDate, isMain: true }
-        : { ...NBA_SLATE_FEB_19_DK, startTime: getRollingSlateDate("NBA") },
-      fdSlate: nbaLiveData
-        ? { name: "NBA Main Slate", startTime: nbaLiveData.slateDate, isMain: true }
-        : { ...NBA_SLATE_FEB_19_FD, startTime: getRollingSlateDate("NBA") },
-      dkPlayers: nbaLiveData ? nbaLiveData.dkPlayers : NBA_PLAYERS_FEB_19_DK,
-      fdPlayers: nbaLiveData ? nbaLiveData.fdPlayers : NBA_PLAYERS_FEB_19_FD,
-      isLive: !!nbaLiveData,
+  const staticFallbacks: Record<string, {
+    dkSlate: any; fdSlate: any;
+    dkPlayers: any; fdPlayers: any;
+  }> = {
+    NBA: {
+      dkSlate: { ...NBA_SLATE_FEB_19_DK, startTime: getRollingSlateDate("NBA") },
+      fdSlate: { ...NBA_SLATE_FEB_19_FD, startTime: getRollingSlateDate("NBA") },
+      dkPlayers: NBA_PLAYERS_FEB_19_DK,
+      fdPlayers: NBA_PLAYERS_FEB_19_FD,
     },
-    {
-      sport: "NHL",
-      dkSlate: { ...NHL_SLATE_FEB_20_DK, startTime: rollingNHL },
-      fdSlate: { ...NHL_SLATE_FEB_20_FD, startTime: rollingNHL },
+    NHL: {
+      dkSlate: { ...NHL_SLATE_FEB_20_DK, startTime: getRollingSlateDate("NHL") },
+      fdSlate: { ...NHL_SLATE_FEB_20_FD, startTime: getRollingSlateDate("NHL") },
       dkPlayers: NHL_PLAYERS_FEB_20_DK,
       fdPlayers: NHL_PLAYERS_FEB_20_FD,
-      isLive: false,
     },
-    {
-      sport: "MLB",
-      dkSlate: { ...MLB_SLATE_FEB_20_DK, startTime: rollingMLB },
-      fdSlate: { ...MLB_SLATE_FEB_20_FD, startTime: rollingMLB },
+    MLB: {
+      dkSlate: { ...MLB_SLATE_FEB_20_DK, startTime: getRollingSlateDate("MLB") },
+      fdSlate: { ...MLB_SLATE_FEB_20_FD, startTime: getRollingSlateDate("MLB") },
       dkPlayers: MLB_PLAYERS_FEB_20_DK,
       fdPlayers: MLB_PLAYERS_FEB_20_FD,
-      isLive: false,
     },
-    {
-      sport: "NFL",
-      dkSlate: { ...NFL_SLATE_FEB_20_DK, startTime: rollingNFL },
-      fdSlate: { ...NFL_SLATE_FEB_20_FD, startTime: rollingNFL },
+    NFL: {
+      dkSlate: { ...NFL_SLATE_FEB_20_DK, startTime: getRollingSlateDate("NFL") },
+      fdSlate: { ...NFL_SLATE_FEB_20_FD, startTime: getRollingSlateDate("NFL") },
       dkPlayers: NFL_PLAYERS_FEB_20_DK,
       fdPlayers: NFL_PLAYERS_FEB_20_FD,
-      isLive: false,
     },
-  ];
+  };
+
+  const sportSeeds = ["NBA", "NHL", "MLB", "NFL"].map(sport => {
+    const live = liveData.get(sport);
+    if (live) {
+      return {
+        sport,
+        dkSlate: { name: `${sport} Main Slate`, startTime: live.slateDate, isMain: true },
+        fdSlate: { name: `${sport} Main Slate`, startTime: live.slateDate, isMain: true },
+        dkPlayers: live.dkPlayers,
+        fdPlayers: live.fdPlayers,
+        isLive: true,
+      };
+    }
+    const fallback = staticFallbacks[sport];
+    return {
+      sport,
+      dkSlate: fallback.dkSlate,
+      fdSlate: fallback.fdSlate,
+      dkPlayers: fallback.dkPlayers,
+      fdPlayers: fallback.fdPlayers,
+      isLive: false,
+    };
+  });
 
   for (const seed of sportSeeds) {
     const slateExists = existingSlates.some(
@@ -788,7 +798,7 @@ export async function seedDatabase(forceRefresh = false) {
         isMain: true,
       });
       await storage.bulkCreatePlayers(
-        seed.dkPlayers.map(p => ({ ...p, slateId: dkSlate.id })) as any
+        seed.dkPlayers.map((p: any) => ({ ...p, slateId: dkSlate.id })) as any
       );
 
       const fdSlate = await storage.createSlate({
@@ -799,10 +809,10 @@ export async function seedDatabase(forceRefresh = false) {
         isMain: true,
       });
       await storage.bulkCreatePlayers(
-        seed.fdPlayers.map(p => ({ ...p, slateId: fdSlate.id })) as any
+        seed.fdPlayers.map((p: any) => ({ ...p, slateId: fdSlate.id })) as any
       );
 
-      const source = seed.isLive ? "LIVE BDL" : "static";
+      const source = seed.isLive ? "LIVE DK" : "static";
       console.log(`Seeded database with DK and FD ${seed.sport} main slates (${source})`);
     }
   }
