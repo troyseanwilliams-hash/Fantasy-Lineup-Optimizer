@@ -162,7 +162,7 @@ export function Header() {
                         )}
 
                         {isPro && dkSlate ? (
-                          <Link href={`/pro-optimizer/${dkSlate.id}`}>
+                          <Link href={`/optimizer-pro/${dkSlate.id}`}>
                             <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-pro-dk`}>
                               <div className="w-6 h-6 rounded bg-amber-500/20 flex items-center justify-center mr-2 shrink-0">
                                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
@@ -184,7 +184,7 @@ export function Header() {
                         )}
 
                         {isPro && fdSlate ? (
-                          <Link href={`/pro-optimizer/${fdSlate.id}`}>
+                          <Link href={`/optimizer-pro/${fdSlate.id}`}>
                             <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-pro-fd`}>
                               <div className="w-6 h-6 rounded bg-amber-500/20 flex items-center justify-center mr-2 shrink-0">
                                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />

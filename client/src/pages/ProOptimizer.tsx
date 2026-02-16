@@ -32,7 +32,7 @@ const INJURY_COLORS: Record<string, string> = {
 };
 
 export default function ProOptimizer() {
-  const [, params] = useRoute("/pro-optimizer/:id");
+  const [, params] = useRoute("/optimizer-pro/:id");
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -218,7 +218,7 @@ export default function ProOptimizer() {
       totalSalary: lineup.totalSalary,
       totalProjectedPoints: String(lineup.totalProjectedPoints),
       playerIds: lineupPlayers.map((p: Player) => p.id),
-      name: `Pro Lineup #${index + 1} - ${sport} ${config.shortLabel}`,
+      name: `Optimizer Pro #${index + 1} - ${sport} ${config.shortLabel}`,
     });
   };
 
@@ -230,7 +230,7 @@ export default function ProOptimizer() {
   };
 
   const handleSlateChange = (newSlateId: string) => {
-    setLocation(`/pro-optimizer/${newSlateId}`);
+    setLocation(`/optimizer-pro/${newSlateId}`);
     handleReset();
   };
 
@@ -267,9 +267,9 @@ export default function ProOptimizer() {
           <div className="mx-auto w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mb-6">
             <Crown className="w-8 h-8 text-amber-400" />
           </div>
-          <h2 className="text-2xl font-black text-white mb-3" data-testid="text-pro-locked-title">Pro Optimizer</h2>
+          <h2 className="text-2xl font-black text-white mb-3" data-testid="text-pro-locked-title">Optimizer Pro</h2>
           <p className="text-slate-400 mb-6 text-sm" data-testid="text-pro-locked-desc">
-            Unlock the Pro Optimizer to generate up to 20 unique lineups at once with AI-powered boosts and injury adjustments.
+            Unlock Optimizer Pro to generate up to 20 unique lineups at once with AI-powered boosts and injury adjustments.
           </p>
           <Link href="/pricing">
             <Button className="bg-amber-500 text-black font-black w-full" data-testid="button-upgrade-pro">
@@ -292,80 +292,75 @@ export default function ProOptimizer() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-80px)] overflow-hidden" data-testid="pro-optimizer-page">
-      {/* Top Controls Bar */}
-      <div className="border-b border-slate-800 bg-slate-900/60">
-        <div className="px-4 py-3 flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Crown className="w-5 h-5 text-amber-400" />
-            <span className="text-lg font-black text-white tracking-tight">PRO OPTIMIZER</span>
-            <Badge className="text-[11px] font-black bg-amber-500/20 text-amber-400 border-amber-500/30" data-testid="badge-pro">
-              PRO
-            </Badge>
-            <Badge className={`text-[11px] font-black ${platform === "fanduel" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"}`} data-testid="badge-platform">
-              {config.shortLabel} {sport}
-            </Badge>
-          </div>
+      {/* Top Controls Bar - Single Clean Line */}
+      <div className="border-b border-slate-800 bg-slate-900/60 px-4 py-2">
+        <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide">
+          <Badge className={`text-[11px] font-black flex-shrink-0 ${platform === "fanduel" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"}`} data-testid="badge-platform">
+            {config.shortLabel} {sport}
+          </Badge>
 
           {slate && (
-            <div className="flex items-center gap-2" data-testid="pro-slate-date">
-              <span className="text-xs font-black text-amber-400/70">
-                {new Date(slate.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
-              </span>
-            </div>
+            <span className="text-xs font-black text-amber-400/70 flex-shrink-0" data-testid="pro-slate-date">
+              {new Date(slate.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+            </span>
           )}
 
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Slate:</span>
-            <select
-              className="bg-slate-800 border border-slate-700 text-white text-sm rounded-lg px-3 py-1.5 font-bold"
-              value={slateId}
-              onChange={e => handleSlateChange(e.target.value)}
-              data-testid="pro-slate-selector"
-            >
-              {mainSlates.map(s => (
-                <option key={s.id} value={s.id}>
-                  {s.platform === "fanduel" ? "FD" : "DK"} - {s.name} — {new Date(s.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                </option>
-              ))}
-            </select>
+          <div className="h-4 w-px bg-slate-700 flex-shrink-0" />
+
+          <select
+            className="bg-slate-800 border border-slate-700 text-white text-xs rounded-lg px-2 py-1 font-bold flex-shrink-0"
+            value={slateId}
+            onChange={e => handleSlateChange(e.target.value)}
+            data-testid="pro-slate-selector"
+          >
+            {mainSlates.map(s => (
+              <option key={s.id} value={s.id}>
+                {s.platform === "fanduel" ? "FD" : "DK"} - {s.name}
+              </option>
+            ))}
+          </select>
+
+          <div className="h-4 w-px bg-slate-700 flex-shrink-0" />
+
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <label className="text-[10px] font-black text-slate-400 uppercase">Boosts</label>
+            <Switch checked={useBoosts} onCheckedChange={setUseBoosts} data-testid="toggle-boosts" className="scale-90" />
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <label className="text-[10px] font-black text-slate-400 uppercase">Injuries</label>
+            <Switch checked={useInjuryAdjustments} onCheckedChange={setUseInjuryAdjustments} data-testid="toggle-injuries" className="scale-90" />
           </div>
 
-          <div className="flex items-center gap-4 ml-auto flex-wrap">
-            <div className="flex items-center gap-2">
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">AI Boosts</label>
-              <Switch checked={useBoosts} onCheckedChange={setUseBoosts} data-testid="toggle-boosts" />
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Injury Adj.</label>
-              <Switch checked={useInjuryAdjustments} onCheckedChange={setUseInjuryAdjustments} data-testid="toggle-injuries" />
-            </div>
+          <div className="h-4 w-px bg-slate-700 flex-shrink-0" />
 
-            <div className="flex items-center gap-3 bg-slate-800/60 rounded-lg px-3 py-2 border border-slate-700/50">
-              <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Lineups:</span>
-              <Slider
-                value={[lineupCount]}
-                onValueChange={(v) => setLineupCount(v[0])}
-                min={1}
-                max={20}
-                step={1}
-                className="w-28"
-                data-testid="slider-lineup-count"
-              />
-              <span className="text-sm font-black text-amber-400 min-w-[24px] text-center" data-testid="text-lineup-count">{lineupCount}</span>
-            </div>
+          <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+            <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Qty</span>
+            <Slider
+              value={[lineupCount]}
+              onValueChange={(v) => setLineupCount(v[0])}
+              min={1}
+              max={20}
+              step={1}
+              className="w-20"
+              data-testid="slider-lineup-count"
+            />
+            <span className="text-xs font-black text-amber-400 min-w-[18px] text-center" data-testid="text-lineup-count">{lineupCount}</span>
+          </div>
 
+          <div className="flex items-center gap-2 ml-auto flex-shrink-0">
             <Button
               onClick={handleOptimize}
               disabled={optimizeMutation.isPending}
-              className="bg-amber-500 text-black font-black shadow-lg shadow-amber-500/20"
+              size="sm"
+              className="bg-amber-500 text-black font-black shadow-lg shadow-amber-500/20 h-8 text-xs"
               data-testid="button-generate"
             >
               {optimizeMutation.isPending ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
               ) : (
-                <Zap className="w-4 h-4 mr-2" />
+                <Zap className="w-3.5 h-3.5 mr-1.5" />
               )}
-              Generate {lineupCount} Lineup{lineupCount > 1 ? "s" : ""}
+              Generate {lineupCount}
             </Button>
 
             {generatedLineups.length > 0 && (
@@ -373,20 +368,20 @@ export default function ProOptimizer() {
                 onClick={handleSaveAll}
                 disabled={saveLineupMutation.isPending}
                 variant="outline"
-                className="border-amber-500/30 text-amber-400 font-black"
+                size="sm"
+                className="border-amber-500/30 text-amber-400 font-black h-8 text-xs"
                 data-testid="button-save-all"
               >
-                <SaveAll className="w-4 h-4 mr-2" />
-                Save All ({generatedLineups.length})
+                <SaveAll className="w-3.5 h-3.5 mr-1.5" />
+                Save All
               </Button>
             )}
 
-            <Button variant="ghost" onClick={handleReset} className="text-slate-400 font-bold" data-testid="button-reset">
+            <Button variant="ghost" size="sm" onClick={handleReset} className="text-slate-400 font-bold h-8 text-xs" data-testid="button-reset">
               Reset
             </Button>
           </div>
         </div>
-
       </div>
 
       <div className="flex flex-col xl:flex-row flex-1 overflow-hidden">

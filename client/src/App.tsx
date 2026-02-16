@@ -21,7 +21,7 @@ import { Footer } from "@/components/Footer";
 function Router() {
   const { user, isLoading } = useAuth();
   const [location] = useLocation();
-  const isOptimizer = location.startsWith("/optimizer") || location.startsWith("/pro-optimizer");
+  const isOptimizer = location.startsWith("/optimizer") || location.startsWith("/optimizer-pro");
 
   if (isLoading) {
     return (
@@ -38,7 +38,7 @@ function Router() {
         <Switch>
           <Route path="/" component={Home} />
           <Route path="/optimizer/:id" component={Optimizer} />
-          <Route path="/pro-optimizer/:id" component={ProOptimizer} />
+          <Route path="/optimizer-pro/:id" component={ProOptimizer} />
           <Route path="/lineups" component={SavedLineups} />
           <Route path="/props" component={PropBets} />
           <Route path="/news/:sport" component={News} />
