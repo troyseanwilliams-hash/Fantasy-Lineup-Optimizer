@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign } from "lucide-react";
+import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -31,6 +31,7 @@ export default function SavedLineups() {
   const { toast } = useToast();
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [swappingSlot, setSwappingSlot] = useState<{ lineupId: number; slot: string; currentPlayerId: number } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   const { data: lineups, isLoading } = useQuery<any[]>({
     queryKey: ["/api/lineups"],
@@ -40,7 +41,8 @@ export default function SavedLineups() {
     queryKey: ["/api/subscription"],
   });
 
-  const isPro = subscription?.tier === "pro";
+  const tier = subscription?.tier || "free";
+  const isPaid = tier === "pro" || tier === "competitive";
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -68,11 +70,7 @@ export default function SavedLineups() {
     }
   });
 
-  function handleExportCSV(lineup: LineupWithPlayers) {
-    if (!isPro) {
-      toast({ title: "Pro Feature", description: "Upgrade to Pro to export lineups.", variant: "destructive" });
-      return;
-    }
+  function buildLineupCSV(lineup: LineupWithPlayers) {
     const config = getPlatformConfig(lineup.sport, lineup.platform as any);
     const slotAssignments = assignPlayersToSlots(lineup.players, config.slots, lineup.sport);
 
@@ -91,8 +89,15 @@ export default function SavedLineups() {
       ];
     });
     rows.push(["", "", "", "TOTAL", lineup.totalSalary.toString(), "", Number(lineup.totalProjectedPoints).toFixed(1)]);
+    return [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+  }
 
-    const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+  function handleExportCSV(lineup: LineupWithPlayers) {
+    if (!isPaid) {
+      toast({ title: "Paid Feature", description: "Upgrade to Competitive or Pro to export lineups.", variant: "destructive" });
+      return;
+    }
+    const csv = buildLineupCSV(lineup);
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -101,6 +106,65 @@ export default function SavedLineups() {
     a.click();
     URL.revokeObjectURL(url);
     toast({ title: "Exported", description: "CSV downloaded." });
+  }
+
+  async function handleBulkExport() {
+    if (!isPaid) {
+      toast({ title: "Paid Feature", description: "Upgrade to Competitive or Pro to export lineups.", variant: "destructive" });
+      return;
+    }
+    if (selectedIds.size === 0) {
+      toast({ title: "No Lineups Selected", description: "Select lineups to export using the checkboxes.", variant: "destructive" });
+      return;
+    }
+
+    const details: LineupWithPlayers[] = [];
+    const ids = Array.from(selectedIds);
+    for (let i = 0; i < ids.length; i++) {
+      try {
+        const res = await fetch(`/api/lineups/${ids[i]}`, { credentials: "include" });
+        if (res.ok) details.push(await res.json());
+      } catch {}
+    }
+
+    if (details.length === 0) {
+      toast({ title: "Export Failed", description: "Could not load lineup details.", variant: "destructive" });
+      return;
+    }
+
+    const sections = details.map((lineup, i) => {
+      const label = `Lineup ${i + 1}: ${lineup.sport} ${lineup.platform === "fanduel" ? "FD" : "DK"} - ${lineup.name || "Optimized"}`;
+      return `${label}\n${buildLineupCSV(lineup)}`;
+    });
+
+    const csv = sections.join("\n\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `elitelineup_bulk_export_${details.length}_lineups.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setSelectedIds(new Set());
+    toast({ title: "Bulk Export Complete", description: `${details.length} lineup${details.length > 1 ? "s" : ""} exported.` });
+  }
+
+  function toggleSelect(id: number) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (!lineups) return;
+    if (selectedIds.size === lineups.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(lineups.map((l: any) => l.id)));
+    }
   }
 
   function handleSwapPlayer(lineupId: number, lineup: LineupWithPlayers, oldPlayerId: number, newPlayerId: number) {
@@ -126,9 +190,37 @@ export default function SavedLineups() {
           <h1 className="text-4xl font-bold text-white mb-2 tracking-tight" data-testid="vault-title">Lineup Vault</h1>
           <p className="text-slate-400">Your optimized winning combinations. Click to expand, swap players, and export.</p>
         </div>
-        <Link href="/">
-          <Button className="btn-primary" data-testid="build-new-lineup">Build New Lineup</Button>
-        </Link>
+        <div className="flex items-center gap-3">
+          {isPaid && lineups && lineups.length > 0 && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleSelectAll}
+                className="border-slate-700 text-slate-300"
+                data-testid="select-all-btn"
+              >
+                {selectedIds.size === lineups.length ? (
+                  <><CheckSquare className="w-4 h-4 mr-2" /> Deselect All</>
+                ) : (
+                  <><Square className="w-4 h-4 mr-2" /> Select All</>
+                )}
+              </Button>
+              {selectedIds.size > 0 && (
+                <Button
+                  onClick={handleBulkExport}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  data-testid="bulk-export-btn"
+                >
+                  <Download className="w-4 h-4 mr-2" /> Export {selectedIds.size} Lineup{selectedIds.size > 1 ? "s" : ""}
+                </Button>
+              )}
+            </>
+          )}
+          <Link href="/">
+            <Button className="btn-primary" data-testid="build-new-lineup">Build New Lineup</Button>
+          </Link>
+        </div>
       </div>
 
       {lineups?.length ? (
@@ -144,8 +236,10 @@ export default function SavedLineups() {
               onSwapPlayer={handleSwapPlayer}
               swappingSlot={swappingSlot}
               setSwappingSlot={setSwappingSlot}
-              isPro={isPro}
+              isPaid={isPaid}
               isUpdating={updateMutation.isPending}
+              isSelected={selectedIds.has(lineup.id)}
+              onToggleSelect={() => toggleSelect(lineup.id)}
             />
           ))}
         </div>
@@ -169,8 +263,10 @@ function LineupCard({
   onSwapPlayer,
   swappingSlot,
   setSwappingSlot,
-  isPro,
+  isPaid,
   isUpdating,
+  isSelected,
+  onToggleSelect,
 }: {
   lineup: any;
   isExpanded: boolean;
@@ -180,8 +276,10 @@ function LineupCard({
   onSwapPlayer: (lineupId: number, lineup: LineupWithPlayers, oldId: number, newId: number) => void;
   swappingSlot: { lineupId: number; slot: string; currentPlayerId: number } | null;
   setSwappingSlot: (s: { lineupId: number; slot: string; currentPlayerId: number } | null) => void;
-  isPro: boolean;
+  isPaid: boolean;
   isUpdating: boolean;
+  isSelected: boolean;
+  onToggleSelect: () => void;
 }) {
   const { data: lineupDetail, isLoading: detailLoading } = useQuery<LineupWithPlayers>({
     queryKey: ["/api/lineups", lineup.id],
@@ -192,13 +290,26 @@ function LineupCard({
   const platformLabel = isFD ? "FD" : "DK";
 
   return (
-    <Card className="bg-slate-800/30 border-slate-800 transition-all" data-testid={`lineup-card-${lineup.id}`}>
+    <Card className={`bg-slate-800/30 border-slate-800 transition-all ${isSelected ? "ring-2 ring-emerald-500/50" : ""}`} data-testid={`lineup-card-${lineup.id}`}>
       <div
         className="flex justify-between items-center p-6 cursor-pointer select-none"
         onClick={onToggleExpand}
         data-testid={`lineup-header-${lineup.id}`}
       >
         <div className="flex items-center gap-4">
+          {isPaid && (
+            <button
+              onClick={e => { e.stopPropagation(); onToggleSelect(); }}
+              className="flex-shrink-0"
+              data-testid={`select-lineup-${lineup.id}`}
+            >
+              {isSelected ? (
+                <CheckSquare className="w-5 h-5 text-emerald-400" />
+              ) : (
+                <Square className="w-5 h-5 text-slate-600 hover:text-slate-400" />
+              )}
+            </button>
+          )}
           <div className="flex items-center gap-2">
             <Badge className={`${isFD ? "bg-blue-500/10 text-blue-400" : "bg-emerald-500/10 text-emerald-400"} border-0 text-[11px] font-black uppercase`}>
               {lineup.sport} {platformLabel}
@@ -230,11 +341,11 @@ function LineupCard({
                 if (lineupDetail) onExport(lineupDetail);
               }}
               disabled={!isExpanded || !lineupDetail}
-              className={isPro ? "text-emerald-400" : "text-slate-500 opacity-50"}
-              title={isPro ? "Export CSV" : "Pro members only"}
+              className={isPaid ? "text-emerald-400" : "text-slate-500 opacity-50"}
+              title={isPaid ? "Export CSV" : "Upgrade to export"}
               data-testid={`export-btn-${lineup.id}`}
             >
-              {isPro ? <Download className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
+              {isPaid ? <Download className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
             </Button>
             <Button
               variant="ghost"
