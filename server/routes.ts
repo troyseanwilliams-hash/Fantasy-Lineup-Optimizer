@@ -355,7 +355,7 @@ export async function registerRoutes(
           : typeof item.category === "string" ? [item.category] : [];
 
         return {
-          id: item.guid || String(idx),
+          id: typeof item.guid === "string" ? item.guid : (typeof item.guid === "object" && item.guid?.["#text"] ? String(item.guid["#text"]) : `${sport}-${idx}`),
           headline: item.title || "",
           description: cleanDesc.length > 200 ? cleanDesc.substring(0, 200) + "..." : cleanDesc,
           published: item.pubDate || "",
