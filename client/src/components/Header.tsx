@@ -89,22 +89,40 @@ export function Header() {
                           </DropdownMenuItem>
                         </Link>
 
-                        <Link href={`/optimizer/${dkSlate?.id || ""}`}>
-                          <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-dk`}>
+                        {dkSlate ? (
+                          <Link href={`/optimizer/${dkSlate.id}`}>
+                            <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-dk`}>
+                              <div className="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center mr-2 shrink-0">
+                                <span className="text-emerald-400 font-black text-[9px]">DK</span>
+                              </div>
+                              <span className="text-sm font-bold text-slate-300">{sport} DK Builder</span>
+                            </DropdownMenuItem>
+                          </Link>
+                        ) : (
+                          <DropdownMenuItem disabled className="opacity-50" data-testid={`sport-menu-${sport.toLowerCase()}-dk`}>
                             <div className="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center mr-2 shrink-0">
                               <span className="text-emerald-400 font-black text-[9px]">DK</span>
                             </div>
                             <span className="text-sm font-bold text-slate-300">{sport} DK Builder</span>
                           </DropdownMenuItem>
-                        </Link>
-                        <Link href={`/optimizer/${fdSlate?.id || ""}`}>
-                          <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-fd`}>
+                        )}
+                        {fdSlate ? (
+                          <Link href={`/optimizer/${fdSlate.id}`}>
+                            <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-fd`}>
+                              <div className="w-6 h-6 rounded bg-blue-500/20 flex items-center justify-center mr-2 shrink-0">
+                                <span className="text-blue-400 font-black text-[9px]">FD</span>
+                              </div>
+                              <span className="text-sm font-bold text-slate-300">{sport} FD Builder</span>
+                            </DropdownMenuItem>
+                          </Link>
+                        ) : (
+                          <DropdownMenuItem disabled className="opacity-50" data-testid={`sport-menu-${sport.toLowerCase()}-fd`}>
                             <div className="w-6 h-6 rounded bg-blue-500/20 flex items-center justify-center mr-2 shrink-0">
                               <span className="text-blue-400 font-black text-[9px]">FD</span>
                             </div>
                             <span className="text-sm font-bold text-slate-300">{sport} FD Builder</span>
                           </DropdownMenuItem>
-                        </Link>
+                        )}
 
                         <Link href={`/props?sport=${sport}`}>
                           <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-props`}>
