@@ -230,7 +230,7 @@ export default function Optimizer() {
 
   const SortHeader = ({ label, field, className = "" }: { label: string; field: SortKey; className?: string }) => (
     <th
-      className={`px-3 py-3 text-[10px] font-black uppercase tracking-widest cursor-pointer select-none hover:text-slate-300 transition-colors ${className}`}
+      className={`px-3 py-3 text-[11px] font-black uppercase tracking-widest cursor-pointer select-none hover:text-slate-300 transition-colors ${className}`}
       onClick={() => toggleSort(field)}
       data-testid={`sort-${field}`}
     >
@@ -266,7 +266,7 @@ export default function Optimizer() {
             <div className="flex items-center gap-2">
               <Zap className={`w-5 h-5 fill-current ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`} />
               <span className="text-lg font-black text-white tracking-tight">{sport} OPTIMIZER</span>
-              <Badge className={`text-[9px] font-black ${platform === "fanduel" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"}`} data-testid="platform-badge">
+              <Badge className={`text-[11px] font-black ${platform === "fanduel" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"}`} data-testid="platform-badge">
                 {config.shortLabel}
               </Badge>
             </div>
@@ -278,7 +278,7 @@ export default function Optimizer() {
               </div>
             )}
             <div className="ml-auto flex items-center gap-2">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Slate:</span>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Slate:</span>
               <select
                 className="bg-slate-800 border border-slate-700 text-white text-sm rounded-lg px-3 py-1.5 font-bold"
                 value={slateId}
@@ -310,7 +310,7 @@ export default function Optimizer() {
                   <span className="text-xs font-black text-white">{game.home}</span>
                   <span className="text-xs font-bold text-slate-500">0</span>
                 </div>
-                <div className={`text-[9px] font-bold mt-1.5 pt-1.5 border-t border-slate-700/50 text-center ${platform === "fanduel" ? "text-blue-400/60" : "text-emerald-400/60"}`}>
+                <div className={`text-[11px] font-bold mt-1.5 pt-1.5 border-t border-slate-700/50 text-center ${platform === "fanduel" ? "text-blue-400/60" : "text-emerald-400/60"}`}>
                   {game.time}
                 </div>
               </div>
@@ -355,16 +355,16 @@ export default function Optimizer() {
         <div className="flex-1 overflow-auto">
           <table className="w-full text-left border-collapse min-w-[700px]">
             <thead className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800">
-              <tr className="text-slate-500">
-                <th className="px-3 py-3 w-10 text-center text-[10px] font-black uppercase">Lock</th>
-                <th className="px-3 py-3 w-10 text-center text-[10px] font-black uppercase">Excl</th>
+              <tr className="text-slate-400">
+                <th className="px-3 py-3 w-10 text-center text-[11px] font-black uppercase">Lock</th>
+                <th className="px-3 py-3 w-10 text-center text-[11px] font-black uppercase">Excl</th>
                 <SortHeader label="Pos" field="position" />
                 <SortHeader label="Player" field="name" />
                 <SortHeader label="Team" field="team" />
                 <SortHeader label="Opp" field="team" className="hidden lg:table-cell" />
                 <SortHeader label="Salary" field="salary" />
                 <SortHeader label="FPPG" field="fppg" />
-                <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">My Proj</th>
+                <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400">My Proj</th>
                 <SortHeader label="Value" field="value" />
               </tr>
             </thead>
@@ -388,7 +388,7 @@ export default function Optimizer() {
                         className={`p-1.5 rounded-md transition-all ${
                           isLocked
                             ? `${platform === "fanduel" ? "bg-blue-500" : "bg-emerald-500"} text-white shadow-md`
-                            : `text-slate-600 ${platform === "fanduel" ? "hover:text-blue-400" : "hover:text-emerald-400"} hover:bg-slate-800`
+                            : `text-slate-400 ${platform === "fanduel" ? "hover:text-blue-400" : "hover:text-emerald-400"} hover:bg-slate-800`
                         }`}
                       >
                         {isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
@@ -401,7 +401,7 @@ export default function Optimizer() {
                           setLockedIds(prev => prev.filter(i => i !== player.id));
                         }}
                         data-testid={`exclude-${player.id}`}
-                        className="p-1.5 rounded-md text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                        className="p-1.5 rounded-md text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -412,12 +412,12 @@ export default function Optimizer() {
                     <td className="px-3 py-2">
                       <div className={`font-bold text-sm text-white transition-colors ${platform === "fanduel" ? "group-hover:text-blue-400" : "group-hover:text-emerald-400"}`}>
                         {player.name}
-                        {isInLineup && <span className={`ml-2 text-[9px] font-black ${platform === "fanduel" ? "text-blue-500" : "text-emerald-500"}`}>IN LINEUP</span>}
+                        {isInLineup && <span className={`ml-2 text-[11px] font-black ${platform === "fanduel" ? "text-blue-500" : "text-emerald-500"}`}>IN LINEUP</span>}
                       </div>
-                      <div className="text-[10px] text-slate-600 font-medium">{player.gameInfo}</div>
+                      <div className="text-[11px] text-slate-400 font-medium">{player.gameInfo}</div>
                     </td>
                     <td className="px-3 py-2 text-xs font-bold text-slate-400 uppercase">{player.team}</td>
-                    <td className="px-3 py-2 text-xs text-slate-500 uppercase hidden lg:table-cell">{player.opponent}</td>
+                    <td className="px-3 py-2 text-xs text-slate-400 uppercase hidden lg:table-cell">{player.opponent}</td>
                     <td className="px-3 py-2 font-mono text-sm font-bold text-white">${player.salary.toLocaleString()}</td>
                     <td className="px-3 py-2 font-mono text-xs text-slate-400">{player.fppg}</td>
                     <td className="px-3 py-2">
@@ -446,12 +446,12 @@ export default function Optimizer() {
         {/* Excluded Players Bar */}
         {excludedPlayers.length > 0 && (
           <div className="border-t border-slate-800 bg-slate-900/60 px-4 py-2 flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] font-black text-red-400 uppercase tracking-widest">Excluded:</span>
+            <span className="text-[11px] font-black text-red-400 uppercase tracking-widest">Excluded:</span>
             {excludedPlayers.map(p => (
               <Badge
                 key={p.id}
                 variant="outline"
-                className="border-red-500/30 text-red-400 text-[10px] font-bold cursor-pointer hover:bg-red-500/10"
+                className="border-red-500/30 text-red-400 text-[11px] font-bold cursor-pointer hover:bg-red-500/10"
                 onClick={() => setExcludedIds(prev => prev.filter(i => i !== p.id))}
                 data-testid={`excluded-badge-${p.id}`}
               >
@@ -468,7 +468,7 @@ export default function Optimizer() {
         <div className="p-4 bg-slate-900/60 border-b border-slate-800">
           <div className="grid grid-cols-3 gap-3 mb-4">
             <div className="bg-slate-800/80 rounded-lg p-3 text-center border border-slate-700/50">
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Salary Rem.</p>
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">Salary Rem.</p>
               <p data-testid="salary-remaining" className={`text-lg font-black ${
                 currentLineup ? (config.salaryCap - totalSalary < 0 ? "text-red-400" : "text-white") : "text-slate-400"
               }`}>
@@ -476,13 +476,13 @@ export default function Optimizer() {
               </p>
             </div>
             <div className="bg-slate-800/80 rounded-lg p-3 text-center border border-slate-700/50">
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">FP Proj.</p>
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">FP Proj.</p>
               <p data-testid="total-projection" className={`text-lg font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>
                 {currentLineup ? totalProj.toFixed(1) : "0.0"}
               </p>
             </div>
             <div className="bg-slate-800/80 rounded-lg p-3 text-center border border-slate-700/50">
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Value</p>
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">Value</p>
               <p data-testid="value-metric" className="text-lg font-black text-blue-400">
                 {totalSalary > 0 ? (totalProj / (totalSalary / 1000)).toFixed(1) + "x" : "0.0x"}
               </p>
@@ -519,7 +519,7 @@ export default function Optimizer() {
         </div>
 
         {/* Locked/cap info */}
-        <div className="px-4 py-2 border-b border-slate-800 flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-500">
+        <div className="px-4 py-2 border-b border-slate-800 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-slate-400">
           <span>${lockedSalary.toLocaleString()} Locked</span>
           <span>{lockedIds.length} / {config.rosterSize} Locked</span>
         </div>
@@ -529,13 +529,13 @@ export default function Optimizer() {
           <div className="px-4 py-2 border-b border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-2">
               {subData.tier === "pro" ? (
-                <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[9px] font-black">
+                <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[11px] font-black">
                   <Crown className="w-3 h-3 mr-1" /> PRO
                 </Badge>
               ) : (
-                <Badge variant="outline" className="border-slate-700 text-slate-500 text-[9px] font-black">FREE</Badge>
+                <Badge variant="outline" className="border-slate-700 text-slate-400 text-[11px] font-black">FREE</Badge>
               )}
-              <span className="text-[10px] text-slate-500 font-bold">
+              <span className="text-[11px] text-slate-400 font-bold">
                 {subData.tier === "pro" 
                   ? `${subData.lineupCount}/20 lineups saved`
                   : `${subData.sportCounts?.[sport] || 0}/1 ${sport} lineup saved`
@@ -544,7 +544,7 @@ export default function Optimizer() {
             </div>
             {subData.tier === "free" && (
               <Link href="/pricing">
-                <span className="text-[10px] font-bold text-amber-400 hover:text-amber-300 cursor-pointer" data-testid="upgrade-link">
+                <span className="text-[11px] font-bold text-amber-400 hover:text-amber-300 cursor-pointer" data-testid="upgrade-link">
                   Upgrade
                 </span>
               </Link>
@@ -578,7 +578,7 @@ export default function Optimizer() {
                   <div className="flex-1 flex items-center justify-between px-3 py-2">
                     <div>
                       <div className="text-sm font-bold text-white">{player.name}</div>
-                      <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold uppercase">
+                      <div className="flex items-center gap-2 text-[11px] text-slate-400 font-bold uppercase">
                         <span>{player.team}</span>
                         <span>vs {player.opponent}</span>
                         <span className={`${platform === "fanduel" ? "text-blue-400/60" : "text-emerald-400/60"}`}>{player.position}</span>
@@ -587,11 +587,11 @@ export default function Optimizer() {
                     <div className="flex items-center gap-2">
                       <div className="text-right">
                         <div className={`text-sm font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>{Number(player.projectedPoints).toFixed(1)}</div>
-                        <div className="text-[10px] font-mono text-slate-500 font-bold">${player.salary.toLocaleString()}</div>
+                        <div className="text-[11px] font-mono text-slate-400 font-bold">${player.salary.toLocaleString()}</div>
                       </div>
                       <button
                         onClick={() => handleRemoveFromSlot(slot)}
-                        className="p-1 rounded-md text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                        className="p-1 rounded-md text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
                         data-testid={`remove-slot-${slot}`}
                       >
                         <X className="w-3.5 h-3.5" />
@@ -599,7 +599,7 @@ export default function Optimizer() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex-1 px-3 py-3 text-sm text-slate-600 font-medium">
+                  <div className="flex-1 px-3 py-3 text-sm text-slate-400 font-medium">
                     Make a Pick
                   </div>
                 )}
@@ -638,7 +638,7 @@ export default function Optimizer() {
               </div>
             </>
           )}
-          <div className="flex items-center justify-between text-[10px] text-slate-600 font-bold">
+          <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold">
             <span>Total: ${totalSalary.toLocaleString()} / ${config.salaryCap.toLocaleString()}</span>
             <span>{totalProj.toFixed(1)} FP</span>
           </div>

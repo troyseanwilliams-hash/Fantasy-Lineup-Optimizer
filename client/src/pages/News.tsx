@@ -55,7 +55,7 @@ export default function News() {
     <div className="container mx-auto px-4 py-10 max-w-5xl">
       <div className="mb-8">
         <Link href="/">
-          <span className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-white transition-colors cursor-pointer mb-4" data-testid="news-back-link">
+          <span className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors cursor-pointer mb-4" data-testid="news-back-link">
             <ArrowLeft className="w-4 h-4" />
             Dashboard
           </span>
@@ -122,7 +122,7 @@ export default function News() {
         <Card className="bg-slate-800/30 border-slate-800 p-10 text-center">
           <Newspaper className="w-12 h-12 text-slate-600 mx-auto mb-3" />
           <p className="text-slate-400 font-bold">No {sport} news available right now</p>
-          <p className="text-sm text-slate-500 mt-1">Check back later for updates</p>
+          <p className="text-sm text-slate-400 mt-1">Check back later for updates</p>
         </Card>
       )}
 
@@ -154,7 +154,7 @@ export default function News() {
                       <h3 className="text-base font-bold text-white group-hover:text-emerald-400 transition-colors leading-snug line-clamp-2">
                         {article.headline}
                       </h3>
-                      <ExternalLink className="w-4 h-4 text-slate-600 group-hover:text-emerald-400 shrink-0 mt-0.5 transition-colors" />
+                      <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-emerald-400 shrink-0 mt-0.5 transition-colors" />
                     </div>
                     {article.description && (
                       <p className="text-sm text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">
@@ -163,18 +163,18 @@ export default function News() {
                     )}
                     <div className="flex items-center gap-3 mt-2">
                       {article.published && (
-                        <span className="flex items-center gap-1 text-[11px] text-slate-500 font-bold">
+                        <span className="flex items-center gap-1 text-[11px] text-slate-400 font-bold">
                           <Clock className="w-3 h-3" />
                           {timeAgo(article.published)}
                         </span>
                       )}
                       {article.type && article.type !== "Article" && (
-                        <Badge className="text-[9px] font-black bg-slate-700/50 text-slate-400 border-slate-700">
+                        <Badge className="text-[11px] font-black bg-slate-700/50 text-slate-400 border-slate-700">
                           {article.type}
                         </Badge>
                       )}
                       {article.categories.slice(0, 2).map((cat, i) => (
-                        <Badge key={i} className={`text-[9px] font-black ${meta.bgColor} ${meta.color} border-transparent`}>
+                        <Badge key={i} className={`text-[11px] font-black ${meta.bgColor} ${meta.color} border-transparent`}>
                           {cat}
                         </Badge>
                       ))}
@@ -188,7 +188,7 @@ export default function News() {
       )}
 
       <div className="mt-8 text-center">
-        <p className="text-[11px] text-slate-600">News powered by ESPN</p>
+        <p className="text-[11px] text-slate-400">News powered by ESPN</p>
       </div>
     </div>
   );
