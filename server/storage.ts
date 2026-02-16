@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, inArray } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import {
   slates, players, lineups, subscriptions,
   type Slate, type InsertSlate,
@@ -25,6 +25,7 @@ export interface IStorage extends IAuthStorage {
   deleteLineup(id: number): Promise<void>;
   getLineup(id: number): Promise<Lineup | undefined>;
   getLineupCount(userId: string): Promise<number>;
+  getLineupCountBySport(userId: string, sport: string): Promise<number>;
 
   getSubscription(userId: string): Promise<Subscription | undefined>;
   upsertSubscription(sub: InsertSubscription): Promise<Subscription>;
@@ -86,6 +87,13 @@ export class DatabaseStorage implements IStorage {
 
   async getLineupCount(userId: string): Promise<number> {
     const rows = await db.select().from(lineups).where(eq(lineups.userId, userId));
+    return rows.length;
+  }
+
+  async getLineupCountBySport(userId: string, sport: string): Promise<number> {
+    const rows = await db.select().from(lineups).where(
+      and(eq(lineups.userId, userId), eq(lineups.sport, sport))
+    );
     return rows.length;
   }
 

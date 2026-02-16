@@ -57,7 +57,7 @@ export default function Optimizer() {
     enabled: !!slateId,
   });
 
-  const { data: subData } = useQuery<{ tier: string; lineupCount: number; maxLineups: number }>({
+  const { data: subData } = useQuery<{ tier: string; lineupCount: number; maxLineups: number; sportCounts: Record<string, number> }>({
     queryKey: ["/api/subscription"],
     enabled: !!user,
   });
@@ -529,7 +529,10 @@ export default function Optimizer() {
                 <Badge variant="outline" className="border-slate-700 text-slate-500 text-[9px] font-black">FREE</Badge>
               )}
               <span className="text-[10px] text-slate-500 font-bold">
-                {subData.lineupCount}/{subData.maxLineups} lineups saved
+                {subData.tier === "pro" 
+                  ? `${subData.lineupCount}/20 lineups saved`
+                  : `${subData.sportCounts?.[sport] || 0}/1 ${sport} lineup saved`
+                }
               </span>
             </div>
             {subData.tier === "free" && (
@@ -614,7 +617,7 @@ export default function Optimizer() {
               <div className="flex gap-2">
                 <Button
                   onClick={handleSave}
-                  disabled={saveLineupMutation.isPending || !user}
+                  disabled={saveLineupMutation.isPending || !user || (subData?.tier !== "pro" && (subData?.sportCounts?.[sport] || 0) >= 1)}
                   className={`flex-1 h-10 text-white font-bold text-sm ${
                     platform === "fanduel"
                       ? "bg-blue-600 hover:bg-blue-700"
