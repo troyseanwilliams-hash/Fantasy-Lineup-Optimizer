@@ -452,18 +452,38 @@ export async function registerRoutes(
     
     const sorted = allProps.sort((a, b) => Number(b.confidence) - Number(a.confidence));
 
+    let tier = "free";
     if (req.isAuthenticated()) {
       const userId = (req.user as any).claims.sub;
       const sub = await storage.getSubscription(userId);
-      const tier = sub?.tier || "free";
-      if (tier === "pro") {
-        return res.json({ props: sorted, tier: "pro", totalCount: sorted.length, freeCount: 3 });
-      }
+      tier = sub?.tier || "free";
     }
 
-    const freeProps = sorted.filter(p => !p.isLocked).slice(0, 3);
-    const lockedCount = sorted.length - freeProps.length;
-    res.json({ props: freeProps, tier: "free", totalCount: sorted.length, lockedCount, freeCount: 3 });
+    const maxPerSport = tier === "pro" ? 20 : tier === "competitive" ? 8 : 2;
+
+    const propsBySport: Record<string, typeof sorted> = {};
+    for (const prop of sorted) {
+      if (!propsBySport[prop.sport]) propsBySport[prop.sport] = [];
+      propsBySport[prop.sport].push(prop);
+    }
+
+    if (tier === "pro") {
+      const limitedProps: typeof sorted = [];
+      for (const sportKey of Object.keys(propsBySport)) {
+        limitedProps.push(...propsBySport[sportKey].slice(0, maxPerSport));
+      }
+      return res.json({ props: limitedProps, tier, totalCount: sorted.length, maxPerSport });
+    }
+
+    const visibleProps: typeof sorted = [];
+    let lockedCount = 0;
+    for (const sportKey of Object.keys(propsBySport)) {
+      const sportProps = propsBySport[sportKey];
+      visibleProps.push(...sportProps.slice(0, maxPerSport));
+      lockedCount += Math.max(0, sportProps.length - maxPerSport);
+    }
+
+    res.json({ props: visibleProps, tier, totalCount: sorted.length, lockedCount, maxPerSport });
   });
 
   return httpServer;
