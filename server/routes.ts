@@ -9,10 +9,10 @@ import { getPlatformConfig, ACTIVE_SPORTS, assignPlayersToSlots, type Platform }
 
 import { type OptimizationConstraints, type ProOptimizationConstraints, type Player, type Slate, type InsertProp, type InsertAlert, proOptimizationConstraintSchema } from "@shared/schema";
 import {
-  NBA_SLATE_FEB_19_DK, NBA_SLATE_FEB_19_FD, NBA_PLAYERS_FEB_19_DK, NBA_PLAYERS_FEB_19_FD,
-  NHL_SLATE_FEB_20_DK, NHL_SLATE_FEB_20_FD, NHL_PLAYERS_FEB_20_DK, NHL_PLAYERS_FEB_20_FD,
-  MLB_SLATE_FEB_20_DK, MLB_SLATE_FEB_20_FD, MLB_PLAYERS_FEB_20_DK, MLB_PLAYERS_FEB_20_FD,
-  NFL_SLATE_FEB_20_DK, NFL_SLATE_FEB_20_FD, NFL_PLAYERS_FEB_20_DK, NFL_PLAYERS_FEB_20_FD,
+  NBA_SLATE_FEB_19_DK, NBA_PLAYERS_FEB_19_DK,
+  NHL_SLATE_FEB_20_DK, NHL_PLAYERS_FEB_20_DK,
+  MLB_SLATE_FEB_20_DK, MLB_PLAYERS_FEB_20_DK,
+  NFL_SLATE_FEB_20_DK, NFL_PLAYERS_FEB_20_DK,
 } from "@shared/seed_data";
 import { fetchAllSportsLiveData, getRollingSlateDate } from "./balldontlie";
 
@@ -732,32 +732,24 @@ export async function seedDatabase(forceRefresh = false) {
   }
 
   const staticFallbacks: Record<string, {
-    dkSlate: any; fdSlate: any;
-    dkPlayers: any; fdPlayers: any;
+    dkSlate: any;
+    dkPlayers: any;
   }> = {
     NBA: {
       dkSlate: { ...NBA_SLATE_FEB_19_DK, startTime: getRollingSlateDate("NBA") },
-      fdSlate: { ...NBA_SLATE_FEB_19_FD, startTime: getRollingSlateDate("NBA") },
       dkPlayers: NBA_PLAYERS_FEB_19_DK,
-      fdPlayers: NBA_PLAYERS_FEB_19_FD,
     },
     NHL: {
       dkSlate: { ...NHL_SLATE_FEB_20_DK, startTime: getRollingSlateDate("NHL") },
-      fdSlate: { ...NHL_SLATE_FEB_20_FD, startTime: getRollingSlateDate("NHL") },
       dkPlayers: NHL_PLAYERS_FEB_20_DK,
-      fdPlayers: NHL_PLAYERS_FEB_20_FD,
     },
     MLB: {
       dkSlate: { ...MLB_SLATE_FEB_20_DK, startTime: getRollingSlateDate("MLB") },
-      fdSlate: { ...MLB_SLATE_FEB_20_FD, startTime: getRollingSlateDate("MLB") },
       dkPlayers: MLB_PLAYERS_FEB_20_DK,
-      fdPlayers: MLB_PLAYERS_FEB_20_FD,
     },
     NFL: {
       dkSlate: { ...NFL_SLATE_FEB_20_DK, startTime: getRollingSlateDate("NFL") },
-      fdSlate: { ...NFL_SLATE_FEB_20_FD, startTime: getRollingSlateDate("NFL") },
       dkPlayers: NFL_PLAYERS_FEB_20_DK,
-      fdPlayers: NFL_PLAYERS_FEB_20_FD,
     },
   };
 
@@ -767,9 +759,7 @@ export async function seedDatabase(forceRefresh = false) {
       return {
         sport,
         dkSlate: { name: `${sport} Main Slate`, startTime: live.slateDate, isMain: true },
-        fdSlate: { name: `${sport} Main Slate`, startTime: live.slateDate, isMain: true },
         dkPlayers: live.dkPlayers,
-        fdPlayers: live.fdPlayers,
         isLive: true,
       };
     }
@@ -777,9 +767,7 @@ export async function seedDatabase(forceRefresh = false) {
     return {
       sport,
       dkSlate: fallback.dkSlate,
-      fdSlate: fallback.fdSlate,
       dkPlayers: fallback.dkPlayers,
-      fdPlayers: fallback.fdPlayers,
       isLive: false,
     };
   });
@@ -801,19 +789,8 @@ export async function seedDatabase(forceRefresh = false) {
         seed.dkPlayers.map((p: any) => ({ ...p, slateId: dkSlate.id })) as any
       );
 
-      const fdSlate = await storage.createSlate({
-        sport: seed.sport,
-        platform: "fanduel",
-        name: seed.fdSlate.name!,
-        startTime: seed.fdSlate.startTime!,
-        isMain: true,
-      });
-      await storage.bulkCreatePlayers(
-        seed.fdPlayers.map((p: any) => ({ ...p, slateId: fdSlate.id })) as any
-      );
-
       const source = seed.isLive ? "LIVE DK" : "static";
-      console.log(`Seeded database with DK and FD ${seed.sport} main slates (${source})`);
+      console.log(`Seeded database with DK ${seed.sport} main slate (${source})`);
     }
   }
 

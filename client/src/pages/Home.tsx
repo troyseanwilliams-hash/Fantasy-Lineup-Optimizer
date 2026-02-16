@@ -30,7 +30,7 @@ export default function Home() {
             <span className="text-emerald-400">DFS Lineups</span>
           </h1>
           <p className="text-xl text-slate-400 mb-6 max-w-2xl mx-auto leading-relaxed">
-            Advanced lineup optimizer for DraftKings and FanDuel. Real player projections, LP-based optimization, and instant lineup building.
+            Advanced lineup optimizer for DraftKings. Real player projections, LP-based optimization, and instant lineup building.
           </p>
           <div className="flex items-center justify-center gap-3 mb-6">
             {ACTIVE_SPORTS.map(sport => (
@@ -41,7 +41,6 @@ export default function Home() {
           </div>
           <div className="flex items-center justify-center gap-3 mb-12">
             <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 font-bold text-sm px-3 py-1">DraftKings</Badge>
-            <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 font-bold text-sm px-3 py-1">FanDuel</Badge>
           </div>
           <Button
             onClick={() => (window.location.href = "/api/login")}

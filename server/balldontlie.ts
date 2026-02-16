@@ -54,7 +54,6 @@ export interface LiveSlateData {
   sport: string;
   slateDate: Date;
   dkPlayers: Omit<InsertPlayer, "slateId">[];
-  fdPlayers: Omit<InsertPlayer, "slateId">[];
   games: Array<{ away: string; home: string; time: string; date: string }>;
   draftGroupId: number;
 }
@@ -94,13 +93,6 @@ function mapDKPosition(sport: string, pos: string): string {
     return mapping[pos] || pos;
   }
   return pos;
-}
-
-function mapDKToFDPosition(sport: string, dkPos: string): string {
-  if (sport === "NFL") {
-    if (dkPos === "DST") return "DEF";
-  }
-  return dkPos;
 }
 
 async function findMainSlate(sport: string): Promise<DKDraftGroup | null> {
@@ -179,14 +171,7 @@ export async function fetchLiveDKData(sport: string): Promise<LiveSlateData | nu
 
   const slateDate = new Date(mainSlate.StartDateEst);
 
-  const fdConfig = PLATFORM_CONFIGS[sport]?.fanduel;
-  const dkConfig = PLATFORM_CONFIGS[sport]?.draftkings;
-  const dkCap = dkConfig?.salaryCap || 50000;
-  const fdCap = fdConfig?.salaryCap || 60000;
-  const salaryRatio = fdCap / dkCap;
-
   const dkPlayers: Omit<InsertPlayer, "slateId">[] = [];
-  const fdPlayers: Omit<InsertPlayer, "slateId">[] = [];
 
   for (const p of trimmedPlayers) {
     if (!p.position || !p.salary || p.salary <= 0) continue;
@@ -221,30 +206,14 @@ export async function fetchLiveDKData(sport: string): Promise<LiveSlateData | nu
       opponent,
       gameInfo,
     });
-
-    const fdPos = mapDKToFDPosition(sport, dkPos);
-    const fdSalary = Math.round((p.salary * salaryRatio) / 100) * 100;
-    const fdFppg = (Number(fppg) * 0.95).toFixed(1);
-
-    fdPlayers.push({
-      name: p.displayName,
-      team: p.teamAbbreviation,
-      position: fdPos,
-      salary: fdSalary,
-      fppg: fdFppg,
-      projectedPoints: fdFppg,
-      opponent,
-      gameInfo,
-    });
   }
 
-  console.log(`[DK] ${sport}: Processed ${dkPlayers.length} DK players, ${fdPlayers.length} FD players`);
+  console.log(`[DK] ${sport}: Processed ${dkPlayers.length} DK players`);
 
   return {
     sport,
     slateDate,
     dkPlayers,
-    fdPlayers,
     games: Array.from(games.values()),
     draftGroupId: mainSlate.DraftGroupId,
   };
