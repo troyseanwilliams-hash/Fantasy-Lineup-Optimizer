@@ -89,20 +89,20 @@ export function Header() {
                           </DropdownMenuItem>
                         </Link>
 
-                        <Link href={dkSlate ? `/optimizer/${dkSlate.id}` : `/news/${sport.toLowerCase()}`}>
+                        <Link href={`/optimizer/${dkSlate?.id || ""}`}>
                           <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-dk`}>
                             <div className="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center mr-2 shrink-0">
                               <span className="text-emerald-400 font-black text-[9px]">DK</span>
                             </div>
-                            <span className="text-sm font-bold text-slate-300">DraftKings Builder</span>
+                            <span className="text-sm font-bold text-slate-300">{sport} DK Builder</span>
                           </DropdownMenuItem>
                         </Link>
-                        <Link href={fdSlate ? `/optimizer/${fdSlate.id}` : `/news/${sport.toLowerCase()}`}>
+                        <Link href={`/optimizer/${fdSlate?.id || ""}`}>
                           <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-fd`}>
                             <div className="w-6 h-6 rounded bg-blue-500/20 flex items-center justify-center mr-2 shrink-0">
                               <span className="text-blue-400 font-black text-[9px]">FD</span>
                             </div>
-                            <span className="text-sm font-bold text-slate-300">FanDuel Builder</span>
+                            <span className="text-sm font-bold text-slate-300">{sport} FD Builder</span>
                           </DropdownMenuItem>
                         </Link>
 
