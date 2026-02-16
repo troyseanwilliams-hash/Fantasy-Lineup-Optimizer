@@ -23,6 +23,7 @@ export interface IStorage extends IAuthStorage {
 
   getLineups(userId: string): Promise<Lineup[]>;
   createLineup(lineup: InsertLineup): Promise<Lineup>;
+  updateLineup(id: number, data: { playerIds: number[]; totalSalary: number; totalProjectedPoints: string }): Promise<Lineup>;
   deleteLineup(id: number): Promise<void>;
   getLineup(id: number): Promise<Lineup | undefined>;
   getLineupCount(userId: string): Promise<number>;
@@ -86,6 +87,14 @@ export class DatabaseStorage implements IStorage {
   async createLineup(insertLineup: InsertLineup): Promise<Lineup> {
     const [lineup] = await db.insert(lineups).values(insertLineup).returning();
     return lineup;
+  }
+
+  async updateLineup(id: number, data: { playerIds: number[]; totalSalary: number; totalProjectedPoints: string }): Promise<Lineup> {
+    const [updated] = await db.update(lineups)
+      .set({ playerIds: data.playerIds, totalSalary: data.totalSalary, totalProjectedPoints: data.totalProjectedPoints })
+      .where(eq(lineups.id, id))
+      .returning();
+    return updated;
   }
 
   async deleteLineup(id: number): Promise<void> {
