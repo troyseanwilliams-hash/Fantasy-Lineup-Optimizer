@@ -8,7 +8,12 @@ import solver from "javascript-lp-solver";
 import { getPlatformConfig, type Platform } from "@shared/platform-config";
 
 import { type OptimizationConstraints, type Player, type Slate } from "@shared/schema";
-import { NBA_SLATE_FEB_19_DK, NBA_SLATE_FEB_19_FD, NBA_PLAYERS_FEB_19_DK, NBA_PLAYERS_FEB_19_FD } from "@shared/seed_data";
+import {
+  NBA_SLATE_FEB_19_DK, NBA_SLATE_FEB_19_FD, NBA_PLAYERS_FEB_19_DK, NBA_PLAYERS_FEB_19_FD,
+  NHL_SLATE_FEB_20_DK, NHL_SLATE_FEB_20_FD, NHL_PLAYERS_FEB_20_DK, NHL_PLAYERS_FEB_20_FD,
+  MLB_SLATE_FEB_20_DK, MLB_SLATE_FEB_20_FD, MLB_PLAYERS_FEB_20_DK, MLB_PLAYERS_FEB_20_FD,
+  NFL_SLATE_FEB_20_DK, NFL_SLATE_FEB_20_FD, NFL_PLAYERS_FEB_20_DK, NFL_PLAYERS_FEB_20_FD,
+} from "@shared/seed_data";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -187,6 +192,48 @@ export async function registerRoutes(
   return httpServer;
 }
 
+function buildPositionVariables(position: string, sport: string): Record<string, number> {
+  const vars: Record<string, number> = {};
+  const positions = position.split("/");
+
+  switch (sport) {
+    case "NBA":
+      if (positions.includes("PG")) { vars.PG = 1; vars.G = 1; }
+      if (positions.includes("SG")) { vars.SG = 1; vars.G = 1; }
+      if (positions.includes("SF")) { vars.SF = 1; vars.F = 1; }
+      if (positions.includes("PF")) { vars.PF = 1; vars.F = 1; }
+      if (positions.includes("C")) { vars.C = 1; }
+      break;
+
+    case "NHL":
+      if (positions.includes("C")) { vars.C = 1; vars.SKATER = 1; }
+      if (positions.includes("W") || positions.includes("LW") || positions.includes("RW")) { vars.W = 1; vars.SKATER = 1; }
+      if (positions.includes("D")) { vars.D = 1; vars.SKATER = 1; }
+      if (positions.includes("G")) { vars.G = 1; }
+      break;
+
+    case "MLB":
+      if (positions.includes("P") || positions.includes("SP") || positions.includes("RP")) { vars.P = 1; }
+      if (positions.includes("C")) { vars.C = 1; vars["C/1B"] = 1; vars.HITTER = 1; }
+      if (positions.includes("1B")) { vars["1B"] = 1; vars["C/1B"] = 1; vars.HITTER = 1; }
+      if (positions.includes("2B")) { vars["2B"] = 1; vars.HITTER = 1; }
+      if (positions.includes("3B")) { vars["3B"] = 1; vars.HITTER = 1; }
+      if (positions.includes("SS")) { vars.SS = 1; vars.HITTER = 1; }
+      if (positions.includes("OF") || positions.includes("LF") || positions.includes("CF") || positions.includes("RF")) { vars.OF = 1; vars.HITTER = 1; }
+      break;
+
+    case "NFL":
+      if (positions.includes("QB")) { vars.QB = 1; }
+      if (positions.includes("RB")) { vars.RB = 1; vars.FLEX = 1; }
+      if (positions.includes("WR")) { vars.WR = 1; vars.FLEX = 1; }
+      if (positions.includes("TE")) { vars.TE = 1; vars.FLEX = 1; }
+      if (positions.includes("DST") || positions.includes("DEF")) { vars.DST = 1; vars.DEF = 1; }
+      break;
+  }
+
+  return vars;
+}
+
 function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport: string, platform: Platform) {
   const config = getPlatformConfig(sport, platform);
   
@@ -215,17 +262,8 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
       projectedPoints: Number(p.projectedPoints),
       salary: p.salary,
       rosterSize: 1,
+      ...buildPositionVariables(p.position, sport),
     };
-
-    if (sport === 'NBA') {
-      if (p.position.includes('PG')) { variable.PG = 1; variable.G = 1; }
-      if (p.position.includes('SG')) { variable.SG = 1; variable.G = 1; }
-      if (p.position.includes('SF')) { variable.SF = 1; variable.F = 1; }
-      if (p.position.includes('PF')) { variable.PF = 1; variable.F = 1; }
-      if (p.position.includes('C')) { variable.C = 1; }
-    } else {
-      variable[p.position] = 1;
-    }
 
     model.variables[variableName] = variable;
     model.ints[variableName] = 1;
@@ -239,7 +277,7 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
     }
   });
 
-  const result = solver.Solve(model);
+  const result: any = solver.Solve(model);
 
   if (!result.feasible) {
     return { error: "Could not find a feasible lineup with these constraints.", lineup: [], totalSalary: 0, totalProjectedPoints: 0 };
@@ -262,37 +300,67 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
 
 export async function seedDatabase() {
   const existingSlates = await storage.getSlates();
-  const dkSlateExists = existingSlates.some(s => s.name === "NBA Main Slate" && s.platform === "draftkings");
 
-  if (!dkSlateExists) {
-    const dkSlate = await storage.createSlate({
+  const sportSeeds = [
+    {
       sport: "NBA",
-      platform: "draftkings",
-      name: "NBA Main Slate",
-      startTime: new Date("2026-02-19T19:00:00-05:00"),
-      isMain: true,
-    });
+      dkSlate: NBA_SLATE_FEB_19_DK,
+      fdSlate: NBA_SLATE_FEB_19_FD,
+      dkPlayers: NBA_PLAYERS_FEB_19_DK,
+      fdPlayers: NBA_PLAYERS_FEB_19_FD,
+    },
+    {
+      sport: "NHL",
+      dkSlate: NHL_SLATE_FEB_20_DK,
+      fdSlate: NHL_SLATE_FEB_20_FD,
+      dkPlayers: NHL_PLAYERS_FEB_20_DK,
+      fdPlayers: NHL_PLAYERS_FEB_20_FD,
+    },
+    {
+      sport: "MLB",
+      dkSlate: MLB_SLATE_FEB_20_DK,
+      fdSlate: MLB_SLATE_FEB_20_FD,
+      dkPlayers: MLB_PLAYERS_FEB_20_DK,
+      fdPlayers: MLB_PLAYERS_FEB_20_FD,
+    },
+    {
+      sport: "NFL",
+      dkSlate: NFL_SLATE_FEB_20_DK,
+      fdSlate: NFL_SLATE_FEB_20_FD,
+      dkPlayers: NFL_PLAYERS_FEB_20_DK,
+      fdPlayers: NFL_PLAYERS_FEB_20_FD,
+    },
+  ];
 
-    const dkPlayers = NBA_PLAYERS_FEB_19_DK.map(p => ({
-      ...p,
-      slateId: dkSlate.id
-    }));
-    await storage.bulkCreatePlayers(dkPlayers as any);
+  for (const seed of sportSeeds) {
+    const slateExists = existingSlates.some(
+      s => s.sport === seed.sport && s.platform === "draftkings" && s.isMain
+    );
 
-    const fdSlate = await storage.createSlate({
-      sport: "NBA",
-      platform: "fanduel",
-      name: "NBA Main Slate",
-      startTime: new Date("2026-02-19T19:00:00-05:00"),
-      isMain: true,
-    });
+    if (!slateExists) {
+      const dkSlate = await storage.createSlate({
+        sport: seed.sport,
+        platform: "draftkings",
+        name: seed.dkSlate.name!,
+        startTime: seed.dkSlate.startTime!,
+        isMain: true,
+      });
+      await storage.bulkCreatePlayers(
+        seed.dkPlayers.map(p => ({ ...p, slateId: dkSlate.id })) as any
+      );
 
-    const fdPlayers = NBA_PLAYERS_FEB_19_FD.map(p => ({
-      ...p,
-      slateId: fdSlate.id
-    }));
-    await storage.bulkCreatePlayers(fdPlayers as any);
+      const fdSlate = await storage.createSlate({
+        sport: seed.sport,
+        platform: "fanduel",
+        name: seed.fdSlate.name!,
+        startTime: seed.fdSlate.startTime!,
+        isMain: true,
+      });
+      await storage.bulkCreatePlayers(
+        seed.fdPlayers.map(p => ({ ...p, slateId: fdSlate.id })) as any
+      );
 
-    console.log("Seeded database with DK and FD NBA main slates");
+      console.log(`Seeded database with DK and FD ${seed.sport} main slates`);
+    }
   }
 }

@@ -75,7 +75,7 @@ export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
 // --- OPTIMIZATION TYPES ---
 export const optimizationConstraintSchema = z.object({
   slateId: z.number(),
-  platform: z.enum(["draftkings", "fanduel"]).default("draftkings"),
+  platform: z.enum(["draftkings", "fanduel"]).optional(),
   lockedPlayerIds: z.array(z.number()).default([]),
   excludedPlayerIds: z.array(z.number()).default([]),
   minSalary: z.number().optional(),

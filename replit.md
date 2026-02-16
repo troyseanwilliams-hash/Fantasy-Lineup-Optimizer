@@ -4,7 +4,7 @@
 
 ProLineup AI is a Daily Fantasy Sports (DFS) lineup optimizer web application. It helps users build winning DFS lineups for platforms like DraftKings and FanDuel by using Linear Programming (LP) optimization on player projections. Users can browse available slates (game sets), view player pools with stats and salaries, lock/exclude players, adjust projections, run LP-based optimization to generate optimal lineups under salary cap constraints, and save lineups to a personal vault.
 
-The app supports multiple sports (NBA, NFL, MLB, NHL) with a focus on NBA. It supports both DraftKings (8-player roster: PG, SG, SF, PF, C, G, F, UTIL with $50,000 salary cap) and FanDuel (9-player roster: PG, PG, SG, SG, SF, SF, PF, PF, C with $60,000 salary cap).
+The app supports 4 sports: NBA, NHL, MLB, and NFL (ordered by season priority in SPORT_ORDER). Each sport has platform-specific roster configurations for both DraftKings and FanDuel. The Home dashboard features a sport selector to switch between sports.
 
 ## User Preferences
 
@@ -38,9 +38,12 @@ Preferred communication style: Simple, everyday language.
 - **Session Store**: `connect-pg-simple` storing sessions in the `sessions` table
 
 ### Platform Configuration
-- **Shared config**: `shared/platform-config.ts` defines roster slots, salary caps, and position constraints per platform
-- **DraftKings NBA**: 8 slots (PG, SG, SF, PF, C, G, F, UTIL), $50,000 cap
-- **FanDuel NBA**: 9 slots (PG, PG, SG, SG, SF, SF, PF, PF, C), $60,000 cap
+- **Shared config**: `shared/platform-config.ts` defines roster slots, salary caps, position constraints, and position filters per sport/platform
+- **Sport order**: Defined in `SPORT_ORDER` array: NHL, MLB, NFL, NBA (reorderable by season)
+- **NBA DK**: 8 slots (PG, SG, SF, PF, C, G, F, UTIL), $50K cap | **NBA FD**: 9 slots (PG×2, SG×2, SF×2, PF×2, C), $60K cap
+- **NHL DK**: 9 slots (C×2, W×3, D×2, G, UTIL), $50K cap | **NHL FD**: 9 slots (C×2, W×4, D×2, G), $55K cap
+- **MLB DK**: 10 slots (P×2, C, 1B, 2B, 3B, SS, OF×3), $50K cap | **MLB FD**: 9 slots (P, C/1B, 2B, 3B, SS, OF×3, UTIL), $35K cap
+- **NFL DK**: 9 slots (QB, RB×2, WR×3, TE, FLEX, DST), $50K cap | **NFL FD**: 9 slots (QB, RB×2, WR×3, TE, FLEX, DEF), $60K cap
 - **Color schemes**: DraftKings = emerald, FanDuel = blue
 
 ### Data Storage
