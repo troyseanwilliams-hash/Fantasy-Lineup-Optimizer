@@ -1,38 +1,85 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq, inArray } from "drizzle-orm";
+import {
+  slates, players, lineups,
+  type Slate, type InsertSlate,
+  type Player, type InsertPlayer,
+  type Lineup, type InsertLineup
+} from "@shared/schema";
 
-// modify the interface with any CRUD methods
-// you might need
+// Import auth storage to merge interfaces
+import { authStorage, type IAuthStorage } from "./replit_integrations/auth/storage";
 
-export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+export interface IStorage extends IAuthStorage {
+  // Slates
+  getSlates(): Promise<Slate[]>;
+  getSlate(id: number): Promise<Slate | undefined>;
+  createSlate(slate: InsertSlate): Promise<Slate>;
+
+  // Players
+  getPlayersBySlate(slateId: number): Promise<Player[]>;
+  createPlayer(player: InsertPlayer): Promise<Player>;
+  bulkCreatePlayers(players: InsertPlayer[]): Promise<Player[]>;
+
+  // Lineups
+  getLineups(userId: string): Promise<Lineup[]>;
+  createLineup(lineup: InsertLineup): Promise<Lineup>;
+  deleteLineup(id: number): Promise<void>;
+  getLineup(id: number): Promise<Lineup | undefined>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
+export class DatabaseStorage implements IStorage {
+  // --- Auth Delegate ---
+  getUser = authStorage.getUser.bind(authStorage);
+  upsertUser = authStorage.upsertUser.bind(authStorage);
 
-  constructor() {
-    this.users = new Map();
+  // --- Slates ---
+  async getSlates(): Promise<Slate[]> {
+    return await db.select().from(slates).orderBy(slates.startTime);
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getSlate(id: number): Promise<Slate | undefined> {
+    const [slate] = await db.select().from(slates).where(eq(slates.id, id));
+    return slate;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async createSlate(insertSlate: InsertSlate): Promise<Slate> {
+    const [slate] = await db.insert(slates).values(insertSlate).returning();
+    return slate;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  // --- Players ---
+  async getPlayersBySlate(slateId: number): Promise<Player[]> {
+    return await db.select().from(players).where(eq(players.slateId, slateId));
+  }
+
+  async createPlayer(insertPlayer: InsertPlayer): Promise<Player> {
+    const [player] = await db.insert(players).values(insertPlayer).returning();
+    return player;
+  }
+
+  async bulkCreatePlayers(insertPlayers: InsertPlayer[]): Promise<Player[]> {
+    return await db.insert(players).values(insertPlayers).returning();
+  }
+
+  // --- Lineups ---
+  async getLineups(userId: string): Promise<Lineup[]> {
+    return await db.select().from(lineups).where(eq(lineups.userId, userId));
+  }
+
+  async createLineup(insertLineup: InsertLineup): Promise<Lineup> {
+    const [lineup] = await db.insert(lineups).values(insertLineup).returning();
+    return lineup;
+  }
+
+  async deleteLineup(id: number): Promise<void> {
+    await db.delete(lineups).where(eq(lineups.id, id));
+  }
+
+  async getLineup(id: number): Promise<Lineup | undefined> {
+    const [lineup] = await db.select().from(lineups).where(eq(lineups.id, id));
+    return lineup;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
