@@ -234,6 +234,22 @@ export async function registerRoutes(
       res.sendStatus(204);
   });
 
+  app.post("/api/lineups/bulk-delete", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any).claims.sub;
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "No lineup IDs provided" });
+    let deleted = 0;
+    for (const id of ids) {
+      const lineup = await storage.getLineup(Number(id));
+      if (lineup && lineup.userId === userId) {
+        await storage.deleteLineup(Number(id));
+        deleted++;
+      }
+    }
+    res.json({ deleted });
+  });
+
   app.get("/api/subscription", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const userId = (req.user as any).claims.sub;
