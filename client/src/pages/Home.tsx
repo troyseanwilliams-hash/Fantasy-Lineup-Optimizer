@@ -98,7 +98,7 @@ export default function Home() {
       </div>
 
       {availableSports.length > 1 && (
-        <div className="flex gap-2 mb-8 bg-slate-900/60 rounded-xl p-1.5 border border-slate-800 w-fit" data-testid="sport-selector">
+        <div className="flex gap-2 mb-8 bg-slate-900/60 rounded-xl p-1.5 border border-slate-800 w-fit" data-testid="sport-tabs">
           {availableSports.map(sport => (
             <button
               key={sport}
