@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Upload, FileJson, Database, ShieldAlert } from "lucide-react";
+import { Loader2, Plus, Upload, FileJson, Database, ShieldAlert, RefreshCw } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 const EXAMPLE_JSON = `[
@@ -50,6 +50,20 @@ export default function Admin() {
     },
     onSuccess: () => {
       toast({ title: "Success", description: "Database seeded with sample NFL and NBA slates." });
+    }
+  });
+
+  const refreshMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/admin/refresh-data", { method: "POST" });
+      if (!res.ok) throw new Error("Refresh failed");
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Data Refreshed", description: data.message || "Live data updated from Ball Don't Lie API" });
+    },
+    onError: () => {
+      toast({ title: "Refresh Failed", description: "Could not refresh data. Check API key.", variant: "destructive" });
     }
   });
 
@@ -123,15 +137,26 @@ export default function Admin() {
     <div className="container mx-auto px-4 py-12 space-y-12">
       <div className="flex justify-between items-center">
         <h1 className="text-4xl font-bold text-white tracking-tight">Admin Control Center</h1>
-        <Button 
-          onClick={() => seedMutation.mutate()} 
-          disabled={seedMutation.isPending}
-          variant="outline"
-          className="border-slate-700 text-slate-300 hover:bg-slate-800"
-        >
-          {seedMutation.isPending ? <Loader2 className="animate-spin mr-2" /> : <Database className="w-4 h-4 mr-2" />}
-          Seed Sample Data
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button 
+            onClick={() => refreshMutation.mutate()} 
+            disabled={refreshMutation.isPending}
+            className="bg-amber-500 text-black font-bold hover:bg-amber-400"
+            data-testid="button-refresh-data"
+          >
+            {refreshMutation.isPending ? <Loader2 className="animate-spin mr-2 w-4 h-4" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+            Refresh Live Data
+          </Button>
+          <Button 
+            onClick={() => seedMutation.mutate()} 
+            disabled={seedMutation.isPending}
+            variant="outline"
+            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+          >
+            {seedMutation.isPending ? <Loader2 className="animate-spin mr-2" /> : <Database className="w-4 h-4 mr-2" />}
+            Seed Sample Data
+          </Button>
+        </div>
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
