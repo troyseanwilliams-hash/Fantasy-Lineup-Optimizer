@@ -145,8 +145,14 @@ export async function registerRoutes(
       res.sendStatus(204);
   });
 
-  // Initialize seed data
-  await seedDatabase();
+  app.post("/api/admin/seed", async (req, res) => {
+    try {
+      await seedDatabase();
+      res.json({ message: "Database seeded successfully" });
+    } catch (err) {
+      res.status(500).json({ message: "Seeding failed" });
+    }
+  });
 
   return httpServer;
 }

@@ -1,28 +1,7 @@
-import { useState } from "react";
-import {
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-  type ColumnDef,
-  type SortingState,
-  type ColumnFiltersState,
-} from "@tanstack/react-table";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Lock, LockOpen, X, Search, Filter } from "lucide-react";
 import { type Player } from "@shared/schema";
-import { cn } from "@/lib/utils";
+import { Lock, Unlock, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 
 interface PlayerTableProps {
   players: Player[];
@@ -34,253 +13,89 @@ interface PlayerTableProps {
   customProjections: Record<string, number>;
 }
 
-export function PlayerTable({ 
-  players, 
-  lockedPlayerIds, 
-  excludedPlayerIds, 
-  onLock, 
+export function PlayerTable({
+  players,
+  lockedPlayerIds,
+  excludedPlayerIds,
+  onLock,
   onExclude,
   onProjectionChange,
-  customProjections
+  customProjections,
 }: PlayerTableProps) {
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [globalFilter, setGlobalFilter] = useState("");
-
-  const columns: ColumnDef<Player>[] = [
-    {
-      id: "actions",
-      header: "Actions",
-      cell: ({ row }) => {
-        const player = row.original;
-        const isLocked = lockedPlayerIds.includes(player.id);
-        const isExcluded = excludedPlayerIds.includes(player.id);
-
-        return (
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "h-8 w-8 transition-colors",
-                isLocked ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-primary"
-              )}
-              onClick={() => onLock(player.id)}
-              disabled={isExcluded}
-            >
-              {isLocked ? <Lock className="w-4 h-4" /> : <LockOpen className="w-4 h-4" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "h-8 w-8 transition-colors",
-                isExcluded ? "text-destructive bg-destructive/10" : "text-muted-foreground hover:text-destructive"
-              )}
-              onClick={() => onExclude(player.id)}
-              disabled={isLocked}
-            >
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
-        );
-      },
-      enableSorting: false,
-    },
-    {
-      accessorKey: "position",
-      header: "Pos",
-      cell: info => <span className="font-mono font-bold text-primary/80">{info.getValue() as string}</span>,
-    },
-    {
-      accessorKey: "name",
-      header: "Player",
-      cell: info => (
-        <div className="flex flex-col">
-          <span className="font-medium text-white">{info.getValue() as string}</span>
-          <span className="text-xs text-muted-foreground">{info.row.original.gameInfo}</span>
-        </div>
-      ),
-    },
-    {
-      accessorKey: "team",
-      header: "Team",
-      cell: info => <span className="text-xs uppercase font-bold text-muted-foreground">{info.getValue() as string}</span>,
-    },
-    {
-      accessorKey: "opponent",
-      header: "Opp",
-      cell: info => <span className="text-xs uppercase text-muted-foreground">{info.getValue() as string}</span>,
-    },
-    {
-      accessorKey: "salary",
-      header: "Salary",
-      cell: info => <span className="font-mono text-emerald-400">${(info.getValue() as number).toLocaleString()}</span>,
-    },
-    {
-      accessorKey: "fppg",
-      header: "FPPG",
-      cell: info => <span className="font-mono text-muted-foreground">{info.getValue() as string}</span>,
-    },
-    {
-      accessorKey: "projectedPoints",
-      header: "Proj",
-      cell: ({ row }) => {
-        const player = row.original;
-        const currentProj = customProjections[player.id.toString()] ?? player.projectedPoints;
-        return (
-          <Input
-            className="w-16 h-8 font-mono text-right bg-black/20 border-white/10 focus:border-primary text-primary"
-            type="number"
-            value={currentProj}
-            onChange={(e) => onProjectionChange(player.id, e.target.value)}
-          />
-        );
-      },
-    },
-  ];
-
-  const table = useReactTable({
-    data: players,
-    columns,
-    state: {
-      sorting,
-      columnFilters,
-      globalFilter,
-    },
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    onGlobalFilterChange: setGlobalFilter,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-  });
-
-  // Position filtering helper
-  const uniquePositions = Array.from(new Set(players.map(p => p.position))).sort();
-
   return (
-    <div className="space-y-4 h-full flex flex-col">
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-card p-4 rounded-xl border border-border">
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search players..."
-            value={globalFilter}
-            onChange={(e) => setGlobalFilter(e.target.value)}
-            className="pl-9 bg-background/50 border-white/10"
-          />
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => table.getColumn("position")?.setFilterValue(undefined)}
-            className={cn(
-              "text-xs transition-colors", 
-              !table.getColumn("position")?.getFilterValue() ? "bg-primary text-primary-foreground border-primary" : "text-muted-foreground"
-            )}
-          >
-            ALL
-          </Button>
-          {uniquePositions.map(pos => (
-            <Button
-              key={pos}
-              variant="outline"
-              size="sm"
-              onClick={() => table.getColumn("position")?.setFilterValue(pos)}
-              className={cn(
-                "text-xs transition-colors font-mono",
-                table.getColumn("position")?.getFilterValue() === pos 
-                  ? "bg-primary text-primary-foreground border-primary" 
-                  : "text-muted-foreground border-white/10"
-              )}
-            >
-              {pos}
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-border bg-card overflow-hidden flex-1 relative">
-        <div className="absolute inset-0 overflow-auto">
-          <Table>
-            <TableHeader className="sticky top-0 z-10 bg-card border-b border-border shadow-sm">
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id} className="hover:bg-transparent border-border">
-                  {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id} className="text-xs uppercase tracking-wider text-muted-foreground h-10">
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    data-state={row.getIsSelected() && "selected"}
-                    className={cn(
-                      "border-border/50 transition-colors",
-                      lockedPlayerIds.includes(row.original.id) && "bg-primary/5 hover:bg-primary/10",
-                      excludedPlayerIds.includes(row.original.id) && "opacity-50 grayscale hover:opacity-75 hover:grayscale-0"
-                    )}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="py-2">
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className="h-24 text-center text-muted-foreground"
-                  >
-                    No players found.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-      
-      <div className="flex items-center justify-between px-2">
-        <div className="flex-1 text-sm text-muted-foreground">
-          {table.getFilteredRowModel().rows.length} players found
-        </div>
-        <div className="space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Next
-          </Button>
-        </div>
+    <div className="rounded-xl border border-slate-800 bg-slate-900/20 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-slate-900/50 border-b border-slate-800">
+              <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Player</th>
+              <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Pos</th>
+              <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Team</th>
+              <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Salary</th>
+              <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Proj</th>
+              <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800">
+            {players.map((player) => (
+              <tr 
+                key={player.id} 
+                className={`group transition-colors hover:bg-slate-800/40 ${
+                  lockedPlayerIds.includes(player.id) ? "bg-emerald-500/5" : ""
+                } ${excludedPlayerIds.includes(player.id) ? "opacity-40 grayscale" : ""}`}
+              >
+                <td className="px-6 py-4">
+                  <div className="font-bold text-white group-hover:text-[#10B981] transition-colors">{player.name}</div>
+                  <div className="text-[10px] text-slate-500 font-bold uppercase">{player.gameInfo}</div>
+                </td>
+                <td className="px-6 py-4 text-center">
+                  <Badge variant="outline" className="border-slate-700 text-slate-400 font-bold bg-slate-900/50">
+                    {player.position}
+                  </Badge>
+                </td>
+                <td className="px-6 py-4 text-center font-bold text-slate-400 text-xs">{player.team}</td>
+                <td className="px-6 py-4 text-right font-mono font-bold text-slate-200">
+                  ${player.salary.toLocaleString()}
+                </td>
+                <td className="px-6 py-4 text-right">
+                  <Input 
+                    type="number" 
+                    step="0.1"
+                    className="w-20 h-8 ml-auto bg-slate-950 border-slate-800 text-right font-bold text-[#10B981] text-xs focus:ring-[#10B981]"
+                    defaultValue={customProjections[player.id] ?? player.projectedPoints}
+                    onChange={(e) => onProjectionChange(player.id, e.target.value)}
+                  />
+                </td>
+                <td className="px-6 py-4">
+                  <div className="flex items-center justify-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={() => onLock(player.id)}
+                      disabled={excludedPlayerIds.includes(player.id)}
+                      className={`p-2 rounded-lg transition-all ${
+                        lockedPlayerIds.includes(player.id) 
+                          ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" 
+                          : "bg-slate-800 text-slate-500 hover:text-white"
+                      }`}
+                    >
+                      {lockedPlayerIds.includes(player.id) ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                    </button>
+                    <button 
+                      onClick={() => onExclude(player.id)}
+                      disabled={lockedPlayerIds.includes(player.id)}
+                      className={`p-2 rounded-lg transition-all ${
+                        excludedPlayerIds.includes(player.id)
+                          ? "bg-red-500 text-white"
+                          : "bg-slate-800 text-slate-500 hover:bg-red-500/20 hover:text-red-400"
+                      }`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
