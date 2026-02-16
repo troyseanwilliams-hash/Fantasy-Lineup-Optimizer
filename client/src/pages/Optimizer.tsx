@@ -161,7 +161,7 @@ export default function Optimizer() {
       const assignedSlots = config.slots;
       return true;
     });
-    const assigned = assignPlayersToSlots(activePlayers, config.slots);
+    const assigned = assignPlayersToSlots(activePlayers, config.slots, sport);
     removedSlots.forEach(slot => {
       if (assigned[slot]) assigned[slot] = null;
     });
@@ -249,7 +249,7 @@ export default function Optimizer() {
     );
   }
 
-  const positions = ["ALL", "PG", "SG", "SF", "PF", "C"];
+  const positions = ["ALL", ...(config.positionFilters || ["PG", "SG", "SF", "PF", "C"])];
   const platformColor = platform === "fanduel" ? "blue" : "emerald";
 
   return (
@@ -451,7 +451,7 @@ export default function Optimizer() {
           <div className="grid grid-cols-3 gap-3 mb-4">
             <div className="bg-slate-800/80 rounded-lg p-3 text-center border border-slate-700/50">
               <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Salary Rem.</p>
-              <p className={`text-lg font-black ${
+              <p data-testid="salary-remaining" className={`text-lg font-black ${
                 currentLineup ? (config.salaryCap - totalSalary < 0 ? "text-red-400" : "text-white") : "text-slate-400"
               }`}>
                 ${currentLineup ? (config.salaryCap - totalSalary).toLocaleString() : config.salaryCap.toLocaleString()}
@@ -459,13 +459,13 @@ export default function Optimizer() {
             </div>
             <div className="bg-slate-800/80 rounded-lg p-3 text-center border border-slate-700/50">
               <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">FP Proj.</p>
-              <p className={`text-lg font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>
+              <p data-testid="total-projection" className={`text-lg font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>
                 {currentLineup ? totalProj.toFixed(1) : "0.0"}
               </p>
             </div>
             <div className="bg-slate-800/80 rounded-lg p-3 text-center border border-slate-700/50">
               <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Value</p>
-              <p className="text-lg font-black text-blue-400">
+              <p data-testid="value-metric" className="text-lg font-black text-blue-400">
                 {totalSalary > 0 ? (totalProj / (totalSalary / 1000)).toFixed(1) + "x" : "0.0x"}
               </p>
             </div>
@@ -532,7 +532,7 @@ export default function Optimizer() {
         )}
 
         {/* Lineup Slots */}
-        <div className="flex-1 overflow-auto p-4 space-y-2">
+        <div className="flex-1 overflow-auto p-4 space-y-2" data-testid="lineup-slots">
           {config.slots.map(slot => {
             const player = lineupSlots?.[slot] || null;
             const displaySlot = getSlotDisplayName(slot);

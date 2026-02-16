@@ -1,19 +1,25 @@
 export type Platform = "draftkings" | "fanduel";
+export type Sport = "NBA" | "NHL" | "MLB" | "NFL";
+
+export const SPORT_ORDER: Sport[] = ["NHL", "MLB", "NFL", "NBA"];
 
 export interface PlatformConfig {
   platform: Platform;
+  sport: Sport;
   label: string;
   shortLabel: string;
   salaryCap: number;
   rosterSize: number;
   slots: string[];
   positionConstraints: Record<string, { min?: number; max?: number; equal?: number }>;
+  positionFilters: string[];
 }
 
 export const PLATFORM_CONFIGS: Record<string, Record<Platform, PlatformConfig>> = {
   NBA: {
     draftkings: {
       platform: "draftkings",
+      sport: "NBA",
       label: "DraftKings",
       shortLabel: "DK",
       salaryCap: 50000,
@@ -28,9 +34,11 @@ export const PLATFORM_CONFIGS: Record<string, Record<Platform, PlatformConfig>> 
         G: { min: 3 },
         F: { min: 3 },
       },
+      positionFilters: ["PG", "SG", "SF", "PF", "C"],
     },
     fanduel: {
       platform: "fanduel",
+      sport: "NBA",
       label: "FanDuel",
       shortLabel: "FD",
       salaryCap: 60000,
@@ -45,6 +53,120 @@ export const PLATFORM_CONFIGS: Record<string, Record<Platform, PlatformConfig>> 
         G: { min: 4 },
         F: { min: 4 },
       },
+      positionFilters: ["PG", "SG", "SF", "PF", "C"],
+    },
+  },
+  NHL: {
+    draftkings: {
+      platform: "draftkings",
+      sport: "NHL",
+      label: "DraftKings",
+      shortLabel: "DK",
+      salaryCap: 50000,
+      rosterSize: 9,
+      slots: ["C", "C2", "W", "W2", "W3", "D", "D2", "G", "UTIL"],
+      positionConstraints: {
+        C: { min: 2 },
+        W: { min: 3 },
+        D: { min: 2 },
+        G: { min: 1, max: 1 },
+        SKATER: { min: 8 },
+      },
+      positionFilters: ["C", "W", "D", "G"],
+    },
+    fanduel: {
+      platform: "fanduel",
+      sport: "NHL",
+      label: "FanDuel",
+      shortLabel: "FD",
+      salaryCap: 55000,
+      rosterSize: 9,
+      slots: ["C", "C2", "W", "W2", "W3", "W4", "D", "D2", "G"],
+      positionConstraints: {
+        C: { min: 2 },
+        W: { min: 4 },
+        D: { min: 2 },
+        G: { min: 1, max: 1 },
+      },
+      positionFilters: ["C", "W", "D", "G"],
+    },
+  },
+  MLB: {
+    draftkings: {
+      platform: "draftkings",
+      sport: "MLB",
+      label: "DraftKings",
+      shortLabel: "DK",
+      salaryCap: 50000,
+      rosterSize: 10,
+      slots: ["P", "P2", "C", "1B", "2B", "3B", "SS", "OF", "OF2", "OF3"],
+      positionConstraints: {
+        P: { min: 2 },
+        C: { min: 1, max: 1 },
+        "1B": { min: 1, max: 1 },
+        "2B": { min: 1, max: 1 },
+        "3B": { min: 1, max: 1 },
+        SS: { min: 1, max: 1 },
+        OF: { min: 3 },
+      },
+      positionFilters: ["P", "C", "1B", "2B", "3B", "SS", "OF"],
+    },
+    fanduel: {
+      platform: "fanduel",
+      sport: "MLB",
+      label: "FanDuel",
+      shortLabel: "FD",
+      salaryCap: 35000,
+      rosterSize: 9,
+      slots: ["P", "C/1B", "2B", "3B", "SS", "OF", "OF2", "OF3", "UTIL"],
+      positionConstraints: {
+        P: { min: 1, max: 1 },
+        HITTER: { min: 8 },
+        "C/1B": { min: 1 },
+        "2B": { min: 1 },
+        "3B": { min: 1 },
+        SS: { min: 1 },
+        OF: { min: 3 },
+      },
+      positionFilters: ["P", "C", "1B", "2B", "3B", "SS", "OF"],
+    },
+  },
+  NFL: {
+    draftkings: {
+      platform: "draftkings",
+      sport: "NFL",
+      label: "DraftKings",
+      shortLabel: "DK",
+      salaryCap: 50000,
+      rosterSize: 9,
+      slots: ["QB", "RB", "RB2", "WR", "WR2", "WR3", "TE", "FLEX", "DST"],
+      positionConstraints: {
+        QB: { min: 1, max: 1 },
+        RB: { min: 2 },
+        WR: { min: 3 },
+        TE: { min: 1 },
+        DST: { min: 1, max: 1 },
+        FLEX: { min: 7 },
+      },
+      positionFilters: ["QB", "RB", "WR", "TE", "DST"],
+    },
+    fanduel: {
+      platform: "fanduel",
+      sport: "NFL",
+      label: "FanDuel",
+      shortLabel: "FD",
+      salaryCap: 60000,
+      rosterSize: 9,
+      slots: ["QB", "RB", "RB2", "WR", "WR2", "WR3", "TE", "FLEX", "DEF"],
+      positionConstraints: {
+        QB: { min: 1, max: 1 },
+        RB: { min: 2 },
+        WR: { min: 3 },
+        TE: { min: 1 },
+        DEF: { min: 1, max: 1 },
+        FLEX: { min: 7 },
+      },
+      positionFilters: ["QB", "RB", "WR", "TE", "DEF"],
     },
   },
 };
@@ -61,25 +183,66 @@ export function getSlotDisplayName(slot: string): string {
   return slot.replace(/\d+$/, "");
 }
 
-export function positionFitsSlot(position: string, slot: string): boolean {
+export function positionFitsSlot(position: string, slot: string, sport?: string): boolean {
   const displaySlot = getSlotDisplayName(slot);
   const positions = position.split("/");
+
   switch (displaySlot) {
     case "PG": return positions.includes("PG");
     case "SG": return positions.includes("SG");
     case "SF": return positions.includes("SF");
     case "PF": return positions.includes("PF");
-    case "C": return positions.includes("C");
-    case "G": return positions.includes("PG") || positions.includes("SG");
-    case "F": return positions.includes("SF") || positions.includes("PF");
-    case "UTIL": return true;
+
+    case "G":
+      if (sport === "NHL") return positions.includes("G");
+      return positions.includes("PG") || positions.includes("SG");
+    case "F":
+      return positions.includes("SF") || positions.includes("PF");
+
+    case "C":
+      return positions.includes("C");
+    case "W":
+      return positions.includes("W") || positions.includes("LW") || positions.includes("RW");
+    case "LW": return positions.includes("LW") || positions.includes("W");
+    case "RW": return positions.includes("RW") || positions.includes("W");
+    case "D":
+      return positions.includes("D");
+
+    case "P": return positions.includes("P") || positions.includes("SP") || positions.includes("RP");
+    case "1B": return positions.includes("1B");
+    case "2B": return positions.includes("2B");
+    case "3B": return positions.includes("3B");
+    case "SS": return positions.includes("SS");
+    case "OF": return positions.includes("OF") || positions.includes("LF") || positions.includes("CF") || positions.includes("RF");
+    case "C/1B": return positions.includes("C") || positions.includes("1B");
+
+    case "QB": return positions.includes("QB");
+    case "RB": return positions.includes("RB");
+    case "WR": return positions.includes("WR");
+    case "TE": return positions.includes("TE");
+    case "DST": return positions.includes("DST");
+    case "DEF": return positions.includes("DEF") || positions.includes("DST");
+
+    case "FLEX":
+      return positions.includes("RB") || positions.includes("WR") || positions.includes("TE");
+
+    case "UTIL":
+      if (sport === "NHL") {
+        return positions.includes("C") || positions.includes("W") || positions.includes("LW") || positions.includes("RW") || positions.includes("D");
+      }
+      if (sport === "MLB") {
+        return !positions.includes("P") && !positions.includes("SP") && !positions.includes("RP");
+      }
+      return true;
+
     default: return false;
   }
 }
 
 export function assignPlayersToSlots(
   players: Array<{ id: number; position: string; [key: string]: any }>,
-  slots: string[]
+  slots: string[],
+  sport?: string
 ): Record<string, any | null> {
   function solve(slotIdx: number, used: Set<number>): Record<string, any | null> | null {
     if (slotIdx >= slots.length) {
@@ -88,11 +251,11 @@ export function assignPlayersToSlots(
       return result;
     }
     const slot = slots[slotIdx];
-    const eligible = players.filter(p => !used.has(p.id) && positionFitsSlot(p.position, slot));
+    const eligible = players.filter(p => !used.has(p.id) && positionFitsSlot(p.position, slot, sport));
 
     const sorted = [...eligible].sort((a, b) => {
-      const aSlots = slots.filter(s => s !== slot && positionFitsSlot(a.position, s)).length;
-      const bSlots = slots.filter(s => s !== slot && positionFitsSlot(b.position, s)).length;
+      const aSlots = slots.filter(s => s !== slot && positionFitsSlot(a.position, s, sport)).length;
+      const bSlots = slots.filter(s => s !== slot && positionFitsSlot(b.position, s, sport)).length;
       return aSlots - bSlots;
     });
 
