@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Link, useLocation } from "wouter";
 import type { Slate } from "@shared/schema";
-import { SPORT_ORDER, getPlatformConfig, type Platform, type Sport } from "@shared/platform-config";
+import { SPORT_ORDER, ACTIVE_SPORTS, getPlatformConfig, type Platform, type Sport } from "@shared/platform-config";
 
 export default function Home() {
   const { user } = useAuth();
@@ -21,7 +21,7 @@ export default function Home() {
 
   const availableSports = useMemo(() => {
     const sports = new Set(mainSlates.map(s => s.sport));
-    return SPORT_ORDER.filter(s => sports.has(s));
+    return ACTIVE_SPORTS.filter(s => sports.has(s));
   }, [mainSlates]);
 
   const [selectedSport, setSelectedSport] = useState<string | null>(null);
@@ -48,7 +48,7 @@ export default function Home() {
             Advanced lineup optimizer for DraftKings and FanDuel. Real player projections, LP-based optimization, and instant lineup building.
           </p>
           <div className="flex items-center justify-center gap-3 mb-6">
-            {SPORT_ORDER.map(sport => (
+            {ACTIVE_SPORTS.map(sport => (
               <Badge key={sport} className="bg-slate-800/50 text-slate-300 border-slate-700 font-bold text-sm px-3 py-1">
                 {sport}
               </Badge>
