@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Zap, Archive, Settings, LogOut, User, ShieldAlert } from "lucide-react";
+import { LayoutDashboard, Zap, Archive, Settings, LogOut, ShieldAlert } from "lucide-react";
 
 export function Header() {
   const { user, logout } = useAuth();
@@ -22,7 +22,7 @@ export function Header() {
               <div className="w-10 h-10 bg-[#10B981] rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
                 <Zap className="text-white w-6 h-6 fill-current" />
               </div>
-              <span className="text-2xl font-black tracking-tighter text-white">
+              <span className="text-2xl font-black tracking-tighter text-white uppercase">
                 PRO<span className="text-[#10B981]">LINEUP</span>
               </span>
             </div>
@@ -31,12 +31,12 @@ export function Header() {
           <nav className="hidden lg:flex items-center space-x-8">
             {links.map((link) => (
               <Link key={link.href} href={link.href}>
-                <a className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors ${
+                <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
                   location === link.href ? "text-[#10B981]" : "text-slate-400 hover:text-white"
                 }`}>
                   <link.icon className="w-4 h-4" />
                   <span>{link.label}</span>
-                </a>
+                </div>
               </Link>
             ))}
           </nav>

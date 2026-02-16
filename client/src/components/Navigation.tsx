@@ -1,1 +1,2 @@
-export { Header as Navigation } from "./Header";
+import { Header } from "./Header";
+export const Navigation = Header;
