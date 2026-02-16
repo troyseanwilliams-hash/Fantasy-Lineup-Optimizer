@@ -1,9 +1,10 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { Lock, Crown, Zap, ArrowUpRight, ArrowDownRight, ExternalLink, Trophy, Activity, Target, Dribbble } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import { AFFILIATE_LINKS, AFFILIATE_PROMOS } from "@shared/affiliate-config";
@@ -221,10 +222,21 @@ const SPORT_ICON_COMPONENTS: Record<string, typeof Trophy> = {
 };
 
 export default function PropBets() {
+  const searchString = useSearch();
+  const sportParam = new URLSearchParams(searchString).get("sport")?.toUpperCase() || null;
 
   const { data, isLoading } = useQuery<PropsResponse>({
     queryKey: ["/api/props"],
   });
+
+  useEffect(() => {
+    if (sportParam && data && !isLoading) {
+      const el = document.querySelector(`[data-testid="sport-section-${sportParam.toLowerCase()}"]`);
+      if (el) {
+        setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+      }
+    }
+  }, [sportParam, data, isLoading]);
 
   const isPro = data?.tier === "pro";
 

@@ -86,6 +86,13 @@ export function Header() {
                           <span className="text-xs font-black text-white uppercase tracking-wider">{sport}</span>
                         </DropdownMenuLabel>
 
+                        <Link href={`/news/${sport.toLowerCase()}`}>
+                          <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-news`}>
+                            <Newspaper className="w-4 h-4 mr-2 text-amber-400" />
+                            <span className="text-sm font-bold text-slate-300">News</span>
+                          </DropdownMenuItem>
+                        </Link>
+
                         <DropdownMenuSub>
                           <DropdownMenuSubTrigger className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-builder`}>
                             <Zap className="w-4 h-4 mr-2 text-emerald-400" />
@@ -126,17 +133,12 @@ export function Header() {
                           </DropdownMenuSubContent>
                         </DropdownMenuSub>
 
-                        <Link href={`/news/${sport.toLowerCase()}`}>
-                          <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-news`}>
-                            <Newspaper className="w-4 h-4 mr-2 text-amber-400" />
-                            <span className="text-sm font-bold text-slate-300">News</span>
+                        <Link href={`/props?sport=${sport}`}>
+                          <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-props`}>
+                            <TrendingUp className="w-4 h-4 mr-2 text-purple-400" />
+                            <span className="text-sm font-bold text-slate-300">Prop Bets</span>
                           </DropdownMenuItem>
                         </Link>
-                        <DropdownMenuItem className="cursor-default opacity-50" disabled>
-                          <Users className="w-4 h-4 mr-2 text-slate-600" />
-                          <span className="text-sm text-slate-500">Player Updates</span>
-                          <span className="ml-auto text-[9px] text-slate-600 font-bold">SOON</span>
-                        </DropdownMenuItem>
                       </div>
                     );
                   })}
