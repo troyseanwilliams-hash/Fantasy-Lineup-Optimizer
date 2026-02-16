@@ -134,14 +134,14 @@ export async function registerRoutes(
 
       const sub = await storage.getSubscription(userId);
       const tier = sub?.tier || "free";
-      const maxPerSport = tier === "pro" ? 150 : tier === "competitive" ? 20 : 1;
+      const maxPerSport = tier === "pro" ? 150 : tier === "star" ? 20 : 1;
 
       const sportCount = await storage.getLineupCountBySport(userId, input.sport);
       if (sportCount >= maxPerSport) {
         const upgradeMsg = tier === "free"
-          ? "Free plan allows 1 saved team per sport. Upgrade to Competitive for 20 teams or Pro for 150 teams per sport."
-          : tier === "competitive"
-          ? "Competitive plan allows 20 saved teams per sport. Upgrade to Pro for 150 teams per sport."
+          ? "Free plan allows 1 saved team per sport. Upgrade to Star for 20 teams or Pro for 150 teams per sport."
+          : tier === "star"
+          ? "Star plan allows 20 saved teams per sport. Upgrade to Pro for 150 teams per sport."
           : "You've reached the maximum of 150 saved teams per sport.";
         return res.status(403).json({ 
           message: upgradeMsg,
@@ -246,7 +246,7 @@ export async function registerRoutes(
       sportCounts[sport] = await storage.getLineupCountBySport(userId, sport);
     }
 
-    const maxLineupsPerSport = tier === "pro" ? 150 : tier === "competitive" ? 20 : 1;
+    const maxLineupsPerSport = tier === "pro" ? 150 : tier === "star" ? 20 : 1;
 
     res.json({
       tier,
@@ -332,11 +332,14 @@ export async function registerRoutes(
       const userId = (req.user as any).claims.sub;
       const sub = await storage.getSubscription(userId);
       const tier = sub?.tier || "free";
-      if (tier !== "pro") {
-        return res.status(403).json({ message: "Pro subscription required for advanced optimizer.", requiresUpgrade: true });
+      if (tier !== "pro" && tier !== "star") {
+        return res.status(403).json({ message: "Star or Pro subscription required for advanced optimizer.", requiresUpgrade: true });
       }
 
+      const maxLineupCount = tier === "pro" ? 20 : 5;
+
       const constraints = proOptimizationConstraintSchema.parse(req.body);
+      constraints.lineupCount = Math.min(constraints.lineupCount, maxLineupCount);
       const slate = await storage.getSlate(constraints.slateId);
       if (!slate) return res.status(404).json({ message: "Slate not found" });
 
@@ -475,7 +478,7 @@ export async function registerRoutes(
       tier = sub?.tier || "free";
     }
 
-    const maxPerSport = tier === "pro" ? 15 : tier === "competitive" ? 8 : 2;
+    const maxPerSport = tier === "pro" ? 15 : tier === "star" ? 8 : 2;
 
     const propsBySport: Record<string, typeof sorted> = {};
     for (const prop of sorted) {

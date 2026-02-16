@@ -82,16 +82,16 @@ export default function Pricing() {
           </Button>
         </Card>
 
-        {/* Competitive Plan */}
-        <Card className={`bg-slate-800/30 border-emerald-500/30 p-8 relative ${currentTier === "competitive" ? "ring-2 ring-emerald-500" : ""}`} data-testid="plan-competitive">
-          {currentTier === "competitive" ? (
+        {/* Star Plan */}
+        <Card className={`bg-slate-800/30 border-emerald-500/30 p-8 relative ${currentTier === "star" ? "ring-2 ring-emerald-500" : ""}`} data-testid="plan-star">
+          {currentTier === "star" ? (
             <Badge className="absolute -top-3 left-6 bg-emerald-500 text-black text-[11px] font-black">CURRENT PLAN</Badge>
           ) : currentTier === "free" ? (
             <Badge className="absolute -top-3 left-6 bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[11px] font-black">POPULAR</Badge>
           ) : null}
           <div className="mb-6">
             <h3 className="text-2xl font-black text-white mb-2 flex items-center gap-2">
-              Competitive <Trophy className="w-5 h-5 text-emerald-400" />
+              Star <Trophy className="w-5 h-5 text-emerald-400" />
             </h3>
             <div className="flex items-baseline gap-1">
               <span className="text-4xl font-black text-white">$9.99</span>
@@ -126,14 +126,14 @@ export default function Pricing() {
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <span className="font-bold">Multi-lineup generation</span>
+              <span className="font-bold">Multi-lineup generation (up to 5)</span>
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-400">
               <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
               <span>No AI boost analysis</span>
             </li>
           </ul>
-          {currentTier === "competitive" ? (
+          {currentTier === "star" ? (
             <Button className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-black font-black" disabled>
               <Trophy className="w-4 h-4 mr-2" /> Active
             </Button>
@@ -145,7 +145,7 @@ export default function Pricing() {
             <>
               <Button
                 className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-black font-black shadow-lg shadow-emerald-500/20"
-                data-testid="upgrade-competitive-btn"
+                data-testid="upgrade-star-btn"
                 disabled
               >
                 <Trophy className="w-4 h-4 mr-2" /> Coming Soon
