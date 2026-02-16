@@ -769,9 +769,27 @@ export default function Optimizer() {
               </div>
             </>
           )}
-          <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold">
-            <span>Total: ${totalSalary.toLocaleString()} / ${config.salaryCap.toLocaleString()}</span>
-            <span>{totalProj.toFixed(1)} FP</span>
+          <div className="grid grid-cols-2 gap-3">
+            <div className={`rounded-lg p-3 ${totalSalary > config.salaryCap ? "bg-red-500/10 border border-red-500/30" : "bg-slate-800/80 border border-slate-700/50"}`}>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Salary</div>
+              <div className={`text-lg font-black tabular-nums ${totalSalary > config.salaryCap ? "text-red-400" : "text-white"}`}>
+                ${totalSalary.toLocaleString()}
+              </div>
+              <div className="w-full bg-slate-700/50 rounded-full h-1.5 mt-1.5">
+                <div
+                  className={`h-1.5 rounded-full transition-all ${totalSalary > config.salaryCap ? "bg-red-500" : platform === "fanduel" ? "bg-blue-500" : "bg-emerald-500"}`}
+                  style={{ width: `${Math.min((totalSalary / config.salaryCap) * 100, 100)}%` }}
+                />
+              </div>
+              <div className="text-[10px] text-slate-500 font-bold mt-1">${config.salaryCap.toLocaleString()} cap</div>
+            </div>
+            <div className="rounded-lg bg-slate-800/80 border border-slate-700/50 p-3">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Projected</div>
+              <div className={`text-lg font-black tabular-nums ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>
+                {totalProj.toFixed(1)}
+              </div>
+              <div className="text-[10px] text-slate-500 font-bold mt-2.5">Fantasy Points</div>
+            </div>
           </div>
         </div>
       </div>
