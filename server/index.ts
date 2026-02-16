@@ -1,5 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes, seedDatabase } from "./routes";
+import { registerRoutes, seedDatabase, generateDailyProps } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import cron from "node-cron";
@@ -104,7 +104,9 @@ app.use((req, res, next) => {
         try {
           log("Starting scheduled seed data refresh", "cron");
           await seedDatabase(true);
-          log("Scheduled seed data refresh completed", "cron");
+          const today = new Date().toISOString().split("T")[0];
+          await generateDailyProps(today);
+          log("Scheduled seed data refresh + props generation completed", "cron");
         } catch (err) {
           console.error("Scheduled seed refresh failed:", err);
         }
