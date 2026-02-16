@@ -14,6 +14,7 @@ import {
   MLB_SLATE_FEB_20_DK, MLB_SLATE_FEB_20_FD, MLB_PLAYERS_FEB_20_DK, MLB_PLAYERS_FEB_20_FD,
   NFL_SLATE_FEB_20_DK, NFL_SLATE_FEB_20_FD, NFL_PLAYERS_FEB_20_DK, NFL_PLAYERS_FEB_20_FD,
 } from "@shared/seed_data";
+import { fetchNBALiveData, getRollingSlateDate } from "./balldontlie";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -267,6 +268,21 @@ export async function registerRoutes(
       res.json({ message: "Database seeded successfully" });
     } catch (err) {
       res.status(500).json({ message: "Seeding failed" });
+    }
+  });
+
+  app.post("/api/admin/refresh-data", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any).claims.sub;
+    const dbUser = await storage.getUser(userId);
+    if (!dbUser?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+    try {
+      await seedDatabase(true);
+      await generatePlayerBoostsAndInjuries();
+      res.json({ message: "Data refreshed with latest from Ball Don't Lie API" });
+    } catch (err) {
+      console.error("Refresh failed:", err);
+      res.status(500).json({ message: "Refresh failed" });
     }
   });
 
@@ -705,34 +721,56 @@ export async function seedDatabase(forceRefresh = false) {
 
   const existingSlates = await storage.getSlates();
 
+  let nbaLiveData = null;
+  try {
+    nbaLiveData = await fetchNBALiveData();
+    if (nbaLiveData) {
+      console.log(`[BDL] Fetched live NBA data: ${nbaLiveData.dkPlayers.length} DK players, ${nbaLiveData.games.length} games`);
+    }
+  } catch (err) {
+    console.error("[BDL] Error fetching live NBA data, falling back to static:", err);
+  }
+
+  const rollingNHL = getRollingSlateDate("NHL");
+  const rollingMLB = getRollingSlateDate("MLB");
+  const rollingNFL = getRollingSlateDate("NFL");
+
   const sportSeeds = [
     {
       sport: "NBA",
-      dkSlate: NBA_SLATE_FEB_19_DK,
-      fdSlate: NBA_SLATE_FEB_19_FD,
-      dkPlayers: NBA_PLAYERS_FEB_19_DK,
-      fdPlayers: NBA_PLAYERS_FEB_19_FD,
+      dkSlate: nbaLiveData
+        ? { name: "NBA Main Slate", startTime: nbaLiveData.slateDate, isMain: true }
+        : { ...NBA_SLATE_FEB_19_DK, startTime: getRollingSlateDate("NBA") },
+      fdSlate: nbaLiveData
+        ? { name: "NBA Main Slate", startTime: nbaLiveData.slateDate, isMain: true }
+        : { ...NBA_SLATE_FEB_19_FD, startTime: getRollingSlateDate("NBA") },
+      dkPlayers: nbaLiveData ? nbaLiveData.dkPlayers : NBA_PLAYERS_FEB_19_DK,
+      fdPlayers: nbaLiveData ? nbaLiveData.fdPlayers : NBA_PLAYERS_FEB_19_FD,
+      isLive: !!nbaLiveData,
     },
     {
       sport: "NHL",
-      dkSlate: NHL_SLATE_FEB_20_DK,
-      fdSlate: NHL_SLATE_FEB_20_FD,
+      dkSlate: { ...NHL_SLATE_FEB_20_DK, startTime: rollingNHL },
+      fdSlate: { ...NHL_SLATE_FEB_20_FD, startTime: rollingNHL },
       dkPlayers: NHL_PLAYERS_FEB_20_DK,
       fdPlayers: NHL_PLAYERS_FEB_20_FD,
+      isLive: false,
     },
     {
       sport: "MLB",
-      dkSlate: MLB_SLATE_FEB_20_DK,
-      fdSlate: MLB_SLATE_FEB_20_FD,
+      dkSlate: { ...MLB_SLATE_FEB_20_DK, startTime: rollingMLB },
+      fdSlate: { ...MLB_SLATE_FEB_20_FD, startTime: rollingMLB },
       dkPlayers: MLB_PLAYERS_FEB_20_DK,
       fdPlayers: MLB_PLAYERS_FEB_20_FD,
+      isLive: false,
     },
     {
       sport: "NFL",
-      dkSlate: NFL_SLATE_FEB_20_DK,
-      fdSlate: NFL_SLATE_FEB_20_FD,
+      dkSlate: { ...NFL_SLATE_FEB_20_DK, startTime: rollingNFL },
+      fdSlate: { ...NFL_SLATE_FEB_20_FD, startTime: rollingNFL },
       dkPlayers: NFL_PLAYERS_FEB_20_DK,
       fdPlayers: NFL_PLAYERS_FEB_20_FD,
+      isLive: false,
     },
   ];
 
@@ -764,7 +802,8 @@ export async function seedDatabase(forceRefresh = false) {
         seed.fdPlayers.map(p => ({ ...p, slateId: fdSlate.id })) as any
       );
 
-      console.log(`Seeded database with DK and FD ${seed.sport} main slates`);
+      const source = seed.isLive ? "LIVE BDL" : "static";
+      console.log(`Seeded database with DK and FD ${seed.sport} main slates (${source})`);
     }
   }
 
