@@ -1,7 +1,8 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
+import { registerRoutes, seedDatabase } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import cron from "node-cron";
 
 const app = express();
 const httpServer = createServer(app);
@@ -98,6 +99,19 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
+
+      cron.schedule("0 1 * * *", async () => {
+        try {
+          log("Starting scheduled seed data refresh", "cron");
+          await seedDatabase(true);
+          log("Scheduled seed data refresh completed", "cron");
+        } catch (err) {
+          console.error("Scheduled seed refresh failed:", err);
+        }
+      }, {
+        timezone: "America/New_York",
+      });
+      log("Scheduled daily seed refresh at 1:00 AM EST", "cron");
     },
   );
 })();

@@ -298,7 +298,12 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
   };
 }
 
-export async function seedDatabase() {
+export async function seedDatabase(forceRefresh = false) {
+  if (forceRefresh) {
+    await storage.clearAllSlatesAndPlayers();
+    console.log("Cleared existing slates and players for refresh");
+  }
+
   const existingSlates = await storage.getSlates();
 
   const sportSeeds = [

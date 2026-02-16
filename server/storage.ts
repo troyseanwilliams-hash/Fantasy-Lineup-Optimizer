@@ -14,6 +14,7 @@ export interface IStorage extends IAuthStorage {
   getSlates(): Promise<Slate[]>;
   getSlate(id: number): Promise<Slate | undefined>;
   createSlate(slate: InsertSlate): Promise<Slate>;
+  clearAllSlatesAndPlayers(): Promise<void>;
 
   getPlayersBySlate(slateId: number): Promise<Player[]>;
   createPlayer(player: InsertPlayer): Promise<Player>;
@@ -45,6 +46,11 @@ export class DatabaseStorage implements IStorage {
   async createSlate(insertSlate: InsertSlate): Promise<Slate> {
     const [slate] = await db.insert(slates).values(insertSlate).returning();
     return slate;
+  }
+
+  async clearAllSlatesAndPlayers(): Promise<void> {
+    await db.delete(players);
+    await db.delete(slates);
   }
 
   async getPlayersBySlate(slateId: number): Promise<Player[]> {
