@@ -59,6 +59,11 @@ export default function ProOptimizer() {
     catch { return getPlatformConfig("NBA", "draftkings"); }
   }, [sport, platform]);
 
+  const mainSlates = useMemo(() => {
+    if (!slates) return [];
+    return slates.filter(s => s.isMain && s.sport === sport);
+  }, [slates, sport]);
+
   const playerUrl = buildUrl("/api/slates/:id/players", { id: slateId });
   const { data: players, isLoading } = useQuery<Player[]>({
     queryKey: [playerUrl],
@@ -134,6 +139,32 @@ export default function ProOptimizer() {
       });
   }, [players, search, posFilter, excludedIds, sortKey, sortDir, useBoosts]);
 
+  const games = useMemo(() => {
+    if (!players) return [];
+    const gameMap = new Map<string, { away: string; home: string; time: string }>();
+    players.forEach(p => {
+      if (p.gameInfo) {
+        const parts = p.gameInfo.split(" ");
+        const time = parts[parts.length - 1] || "";
+        const teams = p.gameInfo.replace(time, "").trim();
+        let away: string, home: string;
+        if (teams.includes("@")) {
+          [away, home] = teams.split(" @ ").map(s => s.trim());
+        } else if (teams.includes("vs")) {
+          [home, away] = teams.split(" vs ").map(s => s.trim());
+        } else {
+          away = p.opponent || "";
+          home = p.team;
+        }
+        const sortedKey = [away, home].sort().join("-");
+        if (!gameMap.has(sortedKey)) {
+          gameMap.set(sortedKey, { away, home, time });
+        }
+      }
+    });
+    return Array.from(gameMap.values());
+  }, [players]);
+
   const excludedPlayers = useMemo(() => {
     if (!players) return [];
     return players.filter(p => excludedIds.includes(p.id));
@@ -198,6 +229,11 @@ export default function ProOptimizer() {
     }
   };
 
+  const handleSlateChange = (newSlateId: string) => {
+    setLocation(`/pro-optimizer/${newSlateId}`);
+    handleReset();
+  };
+
   const handleReset = () => {
     setLockedIds([]);
     setExcludedIds([]);
@@ -257,8 +293,8 @@ export default function ProOptimizer() {
   return (
     <div className="flex flex-col h-[calc(100vh-80px)] overflow-hidden" data-testid="pro-optimizer-page">
       {/* Top Controls Bar */}
-      <div className="border-b border-slate-800 bg-slate-900/60 px-4 py-3">
-        <div className="flex flex-wrap items-center gap-4">
+      <div className="border-b border-slate-800 bg-slate-900/60">
+        <div className="px-4 py-3 flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
             <Crown className="w-5 h-5 text-amber-400" />
             <span className="text-lg font-black text-white tracking-tight">PRO OPTIMIZER</span>
@@ -268,6 +304,30 @@ export default function ProOptimizer() {
             <Badge className={`text-[11px] font-black ${platform === "fanduel" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"}`} data-testid="badge-platform">
               {config.shortLabel} {sport}
             </Badge>
+          </div>
+
+          {slate && (
+            <div className="flex items-center gap-2" data-testid="pro-slate-date">
+              <span className="text-xs font-black text-amber-400/70">
+                {new Date(slate.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+              </span>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Slate:</span>
+            <select
+              className="bg-slate-800 border border-slate-700 text-white text-sm rounded-lg px-3 py-1.5 font-bold"
+              value={slateId}
+              onChange={e => handleSlateChange(e.target.value)}
+              data-testid="pro-slate-selector"
+            >
+              {mainSlates.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.platform === "fanduel" ? "FD" : "DK"} - {s.name} — {new Date(s.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="flex items-center gap-4 ml-auto flex-wrap">
@@ -326,6 +386,31 @@ export default function ProOptimizer() {
             </Button>
           </div>
         </div>
+
+        {/* Game Scoreboard Cards */}
+        {games.length > 0 && (
+          <div className="px-4 pb-3 flex gap-2 overflow-x-auto scrollbar-hide">
+            {games.map((game, i) => (
+              <div
+                key={i}
+                className="flex-shrink-0 bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 min-w-[100px] transition-colors cursor-default hover:border-amber-500/30"
+                data-testid={`pro-game-card-${i}`}
+              >
+                <div className="flex items-center justify-between gap-3 mb-1">
+                  <span className="text-xs font-black text-white">{game.away}</span>
+                  <span className="text-xs font-bold text-slate-500">0</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-black text-white">{game.home}</span>
+                  <span className="text-xs font-bold text-slate-500">0</span>
+                </div>
+                <div className="text-[11px] font-bold mt-1.5 pt-1.5 border-t border-slate-700/50 text-center text-amber-400/60">
+                  {game.time}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col xl:flex-row flex-1 overflow-hidden">
