@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle } from "lucide-react";
+import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 
@@ -233,14 +233,16 @@ export function Header() {
                 <span>Vault</span>
               </div>
             </Link>
-            <Link href="/pricing">
-              <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                location === "/pricing" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
-              }`} data-testid="nav-pricing">
-                <Crown className="w-4 h-4" />
-                <span>Pricing</span>
-              </div>
-            </Link>
+            {!user && (
+              <Link href="/pricing">
+                <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
+                  location === "/pricing" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
+                }`} data-testid="nav-pricing">
+                  <Crown className="w-4 h-4" />
+                  <span>Pricing</span>
+                </div>
+              </Link>
+            )}
             {user?.isAdmin && (
               <Link href="/admin">
                 <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
@@ -314,28 +316,56 @@ export function Header() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <div className="hidden md:flex flex-col items-end">
-                <span className="text-sm font-bold text-white">{user.firstName || user.email?.split('@')[0]}</span>
-                {isPro ? (
-                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[11px] font-black px-1.5 py-0">
-                    <Crown className="w-3 h-3 mr-0.5" /> PRO
-                  </Badge>
-                ) : (
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Free Plan</span>
-                )}
-              </div>
-              <div className="h-10 w-px bg-slate-800"></div>
-              <div className="flex items-center space-x-2">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={() => logout()} 
-                  className="text-slate-400"
-                  data-testid="logout-btn"
-                >
-                  <LogOut className="w-5 h-5" />
-                </Button>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center gap-3 hover:bg-slate-800/50 rounded-lg px-3 py-2 transition-colors cursor-pointer outline-none" data-testid="account-menu">
+                    <div className="hidden md:flex flex-col items-end">
+                      <span className="text-sm font-bold text-white">{user.firstName || user.email?.split('@')[0]}</span>
+                      {isPro ? (
+                        <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[11px] font-black px-1.5 py-0">
+                          <Crown className="w-3 h-3 mr-0.5" /> PRO
+                        </Badge>
+                      ) : (
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Free Plan</span>
+                      )}
+                    </div>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 bg-slate-900 border-slate-800">
+                  <DropdownMenuLabel className="text-slate-400 text-xs font-bold uppercase tracking-wider">Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-slate-800" />
+                  {!isPro && (
+                    <Link href="/pricing">
+                      <DropdownMenuItem className="cursor-pointer" data-testid="menu-upgrade">
+                        <Crown className="w-4 h-4 mr-2 text-amber-400" />
+                        <span className="text-sm font-bold text-amber-300">Upgrade to Pro</span>
+                      </DropdownMenuItem>
+                    </Link>
+                  )}
+                  {isPro && (
+                    <DropdownMenuItem disabled className="opacity-60">
+                      <Crown className="w-4 h-4 mr-2 text-amber-400" />
+                      <span className="text-sm font-bold text-amber-300">Pro Member</span>
+                    </DropdownMenuItem>
+                  )}
+                  <Link href="/pricing">
+                    <DropdownMenuItem className="cursor-pointer" data-testid="menu-plans">
+                      <CreditCard className="w-4 h-4 mr-2 text-slate-400" />
+                      <span className="text-sm font-bold text-slate-300">Plans & Billing</span>
+                    </DropdownMenuItem>
+                  </Link>
+                  <DropdownMenuSeparator className="bg-slate-800" />
+                  <DropdownMenuItem 
+                    className="cursor-pointer text-red-400 focus:text-red-400"
+                    onClick={() => logout()}
+                    data-testid="logout-btn"
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    <span className="text-sm font-bold">Sign Out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           ) : (
             <Button 
