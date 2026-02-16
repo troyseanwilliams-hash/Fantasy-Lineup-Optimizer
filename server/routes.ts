@@ -5,19 +5,18 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import solver from "javascript-lp-solver";
+import { getPlatformConfig, type Platform } from "@shared/platform-config";
 
 import { type OptimizationConstraints, type Player, type Slate } from "@shared/schema";
-import { NBA_SLATE_FEB_19, NBA_PLAYERS_FEB_19 } from "@shared/seed_data";
+import { NBA_SLATE_FEB_19_DK, NBA_SLATE_FEB_19_FD, NBA_PLAYERS_FEB_19_DK, NBA_PLAYERS_FEB_19_FD } from "@shared/seed_data";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Auth setup MUST be first
   await setupAuth(app);
   registerAuthRoutes(app);
 
-  // --- Slates ---
   app.get(api.slates.list.path, async (req, res) => {
     const slates = await storage.getSlates();
     res.json(slates);
@@ -50,10 +49,7 @@ export async function registerRoutes(
      try {
       const slateId = Number(req.params.id);
       const input = api.players.bulkCreate.input.parse(req.body);
-      
-      // Force slateId to match URL (security/integrity)
       const playersWithSlate = input.map(p => ({ ...p, slateId }));
-      
       const created = await storage.bulkCreatePlayers(playersWithSlate);
       res.status(201).json(created);
     } catch (err) {
@@ -65,13 +61,25 @@ export async function registerRoutes(
     }
   });
 
-
-  // --- Optimizer ---
   app.post(api.optimizer.optimize.path, async (req, res) => {
     try {
       const constraints = api.optimizer.optimize.input.parse(req.body);
       const slate = await storage.getSlate(constraints.slateId);
       if (!slate) return res.status(404).json({ message: "Slate not found" });
+
+      const platform = (constraints.platform || slate.platform || "draftkings") as Platform;
+
+      if (req.isAuthenticated()) {
+        const userId = (req.user as any).claims.sub;
+        const sub = await storage.getSubscription(userId);
+        const tier = sub?.tier || "free";
+        if (tier === "free") {
+          const lineupCount = await storage.getLineupCount(userId);
+          if (lineupCount >= 1) {
+            // Free users can still optimize, just can't save more than 1
+          }
+        }
+      }
 
       const allPlayers = await storage.getPlayersBySlate(constraints.slateId);
       
@@ -79,7 +87,6 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No players found for this slate" });
       }
 
-      // Apply custom projections if provided
       const pool = allPlayers.map(p => {
         const customProj = constraints.playerProjections?.[p.id.toString()];
         return {
@@ -88,14 +95,13 @@ export async function registerRoutes(
         };
       });
 
-      // Use Linear Programming solver for optimal lineup
-      const result = solveLineup(pool, constraints, slate.sport);
+      const result = solveLineup(pool, constraints, slate.sport, platform);
 
       if (result.error) {
         return res.status(400).json(result);
       }
 
-      res.json(result);
+      res.json({ ...result, platform });
 
     } catch (err) {
        if (err instanceof z.ZodError) {
@@ -107,10 +113,9 @@ export async function registerRoutes(
     }
   });
 
-  // --- Lineups ---
   app.get(api.lineups.list.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any).claims.sub; // From Replit Auth
+    const userId = (req.user as any).claims.sub;
     const lineups = await storage.getLineups(userId);
     res.json(lineups);
   });
@@ -120,6 +125,21 @@ export async function registerRoutes(
     try {
       const input = api.lineups.create.input.parse(req.body);
       const userId = (req.user as any).claims.sub;
+
+      const sub = await storage.getSubscription(userId);
+      const tier = sub?.tier || "free";
+      const lineupCount = await storage.getLineupCount(userId);
+      const maxLineups = tier === "pro" ? 20 : 1;
+
+      if (lineupCount >= maxLineups) {
+        return res.status(403).json({ 
+          message: tier === "free" 
+            ? "Free plan allows 1 saved lineup. Upgrade to Pro for up to 20 lineups." 
+            : "You've reached the maximum of 20 saved lineups.",
+          requiresUpgrade: tier === "free"
+        });
+      }
+
       const lineup = await storage.createLineup({ ...input, userId });
       res.status(201).json(lineup);
     } catch (err) {
@@ -135,15 +155,24 @@ export async function registerRoutes(
       if (!req.isAuthenticated()) return res.sendStatus(401);
       const id = Number(req.params.id);
       const lineup = await storage.getLineup(id);
-      
       if (!lineup) return res.sendStatus(404);
-      
-      // Verify ownership
       const userId = (req.user as any).claims.sub;
       if (lineup.userId !== userId) return res.sendStatus(403);
-      
       await storage.deleteLineup(id);
       res.sendStatus(204);
+  });
+
+  app.get("/api/subscription", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any).claims.sub;
+    const sub = await storage.getSubscription(userId);
+    const lineupCount = await storage.getLineupCount(userId);
+    res.json({
+      tier: sub?.tier || "free",
+      status: sub?.status || "active",
+      lineupCount,
+      maxLineups: (sub?.tier === "pro") ? 20 : 1,
+    });
   });
 
   app.post("/api/admin/seed", async (req, res) => {
@@ -158,37 +187,22 @@ export async function registerRoutes(
   return httpServer;
 }
 
-// Optimization logic using Linear Programming
-function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport: string) {
+function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport: string, platform: Platform) {
+  const config = getPlatformConfig(sport, platform);
+  
   const model: any = {
     optimize: "projectedPoints",
     opType: "max",
     constraints: {
-      salary: { max: constraints.maxSalary || 50000 },
-      rosterSize: { equal: sport === 'NBA' ? 8 : 9 },
+      salary: { max: constraints.maxSalary || config.salaryCap },
+      rosterSize: { equal: config.rosterSize },
     },
     variables: {},
     ints: {}
   };
 
-  // Add positional constraints
-  if (sport === 'NBA') {
-    // DraftKings NBA: PG, SG, SF, PF, C, G, F, UTIL
-    // Need 3 guards (PG+SG+G slots) and 3 forwards (SF+PF+F slots)
-    model.constraints.PG = { min: 1 };
-    model.constraints.SG = { min: 1 };
-    model.constraints.SF = { min: 1 };
-    model.constraints.PF = { min: 1 };
-    model.constraints.C = { min: 1, max: 2 };
-    model.constraints.G = { min: 3 }; // PG + SG + G = 3 guard slots
-    model.constraints.F = { min: 3 }; // SF + PF + F = 3 forward slots
-  } else {
-    // NFL: QB, RB, RB, WR, WR, WR, TE, FLEX, DST
-    model.constraints.QB = { equal: 1 };
-    model.constraints.RB = { min: 2 };
-    model.constraints.WR = { min: 3 };
-    model.constraints.TE = { min: 1 };
-    model.constraints.DST = { equal: 1 };
+  for (const [key, constraint] of Object.entries(config.positionConstraints)) {
+    model.constraints[key] = constraint;
   }
 
   pool.forEach(p => {
@@ -203,7 +217,6 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
       rosterSize: 1,
     };
 
-    // Position handling
     if (sport === 'NBA') {
       if (p.position.includes('PG')) { variable.PG = 1; variable.G = 1; }
       if (p.position.includes('SG')) { variable.SG = 1; variable.G = 1; }
@@ -217,7 +230,6 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
     model.variables[variableName] = variable;
     model.ints[variableName] = 1;
 
-    // Binary constraint: each player can be selected at most once
     model.constraints[`bound_${variableName}`] = { max: 1 };
     variable[`bound_${variableName}`] = 1;
 
@@ -248,52 +260,39 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
   };
 }
 
-// --- SEED DATA ---
 export async function seedDatabase() {
   const existingSlates = await storage.getSlates();
-  const nbaSlateExists = existingSlates.some(s => s.name === "NBA Feb 19 Main Slate");
+  const dkSlateExists = existingSlates.some(s => s.name === "NBA Main Slate" && s.platform === "draftkings");
 
-  if (!nbaSlateExists) {
-    // NFL Slate (keep existing or update)
-    const nflSlate = await storage.createSlate({
-      sport: "NFL",
-      name: "NFL Main Slate",
-      startTime: new Date(Date.now() + 86400000)
-    });
-
-    const nflPositions = ["QB", "RB", "WR", "TE", "DST"];
-    const nflPlayers: any[] = [];
-    for (let i = 1; i <= 40; i++) {
-      const pos = nflPositions[i % 5];
-      const salary = 3000 + Math.floor(Math.random() * 60) * 100;
-      const fppg = (5 + Math.random() * 20).toFixed(1);
-      nflPlayers.push({
-        slateId: nflSlate.id,
-        name: `NFL Player ${i}`,
-        team: "TEAM",
-        position: pos,
-        salary,
-        fppg,
-        projectedPoints: fppg,
-        opponent: "OPP",
-        gameInfo: "TEAM @ OPP"
-      });
-    }
-    await storage.bulkCreatePlayers(nflPlayers);
-
-    // Current Real NBA Slate for Feb 19
-    const nbaSlate = await storage.createSlate({
+  if (!dkSlateExists) {
+    const dkSlate = await storage.createSlate({
       sport: "NBA",
-      name: NBA_SLATE_FEB_19.name,
-      startTime: NBA_SLATE_FEB_19.startTime
+      platform: "draftkings",
+      name: "NBA Main Slate",
+      startTime: new Date("2026-02-19T19:00:00-05:00"),
+      isMain: true,
     });
 
-    const playersWithSlate = NBA_PLAYERS_FEB_19.map(p => ({
+    const dkPlayers = NBA_PLAYERS_FEB_19_DK.map(p => ({
       ...p,
-      slateId: nbaSlate.id
+      slateId: dkSlate.id
     }));
-    await storage.bulkCreatePlayers(playersWithSlate as any);
+    await storage.bulkCreatePlayers(dkPlayers as any);
 
-    console.log("Seeded database with Feb 19 NBA slate and sample NFL data");
+    const fdSlate = await storage.createSlate({
+      sport: "NBA",
+      platform: "fanduel",
+      name: "NBA Main Slate",
+      startTime: new Date("2026-02-19T19:00:00-05:00"),
+      isMain: true,
+    });
+
+    const fdPlayers = NBA_PLAYERS_FEB_19_FD.map(p => ({
+      ...p,
+      slateId: fdSlate.id
+    }));
+    await storage.bulkCreatePlayers(fdPlayers as any);
+
+    console.log("Seeded database with DK and FD NBA main slates");
   }
 }

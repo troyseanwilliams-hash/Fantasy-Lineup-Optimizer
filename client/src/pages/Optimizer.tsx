@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { buildUrl } from "@shared/routes";
 import type { Player, Slate, OptimizeResponse } from "@shared/schema";
+import { getPlatformConfig, assignPlayersToSlots, getSlotDisplayName, type Platform } from "@shared/platform-config";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -12,58 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import {
   Lock, Unlock, X, Zap, RefreshCw, Save, Search,
   ChevronDown, ChevronUp, ArrowUpDown, Heart, Loader2,
-  DollarSign, Target, TrendingUp, RotateCcw
+  DollarSign, Target, TrendingUp, RotateCcw, Crown
 } from "lucide-react";
-
-const DK_NBA_SLOTS = ["PG", "SG", "SF", "PF", "C", "G", "F", "UTIL"] as const;
-type SlotName = typeof DK_NBA_SLOTS[number];
-const SALARY_CAP = 50000;
-
-function positionFitsSlot(position: string, slot: SlotName): boolean {
-  const positions = position.split("/");
-  switch (slot) {
-    case "PG": return positions.includes("PG");
-    case "SG": return positions.includes("SG");
-    case "SF": return positions.includes("SF");
-    case "PF": return positions.includes("PF");
-    case "C": return positions.includes("C");
-    case "G": return positions.includes("PG") || positions.includes("SG");
-    case "F": return positions.includes("SF") || positions.includes("PF");
-    case "UTIL": return true;
-    default: return false;
-  }
-}
-
-function assignPlayersToSlots(players: Player[]): Record<SlotName, Player | null> {
-  const slotOrder: SlotName[] = ["PG", "SG", "SF", "PF", "C", "G", "F", "UTIL"];
-
-  function solve(slotIdx: number, used: Set<number>): Record<SlotName, Player | null> | null {
-    if (slotIdx >= slotOrder.length) {
-      return { PG: null, SG: null, SF: null, PF: null, C: null, G: null, F: null, UTIL: null };
-    }
-    const slot = slotOrder[slotIdx];
-    const eligible = players.filter(p => !used.has(p.id) && positionFitsSlot(p.position, slot));
-
-    const sorted = [...eligible].sort((a, b) => {
-      const aSlots = slotOrder.filter(s => s !== slot && positionFitsSlot(a.position, s)).length;
-      const bSlots = slotOrder.filter(s => s !== slot && positionFitsSlot(b.position, s)).length;
-      return aSlots - bSlots;
-    });
-
-    for (const p of sorted) {
-      const nextUsed = new Set(used);
-      nextUsed.add(p.id);
-      const result = solve(slotIdx + 1, nextUsed);
-      if (result) {
-        result[slot] = p;
-        return result;
-      }
-    }
-    return null;
-  }
-
-  return solve(0, new Set()) || { PG: null, SG: null, SF: null, PF: null, C: null, G: null, F: null, UTIL: null };
-}
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "fppg" | "value";
 type SortDir = "asc" | "desc";
@@ -82,12 +33,23 @@ export default function Optimizer() {
   const [customProjections, setCustomProjections] = useState<Record<string, number>>({});
   const [sortKey, setSortKey] = useState<SortKey>("projectedPoints");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [activeLineupTab, setActiveLineupTab] = useState(0);
-  const [savedLineups, setSavedLineups] = useState<OptimizeResponse[]>([]);
   const [lineupName, setLineupName] = useState("");
+  const [removedSlots, setRemovedSlots] = useState<Set<string>>(new Set());
 
   const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"] });
   const slate = useMemo(() => slates?.find(s => s.id === slateId), [slates, slateId]);
+  const platform = (slate?.platform || "draftkings") as Platform;
+  const sport = slate?.sport || "NBA";
+
+  const config = useMemo(() => {
+    try { return getPlatformConfig(sport, platform); }
+    catch { return getPlatformConfig("NBA", "draftkings"); }
+  }, [sport, platform]);
+
+  const mainSlates = useMemo(() => {
+    if (!slates) return [];
+    return slates.filter(s => s.isMain && s.sport === sport);
+  }, [slates, sport]);
 
   const playerUrl = buildUrl("/api/slates/:id/players", { id: slateId });
   const { data: players, isLoading } = useQuery<Player[]>({
@@ -95,21 +57,37 @@ export default function Optimizer() {
     enabled: !!slateId,
   });
 
+  const { data: subData } = useQuery<{ tier: string; lineupCount: number; maxLineups: number }>({
+    queryKey: ["/api/subscription"],
+    enabled: !!user,
+  });
+
   const optimizeMutation = useMutation<OptimizeResponse, Error, any>({
     mutationFn: async (constraints) => {
       const res = await apiRequest("POST", "/api/optimize", constraints);
       return res.json();
     },
+    onSuccess: () => {
+      setRemovedSlots(new Set());
+    }
   });
 
   const saveLineupMutation = useMutation({
     mutationFn: async (data: any) => {
       const res = await apiRequest("POST", "/api/lineups", data);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to save");
+      }
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Lineup Saved!", description: "Added to your saved lineups." });
+      toast({ title: "Lineup Saved!", description: "Added to your vault." });
       queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/subscription"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Cannot Save", description: err.message, variant: "destructive" });
     },
   });
 
@@ -179,8 +157,24 @@ export default function Optimizer() {
   const currentLineup = optimizeMutation.data;
   const lineupSlots = useMemo(() => {
     if (!currentLineup?.lineup) return null;
-    return assignPlayersToSlots(currentLineup.lineup);
-  }, [currentLineup]);
+    const activePlayers = currentLineup.lineup.filter(p => {
+      const assignedSlots = config.slots;
+      return true;
+    });
+    const assigned = assignPlayersToSlots(activePlayers, config.slots);
+    removedSlots.forEach(slot => {
+      if (assigned[slot]) assigned[slot] = null;
+    });
+    return assigned;
+  }, [currentLineup, config.slots, removedSlots]);
+
+  const activeLineupPlayers = useMemo(() => {
+    if (!lineupSlots) return [];
+    return Object.values(lineupSlots).filter(Boolean) as Player[];
+  }, [lineupSlots]);
+
+  const totalSalary = activeLineupPlayers.reduce((s, p) => s + p.salary, 0);
+  const totalProj = activeLineupPlayers.reduce((s, p) => s + Number(p.projectedPoints), 0);
 
   const lockedSalary = useMemo(() => {
     if (!players) return 0;
@@ -190,9 +184,10 @@ export default function Optimizer() {
   const handleOptimize = () => {
     optimizeMutation.mutate({
       slateId,
+      platform,
       lockedPlayerIds: lockedIds,
       excludedPlayerIds: excludedIds,
-      maxSalary: SALARY_CAP,
+      maxSalary: config.salaryCap,
       playerProjections: Object.keys(customProjections).length > 0 ? customProjections : undefined,
     });
   };
@@ -202,11 +197,12 @@ export default function Optimizer() {
     saveLineupMutation.mutate({
       userId: (user as any).id,
       slateId,
-      sport: "NBA",
-      totalSalary: currentLineup.totalSalary,
-      totalProjectedPoints: currentLineup.totalProjectedPoints.toString(),
-      playerIds: currentLineup.lineup.map(p => p.id),
-      name: lineupName || `Lineup ${new Date().toLocaleTimeString()}`,
+      sport,
+      platform,
+      totalSalary,
+      totalProjectedPoints: totalProj.toString(),
+      playerIds: activeLineupPlayers.map(p => p.id),
+      name: lineupName || `${config.shortLabel} Lineup ${new Date().toLocaleTimeString()}`,
     });
   };
 
@@ -214,8 +210,18 @@ export default function Optimizer() {
     setLockedIds([]);
     setExcludedIds([]);
     setCustomProjections({});
+    setRemovedSlots(new Set());
     optimizeMutation.reset();
     setLineupName("");
+  };
+
+  const handleRemoveFromSlot = (slot: string) => {
+    setRemovedSlots(prev => new Set(prev).add(slot));
+  };
+
+  const handleSlateChange = (newSlateId: string) => {
+    handleReset();
+    setLocation(`/optimizer/${newSlateId}`);
   };
 
   const SortHeader = ({ label, field, className = "" }: { label: string; field: SortKey; className?: string }) => (
@@ -244,28 +250,34 @@ export default function Optimizer() {
   }
 
   const positions = ["ALL", "PG", "SG", "SF", "PF", "C"];
+  const platformColor = platform === "fanduel" ? "blue" : "emerald";
 
   return (
     <div className="flex flex-col xl:flex-row h-[calc(100vh-80px)] overflow-hidden">
       {/* LEFT: Player Pool */}
       <div className="flex-1 flex flex-col overflow-hidden border-r border-slate-800">
-        {/* Top Bar: Slate + Games */}
+        {/* Top Bar */}
         <div className="border-b border-slate-800 bg-slate-900/40">
           <div className="px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
-              <Zap className="w-5 h-5 text-emerald-400 fill-emerald-400" />
-              <span className="text-lg font-black text-white tracking-tight">NBA OPTIMIZER</span>
+              <Zap className={`w-5 h-5 fill-current ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`} />
+              <span className="text-lg font-black text-white tracking-tight">{sport} OPTIMIZER</span>
+              <Badge className={`text-[9px] font-black ${platform === "fanduel" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"}`} data-testid="platform-badge">
+                {config.shortLabel}
+              </Badge>
             </div>
             <div className="ml-auto flex items-center gap-2">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Slate:</span>
               <select
                 className="bg-slate-800 border border-slate-700 text-white text-sm rounded-lg px-3 py-1.5 font-bold"
                 value={slateId}
-                onChange={e => setLocation(`/optimizer/${e.target.value}`)}
+                onChange={e => handleSlateChange(e.target.value)}
                 data-testid="slate-selector"
               >
-                {slates?.filter(s => s.sport === "NBA").map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                {mainSlates.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.platform === "fanduel" ? "FD" : "DK"} - {s.name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -276,7 +288,7 @@ export default function Optimizer() {
             {games.map((game, i) => (
               <div
                 key={i}
-                className="flex-shrink-0 bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 flex items-center gap-2 text-xs hover:border-emerald-500/30 transition-colors cursor-default"
+                className={`flex-shrink-0 bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 flex items-center gap-2 text-xs transition-colors cursor-default ${platform === "fanduel" ? "hover:border-blue-500/30" : "hover:border-emerald-500/30"}`}
                 data-testid={`game-card-${i}`}
               >
                 <span className="font-black text-white">{game.away}</span>
@@ -308,7 +320,7 @@ export default function Optimizer() {
                 data-testid={`filter-${pos}`}
                 className={`px-3 py-1.5 rounded-md text-[11px] font-black transition-all ${
                   posFilter === pos
-                    ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
+                    ? `${platform === "fanduel" ? "bg-blue-500 shadow-blue-500/20" : "bg-emerald-500 shadow-emerald-500/20"} text-white shadow-lg`
                     : "text-slate-500 hover:text-slate-300"
                 }`}
               >
@@ -341,10 +353,11 @@ export default function Optimizer() {
             <tbody className="divide-y divide-slate-800/50">
               {filteredPlayers.map(player => {
                 const isLocked = lockedIds.includes(player.id);
+                const isInLineup = activeLineupPlayers.some(p => p.id === player.id);
                 return (
                   <tr
                     key={player.id}
-                    className={`group transition-colors hover:bg-slate-800/30 ${isLocked ? "bg-emerald-500/5" : ""}`}
+                    className={`group transition-colors hover:bg-slate-800/30 ${isLocked ? `${platform === "fanduel" ? "bg-blue-500/5" : "bg-emerald-500/5"}` : ""} ${isInLineup ? "bg-slate-800/20" : ""}`}
                     data-testid={`player-row-${player.id}`}
                   >
                     <td className="px-3 py-2 text-center">
@@ -355,7 +368,9 @@ export default function Optimizer() {
                         }}
                         data-testid={`lock-${player.id}`}
                         className={`p-1.5 rounded-md transition-all ${
-                          isLocked ? "bg-emerald-500 text-white shadow-md" : "text-slate-600 hover:text-emerald-400 hover:bg-slate-800"
+                          isLocked
+                            ? `${platform === "fanduel" ? "bg-blue-500" : "bg-emerald-500"} text-white shadow-md`
+                            : `text-slate-600 ${platform === "fanduel" ? "hover:text-blue-400" : "hover:text-emerald-400"} hover:bg-slate-800`
                         }`}
                       >
                         {isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
@@ -374,10 +389,13 @@ export default function Optimizer() {
                       </button>
                     </td>
                     <td className="px-3 py-2">
-                      <span className="font-mono text-[11px] font-bold text-emerald-400/80">{player.position}</span>
+                      <span className={`font-mono text-[11px] font-bold ${platform === "fanduel" ? "text-blue-400/80" : "text-emerald-400/80"}`}>{player.position}</span>
                     </td>
                     <td className="px-3 py-2">
-                      <div className="font-bold text-sm text-white group-hover:text-emerald-400 transition-colors">{player.name}</div>
+                      <div className={`font-bold text-sm text-white transition-colors ${platform === "fanduel" ? "group-hover:text-blue-400" : "group-hover:text-emerald-400"}`}>
+                        {player.name}
+                        {isInLineup && <span className={`ml-2 text-[9px] font-black ${platform === "fanduel" ? "text-blue-500" : "text-emerald-500"}`}>IN LINEUP</span>}
+                      </div>
                       <div className="text-[10px] text-slate-600 font-medium">{player.gameInfo}</div>
                     </td>
                     <td className="px-3 py-2 text-xs font-bold text-slate-400 uppercase">{player.team}</td>
@@ -388,7 +406,7 @@ export default function Optimizer() {
                       <Input
                         type="number"
                         step="0.1"
-                        className="w-16 h-7 bg-slate-950 border-slate-800 text-right font-mono font-bold text-emerald-400 text-xs px-1"
+                        className={`w-16 h-7 bg-slate-950 border-slate-800 text-right font-mono font-bold text-xs px-1 ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}
                         defaultValue={player.projectedPoints?.toString()}
                         onChange={e => {
                           const v = parseFloat(e.target.value);
@@ -434,21 +452,21 @@ export default function Optimizer() {
             <div className="bg-slate-800/80 rounded-lg p-3 text-center border border-slate-700/50">
               <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Salary Rem.</p>
               <p className={`text-lg font-black ${
-                currentLineup ? (SALARY_CAP - currentLineup.totalSalary < 0 ? "text-red-400" : "text-white") : "text-slate-400"
+                currentLineup ? (config.salaryCap - totalSalary < 0 ? "text-red-400" : "text-white") : "text-slate-400"
               }`}>
-                ${currentLineup ? (SALARY_CAP - currentLineup.totalSalary).toLocaleString() : SALARY_CAP.toLocaleString()}
+                ${currentLineup ? (config.salaryCap - totalSalary).toLocaleString() : config.salaryCap.toLocaleString()}
               </p>
             </div>
             <div className="bg-slate-800/80 rounded-lg p-3 text-center border border-slate-700/50">
               <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">FP Proj.</p>
-              <p className="text-lg font-black text-emerald-400">
-                {currentLineup ? currentLineup.totalProjectedPoints.toFixed(1) : "0.0"}
+              <p className={`text-lg font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>
+                {currentLineup ? totalProj.toFixed(1) : "0.0"}
               </p>
             </div>
             <div className="bg-slate-800/80 rounded-lg p-3 text-center border border-slate-700/50">
               <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Value</p>
               <p className="text-lg font-black text-blue-400">
-                {currentLineup ? (currentLineup.totalProjectedPoints / (currentLineup.totalSalary / 1000)).toFixed(1) + "x" : "0.0x"}
+                {totalSalary > 0 ? (totalProj / (totalSalary / 1000)).toFixed(1) + "x" : "0.0x"}
               </p>
             </div>
           </div>
@@ -457,7 +475,11 @@ export default function Optimizer() {
             <Button
               onClick={handleOptimize}
               disabled={optimizeMutation.isPending}
-              className="flex-1 h-11 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-sm shadow-lg shadow-emerald-500/20"
+              className={`flex-1 h-11 text-white font-black text-sm shadow-lg ${
+                platform === "fanduel"
+                  ? "bg-blue-500 hover:bg-blue-600 shadow-blue-500/20"
+                  : "bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20"
+              }`}
               data-testid="optimize-btn"
             >
               {optimizeMutation.isPending ? (
@@ -478,30 +500,58 @@ export default function Optimizer() {
           </div>
         </div>
 
-        {/* Locked players count */}
+        {/* Locked/cap info */}
         <div className="px-4 py-2 border-b border-slate-800 flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-500">
           <span>${lockedSalary.toLocaleString()} Locked</span>
-          <span>{lockedIds.length} / 8 Locked</span>
+          <span>{lockedIds.length} / {config.rosterSize} Locked</span>
         </div>
+
+        {/* Subscription badge */}
+        {user && subData && (
+          <div className="px-4 py-2 border-b border-slate-800 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {subData.tier === "pro" ? (
+                <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[9px] font-black">
+                  <Crown className="w-3 h-3 mr-1" /> PRO
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="border-slate-700 text-slate-500 text-[9px] font-black">FREE</Badge>
+              )}
+              <span className="text-[10px] text-slate-500 font-bold">
+                {subData.lineupCount}/{subData.maxLineups} lineups saved
+              </span>
+            </div>
+            {subData.tier === "free" && (
+              <Link href="/pricing">
+                <span className="text-[10px] font-bold text-amber-400 hover:text-amber-300 cursor-pointer" data-testid="upgrade-link">
+                  Upgrade
+                </span>
+              </Link>
+            )}
+          </div>
+        )}
 
         {/* Lineup Slots */}
         <div className="flex-1 overflow-auto p-4 space-y-2">
-          {DK_NBA_SLOTS.map(slot => {
+          {config.slots.map(slot => {
             const player = lineupSlots?.[slot] || null;
+            const displaySlot = getSlotDisplayName(slot);
             return (
               <div
                 key={slot}
                 className={`flex items-center rounded-lg border transition-all ${
                   player
-                    ? "bg-slate-800/60 border-slate-700 hover:border-emerald-500/30"
+                    ? `bg-slate-800/60 border-slate-700 ${platform === "fanduel" ? "hover:border-blue-500/30" : "hover:border-emerald-500/30"}`
                     : "bg-slate-900/40 border-slate-800 border-dashed"
                 }`}
                 data-testid={`slot-${slot}`}
               >
                 <div className={`w-12 h-12 flex items-center justify-center font-black text-xs rounded-l-lg ${
-                  player ? "bg-emerald-500/10 text-emerald-400" : "bg-slate-800/50 text-slate-600"
+                  player
+                    ? `${platform === "fanduel" ? "bg-blue-500/10 text-blue-400" : "bg-emerald-500/10 text-emerald-400"}`
+                    : "bg-slate-800/50 text-slate-600"
                 }`}>
-                  {slot}
+                  {displaySlot}
                 </div>
                 {player ? (
                   <div className="flex-1 flex items-center justify-between px-3 py-2">
@@ -510,12 +560,21 @@ export default function Optimizer() {
                       <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold uppercase">
                         <span>{player.team}</span>
                         <span>vs {player.opponent}</span>
-                        <span className="text-emerald-400/60">{player.position}</span>
+                        <span className={`${platform === "fanduel" ? "text-blue-400/60" : "text-emerald-400/60"}`}>{player.position}</span>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-sm font-black text-emerald-400">{Number(player.projectedPoints).toFixed(1)}</div>
-                      <div className="text-[10px] font-mono text-slate-500 font-bold">${player.salary.toLocaleString()}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right">
+                        <div className={`text-sm font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>{Number(player.projectedPoints).toFixed(1)}</div>
+                        <div className="text-[10px] font-mono text-slate-500 font-bold">${player.salary.toLocaleString()}</div>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveFromSlot(slot)}
+                        className="p-1 rounded-md text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                        data-testid={`remove-slot-${slot}`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 ) : (
@@ -544,8 +603,12 @@ export default function Optimizer() {
               <div className="flex gap-2">
                 <Button
                   onClick={handleSave}
-                  disabled={saveLineupMutation.isPending}
-                  className="flex-1 h-10 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm"
+                  disabled={saveLineupMutation.isPending || !user}
+                  className={`flex-1 h-10 text-white font-bold text-sm ${
+                    platform === "fanduel"
+                      ? "bg-blue-600 hover:bg-blue-700"
+                      : "bg-blue-600 hover:bg-blue-700"
+                  }`}
                   data-testid="save-lineup-btn"
                 >
                   {saveLineupMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Heart className="w-4 h-4 mr-2" />}
@@ -555,8 +618,8 @@ export default function Optimizer() {
             </>
           )}
           <div className="flex items-center justify-between text-[10px] text-slate-600 font-bold">
-            <span>Total: ${currentLineup?.totalSalary?.toLocaleString() || "0"}</span>
-            <span>{currentLineup?.totalProjectedPoints?.toFixed(1) || "0.0"} FP</span>
+            <span>Total: ${totalSalary.toLocaleString()} / ${config.salaryCap.toLocaleString()}</span>
+            <span>{totalProj.toFixed(1)} FP</span>
           </div>
         </div>
       </div>

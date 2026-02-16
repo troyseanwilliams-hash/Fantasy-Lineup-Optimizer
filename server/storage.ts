@@ -1,39 +1,38 @@
 import { db } from "./db";
 import { eq, inArray } from "drizzle-orm";
 import {
-  slates, players, lineups,
+  slates, players, lineups, subscriptions,
   type Slate, type InsertSlate,
   type Player, type InsertPlayer,
-  type Lineup, type InsertLineup
+  type Lineup, type InsertLineup,
+  type Subscription, type InsertSubscription
 } from "@shared/schema";
 
-// Import auth storage to merge interfaces
 import { authStorage, type IAuthStorage } from "./replit_integrations/auth/storage";
 
 export interface IStorage extends IAuthStorage {
-  // Slates
   getSlates(): Promise<Slate[]>;
   getSlate(id: number): Promise<Slate | undefined>;
   createSlate(slate: InsertSlate): Promise<Slate>;
 
-  // Players
   getPlayersBySlate(slateId: number): Promise<Player[]>;
   createPlayer(player: InsertPlayer): Promise<Player>;
   bulkCreatePlayers(players: InsertPlayer[]): Promise<Player[]>;
 
-  // Lineups
   getLineups(userId: string): Promise<Lineup[]>;
   createLineup(lineup: InsertLineup): Promise<Lineup>;
   deleteLineup(id: number): Promise<void>;
   getLineup(id: number): Promise<Lineup | undefined>;
+  getLineupCount(userId: string): Promise<number>;
+
+  getSubscription(userId: string): Promise<Subscription | undefined>;
+  upsertSubscription(sub: InsertSubscription): Promise<Subscription>;
 }
 
 export class DatabaseStorage implements IStorage {
-  // --- Auth Delegate ---
   getUser = authStorage.getUser.bind(authStorage);
   upsertUser = authStorage.upsertUser.bind(authStorage);
 
-  // --- Slates ---
   async getSlates(): Promise<Slate[]> {
     return await db.select().from(slates).orderBy(slates.startTime);
   }
@@ -48,7 +47,6 @@ export class DatabaseStorage implements IStorage {
     return slate;
   }
 
-  // --- Players ---
   async getPlayersBySlate(slateId: number): Promise<Player[]> {
     return await db.select().from(players).where(eq(players.slateId, slateId));
   }
@@ -62,7 +60,6 @@ export class DatabaseStorage implements IStorage {
     return await db.insert(players).values(insertPlayers).returning();
   }
 
-  // --- Lineups ---
   async getLineups(userId: string): Promise<Lineup[]> {
     return await db.select().from(lineups).where(eq(lineups.userId, userId));
   }
@@ -79,6 +76,29 @@ export class DatabaseStorage implements IStorage {
   async getLineup(id: number): Promise<Lineup | undefined> {
     const [lineup] = await db.select().from(lineups).where(eq(lineups.id, id));
     return lineup;
+  }
+
+  async getLineupCount(userId: string): Promise<number> {
+    const rows = await db.select().from(lineups).where(eq(lineups.userId, userId));
+    return rows.length;
+  }
+
+  async getSubscription(userId: string): Promise<Subscription | undefined> {
+    const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId));
+    return sub;
+  }
+
+  async upsertSubscription(sub: InsertSubscription): Promise<Subscription> {
+    const existing = await this.getSubscription(sub.userId);
+    if (existing) {
+      const [updated] = await db.update(subscriptions)
+        .set({ ...sub, updatedAt: new Date() })
+        .where(eq(subscriptions.userId, sub.userId))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(subscriptions).values(sub).returning();
+    return created;
   }
 }
 
