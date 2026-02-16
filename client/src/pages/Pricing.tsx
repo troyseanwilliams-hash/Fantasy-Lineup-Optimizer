@@ -25,7 +25,7 @@ export default function Pricing() {
           Choose Your Plan
         </h1>
         <p className="text-lg text-slate-400 max-w-xl mx-auto">
-          Start free with 1 optimized lineup. Upgrade to Pro for unlimited power.
+          Start free with 1 lineup per sport. Upgrade to Pro for unlimited power.
         </p>
       </div>
 
@@ -45,7 +45,7 @@ export default function Pricing() {
           <ul className="space-y-3 mb-8">
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <span>1 saved lineup at a time</span>
+              <span>1 saved lineup per sport (4 total)</span>
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />

@@ -61,8 +61,10 @@ Preferred communication style: Simple, everyday language.
 6. **subscriptions** - User subscription tiers (userId, tier: free/pro, status, stripeCustomerId, stripeSubscriptionId)
 
 ### Subscription System
-- **Free tier**: 1 saved lineup max
-- **Pro tier**: 20 saved lineups, export functionality
+- **Free tier**: 1 saved lineup per sport (4 total across NBA, NHL, MLB, NFL)
+- **Pro tier**: 20 saved lineups total, export functionality
+- **Per-sport limits**: Backend checks per-sport count for free users via `getLineupCountBySport()`, total count for pro users
+- **Subscription API**: `/api/subscription` returns `sportCounts` object with per-sport lineup counts
 - **Payment**: Stripe integration not yet connected (marked "Coming Soon" on pricing page)
 - **TODO**: Set up Replit Stripe connector (connector:ccfg_stripe_01K611P4YQR0SZM11XFRQJC44Y) when ready to enable payments
 

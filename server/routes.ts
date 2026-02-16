@@ -133,16 +133,23 @@ export async function registerRoutes(
 
       const sub = await storage.getSubscription(userId);
       const tier = sub?.tier || "free";
-      const lineupCount = await storage.getLineupCount(userId);
-      const maxLineups = tier === "pro" ? 20 : 1;
 
-      if (lineupCount >= maxLineups) {
-        return res.status(403).json({ 
-          message: tier === "free" 
-            ? "Free plan allows 1 saved lineup. Upgrade to Pro for up to 20 lineups." 
-            : "You've reached the maximum of 20 saved lineups.",
-          requiresUpgrade: tier === "free"
-        });
+      if (tier === "pro") {
+        const totalCount = await storage.getLineupCount(userId);
+        if (totalCount >= 20) {
+          return res.status(403).json({ 
+            message: "You've reached the maximum of 20 saved lineups.",
+            requiresUpgrade: false
+          });
+        }
+      } else {
+        const sportCount = await storage.getLineupCountBySport(userId, input.sport);
+        if (sportCount >= 1) {
+          return res.status(403).json({ 
+            message: `Free plan allows 1 saved lineup per sport. Upgrade to Pro for up to 20 lineups.`,
+            requiresUpgrade: true
+          });
+        }
       }
 
       const lineup = await storage.createLineup({ ...input, userId });
@@ -171,12 +178,20 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const userId = (req.user as any).claims.sub;
     const sub = await storage.getSubscription(userId);
+    const tier = sub?.tier || "free";
     const lineupCount = await storage.getLineupCount(userId);
+
+    const sportCounts: Record<string, number> = {};
+    for (const sport of ["NBA", "NHL", "MLB", "NFL"]) {
+      sportCounts[sport] = await storage.getLineupCountBySport(userId, sport);
+    }
+
     res.json({
-      tier: sub?.tier || "free",
+      tier,
       status: sub?.status || "active",
       lineupCount,
-      maxLineups: (sub?.tier === "pro") ? 20 : 1,
+      maxLineups: tier === "pro" ? 20 : 4,
+      sportCounts,
     });
   });
 
