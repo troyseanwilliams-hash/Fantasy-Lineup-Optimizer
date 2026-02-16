@@ -1,8 +1,8 @@
-# ProLineup AI
+# EliteLineup AI
 
 ## Overview
 
-ProLineup AI is a Daily Fantasy Sports (DFS) lineup optimizer web application. It helps users build winning DFS lineups for platforms like DraftKings and FanDuel by using Linear Programming (LP) optimization on player projections. Users can browse available slates (game sets), view player pools with stats and salaries, lock/exclude players, adjust projections, run LP-based optimization to generate optimal lineups under salary cap constraints, and save lineups to a personal vault.
+EliteLineup AI is a Daily Fantasy Sports (DFS) lineup optimizer web application. It helps users build winning DFS lineups for platforms like DraftKings and FanDuel by using Linear Programming (LP) optimization on player projections. Users can browse available slates (game sets), view player pools with stats and salaries, lock/exclude players, adjust projections, run LP-based optimization to generate optimal lineups under salary cap constraints, and save lineups to a personal vault.
 
 The app supports 4 sports: NBA, NHL, MLB, and NFL (ordered by priority in SPORT_ORDER). Each sport has platform-specific roster configurations for both DraftKings and FanDuel. The Home dashboard features a sport selector to switch between sports.
 
