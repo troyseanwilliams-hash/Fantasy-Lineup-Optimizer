@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, lt, gte } from "drizzle-orm";
 import {
   slates, players, lineups, subscriptions, props,
   type Slate, type InsertSlate,
@@ -27,6 +27,7 @@ export interface IStorage extends IAuthStorage {
   getLineup(id: number): Promise<Lineup | undefined>;
   getLineupCount(userId: string): Promise<number>;
   getLineupCountBySport(userId: string, sport: string): Promise<number>;
+  deleteExpiredLineups(): Promise<number>;
 
   getSubscription(userId: string): Promise<Subscription | undefined>;
   upsertSubscription(sub: InsertSubscription): Promise<Subscription>;
@@ -73,7 +74,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getLineups(userId: string): Promise<Lineup[]> {
-    return await db.select().from(lineups).where(eq(lineups.userId, userId));
+    const now = new Date();
+    const activeSlateIds = await db.select({ id: slates.id }).from(slates).where(gte(slates.startTime, now));
+    if (activeSlateIds.length === 0) return [];
+    const ids = activeSlateIds.map(s => s.id);
+    return await db.select().from(lineups).where(
+      and(eq(lineups.userId, userId), inArray(lineups.slateId, ids))
+    );
   }
 
   async createLineup(insertLineup: InsertLineup): Promise<Lineup> {
@@ -91,15 +98,34 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getLineupCount(userId: string): Promise<number> {
-    const rows = await db.select().from(lineups).where(eq(lineups.userId, userId));
+    const now = new Date();
+    const activeSlateIds = await db.select({ id: slates.id }).from(slates).where(gte(slates.startTime, now));
+    if (activeSlateIds.length === 0) return 0;
+    const ids = activeSlateIds.map(s => s.id);
+    const rows = await db.select().from(lineups).where(
+      and(eq(lineups.userId, userId), inArray(lineups.slateId, ids))
+    );
     return rows.length;
   }
 
   async getLineupCountBySport(userId: string, sport: string): Promise<number> {
+    const now = new Date();
+    const activeSlateIds = await db.select({ id: slates.id }).from(slates).where(gte(slates.startTime, now));
+    if (activeSlateIds.length === 0) return 0;
+    const ids = activeSlateIds.map(s => s.id);
     const rows = await db.select().from(lineups).where(
-      and(eq(lineups.userId, userId), eq(lineups.sport, sport))
+      and(eq(lineups.userId, userId), eq(lineups.sport, sport), inArray(lineups.slateId, ids))
     );
     return rows.length;
+  }
+
+  async deleteExpiredLineups(): Promise<number> {
+    const now = new Date();
+    const expiredSlateIds = await db.select({ id: slates.id }).from(slates).where(lt(slates.startTime, now));
+    if (expiredSlateIds.length === 0) return 0;
+    const ids = expiredSlateIds.map(s => s.id);
+    const deleted = await db.delete(lineups).where(inArray(lineups.slateId, ids)).returning();
+    return deleted.length;
   }
 
   async getSubscription(userId: string): Promise<Subscription | undefined> {

@@ -59,7 +59,7 @@ Preferred communication style: Simple, everyday language.
 2. **sessions** - Session storage (sid, sess JSON, expire) - required for Replit Auth
 3. **slates** - Game slates (sport, platform, name, start time, isMain flag)
 4. **players** - Player pool per slate (name, team, position, salary, fppg, projected points, opponent, game info)
-5. **lineups** - Saved optimized lineups per user (player IDs array, total salary, total projected points, platform)
+5. **lineups** - Saved optimized lineups per user (player IDs array, total salary, total projected points, platform). Auto-expire when slate startTime passes; cleaned up on startup, daily cron, and filtered on read.
 6. **subscriptions** - User subscription tiers (userId, tier: free/pro, status, stripeCustomerId, stripeSubscriptionId)
 7. **props** - Daily AI-generated prop bets (sport, playerName, team, opponent, propType, line, pick, confidence, isLocked, createdDate)
 
