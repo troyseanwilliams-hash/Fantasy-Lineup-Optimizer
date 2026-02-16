@@ -259,6 +259,10 @@ export async function registerRoutes(
   });
 
   app.post("/api/admin/seed", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any).claims.sub;
+    const dbUser = await storage.getUser(userId);
+    if (!dbUser?.isAdmin) return res.status(403).json({ message: "Admin access required" });
     try {
       await seedDatabase();
       res.json({ message: "Database seeded successfully" });

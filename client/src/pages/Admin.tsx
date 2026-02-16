@@ -7,8 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Upload, FileJson, Database } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
+import { Loader2, Plus, Upload, FileJson, Database, ShieldAlert } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 const EXAMPLE_JSON = `[
   {
@@ -38,6 +38,10 @@ export default function Admin() {
   const { mutate: uploadPlayers, isPending: isUploading } = useBulkCreatePlayers();
   const { toast } = useToast();
 
+  const { data: user, isLoading: userLoading } = useQuery<any>({
+    queryKey: ["/api/auth/user"],
+  });
+
   const seedMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/admin/seed", { method: "POST" });
@@ -59,6 +63,24 @@ export default function Admin() {
     slateId: "",
     jsonData: "",
   });
+
+  if (userLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
+      </div>
+    );
+  }
+
+  if (!user?.isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <ShieldAlert className="w-16 h-16 text-red-400" />
+        <h1 className="text-2xl font-bold text-white">Access Denied</h1>
+        <p className="text-slate-400">You need admin privileges to access this page.</p>
+      </div>
+    );
+  }
 
   const handleCreateSlate = (e: React.FormEvent) => {
     e.preventDefault();
