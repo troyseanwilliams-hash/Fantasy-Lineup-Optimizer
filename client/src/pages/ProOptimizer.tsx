@@ -387,30 +387,6 @@ export default function ProOptimizer() {
           </div>
         </div>
 
-        {/* Game Scoreboard Cards */}
-        {games.length > 0 && (
-          <div className="px-4 pb-3 flex gap-2 overflow-x-auto scrollbar-hide">
-            {games.map((game, i) => (
-              <div
-                key={i}
-                className="flex-shrink-0 bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 min-w-[100px] transition-colors cursor-default hover:border-amber-500/30"
-                data-testid={`pro-game-card-${i}`}
-              >
-                <div className="flex items-center justify-between gap-3 mb-1">
-                  <span className="text-xs font-black text-white">{game.away}</span>
-                  <span className="text-xs font-bold text-slate-500">0</span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs font-black text-white">{game.home}</span>
-                  <span className="text-xs font-bold text-slate-500">0</span>
-                </div>
-                <div className="text-[11px] font-bold mt-1.5 pt-1.5 border-t border-slate-700/50 text-center text-amber-400/60">
-                  {game.time}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       <div className="flex flex-col xl:flex-row flex-1 overflow-hidden">
@@ -569,6 +545,37 @@ export default function ProOptimizer() {
         {/* RIGHT: Results & Summary Panels */}
         <div className="w-full xl:w-[480px] flex flex-col bg-slate-900/30 overflow-hidden">
           <div className="flex-1 overflow-auto p-4 space-y-4">
+            {/* Slate Games */}
+            {games.length > 0 && (
+              <div data-testid="pro-games-panel">
+                <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-3">
+                  <Activity className="w-4 h-4 text-amber-400" />
+                  Scheduled Games ({games.length})
+                </h3>
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {games.map((game, i) => (
+                    <div
+                      key={i}
+                      className="bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 min-w-[100px] transition-colors cursor-default hover:border-amber-500/30"
+                      data-testid={`pro-game-card-${i}`}
+                    >
+                      <div className="flex items-center justify-between gap-3 mb-1">
+                        <span className="text-xs font-black text-white">{game.away}</span>
+                        <span className="text-xs font-bold text-slate-500">0</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs font-black text-white">{game.home}</span>
+                        <span className="text-xs font-bold text-slate-500">0</span>
+                      </div>
+                      <div className="text-[11px] font-bold mt-1.5 pt-1.5 border-t border-slate-700/50 text-center text-amber-400/60">
+                        {game.time}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Generated Lineups */}
             {generatedLineups.length > 0 && (
               <div data-testid="generated-lineups-section">
