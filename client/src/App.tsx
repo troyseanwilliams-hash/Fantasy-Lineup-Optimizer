@@ -12,6 +12,7 @@ import SavedLineups from "@/pages/SavedLineups";
 import PropBets from "@/pages/PropBets";
 import Admin from "@/pages/Admin";
 import Pricing from "@/pages/Pricing";
+import News from "@/pages/News";
 import NotFound from "@/pages/not-found";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -38,6 +39,7 @@ function Router() {
           <Route path="/optimizer/:id" component={Optimizer} />
           <Route path="/lineups" component={SavedLineups} />
           <Route path="/props" component={PropBets} />
+          <Route path="/news/:sport" component={News} />
           <Route path="/pricing" component={Pricing} />
           <Route path="/admin" component={Admin} />
           <Route component={NotFound} />

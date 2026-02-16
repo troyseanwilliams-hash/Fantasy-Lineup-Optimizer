@@ -126,11 +126,12 @@ export function Header() {
                           </DropdownMenuSubContent>
                         </DropdownMenuSub>
 
-                        <DropdownMenuItem className="cursor-default opacity-50" disabled>
-                          <Newspaper className="w-4 h-4 mr-2 text-slate-600" />
-                          <span className="text-sm text-slate-500">News</span>
-                          <span className="ml-auto text-[9px] text-slate-600 font-bold">SOON</span>
-                        </DropdownMenuItem>
+                        <Link href={`/news/${sport.toLowerCase()}`}>
+                          <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-news`}>
+                            <Newspaper className="w-4 h-4 mr-2 text-amber-400" />
+                            <span className="text-sm font-bold text-slate-300">News</span>
+                          </DropdownMenuItem>
+                        </Link>
                         <DropdownMenuItem className="cursor-default opacity-50" disabled>
                           <Users className="w-4 h-4 mr-2 text-slate-600" />
                           <span className="text-sm text-slate-500">Player Updates</span>

@@ -28,6 +28,7 @@ Preferred communication style: Simple, everyday language.
 - **Saved Lineups** (`/lineups`): "Vault" of previously saved optimized lineups
 - **Pricing** (`/pricing`): Subscription tiers (Free vs Pro) with feature comparison
 - **Prop Bets** (`/props`): AI-generated daily prop picks organized per sport, with DraftKings/FanDuel affiliate marketing links (DFS + Sportsbook)
+- **News** (`/news/:sport`): Live sport-specific player news from ESPN's public API, with sport tabs to switch between NBA/NHL/MLB
 - **Admin** (`/admin`): Slate creation, player bulk upload (JSON), and database seeding
 
 ### Backend

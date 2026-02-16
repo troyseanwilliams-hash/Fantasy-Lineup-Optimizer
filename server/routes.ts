@@ -204,6 +204,46 @@ export async function registerRoutes(
     }
   });
 
+  const ESPN_NEWS_URLS: Record<string, string> = {
+    NBA: "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/news",
+    NHL: "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/news",
+    MLB: "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/news",
+    NFL: "https://site.api.espn.com/apis/site/v2/sports/football/nfl/news",
+  };
+
+  app.get("/api/news/:sport", async (req, res) => {
+    try {
+      const sport = req.params.sport.toUpperCase();
+      const validSports = [...ACTIVE_SPORTS] as string[];
+      if (!validSports.includes(sport)) {
+        return res.status(400).json({ error: "Invalid sport" });
+      }
+      const url = ESPN_NEWS_URLS[sport];
+      if (!url) {
+        return res.status(400).json({ error: "Invalid sport" });
+      }
+      const response = await fetch(url);
+      if (!response.ok) {
+        return res.status(502).json({ error: "Failed to fetch news" });
+      }
+      const data = await response.json() as any;
+      const articles = (data.articles || []).map((a: any) => ({
+        id: a.dataSourceIdentifier || String(a.links?.web?.href || Math.random()),
+        headline: a.headline || "",
+        description: a.description || "",
+        published: a.published || "",
+        type: a.type || "Article",
+        imageUrl: a.images?.[0]?.url || null,
+        linkUrl: a.links?.web?.href || null,
+        categories: (a.categories || []).map((c: any) => c.description || c.type).filter(Boolean),
+      }));
+      res.json({ sport, articles });
+    } catch (err) {
+      console.error("News fetch error:", err);
+      res.status(500).json({ error: "Failed to fetch news" });
+    }
+  });
+
   app.get("/api/props", async (req, res) => {
     const validSports = ACTIVE_SPORTS as readonly string[];
     const rawSport = req.query.sport as string | undefined;
