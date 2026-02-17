@@ -1053,6 +1053,17 @@ async function generateSyntheticProps(date: string, sports: readonly string[]): 
       const confidence = Math.min(95, Math.max(52, 65 + edge * 100 + varianceBonus * 100));
       const pick = rand() > 0.45 ? "Over" : "Under";
 
+      let enrichedGameInfo = player.gameInfo || "";
+      if (enrichedGameInfo && !enrichedGameInfo.includes("·")) {
+        const timeMatch = enrichedGameInfo.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)\s*ET)/i);
+        if (timeMatch) {
+          const teams = enrichedGameInfo.replace(timeMatch[0], "").trim();
+          const slateDate = new Date(slate.startTime);
+          const dateStr = slateDate.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
+          enrichedGameInfo = `${teams} · ${dateStr}, ${timeMatch[1]}`;
+        }
+      }
+
       allProps.push({
         sport,
         playerName: player.name,
@@ -1062,7 +1073,7 @@ async function generateSyntheticProps(date: string, sports: readonly string[]): 
         line: line.toString(),
         pick,
         confidence: confidence.toFixed(1),
-        gameInfo: player.gameInfo || "",
+        gameInfo: enrichedGameInfo,
         isLocked: false,
         createdDate: date,
       });
