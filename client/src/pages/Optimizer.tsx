@@ -390,9 +390,9 @@ export default function Optimizer() {
             {isGolf && golfAnalysis ? (
               <>
                 <div className="flex items-center gap-2 mb-3">
-                  <Trophy className="w-4 h-4 text-lime-400" />
-                  <span className="text-sm font-black text-white uppercase tracking-widest drop-shadow-lg">Tournament Center</span>
-                  <Badge className="text-[10px] font-black bg-lime-500/20 text-lime-300 border-lime-500/30">LIVE</Badge>
+                  <Trophy className="w-4 h-4 text-white" />
+                  <span className="text-sm font-black text-white uppercase tracking-widest" style={{textShadow: '0 1px 3px rgba(0,0,0,0.8)'}}>Tournament Center</span>
+                  <Badge className="text-[10px] font-black bg-lime-500/20 text-white border-lime-500/30">LIVE</Badge>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pb-2">
                   {/* Tournament Info Card */}
