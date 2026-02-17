@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link, useSearch } from "wouter";
-import { Lock, Crown, Zap, ArrowUpRight, ArrowDownRight, ExternalLink, Trophy, Activity, Target, Dribbble, Clock } from "lucide-react";
+import { Lock, Crown, Zap, ArrowUpRight, ArrowDownRight, ExternalLink, Trophy, Activity, Target, Dribbble, Clock, Star, Flame } from "lucide-react";
 import { useState } from "react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import { AFFILIATE_LINKS, AFFILIATE_PROMOS } from "@shared/affiliate-config";
@@ -194,52 +194,46 @@ function getConfidenceTier(confidence: number): "gold" | "bronze" | "standard" {
   return "standard";
 }
 
-const CONFIDENCE_STYLES: Record<"gold" | "bronze" | "standard", {
-  card: string;
-  badge: string;
-  badgeText: string;
-  label: string;
-  inner: string;
-}> = {
-  gold: {
-    card: "bg-gradient-to-br from-yellow-900/30 via-amber-900/20 to-yellow-800/10 border-yellow-600/40 ring-1 ring-yellow-500/20",
-    badge: "bg-yellow-500/20 text-yellow-300",
-    badgeText: "GOLD PICK",
-    label: "text-yellow-400",
-    inner: "bg-yellow-950/40 border-yellow-700/30",
-  },
-  bronze: {
-    card: "bg-gradient-to-br from-orange-900/25 via-amber-900/15 to-orange-800/10 border-orange-600/30 ring-1 ring-orange-500/15",
-    badge: "bg-orange-500/20 text-orange-300",
-    badgeText: "BRONZE PICK",
-    label: "text-orange-400",
-    inner: "bg-orange-950/30 border-orange-700/25",
-  },
-  standard: {
-    card: "bg-slate-800/30 border-slate-800",
-    badge: "bg-slate-700/50 text-slate-400",
-    badgeText: "",
-    label: "",
-    inner: "bg-slate-900/50 border-slate-800/50",
-  },
-};
-
 function PropCard({ prop, index }: { prop: PropBet; index: number }) {
   const conf = Number(prop.confidence);
   const tier = getConfidenceTier(conf);
-  const style = CONFIDENCE_STYLES[tier];
+  const isGold = tier === "gold";
+  const isBronze = tier === "bronze";
 
   return (
     <Card
-      className={`${style.card} p-5 transition-all hover-elevate relative`}
+      className="bg-slate-800/30 border-slate-800 p-5 transition-all hover-elevate relative overflow-hidden"
       data-testid={`prop-card-${index}`}
     >
-      {tier !== "standard" && (
-        <div className="flex items-center gap-1.5 mb-2" data-testid={`prop-tier-badge-${index}`}>
-          <Trophy className={`w-3.5 h-3.5 ${style.label}`} />
-          <span className={`text-[10px] font-black uppercase tracking-widest ${style.label}`}>
-            {style.badgeText}
-          </span>
+      {isGold && (
+        <>
+          <div className="absolute -top-3 -right-3 z-10 pointer-events-none" data-testid={`prop-gold-star-${index}`}>
+            <div className="relative">
+              <Star className="w-20 h-20 text-yellow-400 fill-yellow-400 drop-shadow-[0_0_12px_rgba(250,204,21,0.4)]" />
+              <span className="absolute top-[30px] left-1/2 -translate-x-1/2 text-[8px] font-black text-yellow-950 uppercase tracking-widest">
+                DAILY
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 mb-3" data-testid={`prop-tier-badge-${index}`}>
+            <div className="flex items-center gap-1.5 bg-yellow-400/15 border border-yellow-500/25 rounded-full px-3 py-1">
+              <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
+              <span className="text-[10px] font-black text-yellow-400 uppercase tracking-widest">
+                Today's Top Pick
+              </span>
+            </div>
+          </div>
+        </>
+      )}
+
+      {isBronze && (
+        <div className="flex items-center gap-2 mb-3" data-testid={`prop-tier-badge-${index}`}>
+          <div className="flex items-center gap-1.5 bg-orange-400/10 border border-orange-500/20 rounded-full px-3 py-1">
+            <Flame className="w-3.5 h-3.5 text-orange-400" />
+            <span className="text-[10px] font-black text-orange-400 uppercase tracking-widest">
+              Hot Pick
+            </span>
+          </div>
         </div>
       )}
 
@@ -266,14 +260,20 @@ function PropCard({ prop, index }: { prop: PropBet; index: number }) {
             })()}
           </div>
         </div>
-        <div className={`px-2 py-0.5 rounded text-[11px] font-black ${style.badge}`} data-testid={`prop-confidence-${index}`}>
+        <div className={`px-2 py-0.5 rounded text-[11px] font-black ${
+          isGold
+            ? "bg-yellow-500/20 text-yellow-300"
+            : isBronze
+            ? "bg-orange-500/20 text-orange-300"
+            : "bg-slate-700/50 text-slate-400"
+        }`} data-testid={`prop-confidence-${index}`}>
           {conf.toFixed(0)}%
         </div>
       </div>
 
       <h3 className="text-base font-bold text-white mb-1" data-testid={`prop-player-${index}`}>{prop.playerName}</h3>
 
-      <div className={`flex items-center justify-between rounded-xl px-4 py-3 border ${style.inner}`}>
+      <div className="flex items-center justify-between bg-slate-900/50 rounded-xl px-4 py-3 border border-slate-800/50">
         <div>
           <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">{prop.propType}</p>
           <p className="text-lg font-black text-white">{prop.line}</p>
