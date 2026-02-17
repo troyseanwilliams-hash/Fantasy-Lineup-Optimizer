@@ -221,8 +221,8 @@ export function Header() {
                 location === "/parlays" ? "text-purple-400" : "text-slate-400 hover:text-white"
               }`} data-testid="nav-parlays">
                 <Layers className="w-4 h-4" />
-                <span>SGP</span>
-                {!isPaid && <Lock className="w-3 h-3 text-purple-400/60 ml-0.5" />}
+                <span>Parlays</span>
+                {!isPro && <Lock className="w-3 h-3 text-purple-400/60 ml-0.5" />}
               </div>
             </Link>
             <Link href="/lineups">
@@ -467,8 +467,8 @@ export function Header() {
               data-testid="mobile-nav-parlays"
             >
               <Layers className="w-5 h-5 shrink-0" />
-              <span>SGP Builder</span>
-              {!isPaid && <Lock className="w-3.5 h-3.5 text-purple-400/60 ml-auto" />}
+              <span>Parlay Builder</span>
+              {!isPro && <Lock className="w-3.5 h-3.5 text-purple-400/60 ml-auto" />}
             </button>
 
             <button
