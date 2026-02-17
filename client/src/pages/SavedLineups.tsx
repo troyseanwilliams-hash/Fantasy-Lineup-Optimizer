@@ -298,8 +298,14 @@ export default function SavedLineups() {
                       <option value="oldest">Oldest First</option>
                       <option value="projection_high">Projection: High → Low</option>
                       <option value="projection_low">Projection: Low → High</option>
-                      {isPro && <option value="ownership_high">Ownership: High → Low</option>}
-                      {isPro && <option value="ownership_low">Ownership: Low → High</option>}
+                      {isPro ? (
+                        <>
+                          <option value="ownership_high">Ownership: High → Low</option>
+                          <option value="ownership_low">Ownership: Low → High</option>
+                        </>
+                      ) : (
+                        <option value="newest" disabled>🔒 Ownership Sort (Pro)</option>
+                      )}
                       <option value="salary_high">Salary: High → Low</option>
                       <option value="salary_low">Salary: Low → High</option>
                     </select>
@@ -525,7 +531,7 @@ function LineupCard({
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Proj</p>
               <p className="text-lg font-black text-emerald-400 tabular-nums" data-testid={`lineup-proj-${lineup.id}`}>{Number(lineup.totalProjectedPoints).toFixed(1)}</p>
             </div>
-            {isPro && (
+            {isPro ? (
               <div className="text-right">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Own%</p>
                 <p className={`text-lg font-black tabular-nums ${
@@ -534,6 +540,15 @@ function LineupCard({
                   "text-purple-400"
                 }`} data-testid={`lineup-own-${lineup.id}`}>
                   {(lineup.totalOwnership ?? 0).toFixed(0)}%
+                </p>
+              </div>
+            ) : (
+              <div className="text-right">
+                <p className="text-[10px] font-black text-amber-500/70 uppercase tracking-widest flex items-center justify-end gap-1">
+                  <Lock className="w-2.5 h-2.5" />Own%
+                </p>
+                <p className="text-lg font-black tabular-nums text-slate-600 blur-[3px] select-none">
+                  {Math.round(Math.sin(lineup.id * 17) * 30 + 80)}%
                 </p>
               </div>
             )}
