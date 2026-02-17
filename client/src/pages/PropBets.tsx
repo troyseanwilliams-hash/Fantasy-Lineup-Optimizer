@@ -194,11 +194,40 @@ function getConfidenceTier(confidence: number): "gold" | "bronze" | "standard" {
   return "standard";
 }
 
+function getStarCount(confidence: number): number {
+  if (confidence >= 85) return 5;
+  if (confidence >= 78) return 4;
+  if (confidence >= 68) return 3;
+  if (confidence >= 58) return 2;
+  return 1;
+}
+
+function StarRating({ count, tier }: { count: number; tier: "gold" | "bronze" | "standard" }) {
+  const filledColor = tier === "gold"
+    ? "text-yellow-400 fill-yellow-400"
+    : tier === "bronze"
+    ? "text-orange-400 fill-orange-400"
+    : "text-emerald-400 fill-emerald-400";
+  const emptyColor = "text-slate-700";
+
+  return (
+    <div className="flex items-center gap-0.5">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Star
+          key={i}
+          className={`w-3.5 h-3.5 ${i < count ? filledColor : emptyColor}`}
+        />
+      ))}
+    </div>
+  );
+}
+
 function PropCard({ prop, index }: { prop: PropBet; index: number }) {
   const conf = Number(prop.confidence);
   const tier = getConfidenceTier(conf);
   const isGold = tier === "gold";
   const isBronze = tier === "bronze";
+  const starCount = getStarCount(conf);
 
   return (
     <Card
@@ -260,14 +289,13 @@ function PropCard({ prop, index }: { prop: PropBet; index: number }) {
             })()}
           </div>
         </div>
-        <div className={`px-2 py-0.5 rounded text-[11px] font-black ${
-          isGold
-            ? "bg-yellow-500/20 text-yellow-300"
-            : isBronze
-            ? "bg-orange-500/20 text-orange-300"
-            : "bg-slate-700/50 text-slate-400"
-        }`} data-testid={`prop-confidence-${index}`}>
-          {conf.toFixed(0)}%
+        <div className="flex items-center gap-2" data-testid={`prop-confidence-${index}`}>
+          <StarRating count={starCount} tier={tier} />
+          <span className={`text-[11px] font-black ${
+            isGold ? "text-yellow-300" : isBronze ? "text-orange-300" : "text-slate-400"
+          }`}>
+            {conf.toFixed(0)}%
+          </span>
         </div>
       </div>
 
