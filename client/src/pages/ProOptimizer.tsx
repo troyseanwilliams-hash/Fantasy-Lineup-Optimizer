@@ -273,7 +273,7 @@ export default function ProOptimizer() {
 
   const handleOptimize = () => {
     const projections: Record<string, number> = { ...customProjections };
-    if (fadedIds.length > 0 && players) {
+    if (isPro && fadedIds.length > 0 && players) {
       for (const p of players) {
         if (fadedIds.includes(p.id)) {
           const own = (p as any).ownershipProjection ?? 10;
@@ -609,8 +609,8 @@ export default function ProOptimizer() {
                   <SortHeader label="Salary" field="salary" />
                   <SortHeader label="Base Proj" field="projectedPoints" />
                   <SortHeader label="Boosted Proj" field="boostedProj" />
-                  <SortHeader label="Own%" field="ownershipProjection" />
-                  <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400 text-center">Fade</th>
+                  {isPro && <SortHeader label="Own%" field="ownershipProjection" />}
+                  {isPro && <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400 text-center">Fade</th>}
                   <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400">Rating</th>
                 </tr>
               </thead>
@@ -667,7 +667,7 @@ export default function ProOptimizer() {
                               {player.injuryStatus}
                             </Badge>
                           )}
-                          {player.isFaded && (
+                          {isPro && player.isFaded && (
                             <Badge variant="outline" className="text-[10px] font-bold bg-purple-500/10 text-purple-400 border-purple-500/30" data-testid={`badge-faded-${player.id}`}>
                               FADED
                             </Badge>
@@ -695,38 +695,42 @@ export default function ProOptimizer() {
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-1" data-testid={`text-own-${player.id}`}>
-                          <Users className="w-3 h-3 text-slate-500" />
-                          <span className={`font-mono text-[11px] font-bold ${
-                            player.ownershipProjection >= 25 ? "text-red-400" :
-                            player.ownershipProjection >= 15 ? "text-amber-400" :
-                            player.ownershipProjection >= 8 ? "text-slate-300" :
-                            "text-emerald-400"
-                          }`}>
-                            {player.ownershipProjection.toFixed(1)}%
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <button
-                          onClick={() => {
-                            setFadedIds(prev => prev.includes(player.id)
-                              ? prev.filter(i => i !== player.id)
-                              : [...prev, player.id]
-                            );
-                          }}
-                          data-testid={`fade-${player.id}`}
-                          className={`p-1.5 rounded-md transition-all ${
-                            player.isFaded
-                              ? "bg-purple-500/20 text-purple-400 border border-purple-500/30 shadow-sm"
-                              : "text-slate-500 hover:text-purple-400 hover:bg-purple-500/10"
-                          }`}
-                          title={player.isFaded ? "Unfade player (restore projection)" : "Fade player (reduce projection by ownership %)"}
-                        >
-                          <Percent className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
+                      {isPro && (
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-1" data-testid={`text-own-${player.id}`}>
+                            <Users className="w-3 h-3 text-slate-500" />
+                            <span className={`font-mono text-[11px] font-bold ${
+                              player.ownershipProjection >= 25 ? "text-red-400" :
+                              player.ownershipProjection >= 15 ? "text-amber-400" :
+                              player.ownershipProjection >= 8 ? "text-slate-300" :
+                              "text-emerald-400"
+                            }`}>
+                              {player.ownershipProjection.toFixed(1)}%
+                            </span>
+                          </div>
+                        </td>
+                      )}
+                      {isPro && (
+                        <td className="px-3 py-2 text-center">
+                          <button
+                            onClick={() => {
+                              setFadedIds(prev => prev.includes(player.id)
+                                ? prev.filter(i => i !== player.id)
+                                : [...prev, player.id]
+                              );
+                            }}
+                            data-testid={`fade-${player.id}`}
+                            className={`p-1.5 rounded-md transition-all ${
+                              player.isFaded
+                                ? "bg-purple-500/20 text-purple-400 border border-purple-500/30 shadow-sm"
+                                : "text-slate-500 hover:text-purple-400 hover:bg-purple-500/10"
+                            }`}
+                            title={player.isFaded ? "Unfade player (restore projection)" : "Fade player (reduce projection by ownership %)"}
+                          >
+                            <Percent className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      )}
                       <td className="px-3 py-2" data-testid={`star-rating-${player.id}`}>
                         <PlayerStarRating stars={getPlayerStarCount(player.boostedProj)} />
                       </td>
@@ -755,8 +759,8 @@ export default function ProOptimizer() {
             </div>
           )}
 
-          {/* Faded Players Bar */}
-          {fadedIds.length > 0 && players && (
+          {/* Faded Players Bar (Pro only) */}
+          {isPro && fadedIds.length > 0 && players && (
             <div className="border-t border-slate-800 bg-slate-900/60 px-4 py-2 flex items-center gap-2 flex-wrap" data-testid="faded-players-bar">
               <span className="text-[11px] font-black text-purple-400 uppercase tracking-widest">Faded:</span>
               {players.filter(p => fadedIds.includes(p.id)).map(p => (
@@ -944,10 +948,12 @@ export default function ProOptimizer() {
                               <span className="text-[10px] text-slate-500">{p.team} · ${p.salary.toLocaleString()}</span>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
-                              <div className="text-right">
-                                <div className="text-[10px] text-slate-500 font-bold">Own%</div>
-                                <div className="text-[11px] font-black text-purple-400">{p.ownershipProjection}%</div>
-                              </div>
+                              {isPro && (
+                                <div className="text-right">
+                                  <div className="text-[10px] text-slate-500 font-bold">Own%</div>
+                                  <div className="text-[11px] font-black text-purple-400">{p.ownershipProjection}%</div>
+                                </div>
+                              )}
                               <div className="text-right">
                                 <div className="text-[10px] text-slate-500 font-bold">Score</div>
                                 <div className="text-[11px] font-black text-amber-400">{p.algoScore}</div>
@@ -1109,7 +1115,7 @@ export default function ProOptimizer() {
                                     <span className={`font-bold flex-1 truncate ${fadedIds.includes(p.id) ? "text-purple-300" : "text-white"}`}>{p.name}</span>
                                     <PlayerStarRating stars={getPlayerStarCount(Number(p.projectedPoints))} />
                                     <span className="text-slate-400 font-mono">${p.salary.toLocaleString()}</span>
-                                    <span className="text-purple-400/70 font-mono text-[10px] w-10 text-right">{((p as any).ownershipProjection ?? 0).toFixed(0)}%</span>
+                                    {isPro && <span className="text-purple-400/70 font-mono text-[10px] w-10 text-right">{((p as any).ownershipProjection ?? 0).toFixed(0)}%</span>}
                                     <span className="text-emerald-400 font-mono font-bold">{Number(p.projectedPoints).toFixed(1)}</span>
                                   </>
                                 ) : (

@@ -63,6 +63,7 @@ export default function SavedLineups() {
   });
 
   const tier = subscription?.tier || "free";
+  const isPro = tier === "pro";
   const isPaid = tier === "pro" || tier === "star";
 
   const deleteMutation = useMutation({
@@ -297,8 +298,8 @@ export default function SavedLineups() {
                       <option value="oldest">Oldest First</option>
                       <option value="projection_high">Projection: High → Low</option>
                       <option value="projection_low">Projection: Low → High</option>
-                      <option value="ownership_high">Ownership: High → Low</option>
-                      <option value="ownership_low">Ownership: Low → High</option>
+                      {isPro && <option value="ownership_high">Ownership: High → Low</option>}
+                      {isPro && <option value="ownership_low">Ownership: Low → High</option>}
                       <option value="salary_high">Salary: High → Low</option>
                       <option value="salary_low">Salary: Low → High</option>
                     </select>
@@ -418,6 +419,7 @@ export default function SavedLineups() {
                 swappingSlot={swappingSlot}
                 setSwappingSlot={setSwappingSlot}
                 isPaid={isPaid}
+                isPro={isPro}
                 isUpdating={updateMutation.isPending}
                 isSelected={selectedIds.has(lineup.id)}
                 onToggleSelect={() => toggleSelect(lineup.id)}
@@ -453,6 +455,7 @@ function LineupCard({
   swappingSlot,
   setSwappingSlot,
   isPaid,
+  isPro,
   isUpdating,
   isSelected,
   onToggleSelect,
@@ -466,6 +469,7 @@ function LineupCard({
   swappingSlot: { lineupId: number; slot: string; currentPlayerId: number } | null;
   setSwappingSlot: (s: { lineupId: number; slot: string; currentPlayerId: number } | null) => void;
   isPaid: boolean;
+  isPro: boolean;
   isUpdating: boolean;
   isSelected: boolean;
   onToggleSelect: () => void;
@@ -521,16 +525,18 @@ function LineupCard({
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Proj</p>
               <p className="text-lg font-black text-emerald-400 tabular-nums" data-testid={`lineup-proj-${lineup.id}`}>{Number(lineup.totalProjectedPoints).toFixed(1)}</p>
             </div>
-            <div className="text-right">
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Own%</p>
-              <p className={`text-lg font-black tabular-nums ${
-                (lineup.totalOwnership ?? 0) >= 150 ? "text-red-400" :
-                (lineup.totalOwnership ?? 0) >= 100 ? "text-amber-400" :
-                "text-purple-400"
-              }`} data-testid={`lineup-own-${lineup.id}`}>
-                {(lineup.totalOwnership ?? 0).toFixed(0)}%
-              </p>
-            </div>
+            {isPro && (
+              <div className="text-right">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Own%</p>
+                <p className={`text-lg font-black tabular-nums ${
+                  (lineup.totalOwnership ?? 0) >= 150 ? "text-red-400" :
+                  (lineup.totalOwnership ?? 0) >= 100 ? "text-amber-400" :
+                  "text-purple-400"
+                }`} data-testid={`lineup-own-${lineup.id}`}>
+                  {(lineup.totalOwnership ?? 0).toFixed(0)}%
+                </p>
+              </div>
+            )}
             <div className="text-right">
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Salary</p>
               <p className="text-lg font-black text-white tabular-nums" data-testid={`lineup-salary-${lineup.id}`}>${lineup.totalSalary.toLocaleString()}</p>
