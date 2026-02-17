@@ -454,6 +454,34 @@ export default function PropBets() {
         )}
       </div>
 
+      <div className="bg-slate-800/30 border border-slate-800 rounded-xl p-4 mb-8" data-testid="star-rating-legend">
+        <div className="flex items-center gap-2 mb-3">
+          <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+          <span className="text-sm font-bold text-white">Confidence Rating</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          {[
+            { stars: 5, label: "Elite", range: "85%+", color: "text-yellow-400 fill-yellow-400" },
+            { stars: 4, label: "Strong", range: "78–84%", color: "text-yellow-400 fill-yellow-400" },
+            { stars: 3, label: "Solid", range: "68–77%", color: "text-orange-400 fill-orange-400" },
+            { stars: 2, label: "Moderate", range: "58–67%", color: "text-emerald-400 fill-emerald-400" },
+            { stars: 1, label: "Speculative", range: "<58%", color: "text-emerald-400 fill-emerald-400" },
+          ].map(({ stars, label, range, color }) => (
+            <div key={stars} className="flex items-center gap-2">
+              <div className="flex items-center gap-0.5">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Star key={i} className={`w-3 h-3 ${i < stars ? color : "text-slate-700"}`} />
+                ))}
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[11px] font-bold text-white leading-tight">{label}</span>
+                <span className="text-[10px] text-slate-500 leading-tight">{range}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <DfsAffiliateBanner />
 
       {ACTIVE_SPORTS.map(sport => {
