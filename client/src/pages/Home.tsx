@@ -755,19 +755,8 @@ export default function Home() {
             <div className="flex items-center justify-center gap-3 flex-wrap mb-8">
               <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold text-sm px-3 py-1 backdrop-blur-sm" data-testid="unauth-badge-dk">DraftKings</Badge>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl mx-auto mb-12">
-              <div className="bg-white/5 border border-lime-500/20 rounded-xl p-5 backdrop-blur-sm text-left" data-testid="unauth-category-golf">
-                <div className="flex items-center gap-2.5 mb-2">
-                  <div className="w-8 h-8 rounded-lg bg-lime-500/20 flex items-center justify-center">
-                    <Flag className="w-4 h-4 text-lime-400" />
-                  </div>
-                  <h3 className="text-base font-black text-white">Golf</h3>
-                </div>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Tournament-style lineup builder for weekly PGA events. Pick 6 golfers, get AI-powered course fit analysis, and strokes gained insights.
-                </p>
-              </div>
-              <div className="bg-white/5 border border-amber-500/20 rounded-xl p-5 backdrop-blur-sm text-left" data-testid="unauth-category-props">
+            <div className="flex justify-center mb-12">
+              <div className="bg-white/5 border border-amber-500/20 rounded-xl p-5 backdrop-blur-sm text-left max-w-xs" data-testid="unauth-category-props">
                 <div className="flex items-center gap-2.5 mb-2">
                   <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
                     <TrendingUp className="w-4 h-4 text-amber-400" />
