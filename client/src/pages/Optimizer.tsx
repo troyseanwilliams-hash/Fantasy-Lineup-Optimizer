@@ -386,7 +386,7 @@ export default function Optimizer() {
           </div>
 
           {/* Game Scoreboard Cards / Golf Tournament Cards */}
-          <div className={`px-4 pb-3 pt-3 border-b bg-slate-950/90 ${platform === "fanduel" ? "border-blue-500/20" : "border-emerald-500/20"}`}>
+          <div className={`relative z-10 px-4 pb-3 pt-3 border-b bg-slate-950 ${platform === "fanduel" ? "border-blue-500/20" : "border-emerald-500/20"}`}>
             {isGolf && golfAnalysis ? (
               <>
                 <div className="flex items-center gap-2 mb-3">
