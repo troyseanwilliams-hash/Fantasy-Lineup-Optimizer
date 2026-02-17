@@ -27,17 +27,24 @@ function getTeamLogoUrl(team: string, sport: string): string {
   return `https://a.espncdn.com/i/teamlogos/${sportPath}/500/${abbrev}.png`;
 }
 
+const SPORT_FALLBACK_IMAGE: Record<string, string> = {
+  NBA: "/images/fallback-nba.png",
+  NHL: "/images/fallback-nhl.png",
+  MLB: "/images/fallback-mlb.png",
+  NFL: "/images/fallback-nfl.png",
+};
+
 function TeamLogo({ team, sport, size = 20 }: { team: string; sport: string; size?: number }) {
   const [failed, setFailed] = useState(false);
   if (failed) {
     return (
-      <div
-        className="rounded-full bg-slate-700/60 flex items-center justify-center text-[9px] font-black text-slate-400 shrink-0"
+      <img
+        src={SPORT_FALLBACK_IMAGE[sport] || SPORT_FALLBACK_IMAGE.NBA}
+        alt={team}
+        className="rounded-full bg-slate-800/60 object-contain shrink-0"
         style={{ width: size, height: size }}
         data-testid={`team-logo-fallback-${team.toLowerCase()}`}
-      >
-        {team.slice(0, 3)}
-      </div>
+      />
     );
   }
   return (
