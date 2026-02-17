@@ -630,12 +630,12 @@ function QuickActions({ slateId, tier }: { slateId: number | null; tier: string 
         </>
       )}
       <Link href="/lineups">
-        <Button variant="outline" className="border-slate-700 text-slate-300 hover:text-white font-bold gap-2" data-testid="quick-action-vault">
+        <Button variant="outline" className="border-cyan-500/40 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 hover:text-cyan-200 font-bold gap-2" data-testid="quick-action-vault">
           <Archive className="w-4 h-4" /> Vault
         </Button>
       </Link>
       <Link href="/props">
-        <Button variant="outline" className="border-slate-700 text-slate-300 hover:text-white font-bold gap-2" data-testid="quick-action-props">
+        <Button variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 hover:text-amber-200 font-bold gap-2" data-testid="quick-action-props">
           <TrendingUp className="w-4 h-4" /> Props
         </Button>
       </Link>
