@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
-import { ACTIVE_SPORTS } from "@shared/platform-config";
+import { ACTIVE_SPORTS, SPORT_ORDER } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 
 const SPORT_LOGO_PATH: Record<string, string> = {
@@ -742,7 +742,7 @@ export default function Home() {
               Advanced lineup optimizer for DraftKings. Real player projections, LP-based optimization, and instant lineup building.
             </p>
             <div className="flex items-center justify-center gap-3 flex-wrap mb-6">
-              {ACTIVE_SPORTS.map(sport => {
+              {SPORT_ORDER.map(sport => {
                 const meta = SPORT_META[sport];
                 const Icon = meta?.icon || Zap;
                 return (
