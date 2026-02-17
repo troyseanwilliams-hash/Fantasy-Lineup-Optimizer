@@ -17,7 +17,7 @@ import {
   Lock, Unlock, X, Zap, Save, Search,
   ChevronDown, ChevronUp, ArrowUpDown, Loader2,
   Crown, TrendingUp, TrendingDown, AlertTriangle,
-  ShieldAlert, Activity, SaveAll
+  ShieldAlert, Activity, SaveAll, Star
 } from "lucide-react";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "boostedProj";
@@ -30,6 +30,35 @@ const INJURY_COLORS: Record<string, string> = {
   Probable: "bg-green-500/20 text-green-400 border-green-500/30",
   "Day-to-Day": "bg-blue-500/20 text-blue-400 border-blue-500/30",
 };
+
+function getPlayerStarCount(projectedPoints: number): number {
+  if (projectedPoints >= 45) return 5;
+  if (projectedPoints >= 35) return 4;
+  if (projectedPoints >= 25) return 3;
+  if (projectedPoints >= 15) return 2;
+  return 1;
+}
+
+function PlayerStarRating({ stars }: { stars: number }) {
+  return (
+    <div className="flex items-center gap-px">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Star
+          key={i}
+          className={`w-3 h-3 ${
+            i < stars
+              ? stars >= 4
+                ? "text-yellow-400 fill-yellow-400"
+                : stars >= 3
+                ? "text-orange-400 fill-orange-400"
+                : "text-emerald-400 fill-emerald-400"
+              : "text-slate-700"
+          }`}
+        />
+      ))}
+    </div>
+  );
+}
 
 export default function ProOptimizer() {
   const [, params] = useRoute("/optimizer-pro/:id");
@@ -447,6 +476,7 @@ export default function ProOptimizer() {
                   <SortHeader label="Salary" field="salary" />
                   <SortHeader label="Base Proj" field="projectedPoints" />
                   <SortHeader label="Boosted Proj" field="boostedProj" />
+                  <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400">Rating</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/50">
@@ -524,6 +554,9 @@ export default function ProOptimizer() {
                             </span>
                           )}
                         </div>
+                      </td>
+                      <td className="px-3 py-2" data-testid={`star-rating-${player.id}`}>
+                        <PlayerStarRating stars={getPlayerStarCount(player.boostedProj)} />
                       </td>
                     </tr>
                   );
@@ -634,6 +667,7 @@ export default function ProOptimizer() {
                                 {p ? (
                                   <>
                                     <span className="font-bold text-white flex-1 truncate">{p.name}</span>
+                                    <PlayerStarRating stars={getPlayerStarCount(Number(p.projectedPoints))} />
                                     <span className="text-slate-400 font-mono">${p.salary.toLocaleString()}</span>
                                     <span className="text-emerald-400 font-mono font-bold">{Number(p.projectedPoints).toFixed(1)}</span>
                                   </>
