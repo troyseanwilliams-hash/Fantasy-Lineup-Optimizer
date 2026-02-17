@@ -421,40 +421,52 @@ export default function PropBets() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-12">
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-4xl font-black text-white tracking-tight" data-testid="prop-bets-title">Prop Bets</h1>
-            <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-xs font-black">
-              <Zap className="w-3 h-3 mr-1 fill-current" /> AI PICKS
-            </Badge>
-          </div>
-          <p className="text-slate-400">
-            Daily AI-generated player prop picks organized by sport.
+    <div className="min-h-screen">
+      {/* Hero Background */}
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/40 via-slate-950/80 to-[#0F172A]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-500/8 via-transparent to-transparent" />
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl" />
+        <div className="absolute top-10 right-1/4 w-72 h-72 bg-amber-500/5 rounded-full blur-3xl" />
+
+        <div className="relative container mx-auto px-4 pt-12 pb-10">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <h1 className="text-4xl font-black text-white tracking-tight" data-testid="prop-bets-title">Prop Bets</h1>
+                <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-xs font-black">
+                  <Zap className="w-3 h-3 mr-1 fill-current" /> AI PICKS
+                </Badge>
+              </div>
+              <p className="text-slate-400">
+                Daily AI-generated player prop picks organized by sport.
+                {isGuest ? (
+                  <span className="text-amber-400 font-bold ml-1">
+                    Sign in to unlock picks
+                  </span>
+                ) : !isPro && (
+                  <span className="text-amber-400 font-bold ml-1">
+                    {data?.maxPerSport || 2} picks per sport
+                  </span>
+                )}
+              </p>
+            </div>
             {isGuest ? (
-              <span className="text-amber-400 font-bold ml-1">
-                Sign in to unlock picks
-              </span>
+              <Button onClick={() => window.location.href = '/api/login'} data-testid="signin-props-btn">
+                <Lock className="w-4 h-4 mr-2" /> Sign In to Unlock
+              </Button>
             ) : !isPro && (
-              <span className="text-amber-400 font-bold ml-1">
-                {data?.maxPerSport || 2} picks per sport
-              </span>
+              <Link href="/pricing">
+                <Button data-testid="upgrade-props-btn">
+                  <Crown className="w-4 h-4 mr-2" /> {tier === "star" ? "Upgrade to Pro" : "Unlock More Picks"}
+                </Button>
+              </Link>
             )}
-          </p>
+          </div>
         </div>
-        {isGuest ? (
-          <Button onClick={() => window.location.href = '/api/login'} data-testid="signin-props-btn">
-            <Lock className="w-4 h-4 mr-2" /> Sign In to Unlock
-          </Button>
-        ) : !isPro && (
-          <Link href="/pricing">
-            <Button data-testid="upgrade-props-btn">
-              <Crown className="w-4 h-4 mr-2" /> {tier === "star" ? "Upgrade to Pro" : "Unlock More Picks"}
-            </Button>
-          </Link>
-        )}
       </div>
+
+      <div className="container mx-auto px-4 pb-12 -mt-2">
 
       <div className="bg-slate-800/30 border border-slate-800 rounded-xl p-4 mb-8" data-testid="star-rating-legend">
         <div className="flex items-center gap-2 mb-3">
@@ -556,6 +568,7 @@ export default function PropBets() {
           Must be 21+ and present in states where DFS/sports betting is legal. Please play responsibly.
           If you or someone you know has a gambling problem, call 1-800-GAMBLER.
         </p>
+      </div>
       </div>
     </div>
   );
