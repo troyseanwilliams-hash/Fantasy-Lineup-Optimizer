@@ -75,6 +75,7 @@ export interface ParsedProp {
   pick: string;
   confidence: string;
   gameInfo: string;
+  commenceTime: string;
   americanOdds: number;
 }
 
@@ -115,7 +116,8 @@ export async function getEventPlayerProps(
   sport: string,
   eventId: string,
   homeTeam: string,
-  awayTeam: string
+  awayTeam: string,
+  commenceTime: string = ""
 ): Promise<ParsedProp[]> {
   const sportKey = SPORT_KEY_MAP[sport];
   if (!sportKey) return [];
@@ -183,6 +185,7 @@ export async function getEventPlayerProps(
           pick,
           confidence: confidence.toFixed(1),
           gameInfo: abbrevGameInfo,
+          commenceTime,
           americanOdds: odds,
         });
       });
@@ -272,7 +275,7 @@ export async function fetchAllPropsForSport(sport: string, maxEvents: number = 3
   const allProps: ParsedProp[] = [];
   for (const event of upcomingEvents) {
     try {
-      const props = await getEventPlayerProps(sport, event.id, event.home_team, event.away_team);
+      const props = await getEventPlayerProps(sport, event.id, event.home_team, event.away_team, event.commence_time);
       if (playerTeamMap) {
         for (const prop of props) {
           const knownTeam = playerTeamMap.get(prop.playerName.toLowerCase());

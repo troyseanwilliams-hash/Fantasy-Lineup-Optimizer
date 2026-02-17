@@ -964,6 +964,12 @@ export async function generateDailyProps(date: string) {
         if (apiProps.length > 0) {
           sportsFetched.push(sport);
           for (const p of apiProps) {
+            let gameInfoWithTime = p.gameInfo;
+            if (p.commenceTime) {
+              const d = new Date(p.commenceTime);
+              const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" }) + " ET";
+              gameInfoWithTime = `${p.gameInfo} · ${timeStr}`;
+            }
             allProps.push({
               sport: p.sport,
               playerName: p.playerName,
@@ -973,7 +979,7 @@ export async function generateDailyProps(date: string) {
               line: p.line,
               pick: p.pick,
               confidence: p.confidence,
-              gameInfo: p.gameInfo,
+              gameInfo: gameInfoWithTime,
               isLocked: false,
               createdDate: date,
             });
