@@ -42,4 +42,8 @@ export const AFFILIATE_PROMOS: Record<string, { dk: string; fd: string }> = {
     dk: "Dominate the gridiron on DraftKings NFL",
     fd: "Win big with FanDuel NFL contests",
   },
+  GOLF: {
+    dk: "Tee off with DraftKings PGA Golf contests",
+    fd: "Drive your lineup on FanDuel Golf",
+  },
 };

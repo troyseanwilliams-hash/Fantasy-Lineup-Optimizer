@@ -9,6 +9,7 @@ const SPORT_MAP: Record<string, string> = {
   NHL: "NHL",
   MLB: "MLB",
   NFL: "NFL",
+  GOLF: "GOLF",
 };
 
 const CLASSIC_GAME_TYPES: Record<string, number[]> = {
@@ -16,6 +17,7 @@ const CLASSIC_GAME_TYPES: Record<string, number[]> = {
   NHL: [125, 70],
   MLB: [70, 177],
   NFL: [70, 158],
+  GOLF: [70, 177],
 };
 
 interface DKDraftGroup {
@@ -222,7 +224,7 @@ export async function fetchLiveDKData(sport: string): Promise<LiveSlateData | nu
 export async function fetchAllSportsLiveData(): Promise<Map<string, LiveSlateData>> {
   const results = new Map<string, LiveSlateData>();
 
-  for (const sport of ["NBA", "NHL", "MLB", "NFL"]) {
+  for (const sport of ["NBA", "NHL", "MLB", "NFL", "GOLF"]) {
     try {
       const data = await fetchLiveDKData(sport);
       if (data && data.dkPlayers.length >= 10) {
@@ -251,6 +253,7 @@ export function getRollingSlateDate(sport: string): Date {
     case "NHL": return generateRollingDate(3);
     case "MLB": return generateRollingDate(3);
     case "NFL": return generateRollingDate(4);
+    case "GOLF": return generateRollingDate(2);
     default: return generateRollingDate(3);
   }
 }

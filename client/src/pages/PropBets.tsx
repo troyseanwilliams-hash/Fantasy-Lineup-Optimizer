@@ -5,13 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link, useSearch } from "wouter";
-import { Lock, Crown, Zap, ArrowUpRight, ArrowDownRight, ExternalLink, Trophy, Activity, Target, Dribbble, Clock, Star, Flame } from "lucide-react";
+import { Lock, Crown, Zap, ArrowUpRight, ArrowDownRight, ExternalLink, Trophy, Activity, Target, Dribbble, Clock, Star, Flame, Flag } from "lucide-react";
 import { useState } from "react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import { AFFILIATE_LINKS, AFFILIATE_PROMOS } from "@shared/affiliate-config";
 
 const SPORT_LOGO_PATH: Record<string, string> = {
-  NBA: "nba", NHL: "nhl", MLB: "mlb", NFL: "nfl",
+  NBA: "nba", NHL: "nhl", MLB: "mlb", NFL: "nfl", GOLF: "golf",
 };
 
 const TEAM_ABBREV_MAP: Record<string, string> = {
@@ -32,6 +32,7 @@ const SPORT_FALLBACK_IMAGE: Record<string, string> = {
   NHL: "/images/fallback-nhl.png",
   MLB: "/images/fallback-mlb.png",
   NFL: "/images/fallback-nfl.png",
+  GOLF: "/images/sport-golf.png",
 };
 
 function TeamLogo({ team, sport, size = 20 }: { team: string; sport: string; size?: number }) {
@@ -369,6 +370,7 @@ const SPORT_ICON_COMPONENTS: Record<string, typeof Trophy> = {
   NHL: Activity,
   MLB: Target,
   NFL: Trophy,
+  GOLF: Flag,
 };
 
 export default function PropBets() {

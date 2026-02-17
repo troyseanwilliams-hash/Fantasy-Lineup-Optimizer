@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy } from "lucide-react";
+import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 
@@ -31,6 +31,7 @@ const SPORT_META: Record<string, { icon: typeof Dribbble; color: string; bgColor
   NBA: { icon: Dribbble, color: "text-orange-400", bgColor: "bg-orange-500/20" },
   NHL: { icon: Activity, color: "text-cyan-400", bgColor: "bg-cyan-500/20" },
   MLB: { icon: Target, color: "text-red-400", bgColor: "bg-red-500/20" },
+  GOLF: { icon: Flag, color: "text-lime-400", bgColor: "bg-lime-500/20" },
 };
 
 export function Header() {
