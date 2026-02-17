@@ -371,9 +371,15 @@ export default function Optimizer() {
                   data-testid={`game-card-${i}`}
                 >
                   <div className="flex flex-col items-center px-4 py-2.5 gap-1">
-                    <span className="text-sm font-black text-white drop-shadow-sm">{game.away}</span>
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-sm font-black text-white drop-shadow-sm">{game.away}</span>
+                      <span className="text-sm font-bold text-slate-400">0</span>
+                    </div>
                     <span className={`text-[10px] font-black ${platform === "fanduel" ? "text-blue-300/60" : "text-emerald-300/60"}`}>VS</span>
-                    <span className="text-sm font-black text-white drop-shadow-sm">{game.home}</span>
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-sm font-black text-white drop-shadow-sm">{game.home}</span>
+                      <span className="text-sm font-bold text-slate-400">0</span>
+                    </div>
                   </div>
                   <div className={`text-[11px] font-black py-1.5 text-center ${
                     platform === "fanduel"
