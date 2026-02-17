@@ -14,6 +14,43 @@ import { Link } from "wouter";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 
+const SPORT_LOGO_PATH: Record<string, string> = {
+  NBA: "nba", NHL: "nhl", MLB: "mlb", NFL: "nfl",
+};
+const TEAM_ABBREV_MAP: Record<string, string> = {
+  PHX: "phx", WSH: "wsh", WAS: "wsh", BKN: "bkn", NYK: "ny", NYM: "nym",
+  NYY: "nyy", NYJ: "nyj", NYR: "nyr", NYI: "nyi", LAL: "lal", LAC: "lac",
+  NOP: "no", SAS: "sa", GS: "gs", SA: "sa", NO: "no", TB: "tb", SF: "sf",
+  GB: "gb", NE: "ne", KC: "kc", LV: "lv", JAX: "jax", IND: "ind",
+};
+function getTeamLogoUrl(team: string, sport: string): string {
+  const sportPath = SPORT_LOGO_PATH[sport] || "nba";
+  const abbrev = TEAM_ABBREV_MAP[team] || team.toLowerCase();
+  return `https://a.espncdn.com/i/teamlogos/${sportPath}/500/${abbrev}.png`;
+}
+function TeamLogo({ team, sport, size = 20 }: { team: string; sport: string; size?: number }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <div
+        className="rounded-full bg-slate-700/60 flex items-center justify-center text-[9px] font-black text-slate-400 shrink-0"
+        style={{ width: size, height: size }}
+      >
+        {team.slice(0, 3)}
+      </div>
+    );
+  }
+  return (
+    <img
+      src={getTeamLogoUrl(team, sport)}
+      alt={team}
+      className="rounded-full bg-slate-800/50 object-contain shrink-0"
+      style={{ width: size, height: size }}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 const heroBg = "/images/hero-bg.png";
 const sportNba = "/images/sport-nba.png";
 const sportNhl = "/images/sport-nhl.png";
@@ -425,7 +462,12 @@ function DailyPicksCompact() {
                 </div>
                 <p className="text-sm font-bold text-white truncate">{prop.playerName}</p>
                 <div className="flex items-center justify-between mt-0.5">
-                  <p className="text-[11px] text-slate-500 font-bold">{prop.team} vs {prop.opponent}</p>
+                  <div className="flex items-center gap-1.5">
+                    <TeamLogo team={prop.team} sport={prop.sport} size={16} />
+                    <span className="text-[11px] text-slate-500 font-bold">vs</span>
+                    <TeamLogo team={prop.opponent} sport={prop.sport} size={16} />
+                    <span className="text-[11px] text-slate-500 font-bold">{prop.opponent}</span>
+                  </div>
                   {prop.gameInfo && (() => {
                     const tm = prop.gameInfo.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)(?:\s*ET)?)/i);
                     return tm ? (
