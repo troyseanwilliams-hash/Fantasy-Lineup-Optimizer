@@ -349,35 +349,38 @@ export default function Optimizer() {
           </div>
 
           {/* Game Scoreboard Cards */}
-          <div className="px-4 pb-3">
-            <div className="flex items-center gap-2 mb-2">
+          <div className={`px-4 pb-3 pt-1 border-b ${platform === "fanduel" ? "border-blue-500/20" : "border-emerald-500/20"}`}>
+            <div className="flex items-center gap-2 mb-3">
               <Activity className={`w-4 h-4 ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`} />
-              <span className={`text-xs font-black uppercase tracking-widest ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>
-                Slate Games ({games.length})
+              <span className="text-xs font-black text-white uppercase tracking-widest">
+                Slate Games
               </span>
+              <Badge className={`text-[10px] font-black ${platform === "fanduel" ? "bg-blue-500/20 text-blue-300 border-blue-500/30" : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"}`}>
+                {games.length}
+              </Badge>
             </div>
-            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+            <div className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-2">
               {games.map((game, i) => (
                 <div
                   key={i}
-                  className={`flex-shrink-0 rounded-lg px-3 py-2.5 min-w-[110px] transition-colors cursor-default ${
+                  className={`flex-shrink-0 rounded-xl px-4 py-3 min-w-[120px] ${
                     platform === "fanduel"
-                      ? "bg-blue-500/10 border border-blue-500/20 hover:border-blue-400/40"
-                      : "bg-emerald-500/10 border border-emerald-500/20 hover:border-emerald-400/40"
+                      ? "bg-blue-500/15 border-2 border-blue-400/30"
+                      : "bg-emerald-500/15 border-2 border-emerald-400/30"
                   }`}
                   data-testid={`game-card-${i}`}
                 >
-                  <div className="flex items-center justify-between gap-3 mb-1">
-                    <span className="text-sm font-black text-white">{game.away}</span>
+                  <div className="mb-1">
+                    <span className="text-sm font-black text-white drop-shadow-sm">{game.away}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="text-[10px] font-bold text-slate-400">@</span>
-                    <span className="text-sm font-black text-white">{game.home}</span>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <span className={`text-[10px] font-black ${platform === "fanduel" ? "text-blue-300" : "text-emerald-300"}`}>@</span>
+                    <span className="text-sm font-black text-white drop-shadow-sm">{game.home}</span>
                   </div>
-                  <div className={`text-[11px] font-bold mt-1 pt-1 border-t text-center ${
+                  <div className={`text-xs font-black pt-1.5 border-t text-center ${
                     platform === "fanduel"
-                      ? "border-blue-500/20 text-blue-300"
-                      : "border-emerald-500/20 text-emerald-300"
+                      ? "border-blue-400/30 text-blue-200"
+                      : "border-emerald-400/30 text-emerald-200"
                   }`}>
                     {game.time}
                   </div>
