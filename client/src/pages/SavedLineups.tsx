@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp } from "lucide-react";
+import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,6 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { getPlatformConfig, assignPlayersToSlots, getSlotDisplayName, positionFitsSlot } from "@shared/platform-config";
 import type { Player } from "@shared/schema";
+
+type VaultSortKey = "newest" | "oldest" | "projection_high" | "projection_low" | "ownership_high" | "ownership_low" | "salary_high" | "salary_low";
 
 interface LineupWithPlayers {
   id: number;
@@ -33,10 +35,28 @@ export default function SavedLineups() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [swappingSlot, setSwappingSlot] = useState<{ lineupId: number; slot: string; currentPlayerId: number } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [vaultSort, setVaultSort] = useState<VaultSortKey>("newest");
 
   const { data: lineups, isLoading } = useQuery<any[]>({
     queryKey: ["/api/lineups"],
   });
+
+  const sortedLineups = useMemo(() => {
+    if (!lineups) return [];
+    return [...lineups].sort((a, b) => {
+      switch (vaultSort) {
+        case "newest": return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        case "oldest": return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        case "projection_high": return Number(b.totalProjectedPoints) - Number(a.totalProjectedPoints);
+        case "projection_low": return Number(a.totalProjectedPoints) - Number(b.totalProjectedPoints);
+        case "ownership_high": return (b.totalOwnership ?? 0) - (a.totalOwnership ?? 0);
+        case "ownership_low": return (a.totalOwnership ?? 0) - (b.totalOwnership ?? 0);
+        case "salary_high": return b.totalSalary - a.totalSalary;
+        case "salary_low": return a.totalSalary - b.totalSalary;
+        default: return 0;
+      }
+    });
+  }, [lineups, vaultSort]);
 
   const { data: subscription } = useQuery<any>({
     queryKey: ["/api/subscription"],
@@ -265,6 +285,24 @@ export default function SavedLineups() {
             <div className="flex items-center gap-3 flex-wrap">
               {lineups && lineups.length > 0 && (
                 <>
+                  <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50" data-testid="vault-sort-controls">
+                    <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                    <select
+                      value={vaultSort}
+                      onChange={e => setVaultSort(e.target.value as VaultSortKey)}
+                      className="bg-transparent border-none text-xs font-bold text-slate-300 outline-none cursor-pointer pr-1"
+                      data-testid="vault-sort-select"
+                    >
+                      <option value="newest">Newest First</option>
+                      <option value="oldest">Oldest First</option>
+                      <option value="projection_high">Projection: High → Low</option>
+                      <option value="projection_low">Projection: Low → High</option>
+                      <option value="ownership_high">Ownership: High → Low</option>
+                      <option value="ownership_low">Ownership: Low → High</option>
+                      <option value="salary_high">Salary: High → Low</option>
+                      <option value="salary_low">Salary: Low → High</option>
+                    </select>
+                  </div>
                   <Button
                     variant="outline"
                     size="sm"
@@ -366,9 +404,9 @@ export default function SavedLineups() {
           </div>
         </a>
 
-        {lineups?.length ? (
+        {sortedLineups.length > 0 ? (
           <div className="flex flex-col gap-5">
-            {lineups.map((lineup: any) => (
+            {sortedLineups.map((lineup: any) => (
               <LineupCard
                 key={lineup.id}
                 lineup={lineup}
@@ -482,6 +520,16 @@ function LineupCard({
             <div className="text-right">
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Proj</p>
               <p className="text-lg font-black text-emerald-400 tabular-nums" data-testid={`lineup-proj-${lineup.id}`}>{Number(lineup.totalProjectedPoints).toFixed(1)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Own%</p>
+              <p className={`text-lg font-black tabular-nums ${
+                (lineup.totalOwnership ?? 0) >= 150 ? "text-red-400" :
+                (lineup.totalOwnership ?? 0) >= 100 ? "text-amber-400" :
+                "text-purple-400"
+              }`} data-testid={`lineup-own-${lineup.id}`}>
+                {(lineup.totalOwnership ?? 0).toFixed(0)}%
+              </p>
             </div>
             <div className="text-right">
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Salary</p>
