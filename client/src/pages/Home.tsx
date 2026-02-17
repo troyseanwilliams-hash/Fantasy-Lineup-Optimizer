@@ -741,15 +741,43 @@ export default function Home() {
             <p className="text-xl text-slate-300 mb-6 max-w-2xl mx-auto leading-relaxed">
               Advanced lineup optimizer for DraftKings. Real player projections, LP-based optimization, and instant lineup building.
             </p>
-            <div className="flex items-center justify-center gap-3 mb-6">
-              {ACTIVE_SPORTS.map(sport => (
-                <Badge key={sport} className="bg-white/10 text-white border-white/20 font-bold text-sm px-3 py-1 backdrop-blur-sm">
-                  {sport}
-                </Badge>
-              ))}
+            <div className="flex items-center justify-center gap-3 flex-wrap mb-6">
+              {ACTIVE_SPORTS.map(sport => {
+                const meta = SPORT_META[sport];
+                const Icon = meta?.icon || Zap;
+                return (
+                  <Badge key={sport} className="bg-white/10 text-white border-white/20 font-bold text-sm px-3 py-1 backdrop-blur-sm gap-1.5" data-testid={`unauth-sport-${sport.toLowerCase()}`}>
+                    <Icon className="w-3.5 h-3.5" /> {sport}
+                  </Badge>
+                );
+              })}
             </div>
-            <div className="flex items-center justify-center gap-3 mb-12">
-              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold text-sm px-3 py-1 backdrop-blur-sm">DraftKings</Badge>
+            <div className="flex items-center justify-center gap-3 flex-wrap mb-8">
+              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold text-sm px-3 py-1 backdrop-blur-sm" data-testid="unauth-badge-dk">DraftKings</Badge>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl mx-auto mb-12">
+              <div className="bg-white/5 border border-lime-500/20 rounded-xl p-5 backdrop-blur-sm text-left" data-testid="unauth-category-golf">
+                <div className="flex items-center gap-2.5 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-lime-500/20 flex items-center justify-center">
+                    <Flag className="w-4 h-4 text-lime-400" />
+                  </div>
+                  <h3 className="text-base font-black text-white">Golf</h3>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Tournament-style lineup builder for weekly PGA events. Pick 6 golfers, get AI-powered course fit analysis, and strokes gained insights.
+                </p>
+              </div>
+              <div className="bg-white/5 border border-amber-500/20 rounded-xl p-5 backdrop-blur-sm text-left" data-testid="unauth-category-props">
+                <div className="flex items-center gap-2.5 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                    <TrendingUp className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <h3 className="text-base font-black text-white">Prop Picks</h3>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Daily AI-generated prop bet picks across all sports with confidence ratings and line analysis for DraftKings Sportsbook.
+                </p>
+              </div>
             </div>
             <Button
               onClick={() => (window.location.href = "/api/login")}
