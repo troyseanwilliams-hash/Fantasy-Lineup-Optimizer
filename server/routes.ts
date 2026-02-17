@@ -799,8 +799,15 @@ export async function registerRoutes(
     }
 
     if (!isAuthenticated) {
-      const lockedCount = sorted.length;
-      return res.json({ props: [], tier: "guest", totalCount: sorted.length, lockedCount, maxPerSport: 0 });
+      const freeProps: typeof sorted = [];
+      for (const sportKey of Object.keys(propsBySport)) {
+        const sportProps = propsBySport[sportKey];
+        if (sportProps.length > 0) {
+          freeProps.push(sportProps[0]);
+        }
+      }
+      const lockedCount = sorted.length - freeProps.length;
+      return res.json({ props: freeProps, tier: "guest", totalCount: sorted.length, lockedCount, maxPerSport: 1 });
     }
 
     if (tier === "pro") {
