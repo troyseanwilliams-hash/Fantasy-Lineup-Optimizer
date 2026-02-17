@@ -6,8 +6,51 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link, useSearch } from "wouter";
 import { Lock, Crown, Zap, ArrowUpRight, ArrowDownRight, ExternalLink, Trophy, Activity, Target, Dribbble, Clock } from "lucide-react";
+import { useState } from "react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import { AFFILIATE_LINKS, AFFILIATE_PROMOS } from "@shared/affiliate-config";
+
+const SPORT_LOGO_PATH: Record<string, string> = {
+  NBA: "nba", NHL: "nhl", MLB: "mlb", NFL: "nfl",
+};
+
+const TEAM_ABBREV_MAP: Record<string, string> = {
+  PHX: "phx", WSH: "wsh", WAS: "wsh", BKN: "bkn", NYK: "ny", NYM: "nym",
+  NYY: "nyy", NYJ: "nyj", NYR: "nyr", NYI: "nyi", LAL: "lal", LAC: "lac",
+  NOP: "no", SAS: "sa", GS: "gs", SA: "sa", NO: "no", TB: "tb", SF: "sf",
+  GB: "gb", NE: "ne", KC: "kc", LV: "lv", JAX: "jax", IND: "ind",
+};
+
+function getTeamLogoUrl(team: string, sport: string): string {
+  const sportPath = SPORT_LOGO_PATH[sport] || "nba";
+  const abbrev = TEAM_ABBREV_MAP[team] || team.toLowerCase();
+  return `https://a.espncdn.com/i/teamlogos/${sportPath}/500/${abbrev}.png`;
+}
+
+function TeamLogo({ team, sport, size = 20 }: { team: string; sport: string; size?: number }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <div
+        className="rounded-full bg-slate-700/60 flex items-center justify-center text-[9px] font-black text-slate-400 shrink-0"
+        style={{ width: size, height: size }}
+        data-testid={`team-logo-fallback-${team.toLowerCase()}`}
+      >
+        {team.slice(0, 3)}
+      </div>
+    );
+  }
+  return (
+    <img
+      src={getTeamLogoUrl(team, sport)}
+      alt={team}
+      className="rounded-full bg-slate-800/50 object-contain shrink-0"
+      style={{ width: size, height: size }}
+      onError={() => setFailed(true)}
+      data-testid={`team-logo-${team.toLowerCase()}`}
+    />
+  );
+}
 
 interface PropBet {
   id: number;
@@ -145,20 +188,27 @@ function PropCard({ prop, index }: { prop: PropBet; index: number }) {
       data-testid={`prop-card-${index}`}
     >
       <div className="flex items-start justify-between mb-3">
-        <div>
-          <span className="text-[11px] font-bold text-slate-400">{prop.team} vs {prop.opponent}</span>
-          {prop.gameInfo && (() => {
-            const timeMatch = prop.gameInfo.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)(?:\s*ET)?)/i);
-            const gameTime = timeMatch ? timeMatch[1] : null;
-            return gameTime ? (
-              <div className="flex items-center gap-1 mt-1" data-testid={`prop-gametime-${index}`}>
-                <Clock className="w-3 h-3 text-emerald-400/70" />
-                <span className="text-[11px] font-bold text-emerald-400/90">{gameTime}</span>
-              </div>
-            ) : (
-              <p className="text-[11px] text-slate-500 mt-1">{prop.gameInfo}</p>
-            );
-          })()}
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-1" data-testid={`prop-teams-${index}`}>
+            <TeamLogo team={prop.team} sport={prop.sport} size={24} />
+            <span className="text-[10px] font-black text-slate-500 mx-0.5">vs</span>
+            <TeamLogo team={prop.opponent} sport={prop.sport} size={24} />
+          </div>
+          <div>
+            <span className="text-[11px] font-bold text-slate-400">{prop.team} vs {prop.opponent}</span>
+            {prop.gameInfo && (() => {
+              const timeMatch = prop.gameInfo.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)(?:\s*ET)?)/i);
+              const gameTime = timeMatch ? timeMatch[1] : null;
+              return gameTime ? (
+                <div className="flex items-center gap-1 mt-0.5" data-testid={`prop-gametime-${index}`}>
+                  <Clock className="w-3 h-3 text-emerald-400/70" />
+                  <span className="text-[11px] font-bold text-emerald-400/90">{gameTime}</span>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-500 mt-0.5">{prop.gameInfo}</p>
+              );
+            })()}
+          </div>
         </div>
         <div className={`px-2 py-0.5 rounded text-[11px] font-black ${
           Number(prop.confidence) >= 75
