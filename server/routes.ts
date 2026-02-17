@@ -17,6 +17,7 @@ import {
   GOLF_SLATE_DK, GOLF_PLAYERS_DK,
 } from "@shared/seed_data";
 import { fetchAllSportsLiveData, getRollingSlateDate } from "./balldontlie";
+import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -888,19 +889,88 @@ function seededRandom(seed: number): () => number {
 export async function generateDailyProps(date: string) {
   await storage.clearPropsByDate(date);
   
+  const allProps: InsertProp[] = [];
+  const apiKey = process.env.ODDS_API_KEY;
+
+  if (apiKey) {
+    console.log("[Props] Fetching real prop data from The Odds API...");
+    const sportsFetched: string[] = [];
+
+    const allPlayers = await storage.getAllPlayers();
+    const playerTeamMap = new Map<string, string>();
+    for (const p of allPlayers) {
+      playerTeamMap.set(p.name.toLowerCase(), p.team);
+    }
+
+    for (const sport of ACTIVE_SPORTS) {
+      if (sport === "GOLF") continue;
+      try {
+        const apiProps = await fetchAllPropsForSport(sport, 3, playerTeamMap);
+        if (apiProps.length > 0) {
+          sportsFetched.push(sport);
+          for (const p of apiProps) {
+            allProps.push({
+              sport: p.sport,
+              playerName: p.playerName,
+              team: p.team,
+              opponent: p.opponent,
+              propType: p.propType,
+              line: p.line,
+              pick: p.pick,
+              confidence: p.confidence,
+              gameInfo: p.gameInfo,
+              isLocked: false,
+              createdDate: date,
+            });
+          }
+          console.log(`[Props] Got ${apiProps.length} real props for ${sport}`);
+        } else {
+          console.log(`[Props] No API props for ${sport}, will use fallback`);
+        }
+      } catch (err) {
+        console.error(`[Props] Error fetching ${sport} from Odds API:`, err);
+      }
+    }
+
+    const sportsWithoutData = ACTIVE_SPORTS.filter(s => !sportsFetched.includes(s));
+    if (sportsWithoutData.length > 0) {
+      console.log(`[Props] Generating synthetic props for: ${sportsWithoutData.join(", ")}`);
+      const syntheticProps = await generateSyntheticProps(date, sportsWithoutData);
+      allProps.push(...syntheticProps);
+    }
+  } else {
+    console.log("[Props] No ODDS_API_KEY found, generating synthetic props for all sports");
+    const syntheticProps = await generateSyntheticProps(date, [...ACTIVE_SPORTS]);
+    allProps.push(...syntheticProps);
+  }
+
+  allProps.sort((a, b) => Number(b.confidence) - Number(a.confidence));
+
+  const FREE_PICKS = 3;
+  for (let i = 0; i < allProps.length; i++) {
+    allProps[i].isLocked = i >= FREE_PICKS;
+  }
+
+  if (allProps.length > 0) {
+    await storage.bulkCreateProps(allProps);
+    console.log(`[Props] Saved ${allProps.length} props for ${date}`);
+  }
+}
+
+async function generateSyntheticProps(date: string, sports: readonly string[]): Promise<InsertProp[]> {
   const slates = await storage.getSlates();
   const mainSlates = slates.filter(s => s.isMain);
   const allProps: InsertProp[] = [];
   const dateSeed = date.split("-").join("").slice(0, 8);
-  
-  for (const sport of ACTIVE_SPORTS) {
+
+  for (const sport of sports) {
     const sportSlates = mainSlates.filter(s => s.sport === sport);
     if (sportSlates.length === 0) continue;
-    
+
     const slate = sportSlates[0];
     const players = await storage.getPlayersBySlate(slate.id);
     if (players.length === 0) continue;
-    
+
     const propTypes = PROP_TYPES_BY_SPORT[sport] || [];
     const sortedPlayers = [...players].sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
     const topPlayers = sortedPlayers.slice(0, Math.min(15, sortedPlayers.length));
@@ -923,7 +993,6 @@ export async function generateDailyProps(date: string) {
 
       allProps.push({
         sport,
-        playerId: player.id,
         playerName: player.name,
         team: player.team,
         opponent: player.opponent || "",
@@ -938,16 +1007,7 @@ export async function generateDailyProps(date: string) {
     }
   }
 
-  allProps.sort((a, b) => Number(b.confidence) - Number(a.confidence));
-
-  const FREE_PICKS = 3;
-  for (let i = 0; i < allProps.length; i++) {
-    allProps[i].isLocked = i >= FREE_PICKS;
-  }
-
-  if (allProps.length > 0) {
-    await storage.bulkCreateProps(allProps);
-  }
+  return allProps;
 }
 
 function buildPositionVariables(position: string, sport: string): Record<string, number> {
