@@ -656,7 +656,7 @@ export async function registerRoutes(
       tier = sub?.tier || "free";
     }
 
-    const maxPerSport = !isAuthenticated ? 0 : tier === "pro" ? 15 : tier === "star" ? 8 : 2;
+    const maxPerSport = !isAuthenticated ? 0 : tier === "pro" ? 15 : tier === "star" ? 5 : 2;
 
     const propsBySport: Record<string, typeof sorted> = {};
     for (const prop of sorted) {
