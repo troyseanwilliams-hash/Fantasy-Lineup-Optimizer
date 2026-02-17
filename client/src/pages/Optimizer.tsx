@@ -490,22 +490,22 @@ export default function Optimizer() {
                   {games.map((game, i) => (
                     <div
                       key={i}
-                      className={`flex-shrink-0 rounded-xl min-w-[100px] overflow-hidden ${
+                      className={`flex-shrink-0 rounded-xl min-w-[110px] overflow-hidden shadow-lg ${
                         platform === "fanduel"
-                          ? "bg-blue-500/15 border-2 border-blue-400/30"
-                          : "bg-emerald-500/15 border-2 border-emerald-400/30"
+                          ? "bg-gradient-to-b from-blue-600/25 to-blue-900/40 border border-blue-400/30 shadow-blue-500/10"
+                          : "bg-gradient-to-b from-emerald-600/25 to-emerald-900/40 border border-emerald-400/30 shadow-emerald-500/10"
                       }`}
                       data-testid={`game-card-${i}`}
                     >
                       <div className="flex flex-col items-center px-4 py-2.5 gap-1">
                         <span className="text-sm font-black text-white drop-shadow-sm">{game.away}</span>
-                        <span className={`text-[10px] font-black ${platform === "fanduel" ? "text-blue-300/60" : "text-emerald-300/60"}`}>VS</span>
+                        <span className={`text-[10px] font-black ${platform === "fanduel" ? "text-blue-300" : "text-emerald-300"}`}>VS</span>
                         <span className="text-sm font-black text-white drop-shadow-sm">{game.home}</span>
                       </div>
                       <div className={`text-[11px] font-black py-1.5 text-center ${
                         platform === "fanduel"
-                          ? "bg-blue-500/20 text-blue-200"
-                          : "bg-emerald-500/20 text-emerald-200"
+                          ? "bg-blue-500/30 text-blue-100 border-t border-blue-400/20"
+                          : "bg-emerald-500/30 text-emerald-100 border-t border-emerald-400/20"
                       }`}>
                         {game.time}
                       </div>
