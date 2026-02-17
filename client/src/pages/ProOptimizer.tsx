@@ -628,13 +628,18 @@ export default function ProOptimizer() {
                         <div className="space-y-1">
                           {config.slots.map(slot => {
                             const p = slots[slot];
-                            if (!p) return null;
                             return (
                               <div key={slot} className="flex items-center gap-2 text-[11px]" data-testid={`lineup-slot-${idx}-${slot}`}>
                                 <span className="font-black text-amber-400/70 w-8 text-right">{getSlotDisplayName(slot)}</span>
-                                <span className="font-bold text-white flex-1 truncate">{p.name}</span>
-                                <span className="text-slate-400 font-mono">${p.salary.toLocaleString()}</span>
-                                <span className="text-emerald-400 font-mono font-bold">{Number(p.projectedPoints).toFixed(1)}</span>
+                                {p ? (
+                                  <>
+                                    <span className="font-bold text-white flex-1 truncate">{p.name}</span>
+                                    <span className="text-slate-400 font-mono">${p.salary.toLocaleString()}</span>
+                                    <span className="text-emerald-400 font-mono font-bold">{Number(p.projectedPoints).toFixed(1)}</span>
+                                  </>
+                                ) : (
+                                  <span className="text-slate-500 italic flex-1">—</span>
+                                )}
                               </div>
                             );
                           })}

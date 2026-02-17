@@ -889,6 +889,11 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
     .map(k => Number(k.substring(1)));
 
   const selectedPlayers = pool.filter(p => selectedPlayerIds.includes(p.id));
+
+  if (selectedPlayers.length !== config.rosterSize) {
+    return { error: `Roster size mismatch: got ${selectedPlayers.length}, need ${config.rosterSize}`, lineup: [], totalSalary: 0, totalProjectedPoints: 0 };
+  }
+
   const totalSalary = selectedPlayers.reduce((sum, p) => sum + p.salary, 0);
   const totalPoints = selectedPlayers.reduce((sum, p) => sum + Number(p.projectedPoints), 0);
 
