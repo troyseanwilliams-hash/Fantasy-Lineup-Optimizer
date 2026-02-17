@@ -28,6 +28,7 @@ Preferred communication style: Simple, everyday language.
 - **Saved Lineups** (`/lineups`): "Vault" with expandable lineup cards, full roster table with slot assignments, inline player swap (position/salary-constrained), and CSV export (Pro only)
 - **Pricing** (`/pricing`): Subscription tiers (Free vs Pro) with feature comparison
 - **Prop Bets** (`/props`): AI-generated daily prop picks organized per sport, with DraftKings/FanDuel affiliate marketing links (DFS + Sportsbook)
+- **SGP Builder** (`/parlays`): Same Game Parlay Builder — premium feature (Star/Pro only) to combine multiple player props from the same game into a parlay with combined odds, potential payout calculator, wager presets, and AI confidence insights. Free/unauth users see an explainer with upgrade prompts. Star: up to 4 legs. Pro: up to 8 legs with AI insights.
 - **News** (`/news/:sport`): Live sport-specific player news from ESPN's public API, with sport tabs to switch between NBA/NHL/MLB
 - **Admin** (`/admin`): Slate creation, player bulk upload (JSON), and database seeding
 
