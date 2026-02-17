@@ -755,7 +755,7 @@ export default function Home() {
             <div className="flex items-center justify-center gap-3 flex-wrap mb-8">
               <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold text-sm px-3 py-1 backdrop-blur-sm" data-testid="unauth-badge-dk">DraftKings</Badge>
             </div>
-            <div className="flex justify-center mb-12">
+            <div className="flex items-stretch justify-center gap-4 flex-wrap mb-12">
               <div className="bg-white/5 border border-amber-500/20 rounded-xl p-5 backdrop-blur-sm text-left max-w-xs" data-testid="unauth-category-props">
                 <div className="flex items-center gap-2.5 mb-2">
                   <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
@@ -767,6 +767,23 @@ export default function Home() {
                   Daily AI-generated prop bet picks across all sports with confidence ratings and line analysis for DraftKings Sportsbook.
                 </p>
               </div>
+              <Link href="/parlays">
+                <div className="bg-white/5 border border-purple-500/20 rounded-xl p-5 backdrop-blur-sm text-left max-w-xs cursor-pointer hover:bg-white/10 hover:border-purple-500/40 transition-all group" data-testid="unauth-category-parlays">
+                  <div className="flex items-center gap-2.5 mb-2">
+                    <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                      <Swords className="w-4 h-4 text-purple-400" />
+                    </div>
+                    <h3 className="text-base font-black text-white">Parlay Builder</h3>
+                    <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-[10px] px-1.5 py-0">PRO</Badge>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Combine player props across any sport into cross-sport parlays with AI insights, combined odds, and DraftKings bet links.
+                  </p>
+                  <div className="flex items-center gap-1 mt-3 text-purple-400 text-xs font-bold group-hover:gap-2 transition-all">
+                    Try Parlay Builder <ArrowRight className="w-3 h-3" />
+                  </div>
+                </div>
+              </Link>
             </div>
             <Button
               onClick={() => (window.location.href = "/api/login")}
