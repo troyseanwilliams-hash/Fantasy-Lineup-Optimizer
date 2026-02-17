@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag } from "lucide-react";
+import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 
@@ -207,6 +207,15 @@ export function Header() {
               }`} data-testid="nav-props">
                 <TrendingUp className="w-4 h-4" />
                 <span>Props</span>
+              </div>
+            </Link>
+            <Link href="/parlays">
+              <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
+                location === "/parlays" ? "text-purple-400" : "text-slate-400 hover:text-white"
+              }`} data-testid="nav-parlays">
+                <Layers className="w-4 h-4" />
+                <span>SGP</span>
+                {!isPaid && <Lock className="w-3 h-3 text-purple-400/60 ml-0.5" />}
               </div>
             </Link>
             <Link href="/lineups">
