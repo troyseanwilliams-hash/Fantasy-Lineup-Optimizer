@@ -24,10 +24,10 @@ export default function Pricing() {
   const starFirstMonth = billing === "monthly" ? "$9.99" : null;
   const starSavings = billing === "annual" ? "Save $39.88/yr" : null;
 
-  const proPrice = billing === "monthly" ? "$29.99" : "$300";
+  const proPrice = billing === "monthly" ? "$49.99" : "$499";
   const proPeriod = billing === "monthly" ? "/month" : "/year";
-  const proFirstMonth = billing === "monthly" ? "$19.99" : null;
-  const proSavings = billing === "annual" ? "Save $59.88/yr" : null;
+  const proFirstMonth = billing === "monthly" ? "$29.99" : null;
+  const proSavings = billing === "annual" ? "Save $100.88/yr" : null;
 
   return (
     <div className="container mx-auto px-4 py-16 max-w-6xl">
@@ -115,6 +115,10 @@ export default function Pricing() {
               <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
               <span>No AI boost analysis</span>
             </li>
+            <li className="flex items-center gap-3 text-sm text-slate-400">
+              <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
+              <span>No ownership projections</span>
+            </li>
           </ul>
           <Button variant="outline" className="w-full h-12 border-slate-700 text-slate-400 font-bold" disabled>
             {currentTier === "free" ? "Current Plan" : "Included"}
@@ -181,6 +185,10 @@ export default function Pricing() {
             <li className="flex items-center gap-3 text-sm text-slate-400">
               <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
               <span>No AI boost analysis</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-400">
+              <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
+              <span>No ownership projections</span>
             </li>
           </ul>
           {currentTier === "star" ? (
@@ -265,6 +273,10 @@ export default function Pricing() {
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
               <span className="font-bold text-amber-300">AI boost analysis & injury tracking</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <span className="font-bold text-amber-300">Ownership projections & player fading</span>
             </li>
           </ul>
           {currentTier === "pro" ? (
