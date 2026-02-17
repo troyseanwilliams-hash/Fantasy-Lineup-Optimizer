@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link, useSearch } from "wouter";
-import { Lock, Crown, Zap, ArrowUpRight, ArrowDownRight, ExternalLink, Trophy, Activity, Target, Dribbble, Clock, Star, Flame, Flag } from "lucide-react";
+import { Lock, Crown, Zap, ArrowUpRight, ArrowDownRight, ExternalLink, Trophy, Activity, Target, Dribbble, Clock, Star, Flame, Flag, TrendingUp, Shield, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import { AFFILIATE_LINKS, AFFILIATE_PROMOS } from "@shared/affiliate-config";
@@ -404,7 +404,7 @@ export default function PropBets() {
   }
 
   const lockedPerSport = isGuest
-    ? 3
+    ? 2
     : data && !isPro && data.lockedCount
       ? Math.max(1, Math.floor(data.lockedCount / ACTIVE_SPORTS.length))
       : 0;
@@ -467,6 +467,56 @@ export default function PropBets() {
       </div>
 
       <div className="container mx-auto px-4 pb-12 -mt-2">
+
+      {isGuest && (
+        <div className="mb-10" data-testid="props-membership-explainer">
+          <div className="bg-gradient-to-br from-amber-500/5 via-slate-900/80 to-slate-900 border border-amber-500/20 rounded-2xl p-8 mb-8">
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 mb-3">
+                <Sparkles className="w-7 h-7 text-amber-400" />
+              </div>
+              <h2 className="text-2xl font-black text-white tracking-tight mb-2">AI-Powered Prop Picks</h2>
+              <p className="text-slate-400 max-w-xl mx-auto">
+                Our algorithm analyzes player stats, matchups, and trends to deliver high-confidence prop bet picks daily across every active sport. Here's a free preview — sign in to unlock more.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mx-auto">
+              <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 text-center space-y-2">
+                <Target className="w-5 h-5 text-emerald-400 mx-auto" />
+                <div className="text-sm font-bold text-white">Confidence Ratings</div>
+                <div className="text-xs text-slate-400">Each pick rated with a 5-star confidence score</div>
+              </div>
+              <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 text-center space-y-2">
+                <TrendingUp className="w-5 h-5 text-amber-400 mx-auto" />
+                <div className="text-sm font-bold text-white">Daily Updates</div>
+                <div className="text-xs text-slate-400">Fresh picks generated every day for active sports</div>
+              </div>
+              <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 text-center space-y-2">
+                <Shield className="w-5 h-5 text-cyan-400 mx-auto" />
+                <div className="text-sm font-bold text-white">Multi-Sport</div>
+                <div className="text-xs text-slate-400">NBA, NHL, GOLF and more covered daily</div>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-4 mt-6">
+              <Badge className="bg-slate-800/80 border-slate-700 text-slate-300 text-xs font-bold px-3 py-1">
+                Free: 1 pick/sport
+              </Badge>
+              <Badge className="bg-emerald-500/10 border-emerald-500/20 text-emerald-400 text-xs font-bold px-3 py-1">
+                Star: 5 picks/sport
+              </Badge>
+              <Badge className="bg-amber-500/10 border-amber-500/20 text-amber-400 text-xs font-bold px-3 py-1">
+                Pro: 15 picks/sport
+              </Badge>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 mb-6">
+            <Zap className="w-5 h-5 text-amber-400 fill-amber-400" />
+            <h3 className="text-lg font-black text-white">Today's Free Picks</h3>
+            <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px] font-black">1 PER SPORT</Badge>
+          </div>
+        </div>
+      )}
 
       <div className="bg-slate-800/30 border border-slate-800 rounded-xl p-4 mb-8" data-testid="star-rating-legend">
         <div className="flex items-center gap-2 mb-3">
