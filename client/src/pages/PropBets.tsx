@@ -277,8 +277,8 @@ function PropCard({ prop, index }: { prop: PropBet; index: number }) {
           <div>
             <span className="text-[11px] font-bold text-slate-400">{prop.team} vs {prop.opponent}</span>
             {prop.gameInfo && (() => {
-              const timeMatch = prop.gameInfo.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)(?:\s*ET)?)/i);
-              const gameTime = timeMatch ? timeMatch[1] : null;
+              const timeMatch = prop.gameInfo.match(/·\s*(.+)$/);
+              const gameTime = timeMatch ? timeMatch[1].trim() : null;
               return gameTime ? (
                 <div className="flex items-center gap-1 mt-0.5" data-testid={`prop-gametime-${index}`}>
                   <Clock className="w-3 h-3 text-emerald-400/70" />
