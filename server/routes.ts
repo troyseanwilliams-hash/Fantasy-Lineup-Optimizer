@@ -1055,12 +1055,14 @@ async function generateSyntheticProps(date: string, sports: readonly string[]): 
 
       let enrichedGameInfo = player.gameInfo || "";
       if (enrichedGameInfo && !enrichedGameInfo.includes("·")) {
+        const slateDate = new Date(slate.startTime);
+        const dateStr = slateDate.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
         const timeMatch = enrichedGameInfo.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)\s*ET)/i);
         if (timeMatch) {
           const teams = enrichedGameInfo.replace(timeMatch[0], "").trim();
-          const slateDate = new Date(slate.startTime);
-          const dateStr = slateDate.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
           enrichedGameInfo = `${teams} · ${dateStr}, ${timeMatch[1]}`;
+        } else {
+          enrichedGameInfo = `${enrichedGameInfo} · ${dateStr}`;
         }
       }
 
