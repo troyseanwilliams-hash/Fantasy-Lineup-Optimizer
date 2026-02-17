@@ -19,6 +19,46 @@ import {
 import { fetchAllSportsLiveData, getRollingSlateDate } from "./balldontlie";
 import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
 
+function computeOwnershipProjections(players: Player[]): (Player & { ownershipProjection: number })[] {
+  if (players.length === 0) return [];
+  const maxSalary = Math.max(...players.map(p => p.salary));
+  const maxProj = Math.max(...players.map(p => Number(p.projectedPoints)));
+  const sorted = [...players].sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
+  const rankMap = new Map<number, number>();
+  sorted.forEach((p, i) => rankMap.set(p.id, i));
+
+  const posCounts: Record<string, number> = {};
+  players.forEach(p => {
+    const primary = p.position.split("/")[0];
+    posCounts[primary] = (posCounts[primary] || 0) + 1;
+  });
+  const avgPosCount = Object.values(posCounts).reduce((a, b) => a + b, 0) / Math.max(1, Object.keys(posCounts).length);
+
+  const rawScores = players.map(p => {
+    const rank = rankMap.get(p.id) || 0;
+    const salaryPct = p.salary / (maxSalary || 1);
+    const projPct = Number(p.projectedPoints) / (maxProj || 1);
+    const rankPct = 1 - (rank / players.length);
+    const primaryPos = p.position.split("/")[0];
+    const posScarcity = avgPosCount / Math.max(1, posCounts[primaryPos] || avgPosCount);
+    const scarcityBonus = Math.min(1.3, Math.max(0.8, posScarcity));
+
+    const raw = (projPct * 0.45 + salaryPct * 0.30 + rankPct * 0.25) * scarcityBonus;
+    const seeded = Math.sin(p.id * 9301 + 49297) * 0.5 + 0.5;
+    const jitter = (seeded - 0.5) * 0.08;
+    return { player: p, score: Math.max(0.01, raw + jitter) };
+  });
+
+  const totalRaw = rawScores.reduce((s, r) => s + r.score, 0);
+  const targetTotal = Math.min(800, Math.max(200, players.length * 1.5));
+
+  return rawScores.map(({ player, score }) => {
+    const normalized = (score / totalRaw) * targetTotal;
+    const ownership = Math.max(0.5, Math.min(50, normalized));
+    return { ...player, ownershipProjection: Math.round(ownership * 10) / 10 };
+  });
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -51,7 +91,8 @@ export async function registerRoutes(
     if (!players) {
        return res.status(404).json({ message: "Slate not found" });
     }
-    res.json(players);
+    const playersWithOwnership = computeOwnershipProjections(players);
+    res.json(playersWithOwnership);
   });
   
   app.post(api.players.bulkCreate.path, async (req, res) => {
@@ -126,7 +167,21 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const userId = (req.user as any).claims.sub;
     const lineups = await storage.getLineups(userId);
-    res.json(lineups);
+
+    const slateCache = new Map<number, ReturnType<typeof computeOwnershipProjections>>();
+    const enriched = await Promise.all(lineups.map(async (lineup: any) => {
+      if (!slateCache.has(lineup.slateId)) {
+        const slatePlayers = await storage.getPlayersBySlate(lineup.slateId);
+        slateCache.set(lineup.slateId, computeOwnershipProjections(slatePlayers));
+      }
+      const allWithOwn = slateCache.get(lineup.slateId)!;
+      const rosterOwn = allWithOwn
+        .filter(p => lineup.playerIds.includes(p.id))
+        .reduce((sum, p) => sum + p.ownershipProjection, 0);
+      return { ...lineup, totalOwnership: Math.round(rosterOwn * 10) / 10 };
+    }));
+
+    res.json(enriched);
   });
 
   app.post(api.lineups.create.path, async (req, res) => {
