@@ -493,6 +493,89 @@ export default function ProOptimizer() {
             </div>
           </div>
 
+          {/* Golf Tournament Cards */}
+          {isGolf && golfTournamentCards && (
+            <div className="px-4 pb-3 pt-3 border-b border-lime-500/20">
+              <div className="flex items-center gap-2 mb-3">
+                <Trophy className="w-4 h-4 text-lime-400" />
+                <span className="text-xs font-black text-white uppercase tracking-widest">Tournament Center</span>
+                <Badge className="text-[10px] font-black bg-lime-500/20 text-lime-300 border-lime-500/30">LIVE</Badge>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pb-2">
+                <div className="rounded-xl overflow-hidden bg-gradient-to-br from-lime-500/10 via-emerald-500/10 to-slate-900 border border-lime-500/25" data-testid="pro-tournament-info-card">
+                  <div className="px-4 py-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Flag className="w-4 h-4 text-lime-400" />
+                      <span className="text-sm font-black text-white">{golfTournamentCards.tournamentName}</span>
+                    </div>
+                    {golfTournamentCards.courseName && (
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <MapPin className="w-3 h-3 text-slate-400" />
+                        <span className="text-xs text-slate-300 font-medium">{golfTournamentCards.courseName}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-3 mt-2">
+                      <div className="flex items-center gap-1">
+                        <Users className="w-3 h-3 text-slate-400" />
+                        <span className="text-[11px] font-bold text-slate-300">{golfTournamentCards.fieldSize} Golfers</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[11px] font-bold text-slate-300">Avg ${golfTournamentCards.avgSalary.toLocaleString()}</span>
+                      </div>
+                    </div>
+                    {slate && (
+                      <div className="mt-2 text-[10px] font-bold text-lime-400/70 uppercase tracking-wider">
+                        {new Date(slate.startTime).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="rounded-xl overflow-hidden bg-gradient-to-br from-amber-500/10 via-slate-900 to-slate-900 border border-amber-500/20" data-testid="pro-favorites-card">
+                  <div className="px-4 py-3">
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <Flame className="w-4 h-4 text-amber-400" />
+                      <span className="text-xs font-black text-white uppercase tracking-widest">Top Favorites</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {golfTournamentCards.favorites.map((p: any, i: number) => (
+                        <div key={p.id} className="flex items-center justify-between group" data-testid={`pro-favorite-${i}`}>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[10px] font-black w-4 text-center ${i === 0 ? "text-amber-400" : i === 1 ? "text-slate-300" : "text-slate-500"}`}>{i + 1}</span>
+                            <span className="text-xs font-bold text-white group-hover:text-lime-400 transition-colors">{p.name}</span>
+                            <span className="text-[10px] text-slate-500 font-medium">{p.team}</span>
+                          </div>
+                          <span className="text-[11px] font-black text-amber-400 font-mono">{p.odds}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-xl overflow-hidden bg-gradient-to-br from-cyan-500/10 via-slate-900 to-slate-900 border border-cyan-500/20" data-testid="pro-value-picks-card">
+                  <div className="px-4 py-3">
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <Award className="w-4 h-4 text-cyan-400" />
+                      <span className="text-xs font-black text-white uppercase tracking-widest">Value Picks</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {golfTournamentCards.valuePicks.map((p: any, i: number) => (
+                        <div key={p.id} className="flex items-center justify-between group" data-testid={`pro-value-pick-${i}`}>
+                          <div className="flex items-center gap-2">
+                            <Star className={`w-3 h-3 ${i === 0 ? "text-cyan-400 fill-cyan-400" : "text-cyan-400/40"}`} />
+                            <span className="text-xs font-bold text-white group-hover:text-cyan-400 transition-colors">{p.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-slate-400 font-mono">${p.salary.toLocaleString()}</span>
+                            <span className="text-[11px] font-black text-cyan-400 font-mono">{p.value.toFixed(1)}x</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Player Table */}
           <div className="flex-1 overflow-auto">
             <table className="w-full text-left border-collapse min-w-[800px]">
