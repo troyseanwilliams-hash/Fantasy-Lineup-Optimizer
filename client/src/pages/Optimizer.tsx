@@ -386,40 +386,40 @@ export default function Optimizer() {
           </div>
 
           {/* Game Scoreboard Cards / Golf Tournament Cards */}
-          <div className={`px-4 pb-3 pt-1 border-b ${platform === "fanduel" ? "border-blue-500/20" : "border-emerald-500/20"}`}>
+          <div className={`px-4 pb-3 pt-3 border-b bg-slate-950/90 ${platform === "fanduel" ? "border-blue-500/20" : "border-emerald-500/20"}`}>
             {isGolf && golfAnalysis ? (
               <>
                 <div className="flex items-center gap-2 mb-3">
                   <Trophy className="w-4 h-4 text-lime-400" />
-                  <span className="text-xs font-black text-white uppercase tracking-widest">Tournament Center</span>
+                  <span className="text-sm font-black text-white uppercase tracking-widest drop-shadow-lg">Tournament Center</span>
                   <Badge className="text-[10px] font-black bg-lime-500/20 text-lime-300 border-lime-500/30">LIVE</Badge>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pb-2">
                   {/* Tournament Info Card */}
-                  <div className="rounded-xl overflow-hidden bg-gradient-to-br from-lime-500/10 via-emerald-500/10 to-slate-900 border border-lime-500/25" data-testid="tournament-info-card">
+                  <div className="rounded-xl overflow-hidden bg-gradient-to-br from-lime-500/15 via-emerald-500/10 to-slate-900 border border-lime-500/30 shadow-lg shadow-lime-500/5" data-testid="tournament-info-card">
                     <div className="px-4 py-3">
                       <div className="flex items-center gap-2 mb-2">
                         <Flag className="w-4 h-4 text-lime-400" />
-                        <span className="text-sm font-black text-white">{golfAnalysis.tournamentName}</span>
+                        <span className="text-sm font-black text-white drop-shadow-sm">{golfAnalysis.tournamentName}</span>
                       </div>
                       {golfAnalysis.courseName && (
                         <div className="flex items-center gap-1.5 mb-2">
-                          <MapPin className="w-3 h-3 text-slate-400" />
-                          <span className="text-xs text-slate-300 font-medium">{golfAnalysis.courseName}</span>
+                          <MapPin className="w-3 h-3 text-lime-300/60" />
+                          <span className="text-xs text-slate-200 font-bold">{golfAnalysis.courseName}</span>
                         </div>
                       )}
                       <div className="flex items-center gap-3 mt-2">
                         <div className="flex items-center gap-1">
-                          <Users className="w-3 h-3 text-slate-400" />
-                          <span className="text-[11px] font-bold text-slate-300">{golfAnalysis.fieldSize} Golfers</span>
+                          <Users className="w-3 h-3 text-lime-300/60" />
+                          <span className="text-[11px] font-bold text-slate-200">{golfAnalysis.fieldSize} Golfers</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <DollarSign className="w-3 h-3 text-slate-400" />
-                          <span className="text-[11px] font-bold text-slate-300">Avg ${golfAnalysis.avgSalary.toLocaleString()}</span>
+                          <DollarSign className="w-3 h-3 text-lime-300/60" />
+                          <span className="text-[11px] font-bold text-slate-200">Avg ${golfAnalysis.avgSalary.toLocaleString()}</span>
                         </div>
                       </div>
                       {slate && (
-                        <div className="mt-2 text-[10px] font-bold text-lime-400/70 uppercase tracking-wider">
+                        <div className="mt-2 text-[10px] font-bold text-lime-400 uppercase tracking-wider">
                           {new Date(slate.startTime).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
                         </div>
                       )}
@@ -427,21 +427,21 @@ export default function Optimizer() {
                   </div>
 
                   {/* Top Favorites Card */}
-                  <div className="rounded-xl overflow-hidden bg-gradient-to-br from-amber-500/10 via-slate-900 to-slate-900 border border-amber-500/20" data-testid="favorites-card">
+                  <div className="rounded-xl overflow-hidden bg-gradient-to-br from-amber-500/15 via-slate-900 to-slate-900 border border-amber-500/25 shadow-lg shadow-amber-500/5" data-testid="favorites-card">
                     <div className="px-4 py-3">
                       <div className="flex items-center gap-2 mb-2.5">
                         <Flame className="w-4 h-4 text-amber-400" />
-                        <span className="text-xs font-black text-white uppercase tracking-widest">Top Favorites</span>
+                        <span className="text-xs font-black text-white uppercase tracking-widest drop-shadow-sm">Top Favorites</span>
                       </div>
                       <div className="space-y-1.5">
                         {golfAnalysis.favorites.map((p, i) => (
                           <div key={p.id} className="flex items-center justify-between group" data-testid={`favorite-${i}`}>
                             <div className="flex items-center gap-2">
-                              <span className={`text-[10px] font-black w-4 text-center ${i === 0 ? "text-amber-400" : i === 1 ? "text-slate-300" : "text-slate-500"}`}>
+                              <span className={`text-[10px] font-black w-4 text-center ${i === 0 ? "text-amber-400" : i === 1 ? "text-slate-200" : "text-slate-400"}`}>
                                 {i + 1}
                               </span>
                               <span className="text-xs font-bold text-white group-hover:text-lime-400 transition-colors">{p.name}</span>
-                              <span className="text-[10px] text-slate-500 font-medium">{p.team}</span>
+                              <span className="text-[10px] text-slate-400 font-bold">{p.team}</span>
                             </div>
                             <div className="flex items-center gap-2">
                               <span className="text-[11px] font-black text-amber-400 font-mono">{p.odds}</span>
@@ -453,11 +453,11 @@ export default function Optimizer() {
                   </div>
 
                   {/* Top Value Picks Card */}
-                  <div className="rounded-xl overflow-hidden bg-gradient-to-br from-cyan-500/10 via-slate-900 to-slate-900 border border-cyan-500/20" data-testid="value-picks-card">
+                  <div className="rounded-xl overflow-hidden bg-gradient-to-br from-cyan-500/15 via-slate-900 to-slate-900 border border-cyan-500/25 shadow-lg shadow-cyan-500/5" data-testid="value-picks-card">
                     <div className="px-4 py-3">
                       <div className="flex items-center gap-2 mb-2.5">
                         <Award className="w-4 h-4 text-cyan-400" />
-                        <span className="text-xs font-black text-white uppercase tracking-widest">Value Picks</span>
+                        <span className="text-xs font-black text-white uppercase tracking-widest drop-shadow-sm">Value Picks</span>
                       </div>
                       <div className="space-y-1.5">
                         {golfAnalysis.valuePicks.map((p, i) => (
@@ -467,7 +467,7 @@ export default function Optimizer() {
                               <span className="text-xs font-bold text-white group-hover:text-cyan-400 transition-colors">{p.name}</span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="text-[10px] text-slate-400 font-mono">${p.salary.toLocaleString()}</span>
+                              <span className="text-[10px] text-slate-300 font-mono">${p.salary.toLocaleString()}</span>
                               <span className="text-[11px] font-black text-cyan-400 font-mono">{p.value.toFixed(1)}x</span>
                             </div>
                           </div>
