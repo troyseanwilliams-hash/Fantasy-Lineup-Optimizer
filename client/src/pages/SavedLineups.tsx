@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink } from "lucide-react";
+import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -199,108 +199,169 @@ export default function SavedLineups() {
     );
   }
 
+  const totalLineups = lineups?.length || 0;
+  const totalProjectedPts = lineups?.reduce((sum: number, l: any) => sum + Number(l.totalProjectedPoints || 0), 0) || 0;
+  const totalSalaryUsed = lineups?.reduce((sum: number, l: any) => sum + (l.totalSalary || 0), 0) || 0;
+  const sportBreakdown: Record<string, number> = {};
+  lineups?.forEach((l: any) => { sportBreakdown[l.sport] = (sportBreakdown[l.sport] || 0) + 1; });
+
   return (
-    <div className="container mx-auto px-4 py-12">
-      <div className="flex items-center justify-between mb-12">
-        <div>
-          <h1 className="text-4xl font-bold text-white mb-2 tracking-tight" data-testid="vault-title">Lineup Vault</h1>
-          <p className="text-slate-400">Your optimized winning combinations. Click to expand, swap players, and export.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          {lineups && lineups.length > 0 && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleSelectAll}
-                className="border-slate-700 text-slate-300"
-                data-testid="select-all-btn"
-              >
-                {selectedIds.size === lineups.length ? (
-                  <><CheckSquare className="w-4 h-4 mr-2" /> Deselect All</>
-                ) : (
-                  <><Square className="w-4 h-4 mr-2" /> Select All</>
-                )}
-              </Button>
-              {selectedIds.size > 0 && (
+    <div className="min-h-screen">
+      <div className="relative overflow-hidden border-b border-slate-800/50">
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-950/40 via-slate-950 to-slate-900" />
+        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/3" />
+
+        <div className="relative container mx-auto px-4 py-10">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                <Shield className="w-7 h-7 text-emerald-400" />
+              </div>
+              <div>
+                <h1 className="text-4xl font-black text-white tracking-tight" data-testid="vault-title">Lineup Vault</h1>
+                <p className="text-slate-400 text-sm mt-1">Your optimized winning combinations. Expand, swap, and export.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              {lineups && lineups.length > 0 && (
                 <>
                   <Button
-                    variant="destructive"
-                    onClick={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}
-                    disabled={bulkDeleteMutation.isPending}
-                    data-testid="bulk-delete-btn"
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleSelectAll}
+                    className="border-slate-700 text-slate-300"
+                    data-testid="select-all-btn"
                   >
-                    <Trash2 className="w-4 h-4 mr-2" /> Delete {selectedIds.size} Lineup{selectedIds.size > 1 ? "s" : ""}
+                    {selectedIds.size === lineups.length ? (
+                      <><CheckSquare className="w-4 h-4 mr-2" /> Deselect All</>
+                    ) : (
+                      <><Square className="w-4 h-4 mr-2" /> Select All</>
+                    )}
                   </Button>
-                  {isPaid && (
-                    <Button
-                      onClick={handleBulkExport}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                      data-testid="bulk-export-btn"
-                    >
-                      <Download className="w-4 h-4 mr-2" /> Export {selectedIds.size} Lineup{selectedIds.size > 1 ? "s" : ""}
-                    </Button>
+                  {selectedIds.size > 0 && (
+                    <>
+                      <Button
+                        variant="destructive"
+                        onClick={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}
+                        disabled={bulkDeleteMutation.isPending}
+                        data-testid="bulk-delete-btn"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" /> Delete {selectedIds.size}
+                      </Button>
+                      {isPaid && (
+                        <Button
+                          onClick={handleBulkExport}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                          data-testid="bulk-export-btn"
+                        >
+                          <Download className="w-4 h-4 mr-2" /> Export {selectedIds.size}
+                        </Button>
+                      )}
+                    </>
                   )}
                 </>
               )}
-            </>
+              <Link href="/">
+                <Button className="btn-primary" data-testid="build-new-lineup">
+                  <Zap className="w-4 h-4 mr-2" /> Build New Lineup
+                </Button>
+              </Link>
+            </div>
+          </div>
+
+          {totalLineups > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-slate-800/40 border border-slate-700/30 rounded-xl px-4 py-3" data-testid="stat-total-lineups">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Saved Lineups</p>
+                <p className="text-2xl font-black text-white">{totalLineups}</p>
+              </div>
+              <div className="bg-slate-800/40 border border-slate-700/30 rounded-xl px-4 py-3" data-testid="stat-total-proj">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Proj Points</p>
+                <p className="text-2xl font-black text-emerald-400">{totalProjectedPts.toFixed(1)}</p>
+              </div>
+              <div className="bg-slate-800/40 border border-slate-700/30 rounded-xl px-4 py-3" data-testid="stat-avg-proj">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Avg Proj / Lineup</p>
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-emerald-400" />
+                  <p className="text-2xl font-black text-white">{totalLineups > 0 ? (totalProjectedPts / totalLineups).toFixed(1) : "0"}</p>
+                </div>
+              </div>
+              <div className="bg-slate-800/40 border border-slate-700/30 rounded-xl px-4 py-3" data-testid="stat-sports">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Sports</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {Object.entries(sportBreakdown).map(([sport, count]) => (
+                    <Badge key={sport} variant="outline" className="border-emerald-500/20 text-emerald-400 text-[11px] font-black">
+                      {sport} ({count})
+                    </Badge>
+                  ))}
+                  {Object.keys(sportBreakdown).length === 0 && <p className="text-2xl font-black text-slate-600">--</p>}
+                </div>
+              </div>
+            </div>
           )}
-          <Link href="/">
-            <Button className="btn-primary" data-testid="build-new-lineup">Build New Lineup</Button>
-          </Link>
         </div>
       </div>
 
-      <a
-        href={AFFILIATE_LINKS.draftkings.dfs.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block mb-8"
-        data-testid="vault-dk-dfs-banner"
-      >
-        <div className="bg-gradient-to-r from-emerald-900/30 to-slate-900/50 border border-emerald-700/20 rounded-xl p-5 transition-all hover-elevate">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                <span className="text-emerald-400 font-black text-sm">DK</span>
+      <div className="container mx-auto px-4 py-8">
+        <a
+          href={AFFILIATE_LINKS.draftkings.dfs.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block mb-8"
+          data-testid="vault-dk-dfs-banner"
+        >
+          <div className="bg-gradient-to-r from-emerald-900/30 to-slate-900/50 border border-emerald-700/20 rounded-xl p-5 transition-all hover-elevate">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                  <span className="text-emerald-400 font-black text-sm">DK</span>
+                </div>
+                <div>
+                  <p className="text-sm font-black text-white">{AFFILIATE_LINKS.draftkings.dfs.label}</p>
+                  <p className="text-xs text-slate-400">{AFFILIATE_LINKS.draftkings.dfs.description}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-black text-white">{AFFILIATE_LINKS.draftkings.dfs.label}</p>
-                <p className="text-xs text-slate-400">{AFFILIATE_LINKS.draftkings.dfs.description}</p>
-              </div>
+              <ExternalLink className="w-4 h-4 text-emerald-500/50" />
             </div>
-            <ExternalLink className="w-4 h-4 text-emerald-500/50" />
           </div>
-        </div>
-      </a>
+        </a>
 
-      {lineups?.length ? (
-        <div className="flex flex-col gap-6">
-          {lineups.map((lineup: any) => (
-            <LineupCard
-              key={lineup.id}
-              lineup={lineup}
-              isExpanded={expandedId === lineup.id}
-              onToggleExpand={() => setExpandedId(expandedId === lineup.id ? null : lineup.id)}
-              onDelete={() => deleteMutation.mutate(lineup.id)}
-              onExport={handleExportCSV}
-              onSwapPlayer={handleSwapPlayer}
-              swappingSlot={swappingSlot}
-              setSwappingSlot={setSwappingSlot}
-              isPaid={isPaid}
-              isUpdating={updateMutation.isPending}
-              isSelected={selectedIds.has(lineup.id)}
-              onToggleSelect={() => toggleSelect(lineup.id)}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="py-24 text-center bg-slate-800/20 rounded-3xl border-2 border-dashed border-slate-800/50">
-          <Zap className="w-16 h-16 text-slate-700 mx-auto mb-6" />
-          <h5 className="text-xl font-bold text-slate-300 mb-2" data-testid="no-lineups-message">No Saved Lineups</h5>
-          <p className="text-slate-400 max-w-sm mx-auto">Once you optimize a lineup, save it to your vault to track performance and export to DFS sites.</p>
-        </div>
-      )}
+        {lineups?.length ? (
+          <div className="flex flex-col gap-5">
+            {lineups.map((lineup: any) => (
+              <LineupCard
+                key={lineup.id}
+                lineup={lineup}
+                isExpanded={expandedId === lineup.id}
+                onToggleExpand={() => setExpandedId(expandedId === lineup.id ? null : lineup.id)}
+                onDelete={() => deleteMutation.mutate(lineup.id)}
+                onExport={handleExportCSV}
+                onSwapPlayer={handleSwapPlayer}
+                swappingSlot={swappingSlot}
+                setSwappingSlot={setSwappingSlot}
+                isPaid={isPaid}
+                isUpdating={updateMutation.isPending}
+                isSelected={selectedIds.has(lineup.id)}
+                onToggleSelect={() => toggleSelect(lineup.id)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="py-24 text-center bg-slate-800/10 rounded-3xl border-2 border-dashed border-slate-700/30">
+            <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-6">
+              <Shield className="w-10 h-10 text-emerald-500/40" />
+            </div>
+            <h5 className="text-xl font-black text-white mb-2" data-testid="no-lineups-message">No Saved Lineups Yet</h5>
+            <p className="text-slate-400 max-w-sm mx-auto mb-6">Optimize a lineup and save it here to track, edit, and export to DraftKings.</p>
+            <Link href="/">
+              <Button className="btn-primary" data-testid="build-first-lineup">
+                <Zap className="w-4 h-4 mr-2" /> Build Your First Lineup
+              </Button>
+            </Link>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -341,9 +402,9 @@ function LineupCard({
   const platformLabel = isFD ? "FD" : "DK";
 
   return (
-    <Card className={`bg-slate-800/30 border-slate-800 transition-all ${isSelected ? "ring-2 ring-emerald-500/50" : ""}`} data-testid={`lineup-card-${lineup.id}`}>
+    <Card className={`bg-slate-800/20 border-slate-700/40 transition-all hover:border-slate-600/50 ${isSelected ? "ring-2 ring-emerald-500/50 border-emerald-500/30" : ""}`} data-testid={`lineup-card-${lineup.id}`}>
       <div
-        className="flex justify-between items-center p-6 cursor-pointer select-none"
+        className="flex justify-between items-center p-5 cursor-pointer select-none"
         onClick={onToggleExpand}
         data-testid={`lineup-header-${lineup.id}`}
       >
@@ -359,30 +420,37 @@ function LineupCard({
               <Square className="w-5 h-5 text-slate-600 hover:text-slate-400" />
             )}
           </button>
-          <div className="flex items-center gap-2">
-            <Badge className={`${isFD ? "bg-blue-500/10 text-blue-400" : "bg-emerald-500/10 text-emerald-400"} border-0 text-[11px] font-black uppercase`}>
-              {lineup.sport} {platformLabel}
-            </Badge>
-            <span className="text-slate-400 text-xs font-medium">
-              {new Date(lineup.createdAt).toLocaleDateString()}
-            </span>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isFD ? "bg-blue-500/10 border border-blue-500/20" : "bg-emerald-500/10 border border-emerald-500/20"}`}>
+            <Trophy className={`w-5 h-5 ${isFD ? "text-blue-400" : "text-emerald-400"}`} />
           </div>
-          <h3 className="text-xl font-bold text-white">{lineup.name || "Optimized Lineup"}</h3>
+          <div>
+            <div className="flex items-center gap-2 mb-0.5">
+              <h3 className="text-base font-black text-white">{lineup.name || "Optimized Lineup"}</h3>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge className={`${isFD ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"} text-[10px] font-black uppercase`}>
+                {lineup.sport} {platformLabel}
+              </Badge>
+              <span className="text-slate-500 text-[11px] font-medium">
+                {new Date(lineup.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+              </span>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-6">
+        <div className="flex items-center gap-5">
+          <div className="hidden sm:flex items-center gap-4">
             <div className="text-right">
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Proj</p>
-              <p className="text-lg font-bold text-emerald-400" data-testid={`lineup-proj-${lineup.id}`}>{Number(lineup.totalProjectedPoints).toFixed(1)}</p>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Proj</p>
+              <p className="text-lg font-black text-emerald-400 tabular-nums" data-testid={`lineup-proj-${lineup.id}`}>{Number(lineup.totalProjectedPoints).toFixed(1)}</p>
             </div>
             <div className="text-right">
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Salary</p>
-              <p className="text-lg font-bold text-white" data-testid={`lineup-salary-${lineup.id}`}>${lineup.totalSalary.toLocaleString()}</p>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Salary</p>
+              <p className="text-lg font-black text-white tabular-nums" data-testid={`lineup-salary-${lineup.id}`}>${lineup.totalSalary.toLocaleString()}</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
             <Button
               variant="ghost"
               size="icon"
@@ -390,20 +458,20 @@ function LineupCard({
                 if (lineupDetail) onExport(lineupDetail);
               }}
               disabled={!isExpanded || !lineupDetail}
-              className={isPaid ? "text-emerald-400" : "text-slate-500 opacity-50"}
+              className={`h-8 w-8 ${isPaid ? "text-emerald-400 hover:bg-emerald-500/10" : "text-slate-500 opacity-50"}`}
               title={isPaid ? "Export CSV" : "Upgrade to export"}
               data-testid={`export-btn-${lineup.id}`}
             >
-              {isPaid ? <Download className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
+              {isPaid ? <Download className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
             </Button>
             <Button
               variant="ghost"
               size="icon"
               onClick={onDelete}
-              className="text-red-400"
+              className="text-red-400 hover:bg-red-500/10 h-8 w-8"
               data-testid={`delete-btn-${lineup.id}`}
             >
-              <Trash2 className="w-5 h-5" />
+              <Trash2 className="w-4 h-4" />
             </Button>
           </div>
 
@@ -412,7 +480,7 @@ function LineupCard({
       </div>
 
       {isExpanded && (
-        <div className="border-t border-slate-800 p-6">
+        <div className="border-t border-slate-700/40 p-5 bg-slate-900/30">
           {detailLoading ? (
             <div className="space-y-3">
               {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-10 bg-slate-800" />)}
