@@ -609,8 +609,28 @@ export default function ProOptimizer() {
                   <SortHeader label="Salary" field="salary" />
                   <SortHeader label="Base Proj" field="projectedPoints" />
                   <SortHeader label="Boosted Proj" field="boostedProj" />
-                  {isPro && <SortHeader label="Own%" field="ownershipProjection" />}
-                  {isPro && <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400 text-center">Fade</th>}
+                  {isPro ? (
+                    <SortHeader label="Own%" field="ownershipProjection" />
+                  ) : (
+                    <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-center">
+                      <div className="flex items-center justify-center gap-1 text-amber-500/70">
+                        <Lock className="w-3 h-3" />
+                        <span>Own%</span>
+                        <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[8px] px-1 py-0 font-black">PRO</Badge>
+                      </div>
+                    </th>
+                  )}
+                  {isPro ? (
+                    <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400 text-center">Fade</th>
+                  ) : (
+                    <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-center">
+                      <div className="flex items-center justify-center gap-1 text-amber-500/70">
+                        <Lock className="w-3 h-3" />
+                        <span>Fade</span>
+                        <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[8px] px-1 py-0 font-black">PRO</Badge>
+                      </div>
+                    </th>
+                  )}
                   <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400">Rating</th>
                 </tr>
               </thead>
@@ -695,7 +715,7 @@ export default function ProOptimizer() {
                           )}
                         </div>
                       </td>
-                      {isPro && (
+                      {isPro ? (
                         <td className="px-3 py-2">
                           <div className="flex items-center gap-1" data-testid={`text-own-${player.id}`}>
                             <Users className="w-3 h-3 text-slate-500" />
@@ -709,8 +729,14 @@ export default function ProOptimizer() {
                             </span>
                           </div>
                         </td>
+                      ) : (
+                        <td className="px-3 py-2 text-center">
+                          <span className="font-mono text-[11px] font-bold text-slate-600 blur-[3px] select-none">
+                            {(Math.sin(player.id * 31) * 15 + 15).toFixed(1)}%
+                          </span>
+                        </td>
                       )}
-                      {isPro && (
+                      {isPro ? (
                         <td className="px-3 py-2 text-center">
                           <button
                             onClick={() => {
@@ -729,6 +755,12 @@ export default function ProOptimizer() {
                           >
                             <Percent className="w-3.5 h-3.5" />
                           </button>
+                        </td>
+                      ) : (
+                        <td className="px-3 py-2 text-center">
+                          <div className="p-1.5 text-slate-700 cursor-not-allowed" title="Upgrade to Pro to fade players">
+                            <Lock className="w-3.5 h-3.5" />
+                          </div>
                         </td>
                       )}
                       <td className="px-3 py-2" data-testid={`star-rating-${player.id}`}>
@@ -756,6 +788,28 @@ export default function ProOptimizer() {
                   {p.name} <X className="w-3 h-3 ml-1" />
                 </Badge>
               ))}
+            </div>
+          )}
+
+          {/* Pro Upgrade Banner for non-Pro users */}
+          {!isPro && (
+            <div className="border-t border-amber-500/20 bg-gradient-to-r from-amber-500/5 via-amber-500/10 to-amber-500/5 px-4 py-3" data-testid="pro-upgrade-banner">
+              <Link href="/pricing">
+                <div className="flex items-center justify-between cursor-pointer group">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                      <Crown className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-black text-amber-400 uppercase tracking-wider">Unlock Pro Features</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Ownership projections, player fading, and contrarian lineup building</p>
+                    </div>
+                  </div>
+                  <Badge className="bg-amber-500 text-black font-black text-[10px] px-2 py-1 group-hover:bg-amber-400 transition-colors flex-shrink-0">
+                    Upgrade
+                  </Badge>
+                </div>
+              </Link>
             </div>
           )}
 
