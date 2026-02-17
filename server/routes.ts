@@ -681,7 +681,16 @@ export async function registerRoutes(
     let lockedCount = 0;
     for (const sportKey of Object.keys(propsBySport)) {
       const sportProps = propsBySport[sportKey];
-      visibleProps.push(...sportProps.slice(0, maxPerSport));
+      const selected = sportProps.slice(0, maxPerSport);
+      const hasGold = selected.some(p => Number(p.confidence) >= 78);
+      if (!hasGold) {
+        const goldPick = sportProps.find(p => Number(p.confidence) >= 78);
+        if (goldPick && selected.length > 0) {
+          selected[selected.length - 1] = goldPick;
+          selected.sort((a, b) => Number(b.confidence) - Number(a.confidence));
+        }
+      }
+      visibleProps.push(...selected);
       lockedCount += Math.max(0, sportProps.length - maxPerSport);
     }
 
