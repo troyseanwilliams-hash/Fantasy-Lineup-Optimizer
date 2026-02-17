@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -12,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers } from "lucide-react";
+import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 
@@ -36,7 +37,8 @@ const SPORT_META: Record<string, { icon: typeof Dribbble; color: string; bgColor
 
 export function Header() {
   const { user, logout } = useAuth();
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const { data: subData } = useQuery<{ tier: string }>({
     queryKey: ["/api/subscription"],
@@ -76,16 +78,21 @@ export function Header() {
     return <Info className="w-4 h-4 text-blue-400 shrink-0" />;
   };
 
+  const mobileNav = (href: string) => {
+    navigate(href);
+    setMobileMenuOpen(false);
+  };
+
   return (
     <header className="bg-[#0F172A] border-b border-slate-800 sticky top-0 z-50">
-      <div className="container mx-auto px-4 h-20 flex items-center justify-between">
+      <div className="container mx-auto px-4 h-16 lg:h-20 flex items-center justify-between">
         <div className="flex items-center space-x-10">
           <Link href="/">
-            <div className="flex items-center space-x-3 cursor-pointer group">
-              <div className="w-10 h-10 bg-[#10B981] rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
-                <Zap className="text-white w-6 h-6 fill-current" />
+            <div className="flex items-center space-x-2 lg:space-x-3 cursor-pointer group">
+              <div className="w-8 h-8 lg:w-10 lg:h-10 bg-[#10B981] rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
+                <Zap className="text-white w-5 h-5 lg:w-6 lg:h-6 fill-current" />
               </div>
-              <span className="text-2xl font-black tracking-tighter text-white uppercase">
+              <span className="text-xl lg:text-2xl font-black tracking-tighter text-white uppercase">
                 ELITE<span className="text-[#10B981]">LINEUP</span>
               </span>
             </div>
@@ -249,9 +256,9 @@ export function Header() {
           </nav>
         </div>
 
-        <div className="flex items-center space-x-6">
+        <div className="flex items-center space-x-3 lg:space-x-6">
           {user ? (
-            <div className="flex items-center space-x-4">
+            <div className="hidden lg:flex items-center space-x-4">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="relative p-2 rounded-lg hover:bg-slate-800 transition-colors" data-testid="alerts-bell">
@@ -312,7 +319,7 @@ export function Header() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="flex items-center gap-3 hover:bg-slate-800/50 rounded-lg px-3 py-2 transition-colors cursor-pointer outline-none" data-testid="account-menu">
-                    <div className="hidden md:flex flex-col items-end">
+                    <div className="flex flex-col items-end">
                       <span className="text-sm font-bold text-white">{user.firstName || user.email?.split('@')[0]}</span>
                       {isPro ? (
                         <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[11px] font-black px-1.5 py-0">
@@ -375,14 +382,234 @@ export function Header() {
           ) : (
             <Button 
               onClick={() => window.location.href = '/api/login'} 
-              className="bg-[#10B981] text-white px-8 font-bold rounded-lg h-11"
+              className="hidden lg:flex bg-[#10B981] text-white px-8 font-bold rounded-lg h-11"
               data-testid="sign-in-btn"
             >
               Sign In
             </Button>
           )}
+
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="lg:hidden p-2 rounded-lg hover:bg-slate-800 transition-colors"
+            data-testid="mobile-menu-btn"
+          >
+            {mobileMenuOpen ? (
+              <X className="w-6 h-6 text-white" />
+            ) : (
+              <Menu className="w-6 h-6 text-white" />
+            )}
+          </button>
         </div>
       </div>
+
+      {mobileMenuOpen && (
+        <div className="lg:hidden border-t border-slate-800 bg-[#0F172A] max-h-[calc(100vh-4rem)] overflow-y-auto" data-testid="mobile-menu">
+          <div className="container mx-auto px-4 py-4 space-y-1">
+            {user && (
+              <div className="flex items-center gap-3 px-3 py-3 mb-3 rounded-lg bg-slate-800/50">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-white truncate">{user.firstName || user.email?.split('@')[0]}</p>
+                  <p className="text-[11px] text-slate-400 truncate">{user.email}</p>
+                </div>
+                {isPro ? (
+                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[11px] font-black px-1.5 py-0 shrink-0">
+                    <Crown className="w-3 h-3 mr-0.5" /> PRO
+                  </Badge>
+                ) : isStar ? (
+                  <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[11px] font-black px-1.5 py-0 shrink-0">
+                    <Trophy className="w-3 h-3 mr-0.5" /> STAR
+                  </Badge>
+                ) : (
+                  <Badge className="bg-slate-700/50 text-slate-400 border-slate-600 text-[11px] font-black px-1.5 py-0 shrink-0">FREE</Badge>
+                )}
+              </div>
+            )}
+
+            {!user && (
+              <button
+                onClick={() => { window.location.href = '/api/login'; setMobileMenuOpen(false); }}
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-lg bg-[#10B981] text-white font-bold text-sm mb-3"
+                data-testid="mobile-sign-in-btn"
+              >
+                <Zap className="w-5 h-5 fill-current" />
+                <span>Sign In with Replit</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => mobileNav("/")}
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                location === "/" ? "bg-emerald-500/10 text-emerald-400" : "text-slate-300 hover:bg-slate-800"
+              }`}
+              data-testid="mobile-nav-home"
+            >
+              <LayoutGrid className="w-5 h-5 shrink-0" />
+              <span>Home</span>
+            </button>
+
+            <button
+              onClick={() => mobileNav("/props")}
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                location === "/props" ? "bg-emerald-500/10 text-emerald-400" : "text-slate-300 hover:bg-slate-800"
+              }`}
+              data-testid="mobile-nav-props"
+            >
+              <TrendingUp className="w-5 h-5 shrink-0" />
+              <span>Prop Bets</span>
+            </button>
+
+            <button
+              onClick={() => mobileNav("/parlays")}
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                location === "/parlays" ? "bg-purple-500/10 text-purple-400" : "text-slate-300 hover:bg-slate-800"
+              }`}
+              data-testid="mobile-nav-parlays"
+            >
+              <Layers className="w-5 h-5 shrink-0" />
+              <span>SGP Builder</span>
+              {!isPaid && <Lock className="w-3.5 h-3.5 text-purple-400/60 ml-auto" />}
+            </button>
+
+            <button
+              onClick={() => mobileNav("/lineups")}
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                location === "/lineups" ? "bg-emerald-500/10 text-emerald-400" : "text-slate-300 hover:bg-slate-800"
+              }`}
+              data-testid="mobile-nav-vault"
+            >
+              <Archive className="w-5 h-5 shrink-0" />
+              <span>Saved Lineups</span>
+            </button>
+
+            <button
+              onClick={() => mobileNav("/pricing")}
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                location === "/pricing" ? "bg-emerald-500/10 text-emerald-400" : "text-slate-300 hover:bg-slate-800"
+              }`}
+              data-testid="mobile-nav-pricing"
+            >
+              <Crown className="w-5 h-5 shrink-0" />
+              <span>Pricing</span>
+            </button>
+
+            {user && (
+              <>
+                <div className="border-t border-slate-800 my-2 pt-2">
+                  <p className="px-3 py-1 text-[11px] font-black text-slate-500 uppercase tracking-wider">Sports</p>
+                </div>
+                {ACTIVE_SPORTS.map(sport => {
+                  const meta = SPORT_META[sport] || { icon: Dribbble, color: "text-slate-400", bgColor: "bg-slate-500/20" };
+                  const Icon = meta.icon;
+                  const dkSlate = mainSlates.find(s => s.sport === sport && s.platform === "draftkings");
+
+                  return (
+                    <div key={sport} className="space-y-0.5">
+                      <div className="flex items-center gap-2 px-3 py-2">
+                        <div className={`w-6 h-6 rounded flex items-center justify-center ${meta.bgColor}`}>
+                          <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
+                        </div>
+                        <span className="text-xs font-black text-white uppercase tracking-wider">{sport}</span>
+                      </div>
+
+                      <div className="pl-6 space-y-0.5">
+                        <button
+                          onClick={() => mobileNav(`/news/${sport.toLowerCase()}`)}
+                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+                          data-testid={`mobile-sport-${sport.toLowerCase()}-news`}
+                        >
+                          <Newspaper className="w-4 h-4 text-amber-400 shrink-0" />
+                          <span>News</span>
+                        </button>
+
+                        {dkSlate ? (
+                          <button
+                            onClick={() => mobileNav(`/optimizer/${dkSlate.id}`)}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+                            data-testid={`mobile-sport-${sport.toLowerCase()}-dk`}
+                          >
+                            <div className="w-5 h-5 rounded bg-emerald-500/20 flex items-center justify-center shrink-0">
+                              <span className="text-emerald-400 font-black text-[10px]">DK</span>
+                            </div>
+                            <span>DK Builder</span>
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-slate-600">
+                            <div className="w-5 h-5 rounded bg-emerald-500/10 flex items-center justify-center shrink-0">
+                              <span className="text-emerald-500/40 font-black text-[10px]">DK</span>
+                            </div>
+                            <span>DK Builder</span>
+                          </div>
+                        )}
+
+                        {isPro && dkSlate ? (
+                          <button
+                            onClick={() => mobileNav(`/optimizer-pro/${dkSlate.id}`)}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-amber-300 hover:bg-slate-800 transition-colors"
+                            data-testid={`mobile-sport-${sport.toLowerCase()}-pro`}
+                          >
+                            <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                            <span>Pro DK</span>
+                            <Crown className="w-3.5 h-3.5 text-amber-400 ml-auto" />
+                          </button>
+                        ) : isStar && dkSlate ? (
+                          <button
+                            onClick={() => mobileNav(`/optimizer-pro/${dkSlate.id}`)}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-emerald-300 hover:bg-slate-800 transition-colors"
+                            data-testid={`mobile-sport-${sport.toLowerCase()}-star`}
+                          >
+                            <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <span>Star DK</span>
+                            <Trophy className="w-3.5 h-3.5 text-emerald-400 ml-auto" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => mobileNav("/pricing")}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-slate-600 hover:bg-slate-800 transition-colors"
+                          >
+                            <Lock className="w-4 h-4 shrink-0" />
+                            <span>Pro DK</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            {user?.isAdmin && (
+              <>
+                <div className="border-t border-slate-800 my-2 pt-2" />
+                <button
+                  onClick={() => mobileNav("/admin")}
+                  className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                    location === "/admin" ? "bg-emerald-500/10 text-emerald-400" : "text-slate-300 hover:bg-slate-800"
+                  }`}
+                  data-testid="mobile-nav-admin"
+                >
+                  <ShieldAlert className="w-5 h-5 shrink-0" />
+                  <span>Admin</span>
+                </button>
+              </>
+            )}
+
+            {user && (
+              <>
+                <div className="border-t border-slate-800 my-2 pt-2" />
+                <button
+                  onClick={() => { logout(); setMobileMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold text-red-400 hover:bg-red-500/10 transition-colors"
+                  data-testid="mobile-logout-btn"
+                >
+                  <LogOut className="w-5 h-5 shrink-0" />
+                  <span>Sign Out</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 }
