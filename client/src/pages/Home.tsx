@@ -597,8 +597,6 @@ function NewsCompact({ sport }: { sport: string }) {
 }
 
 function QuickActions({ slateId, tier }: { slateId: number | null; tier: string }) {
-  const isPaid = tier === "star" || tier === "pro";
-
   return (
     <div className="flex gap-3 flex-wrap" data-testid="quick-actions">
       {slateId && (
@@ -608,26 +606,22 @@ function QuickActions({ slateId, tier }: { slateId: number | null; tier: string 
               <Zap className="w-4 h-4 fill-current" /> Build Lineup
             </Button>
           </Link>
-          {isPaid && (
+          {tier === "star" && (
             <Link href={`/optimizer-pro/${slateId}`}>
-              <Button variant="outline" className="border-emerald-700/50 text-emerald-400 hover:bg-emerald-900/20 font-bold gap-2" data-testid="quick-action-pro-optimize">
-                {tier === "pro" ? <Crown className="w-4 h-4" /> : <Trophy className="w-4 h-4" />}
-                {tier === "pro" ? "Pro" : "Star"} Builder
+              <Button variant="outline" className="border-amber-700/50 text-amber-400 hover:bg-amber-900/20 font-bold gap-2" data-testid="quick-action-star-builder">
+                <Trophy className="w-4 h-4" /> Star Builder
+              </Button>
+            </Link>
+          )}
+          {tier === "pro" && (
+            <Link href={`/optimizer-pro/${slateId}`}>
+              <Button variant="outline" className="border-emerald-700/50 text-emerald-400 hover:bg-emerald-900/20 font-bold gap-2" data-testid="quick-action-pro-builder">
+                <Crown className="w-4 h-4" /> Pro Builder
               </Button>
             </Link>
           )}
         </>
       )}
-      <Link href="/lineups">
-        <Button variant="outline" className="border-slate-700 text-slate-300 hover:text-white font-bold gap-2" data-testid="quick-action-vault">
-          <Archive className="w-4 h-4" /> Vault
-        </Button>
-      </Link>
-      <Link href="/props">
-        <Button variant="outline" className="border-slate-700 text-slate-300 hover:text-white font-bold gap-2" data-testid="quick-action-props">
-          <TrendingUp className="w-4 h-4" /> Props
-        </Button>
-      </Link>
     </div>
   );
 }
