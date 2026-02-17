@@ -118,6 +118,22 @@ export default function ProOptimizer() {
     enabled: isGolf && !!slateId,
   });
 
+  const golfTournamentCards = useMemo(() => {
+    if (!isGolf || !players || players.length === 0) return null;
+    const sorted = [...players].sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
+    const topSalary = Math.max(...players.map(p => p.salary));
+    const favorites = sorted.slice(0, 5).map(p => {
+      const impliedProb = (p.salary / topSalary) * 0.45;
+      const americanOdds = impliedProb >= 0.5
+        ? Math.round(-100 * impliedProb / (1 - impliedProb))
+        : Math.round(100 * (1 - impliedProb) / impliedProb);
+      return { ...p, odds: americanOdds > 0 ? `+${americanOdds}` : `${americanOdds}`, impliedProb: (impliedProb * 100).toFixed(0) };
+    });
+    const valuePicks = [...players].map(p => ({ ...p, value: Number(p.projectedPoints) / (p.salary / 1000) })).sort((a, b) => b.value - a.value).slice(0, 4);
+    const tournamentParts = (players[0]?.gameInfo || "Tournament").split(" - ");
+    return { favorites, valuePicks, tournamentName: tournamentParts[0] || "Tournament", courseName: tournamentParts[1] || "", fieldSize: players.length, avgSalary: Math.round(players.reduce((s, p) => s + p.salary, 0) / players.length) };
+  }, [isGolf, players]);
+
   const isPro = subData?.tier === "pro" || subData?.tier === "premium";
   const isStar = subData?.tier === "star";
   const hasPaidAccess = isPro || isStar;
