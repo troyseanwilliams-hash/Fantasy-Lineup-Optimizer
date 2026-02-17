@@ -188,6 +188,40 @@ export default function SavedLineups() {
     updateMutation.mutate({ id: lineupId, playerIds: newPlayerIds });
   }
 
+  if (!user) {
+    return (
+      <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4">
+        <div className="max-w-lg text-center space-y-6">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 mb-2">
+            <Trophy className="w-10 h-10 text-cyan-400" />
+          </div>
+          <h1 className="text-3xl font-black text-white tracking-tight">The Vault</h1>
+          <p className="text-slate-400 text-lg leading-relaxed">
+            Your personal lineup vault stores every optimized lineup you build. Save your best lineups, compare strategies across sports, swap players, and export to CSV for easy upload to DraftKings.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
+              <Shield className="w-5 h-5 text-cyan-400 mx-auto" />
+              <div className="text-sm font-bold text-white">Save Lineups</div>
+              <div className="text-xs text-slate-400">Store optimized lineups per sport and revisit them anytime</div>
+            </div>
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
+              <ArrowLeftRight className="w-5 h-5 text-amber-400 mx-auto" />
+              <div className="text-sm font-bold text-white">Swap Players</div>
+              <div className="text-xs text-slate-400">Fine-tune saved lineups with inline player swaps</div>
+            </div>
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
+              <Download className="w-5 h-5 text-emerald-400 mx-auto" />
+              <div className="text-sm font-bold text-white">CSV Export</div>
+              <div className="text-xs text-slate-400">Export lineups to CSV for direct upload to DFS platforms</div>
+            </div>
+          </div>
+          <p className="text-slate-500 text-sm">Sign in to start building and saving your winning lineups.</p>
+        </div>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-12">
