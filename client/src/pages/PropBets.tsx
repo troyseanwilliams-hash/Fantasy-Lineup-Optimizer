@@ -188,12 +188,61 @@ function DfsAffiliateBanner() {
   );
 }
 
+function getConfidenceTier(confidence: number): "gold" | "bronze" | "standard" {
+  if (confidence >= 78) return "gold";
+  if (confidence >= 68) return "bronze";
+  return "standard";
+}
+
+const CONFIDENCE_STYLES: Record<"gold" | "bronze" | "standard", {
+  card: string;
+  badge: string;
+  badgeText: string;
+  label: string;
+  inner: string;
+}> = {
+  gold: {
+    card: "bg-gradient-to-br from-yellow-900/30 via-amber-900/20 to-yellow-800/10 border-yellow-600/40 ring-1 ring-yellow-500/20",
+    badge: "bg-yellow-500/20 text-yellow-300",
+    badgeText: "GOLD PICK",
+    label: "text-yellow-400",
+    inner: "bg-yellow-950/40 border-yellow-700/30",
+  },
+  bronze: {
+    card: "bg-gradient-to-br from-orange-900/25 via-amber-900/15 to-orange-800/10 border-orange-600/30 ring-1 ring-orange-500/15",
+    badge: "bg-orange-500/20 text-orange-300",
+    badgeText: "BRONZE PICK",
+    label: "text-orange-400",
+    inner: "bg-orange-950/30 border-orange-700/25",
+  },
+  standard: {
+    card: "bg-slate-800/30 border-slate-800",
+    badge: "bg-slate-700/50 text-slate-400",
+    badgeText: "",
+    label: "",
+    inner: "bg-slate-900/50 border-slate-800/50",
+  },
+};
+
 function PropCard({ prop, index }: { prop: PropBet; index: number }) {
+  const conf = Number(prop.confidence);
+  const tier = getConfidenceTier(conf);
+  const style = CONFIDENCE_STYLES[tier];
+
   return (
     <Card
-      className="bg-slate-800/30 border-slate-800 p-5 transition-all hover-elevate"
+      className={`${style.card} p-5 transition-all hover-elevate relative`}
       data-testid={`prop-card-${index}`}
     >
+      {tier !== "standard" && (
+        <div className="flex items-center gap-1.5 mb-2" data-testid={`prop-tier-badge-${index}`}>
+          <Trophy className={`w-3.5 h-3.5 ${style.label}`} />
+          <span className={`text-[10px] font-black uppercase tracking-widest ${style.label}`}>
+            {style.badgeText}
+          </span>
+        </div>
+      )}
+
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2.5">
           <div className="flex items-center gap-1" data-testid={`prop-teams-${index}`}>
@@ -217,20 +266,14 @@ function PropCard({ prop, index }: { prop: PropBet; index: number }) {
             })()}
           </div>
         </div>
-        <div className={`px-2 py-0.5 rounded text-[11px] font-black ${
-          Number(prop.confidence) >= 75
-            ? "bg-emerald-500/20 text-emerald-400"
-            : Number(prop.confidence) >= 65
-            ? "bg-amber-500/20 text-amber-400"
-            : "bg-slate-700/50 text-slate-400"
-        }`} data-testid={`prop-confidence-${index}`}>
-          {Number(prop.confidence).toFixed(0)}%
+        <div className={`px-2 py-0.5 rounded text-[11px] font-black ${style.badge}`} data-testid={`prop-confidence-${index}`}>
+          {conf.toFixed(0)}%
         </div>
       </div>
 
       <h3 className="text-base font-bold text-white mb-1" data-testid={`prop-player-${index}`}>{prop.playerName}</h3>
 
-      <div className="flex items-center justify-between bg-slate-900/50 rounded-xl px-4 py-3 border border-slate-800/50">
+      <div className={`flex items-center justify-between rounded-xl px-4 py-3 border ${style.inner}`}>
         <div>
           <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">{prop.propType}</p>
           <p className="text-lg font-black text-white">{prop.line}</p>
@@ -433,7 +476,7 @@ export default function PropBets() {
               ? "Create a free account to start seeing AI-powered prop picks. Upgrade for even more picks across all sports."
               : tier === "star"
                 ? "Upgrade to Pro ($19.99/mo) for up to 15 AI-powered prop picks per sport with higher confidence ratings."
-                : "Upgrade your plan for more AI-powered prop picks across all sports. Star gets up to 8, Pro gets up to 15."}
+                : "Upgrade your plan for more AI-powered prop picks across all sports. Star gets up to 5, Pro gets up to 15."}
           </p>
           {isGuest ? (
             <Button onClick={() => window.location.href = '/api/login'} data-testid="unlock-all-btn">
