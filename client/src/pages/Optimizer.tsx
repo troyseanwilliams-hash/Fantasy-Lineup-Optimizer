@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Lock, Unlock, X, Zap, RefreshCw, Save, Search,
   ChevronDown, ChevronUp, ArrowUpDown, Heart, Loader2,
-  DollarSign, Target, TrendingUp, RotateCcw, Crown, Plus, UserPlus
+  DollarSign, Target, TrendingUp, RotateCcw, Crown, Plus, UserPlus, Activity
 } from "lucide-react";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "fppg" | "value";
@@ -674,6 +674,38 @@ export default function Optimizer() {
                 </span>
               </Link>
             )}
+          </div>
+        )}
+
+        {/* Slate Games */}
+        {games.length > 0 && (
+          <div className="px-4 py-3 border-b border-slate-800 bg-slate-900/20">
+            <div className="flex items-center gap-2 mb-2">
+              <Activity className={`w-3.5 h-3.5 ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`} />
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Slate Games ({games.length})</span>
+            </div>
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+              {games.map((game, i) => (
+                <div
+                  key={i}
+                  className={`flex-shrink-0 bg-slate-800/60 border rounded-lg px-3 py-2 min-w-[90px] ${platform === "fanduel" ? "border-blue-500/10" : "border-emerald-500/10"}`}
+                  data-testid={`game-card-${i}`}
+                >
+                  <div className="flex items-center justify-between gap-2 mb-0.5">
+                    <span className="text-[11px] font-black text-white">{game.away}</span>
+                    <span className="text-[10px] font-bold text-slate-600">@</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-black text-white">{game.home}</span>
+                  </div>
+                  {game.time && (
+                    <div className={`text-[10px] font-bold mt-1 pt-1 border-t border-slate-700/50 text-center ${platform === "fanduel" ? "text-blue-400/60" : "text-emerald-400/60"}`}>
+                      {game.time}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
