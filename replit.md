@@ -28,7 +28,7 @@ Preferred communication style: Simple, everyday language.
 - **Saved Lineups** (`/lineups`): "Vault" with expandable lineup cards, full roster table with slot assignments, inline player swap (position/salary-constrained), and CSV export (Pro only)
 - **Pricing** (`/pricing`): Subscription tiers (Free vs Pro) with feature comparison
 - **Prop Bets** (`/props`): AI-generated daily prop picks organized per sport, with DraftKings/FanDuel affiliate marketing links (DFS + Sportsbook)
-- **SGP Builder** (`/parlays`): Same Game Parlay Builder — premium feature (Star/Pro only) to combine multiple player props from the same game into a parlay with combined odds, potential payout calculator, wager presets, and AI confidence insights. Free/unauth users see an explainer with upgrade prompts. Star: up to 4 legs. Pro: up to 8 legs with AI insights.
+- **Parlay Builder** (`/parlays`): Pro-exclusive feature to combine multiple player props across any sport into cross-sport parlays with combined odds, potential payout calculator, wager presets, AI confidence insights, and direct DraftKings bet placement links. Free/Star/unauth users see an upgrade prompt. Pro: up to 8 legs with AI insights and DK affiliate links.
 - **News** (`/news/:sport`): Live sport-specific player news from ESPN's public API, with sport tabs to switch between NBA/NHL/MLB
 - **Admin** (`/admin`): Slate creation, player bulk upload (JSON), and database seeding
 
@@ -73,8 +73,8 @@ Preferred communication style: Simple, everyday language.
 
 ### Subscription System
 - **Free tier**: 1 saved team per sport, no CSV export, no multi-lineup generation, no AI boost
-- **Star tier** ($19.99/mo, first month $9.99, annual $200/yr): 20 saved teams per sport, CSV export, multi-lineup generation (up to 5), SGP Builder (4 legs)
-- **Pro tier** ($29.99/mo, first month $19.99, annual $300/yr): 150 saved teams per sport, CSV export, multi-lineup generation (up to 20), SGP Builder (8 legs + AI insights), AI boost analysis & injury tracking
+- **Star tier** ($19.99/mo, first month $9.99, annual $200/yr): 20 saved teams per sport, CSV export, multi-lineup generation (up to 5)
+- **Pro tier** ($29.99/mo, first month $19.99, annual $300/yr): 150 saved teams per sport, CSV export, multi-lineup generation (up to 20), Parlay Builder (8 legs + DK bet links + AI insights), AI boost analysis & injury tracking
 - **Per-sport limits**: Backend checks per-sport count via `getLineupCountBySport()` with tier-based max (1/20/150)
 - **Subscription API**: `/api/subscription` returns `tier`, `sportCounts`, `maxLineupsPerSport`
 - **Payment**: Stripe integration not yet connected (marked "Coming Soon" on pricing page)
