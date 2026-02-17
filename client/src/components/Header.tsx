@@ -216,15 +216,6 @@ export function Header() {
                 <span>Props</span>
               </div>
             </Link>
-            <Link href="/parlays">
-              <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                location === "/parlays" ? "text-purple-400" : "text-slate-400 hover:text-white"
-              }`} data-testid="nav-parlays">
-                <Layers className="w-4 h-4" />
-                <span>Parlays</span>
-                {!isPro && <Lock className="w-3 h-3 text-purple-400/60 ml-0.5" />}
-              </div>
-            </Link>
             <Link href="/lineups">
               <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
                 location === "/lineups" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
@@ -457,18 +448,6 @@ export function Header() {
             >
               <TrendingUp className="w-5 h-5 shrink-0" />
               <span>Prop Bets</span>
-            </button>
-
-            <button
-              onClick={() => mobileNav("/parlays")}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                location === "/parlays" ? "bg-purple-500/10 text-purple-400" : "text-slate-300 hover:bg-slate-800"
-              }`}
-              data-testid="mobile-nav-parlays"
-            >
-              <Layers className="w-5 h-5 shrink-0" />
-              <span>Parlay Builder</span>
-              {!isPro && <Lock className="w-3.5 h-3.5 text-purple-400/60 ml-auto" />}
             </button>
 
             <button
