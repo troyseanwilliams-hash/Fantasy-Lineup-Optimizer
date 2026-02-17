@@ -1,12 +1,16 @@
+import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, Crown, Zap, Lock, Trophy, Sparkles, Layers } from "lucide-react";
+import { Check, Crown, Zap, Lock, Trophy, Sparkles, Layers, Calendar, Tag } from "lucide-react";
+
+type BillingCycle = "monthly" | "annual";
 
 export default function Pricing() {
   const { user } = useAuth();
+  const [billing, setBilling] = useState<BillingCycle>("monthly");
 
   const { data: subData } = useQuery<{ tier: string; lineupCount: number; maxLineups: number }>({
     queryKey: ["/api/subscription"],
@@ -15,22 +19,57 @@ export default function Pricing() {
 
   const currentTier = subData?.tier || "free";
 
+  const starPrice = billing === "monthly" ? "$19.99" : "$200";
+  const starPeriod = billing === "monthly" ? "/month" : "/year";
+  const starFirstMonth = billing === "monthly" ? "$9.99" : null;
+  const starSavings = billing === "annual" ? "Save $39.88/yr" : null;
+
+  const proPrice = billing === "monthly" ? "$29.99" : "$300";
+  const proPeriod = billing === "monthly" ? "/month" : "/year";
+  const proFirstMonth = billing === "monthly" ? "$19.99" : null;
+  const proSavings = billing === "annual" ? "Save $59.88/yr" : null;
+
   return (
     <div className="container mx-auto px-4 py-16 max-w-6xl">
-      <div className="text-center mb-16">
+      <div className="text-center mb-12">
         <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 font-bold text-sm px-3 py-1 mb-6">
           <Crown className="w-4 h-4 mr-1" /> Pricing
         </Badge>
-        <h1 className="text-5xl font-black text-white mb-4 tracking-tight">
+        <h1 className="text-5xl font-black text-white mb-4 tracking-tight" data-testid="pricing-title">
           Choose Your Edge
         </h1>
-        <p className="text-lg text-slate-400 max-w-xl mx-auto">
+        <p className="text-lg text-slate-400 max-w-xl mx-auto mb-8">
           Start free, then level up your DFS strategy with more lineups and powerful tools.
         </p>
+
+        <div className="inline-flex items-center bg-slate-800/60 rounded-xl p-1 border border-slate-700/50" data-testid="billing-toggle">
+          <button
+            onClick={() => setBilling("monthly")}
+            className={`px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${
+              billing === "monthly"
+                ? "bg-emerald-500 text-black shadow-lg"
+                : "text-slate-400 hover:text-white"
+            }`}
+            data-testid="billing-monthly"
+          >
+            Monthly
+          </button>
+          <button
+            onClick={() => setBilling("annual")}
+            className={`px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-1.5 ${
+              billing === "annual"
+                ? "bg-emerald-500 text-black shadow-lg"
+                : "text-slate-400 hover:text-white"
+            }`}
+            data-testid="billing-annual"
+          >
+            Annual
+            <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[10px] font-black px-1.5 py-0">SAVE</Badge>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-        {/* Free Plan */}
         <Card className={`bg-slate-800/30 border-slate-800 p-8 relative ${currentTier === "free" ? "ring-2 ring-slate-600" : ""}`} data-testid="plan-free">
           {currentTier === "free" && (
             <Badge className="absolute -top-3 left-6 bg-slate-700 text-slate-300 text-[11px] font-black">CURRENT PLAN</Badge>
@@ -86,7 +125,6 @@ export default function Pricing() {
           </Button>
         </Card>
 
-        {/* Star Plan */}
         <Card className={`bg-slate-800/30 border-emerald-500/30 p-8 relative ${currentTier === "star" ? "ring-2 ring-emerald-500" : ""}`} data-testid="plan-star">
           {currentTier === "star" ? (
             <Badge className="absolute -top-3 left-6 bg-emerald-500 text-black text-[11px] font-black">CURRENT PLAN</Badge>
@@ -98,9 +136,21 @@ export default function Pricing() {
               Star <Trophy className="w-5 h-5 text-emerald-400" />
             </h3>
             <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-black text-white">$9.99</span>
-              <span className="text-slate-400 font-bold">/month</span>
+              <span className="text-4xl font-black text-white" data-testid="star-price">{starPrice}</span>
+              <span className="text-slate-400 font-bold">{starPeriod}</span>
             </div>
+            {starFirstMonth && (
+              <div className="flex items-center gap-2 mt-2">
+                <Tag className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-xs font-bold text-emerald-400" data-testid="star-first-month">First month only {starFirstMonth}</span>
+              </div>
+            )}
+            {starSavings && (
+              <div className="flex items-center gap-2 mt-2">
+                <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-xs font-bold text-emerald-400" data-testid="star-savings">{starSavings}</span>
+              </div>
+            )}
             <p className="text-xs text-emerald-400/70 mt-2">For serious DFS players</p>
           </div>
           <ul className="space-y-3 mb-8">
@@ -163,7 +213,6 @@ export default function Pricing() {
           )}
         </Card>
 
-        {/* Pro Plan */}
         <Card className={`bg-slate-800/30 border-amber-500/30 p-8 relative ${currentTier === "pro" ? "ring-2 ring-amber-500" : ""}`} data-testid="plan-pro">
           {currentTier === "pro" ? (
             <Badge className="absolute -top-3 left-6 bg-amber-500 text-black text-[11px] font-black">CURRENT PLAN</Badge>
@@ -175,9 +224,21 @@ export default function Pricing() {
               Pro <Sparkles className="w-5 h-5 text-amber-400" />
             </h3>
             <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-black text-white">$19.99</span>
-              <span className="text-slate-400 font-bold">/month</span>
+              <span className="text-4xl font-black text-white" data-testid="pro-price">{proPrice}</span>
+              <span className="text-slate-400 font-bold">{proPeriod}</span>
             </div>
+            {proFirstMonth && (
+              <div className="flex items-center gap-2 mt-2">
+                <Tag className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-xs font-bold text-amber-400" data-testid="pro-first-month">First month only {proFirstMonth}</span>
+              </div>
+            )}
+            {proSavings && (
+              <div className="flex items-center gap-2 mt-2">
+                <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-xs font-bold text-amber-400" data-testid="pro-savings">{proSavings}</span>
+              </div>
+            )}
             <p className="text-xs text-amber-400/70 mt-2">Dominate every slate</p>
           </div>
           <ul className="space-y-3 mb-8">
