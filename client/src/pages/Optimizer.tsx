@@ -13,7 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import {
   Lock, Unlock, X, Zap, RefreshCw, Save, Search,
   ChevronDown, ChevronUp, ArrowUpDown, Heart, Loader2,
-  DollarSign, Target, TrendingUp, RotateCcw, Crown, Plus, UserPlus, Activity, Flag
+  DollarSign, Target, TrendingUp, RotateCcw, Crown, Plus, UserPlus, Activity, Flag,
+  Trophy, Star, MapPin, Users, Flame, Award
 } from "lucide-react";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "fppg" | "value";
@@ -126,6 +127,35 @@ export default function Optimizer() {
     });
     return Array.from(gameMap.values());
   }, [players, isGolf]);
+
+  const golfAnalysis = useMemo(() => {
+    if (!isGolf || !players || players.length === 0) return null;
+    const sorted = [...players].sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
+    const topSalary = Math.max(...players.map(p => p.salary));
+
+    const favorites = sorted.slice(0, 5).map(p => {
+      const impliedProb = (p.salary / topSalary) * 0.45;
+      const americanOdds = impliedProb >= 0.5
+        ? Math.round(-100 * impliedProb / (1 - impliedProb))
+        : Math.round(100 * (1 - impliedProb) / impliedProb);
+      return {
+        ...p,
+        odds: americanOdds > 0 ? `+${americanOdds}` : `${americanOdds}`,
+        impliedProb: (impliedProb * 100).toFixed(0),
+      };
+    });
+
+    const valuePicks = [...players]
+      .map(p => ({ ...p, value: Number(p.projectedPoints) / (p.salary / 1000) }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 4);
+
+    const tournamentParts = (players[0]?.gameInfo || "Tournament").split(" - ");
+    const tournamentName = tournamentParts[0] || "Tournament";
+    const courseName = tournamentParts[1] || "";
+
+    return { favorites, valuePicks, tournamentName, courseName, fieldSize: players.length, avgSalary: Math.round(players.reduce((s, p) => s + p.salary, 0) / players.length) };
+  }, [isGolf, players]);
 
   const toggleSort = useCallback((key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -355,68 +385,141 @@ export default function Optimizer() {
             </div>
           </div>
 
-          {/* Game Scoreboard Cards */}
+          {/* Game Scoreboard Cards / Golf Tournament Cards */}
           <div className={`px-4 pb-3 pt-1 border-b ${platform === "fanduel" ? "border-blue-500/20" : "border-emerald-500/20"}`}>
-            <div className="flex items-center gap-2 mb-3">
-              <Activity className={`w-4 h-4 ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`} />
-              <span className="text-xs font-black text-white uppercase tracking-widest">
-                {isGolf ? "Tournament" : "Slate Games"}
-              </span>
-              {!isGolf && (
-                <Badge className={`text-[10px] font-black ${platform === "fanduel" ? "bg-blue-500/20 text-blue-300 border-blue-500/30" : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"}`}>
-                  {games.length}
-                </Badge>
-              )}
-            </div>
-            <div className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-2">
-              {isGolf ? (
-                <div
-                  className={`flex-1 rounded-xl overflow-hidden ${
-                    platform === "fanduel"
-                      ? "bg-blue-500/15 border-2 border-blue-400/30"
-                      : "bg-emerald-500/15 border-2 border-emerald-400/30"
-                  }`}
-                  data-testid="tournament-card"
-                >
-                  <div className="flex flex-col items-center px-6 py-3 gap-1">
-                    <Flag className={`w-5 h-5 mb-1 ${platform === "fanduel" ? "text-blue-300" : "text-emerald-300"}`} />
-                    <span className="text-sm font-black text-white drop-shadow-sm">{games[0]?.away}</span>
-                    <span className={`text-xs font-bold ${platform === "fanduel" ? "text-blue-300" : "text-emerald-300"}`}>{games[0]?.time}</span>
+            {isGolf && golfAnalysis ? (
+              <>
+                <div className="flex items-center gap-2 mb-3">
+                  <Trophy className="w-4 h-4 text-lime-400" />
+                  <span className="text-xs font-black text-white uppercase tracking-widest">Tournament Center</span>
+                  <Badge className="text-[10px] font-black bg-lime-500/20 text-lime-300 border-lime-500/30">LIVE</Badge>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pb-2">
+                  {/* Tournament Info Card */}
+                  <div className="rounded-xl overflow-hidden bg-gradient-to-br from-lime-500/10 via-emerald-500/10 to-slate-900 border border-lime-500/25" data-testid="tournament-info-card">
+                    <div className="px-4 py-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Flag className="w-4 h-4 text-lime-400" />
+                        <span className="text-sm font-black text-white">{golfAnalysis.tournamentName}</span>
+                      </div>
+                      {golfAnalysis.courseName && (
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <MapPin className="w-3 h-3 text-slate-400" />
+                          <span className="text-xs text-slate-300 font-medium">{golfAnalysis.courseName}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-3 mt-2">
+                        <div className="flex items-center gap-1">
+                          <Users className="w-3 h-3 text-slate-400" />
+                          <span className="text-[11px] font-bold text-slate-300">{golfAnalysis.fieldSize} Golfers</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <DollarSign className="w-3 h-3 text-slate-400" />
+                          <span className="text-[11px] font-bold text-slate-300">Avg ${golfAnalysis.avgSalary.toLocaleString()}</span>
+                        </div>
+                      </div>
+                      {slate && (
+                        <div className="mt-2 text-[10px] font-bold text-lime-400/70 uppercase tracking-wider">
+                          {new Date(slate.startTime).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Top Favorites Card */}
+                  <div className="rounded-xl overflow-hidden bg-gradient-to-br from-amber-500/10 via-slate-900 to-slate-900 border border-amber-500/20" data-testid="favorites-card">
+                    <div className="px-4 py-3">
+                      <div className="flex items-center gap-2 mb-2.5">
+                        <Flame className="w-4 h-4 text-amber-400" />
+                        <span className="text-xs font-black text-white uppercase tracking-widest">Top Favorites</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {golfAnalysis.favorites.map((p, i) => (
+                          <div key={p.id} className="flex items-center justify-between group" data-testid={`favorite-${i}`}>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] font-black w-4 text-center ${i === 0 ? "text-amber-400" : i === 1 ? "text-slate-300" : "text-slate-500"}`}>
+                                {i + 1}
+                              </span>
+                              <span className="text-xs font-bold text-white group-hover:text-lime-400 transition-colors">{p.name}</span>
+                              <span className="text-[10px] text-slate-500 font-medium">{p.team}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-black text-amber-400 font-mono">{p.odds}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Top Value Picks Card */}
+                  <div className="rounded-xl overflow-hidden bg-gradient-to-br from-cyan-500/10 via-slate-900 to-slate-900 border border-cyan-500/20" data-testid="value-picks-card">
+                    <div className="px-4 py-3">
+                      <div className="flex items-center gap-2 mb-2.5">
+                        <Award className="w-4 h-4 text-cyan-400" />
+                        <span className="text-xs font-black text-white uppercase tracking-widest">Value Picks</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {golfAnalysis.valuePicks.map((p, i) => (
+                          <div key={p.id} className="flex items-center justify-between group" data-testid={`value-pick-${i}`}>
+                            <div className="flex items-center gap-2">
+                              <Star className={`w-3 h-3 ${i === 0 ? "text-cyan-400 fill-cyan-400" : "text-cyan-400/40"}`} />
+                              <span className="text-xs font-bold text-white group-hover:text-cyan-400 transition-colors">{p.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-slate-400 font-mono">${p.salary.toLocaleString()}</span>
+                              <span className="text-[11px] font-black text-cyan-400 font-mono">{p.value.toFixed(1)}x</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              ) : (
-                games.map((game, i) => (
-                  <div
-                    key={i}
-                    className={`flex-shrink-0 rounded-xl min-w-[100px] overflow-hidden ${
-                      platform === "fanduel"
-                        ? "bg-blue-500/15 border-2 border-blue-400/30"
-                        : "bg-emerald-500/15 border-2 border-emerald-400/30"
-                    }`}
-                    data-testid={`game-card-${i}`}
-                  >
-                    <div className="flex flex-col items-center px-4 py-2.5 gap-1">
-                      <div className="flex items-center justify-between w-full">
-                        <span className="text-sm font-black text-white drop-shadow-sm">{game.away}</span>
-                        <span className="text-sm font-bold text-slate-400">0</span>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 mb-3">
+                  <Activity className={`w-4 h-4 ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`} />
+                  <span className="text-xs font-black text-white uppercase tracking-widest">Slate Games</span>
+                  <Badge className={`text-[10px] font-black ${platform === "fanduel" ? "bg-blue-500/20 text-blue-300 border-blue-500/30" : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"}`}>
+                    {games.length}
+                  </Badge>
+                </div>
+                <div className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-2">
+                  {games.map((game, i) => (
+                    <div
+                      key={i}
+                      className={`flex-shrink-0 rounded-xl min-w-[100px] overflow-hidden ${
+                        platform === "fanduel"
+                          ? "bg-blue-500/15 border-2 border-blue-400/30"
+                          : "bg-emerald-500/15 border-2 border-emerald-400/30"
+                      }`}
+                      data-testid={`game-card-${i}`}
+                    >
+                      <div className="flex flex-col items-center px-4 py-2.5 gap-1">
+                        <div className="flex items-center justify-between w-full">
+                          <span className="text-sm font-black text-white drop-shadow-sm">{game.away}</span>
+                          <span className="text-sm font-bold text-slate-400">0</span>
+                        </div>
+                        <span className={`text-[10px] font-black ${platform === "fanduel" ? "text-blue-300/60" : "text-emerald-300/60"}`}>VS</span>
+                        <div className="flex items-center justify-between w-full">
+                          <span className="text-sm font-black text-white drop-shadow-sm">{game.home}</span>
+                          <span className="text-sm font-bold text-slate-400">0</span>
+                        </div>
                       </div>
-                      <span className={`text-[10px] font-black ${platform === "fanduel" ? "text-blue-300/60" : "text-emerald-300/60"}`}>VS</span>
-                      <div className="flex items-center justify-between w-full">
-                        <span className="text-sm font-black text-white drop-shadow-sm">{game.home}</span>
-                        <span className="text-sm font-bold text-slate-400">0</span>
+                      <div className={`text-[11px] font-black py-1.5 text-center ${
+                        platform === "fanduel"
+                          ? "bg-blue-500/20 text-blue-200"
+                          : "bg-emerald-500/20 text-emerald-200"
+                      }`}>
+                        {game.time}
                       </div>
                     </div>
-                    <div className={`text-[11px] font-black py-1.5 text-center ${
-                      platform === "fanduel"
-                        ? "bg-blue-500/20 text-blue-200"
-                        : "bg-emerald-500/20 text-emerald-200"
-                    }`}>
-                      {game.time}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
