@@ -74,7 +74,7 @@ Preferred communication style: Simple, everyday language.
 ### Subscription System
 - **Free tier**: 1 saved team per sport, no CSV export, no multi-lineup generation, no AI boost
 - **Star tier** ($19.99/mo, first month $9.99, annual $200/yr): 20 saved teams per sport, CSV export, multi-lineup generation (up to 5)
-- **Pro tier** ($29.99/mo, first month $19.99, annual $300/yr): 150 saved teams per sport, CSV export, multi-lineup generation (up to 20), Parlay Builder (8 legs + DK bet links + AI insights), AI boost analysis & injury tracking
+- **Pro tier** ($49.99/mo, first month $29.99, annual $499/yr): 150 saved teams per sport, CSV export, multi-lineup generation (up to 20), Parlay Builder (8 legs + DK bet links + AI insights), AI boost analysis & injury tracking, ownership projections & player fading
 - **Per-sport limits**: Backend checks per-sport count via `getLineupCountBySport()` with tier-based max (1/20/150)
 - **Subscription API**: `/api/subscription` returns `tier`, `sportCounts`, `maxLineupsPerSport`
 - **Payment**: Stripe integration not yet connected (marked "Coming Soon" on pricing page)
