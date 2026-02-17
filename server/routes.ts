@@ -1062,7 +1062,8 @@ async function generateSyntheticProps(date: string, sports: readonly string[]): 
           const teams = enrichedGameInfo.replace(timeMatch[0], "").trim();
           enrichedGameInfo = `${teams} · ${dateStr}, ${timeMatch[1]}`;
         } else {
-          enrichedGameInfo = `${enrichedGameInfo} · ${dateStr}`;
+          const slateTimeStr = slateDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" }) + " ET";
+          enrichedGameInfo = `${enrichedGameInfo} · ${dateStr}, ${slateTimeStr}`;
         }
       }
 
