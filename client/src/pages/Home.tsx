@@ -238,7 +238,7 @@ function SportSelector({ activeSport, onSelect }: { activeSport: string; onSelec
   );
 }
 
-function TopScorersSection({ players, slateId }: { players: DashboardPlayer[]; slateId: number | null }) {
+function TopScorersSection({ players, slateId, sport }: { players: DashboardPlayer[]; slateId: number | null; sport: string }) {
   if (!players.length) return null;
 
   return (
@@ -267,15 +267,20 @@ function TopScorersSection({ players, slateId }: { players: DashboardPlayer[]; s
           >
             <div className="flex items-start justify-between gap-2 mb-2">
               <div className="flex items-center gap-2">
-                <span className="text-2xl font-black text-slate-600">#{idx + 1}</span>
+                <TeamLogo team={player.team} sport={sport} size={32} />
                 <div>
                   <p className="text-sm font-bold text-white leading-tight">{player.name}</p>
                   <p className="text-[11px] text-slate-400 font-bold">{player.position} - {player.team}</p>
                 </div>
               </div>
+              <span className="text-lg font-black text-slate-700">#{idx + 1}</span>
             </div>
             <div className="flex items-center justify-between mt-2">
-              <span className="text-[11px] text-slate-500 font-bold">vs {player.opponent}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-slate-500 font-bold">vs</span>
+                <TeamLogo team={player.opponent} sport={sport} size={16} />
+                <span className="text-[11px] text-slate-500 font-bold">{player.opponent}</span>
+              </div>
               <div className="text-right">
                 <p className="text-lg font-black text-emerald-400">{parseFloat(player.projectedPoints).toFixed(1)}</p>
                 <p className="text-[11px] text-slate-500 font-bold">${(player.salary / 1000).toFixed(1)}K</p>
@@ -288,7 +293,7 @@ function TopScorersSection({ players, slateId }: { players: DashboardPlayer[]; s
   );
 }
 
-function TrendingSection({ players }: { players: TrendingPlayer[] }) {
+function TrendingSection({ players, sport }: { players: TrendingPlayer[]; sport: string }) {
   const trendingUp = players.filter(p => p.direction === "up");
   const trendingDown = players.filter(p => p.direction === "down");
 
@@ -317,9 +322,7 @@ function TrendingSection({ players }: { players: TrendingPlayer[] }) {
                 data-testid={`trending-up-${player.id}`}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
-                    <ArrowUpRight className="w-4 h-4 text-emerald-400" />
-                  </div>
+                  <TeamLogo team={player.team} sport={sport} size={28} />
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-white truncate">{player.name}</p>
                     <p className="text-[11px] text-slate-400 font-bold">{player.position} - {player.team} vs {player.opponent}</p>
@@ -347,9 +350,7 @@ function TrendingSection({ players }: { players: TrendingPlayer[] }) {
                 data-testid={`trending-down-${player.id}`}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
-                    <ArrowDownRight className="w-4 h-4 text-red-400" />
-                  </div>
+                  <TeamLogo team={player.team} sport={sport} size={28} />
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-white truncate">{player.name}</p>
                     <p className="text-[11px] text-slate-400 font-bold">{player.position} - {player.team} vs {player.opponent}</p>
@@ -368,7 +369,7 @@ function TrendingSection({ players }: { players: TrendingPlayer[] }) {
   );
 }
 
-function MatchupsSection({ matchups }: { matchups: MatchupData[] }) {
+function MatchupsSection({ matchups, sport }: { matchups: MatchupData[]; sport: string }) {
   if (!matchups.length) return null;
 
   return (
@@ -387,7 +388,22 @@ function MatchupsSection({ matchups }: { matchups: MatchupData[] }) {
             data-testid={`matchup-${idx}`}
           >
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-black text-white">{m.gameInfo}</p>
+              <div className="flex items-center gap-2">
+                {(() => {
+                  const parts = m.gameInfo.match(/^(\w+)\s*[@vs]+\s*(\w+)/i);
+                  if (parts) {
+                    return (
+                      <div className="flex items-center gap-1.5">
+                        <TeamLogo team={parts[1]} sport={sport} size={22} />
+                        <span className="text-[10px] font-black text-slate-500">vs</span>
+                        <TeamLogo team={parts[2]} sport={sport} size={22} />
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+                <p className="text-sm font-black text-white">{m.gameInfo}</p>
+              </div>
               <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[11px] font-black px-1.5 py-0">
                 {m.playerCount} players
               </Badge>
@@ -668,9 +684,9 @@ function AuthenticatedDashboard() {
         </div>
       ) : (
         <div className="space-y-10">
-          <TopScorersSection players={dashData?.topScorers || []} slateId={dashData?.slateId || null} />
-          <TrendingSection players={dashData?.trending || []} />
-          <MatchupsSection matchups={dashData?.matchups || []} />
+          <TopScorersSection players={dashData?.topScorers || []} slateId={dashData?.slateId || null} sport={activeSport} />
+          <TrendingSection players={dashData?.trending || []} sport={activeSport} />
+          <MatchupsSection matchups={dashData?.matchups || []} sport={activeSport} />
         </div>
       )}
 
