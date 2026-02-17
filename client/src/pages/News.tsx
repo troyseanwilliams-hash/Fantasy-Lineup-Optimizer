@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import { Button } from "@/components/ui/button";
-import { Newspaper, ExternalLink, Clock, Dribbble, Activity, Target, ArrowLeft, Shield } from "lucide-react";
+import { Newspaper, ExternalLink, Clock, Dribbble, Activity, Target, ArrowLeft, Shield, Flag } from "lucide-react";
 
 interface NewsArticle {
   id: string;
@@ -28,6 +28,7 @@ const SPORT_META: Record<string, { icon: typeof Dribbble; color: string; bgColor
   NHL: { icon: Activity, color: "text-cyan-400", bgColor: "bg-cyan-500/20", label: "NHL", gradient: "from-cyan-900/80 via-slate-900/90 to-slate-950", image: "/images/sport-nhl.png" },
   MLB: { icon: Target, color: "text-red-400", bgColor: "bg-red-500/20", label: "MLB", gradient: "from-red-900/80 via-slate-900/90 to-slate-950", image: "/images/sport-mlb.png" },
   NFL: { icon: Shield, color: "text-green-400", bgColor: "bg-green-500/20", label: "NFL", gradient: "from-green-900/80 via-slate-900/90 to-slate-950", image: "/images/sport-nfl.png" },
+  GOLF: { icon: Flag, color: "text-lime-400", bgColor: "bg-lime-500/20", label: "GOLF", gradient: "from-lime-900/80 via-slate-900/90 to-slate-950", image: "/images/sport-golf.png" },
 };
 
 function timeAgo(dateStr: string): string {

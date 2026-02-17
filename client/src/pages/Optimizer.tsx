@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Lock, Unlock, X, Zap, RefreshCw, Save, Search,
   ChevronDown, ChevronUp, ArrowUpDown, Heart, Loader2,
-  DollarSign, Target, TrendingUp, RotateCcw, Crown, Plus, UserPlus, Activity
+  DollarSign, Target, TrendingUp, RotateCcw, Crown, Plus, UserPlus, Activity, Flag
 } from "lucide-react";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "fppg" | "value";
@@ -95,8 +95,14 @@ export default function Optimizer() {
     },
   });
 
+  const isGolf = sport === "GOLF";
+
   const games = useMemo(() => {
     if (!players) return [];
+    if (isGolf) {
+      const tournamentName = players[0]?.gameInfo || "Tournament";
+      return [{ away: tournamentName, home: "", time: `${players.length} Golfers` }];
+    }
     const gameMap = new Map<string, { away: string; home: string; time: string }>();
     players.forEach(p => {
       if (p.gameInfo) {
@@ -119,7 +125,7 @@ export default function Optimizer() {
       }
     });
     return Array.from(gameMap.values());
-  }, [players]);
+  }, [players, isGolf]);
 
   const toggleSort = useCallback((key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -300,6 +306,7 @@ export default function Optimizer() {
   const sportImages: Record<string, string> = {
     NBA: "/images/sport-nba.png", NHL: "/images/sport-nhl.png",
     MLB: "/images/sport-mlb.png", NFL: "/images/sport-nfl.png",
+    GOLF: "/images/sport-golf.png",
   };
 
   return (
@@ -353,43 +360,62 @@ export default function Optimizer() {
             <div className="flex items-center gap-2 mb-3">
               <Activity className={`w-4 h-4 ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`} />
               <span className="text-xs font-black text-white uppercase tracking-widest">
-                Slate Games
+                {isGolf ? "Tournament" : "Slate Games"}
               </span>
-              <Badge className={`text-[10px] font-black ${platform === "fanduel" ? "bg-blue-500/20 text-blue-300 border-blue-500/30" : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"}`}>
-                {games.length}
-              </Badge>
+              {!isGolf && (
+                <Badge className={`text-[10px] font-black ${platform === "fanduel" ? "bg-blue-500/20 text-blue-300 border-blue-500/30" : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"}`}>
+                  {games.length}
+                </Badge>
+              )}
             </div>
             <div className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-2">
-              {games.map((game, i) => (
+              {isGolf ? (
                 <div
-                  key={i}
-                  className={`flex-shrink-0 rounded-xl min-w-[100px] overflow-hidden ${
+                  className={`flex-1 rounded-xl overflow-hidden ${
                     platform === "fanduel"
                       ? "bg-blue-500/15 border-2 border-blue-400/30"
                       : "bg-emerald-500/15 border-2 border-emerald-400/30"
                   }`}
-                  data-testid={`game-card-${i}`}
+                  data-testid="tournament-card"
                 >
-                  <div className="flex flex-col items-center px-4 py-2.5 gap-1">
-                    <div className="flex items-center justify-between w-full">
-                      <span className="text-sm font-black text-white drop-shadow-sm">{game.away}</span>
-                      <span className="text-sm font-bold text-slate-400">0</span>
-                    </div>
-                    <span className={`text-[10px] font-black ${platform === "fanduel" ? "text-blue-300/60" : "text-emerald-300/60"}`}>VS</span>
-                    <div className="flex items-center justify-between w-full">
-                      <span className="text-sm font-black text-white drop-shadow-sm">{game.home}</span>
-                      <span className="text-sm font-bold text-slate-400">0</span>
-                    </div>
-                  </div>
-                  <div className={`text-[11px] font-black py-1.5 text-center ${
-                    platform === "fanduel"
-                      ? "bg-blue-500/20 text-blue-200"
-                      : "bg-emerald-500/20 text-emerald-200"
-                  }`}>
-                    {game.time}
+                  <div className="flex flex-col items-center px-6 py-3 gap-1">
+                    <Flag className={`w-5 h-5 mb-1 ${platform === "fanduel" ? "text-blue-300" : "text-emerald-300"}`} />
+                    <span className="text-sm font-black text-white drop-shadow-sm">{games[0]?.away}</span>
+                    <span className={`text-xs font-bold ${platform === "fanduel" ? "text-blue-300" : "text-emerald-300"}`}>{games[0]?.time}</span>
                   </div>
                 </div>
-              ))}
+              ) : (
+                games.map((game, i) => (
+                  <div
+                    key={i}
+                    className={`flex-shrink-0 rounded-xl min-w-[100px] overflow-hidden ${
+                      platform === "fanduel"
+                        ? "bg-blue-500/15 border-2 border-blue-400/30"
+                        : "bg-emerald-500/15 border-2 border-emerald-400/30"
+                    }`}
+                    data-testid={`game-card-${i}`}
+                  >
+                    <div className="flex flex-col items-center px-4 py-2.5 gap-1">
+                      <div className="flex items-center justify-between w-full">
+                        <span className="text-sm font-black text-white drop-shadow-sm">{game.away}</span>
+                        <span className="text-sm font-bold text-slate-400">0</span>
+                      </div>
+                      <span className={`text-[10px] font-black ${platform === "fanduel" ? "text-blue-300/60" : "text-emerald-300/60"}`}>VS</span>
+                      <div className="flex items-center justify-between w-full">
+                        <span className="text-sm font-black text-white drop-shadow-sm">{game.home}</span>
+                        <span className="text-sm font-bold text-slate-400">0</span>
+                      </div>
+                    </div>
+                    <div className={`text-[11px] font-black py-1.5 text-center ${
+                      platform === "fanduel"
+                        ? "bg-blue-500/20 text-blue-200"
+                        : "bg-emerald-500/20 text-emerald-200"
+                    }`}>
+                      {game.time}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

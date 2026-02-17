@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Zap, Newspaper, TrendingUp, ArrowRight, Clock, ExternalLink,
   ArrowUpRight, ArrowDownRight, Archive, Crown, Trophy, Dribbble,
-  Activity, Target, Lock, Sparkles, Star, Flame, Shield, Swords
+  Activity, Target, Lock, Sparkles, Star, Flame, Shield, Swords, Flag
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 
 const SPORT_LOGO_PATH: Record<string, string> = {
-  NBA: "nba", NHL: "nhl", MLB: "mlb", NFL: "nfl",
+  NBA: "nba", NHL: "nhl", MLB: "mlb", NFL: "nfl", GOLF: "golf",
 };
 const TEAM_ABBREV_MAP: Record<string, string> = {
   PHX: "phx", WSH: "wsh", WAS: "wsh", BKN: "bkn", NYK: "ny", NYM: "nym",
@@ -33,6 +33,7 @@ const SPORT_FALLBACK_IMAGE: Record<string, string> = {
   NHL: "/images/fallback-nhl.png",
   MLB: "/images/fallback-mlb.png",
   NFL: "/images/fallback-nfl.png",
+  GOLF: "/images/sport-golf.png",
 };
 
 function TeamLogo({ team, sport, size = 20 }: { team: string; sport: string; size?: number }) {
@@ -63,6 +64,7 @@ const sportNba = "/images/sport-nba.png";
 const sportNhl = "/images/sport-nhl.png";
 const sportMlb = "/images/sport-mlb.png";
 const sportNfl = "/images/sport-nfl.png";
+const sportGolf = "/images/sport-golf.png";
 
 interface DashboardPlayer {
   id: number;
@@ -160,6 +162,11 @@ const SPORT_META: Record<string, {
     icon: Shield, color: "text-green-400", textColor: "text-green-300",
     bgColor: "bg-green-500/20", borderColor: "border-green-500/30",
     gradientFrom: "from-green-900/60", image: sportNfl,
+  },
+  GOLF: {
+    icon: Flag, color: "text-lime-400", textColor: "text-lime-300",
+    bgColor: "bg-lime-500/20", borderColor: "border-lime-500/30",
+    gradientFrom: "from-lime-900/60", image: sportGolf,
   },
 };
 

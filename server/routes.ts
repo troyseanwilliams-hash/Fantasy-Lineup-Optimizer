@@ -14,6 +14,7 @@ import {
   NHL_SLATE_FEB_20_DK, NHL_PLAYERS_FEB_20_DK,
   MLB_SLATE_FEB_20_DK, MLB_PLAYERS_FEB_20_DK,
   NFL_SLATE_FEB_20_DK, NFL_PLAYERS_FEB_20_DK,
+  GOLF_SLATE_DK, GOLF_PLAYERS_DK,
 } from "@shared/seed_data";
 import { fetchAllSportsLiveData, getRollingSlateDate } from "./balldontlie";
 
@@ -259,7 +260,7 @@ export async function registerRoutes(
     const lineupCount = await storage.getLineupCount(userId);
 
     const sportCounts: Record<string, number> = {};
-    for (const sport of ["NBA", "NHL", "MLB", "NFL"]) {
+    for (const sport of ["NBA", "NHL", "GOLF", "MLB", "NFL"]) {
       sportCounts[sport] = await storage.getLineupCountBySport(userId, sport);
     }
 
@@ -414,6 +415,7 @@ export async function registerRoutes(
     NHL: "https://www.rotoballer.com/category/nhl/feed",
     MLB: "https://www.rotoballer.com/category/mlb/feed",
     NFL: "https://www.rotoballer.com/category/nfl/feed",
+    GOLF: "https://www.rotoballer.com/category/golf/feed",
   };
 
   const xmlParser = new XMLParser({
@@ -727,6 +729,13 @@ const PROP_TYPES_BY_SPORT: Record<string, { type: string; baseMultiplier: number
     { type: "Pass TDs", baseMultiplier: 0.12, unit: "TDs" },
     { type: "Rec Yards", baseMultiplier: 1.2, unit: "yds" },
   ],
+  GOLF: [
+    { type: "Birdies", baseMultiplier: 0.25, unit: "birdies" },
+    { type: "Bogey-Free Rounds", baseMultiplier: 0.08, unit: "rounds" },
+    { type: "Top 10 Finish", baseMultiplier: 0.12, unit: "T10" },
+    { type: "Eagles", baseMultiplier: 0.04, unit: "eagles" },
+    { type: "Under Par Holes", baseMultiplier: 0.35, unit: "holes" },
+  ],
 };
 
 function seededRandom(seed: number): () => number {
@@ -838,6 +847,10 @@ function buildPositionVariables(position: string, sport: string): Record<string,
       if (positions.includes("WR")) { vars.WR = 1; vars.FLEX = 1; }
       if (positions.includes("TE")) { vars.TE = 1; vars.FLEX = 1; }
       if (positions.includes("DST") || positions.includes("DEF")) { vars.DST = 1; vars.DEF = 1; }
+      break;
+
+    case "GOLF":
+      if (positions.includes("G")) { vars.G = 1; }
       break;
   }
 
@@ -951,9 +964,13 @@ export async function seedDatabase(forceRefresh = false) {
       dkSlate: { ...NFL_SLATE_FEB_20_DK, startTime: getRollingSlateDate("NFL") },
       dkPlayers: NFL_PLAYERS_FEB_20_DK,
     },
+    GOLF: {
+      dkSlate: { ...GOLF_SLATE_DK, startTime: getRollingSlateDate("GOLF") },
+      dkPlayers: GOLF_PLAYERS_DK,
+    },
   };
 
-  const sportSeeds = ["NBA", "NHL", "MLB", "NFL"].map(sport => {
+  const sportSeeds = ["NBA", "NHL", "MLB", "NFL", "GOLF"].map(sport => {
     const live = liveData.get(sport);
     if (live) {
       return {
@@ -1038,6 +1055,14 @@ const BOOST_REASONS: Record<string, string[]> = {
     "Weather conditions favor passing/rushing",
     "Key defensive player out for opponent",
   ],
+  GOLF: [
+    "Strong course history at this venue",
+    "Hot putting streak on recent tour",
+    "Favorable tee time draw",
+    "Thriving in current weather conditions",
+    "Trending up in strokes gained approach",
+    "Recent top-5 finish momentum",
+  ],
 };
 
 const INJURY_STATUSES = ["Questionable", "Probable", "Doubtful", "OUT", "Day-to-Day"];
@@ -1046,6 +1071,7 @@ const INJURY_DETAILS: Record<string, string[]> = {
   NHL: ["Upper body injury", "Lower body injury", "Undisclosed", "Concussion protocol", "Groin strain"],
   MLB: ["Right shoulder inflammation", "Left oblique strain", "Back spasms", "Knee discomfort", "Wrist soreness"],
   NFL: ["Hamstring injury", "Ankle sprain", "Concussion protocol", "Knee injury", "Shoulder strain", "Illness"],
+  GOLF: ["Back stiffness", "Wrist inflammation", "Knee soreness", "Shoulder discomfort", "Neck strain"],
 };
 
 export async function generatePlayerBoostsAndInjuries() {

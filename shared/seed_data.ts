@@ -355,3 +355,69 @@ export const NFL_PLAYERS_FEB_20_FD = NFL_BASE_PLAYERS.map(p => ({
   fppg: scaleProjForFD(p.fppg || "0"),
   projectedPoints: scaleProjForFD(p.projectedPoints?.toString() || "0"),
 }));
+
+// ===================== GOLF SEED DATA =====================
+
+export const GOLF_SLATE_DK: Partial<Slate> = {
+  sport: "GOLF",
+  platform: "draftkings",
+  name: "PGA Championship",
+  startTime: new Date("2026-02-19T07:00:00-05:00"),
+  isMain: true,
+};
+
+export const GOLF_SLATE_FD: Partial<Slate> = {
+  sport: "GOLF",
+  platform: "fanduel",
+  name: "PGA Championship",
+  startTime: new Date("2026-02-19T07:00:00-05:00"),
+  isMain: true,
+};
+
+export const GOLF_TOURNAMENT_INFO = "PGA Championship - Valhalla GC";
+
+const GOLF_BASE_PLAYERS: Omit<Partial<Player> & { name: string; team: string; position: string; salary: number }, 'id'>[] = [
+  { name: "Scottie Scheffler", team: "USA", position: "G", salary: 11800, fppg: "28.5", projectedPoints: "28.5", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Rory McIlroy", team: "NIR", position: "G", salary: 11200, fppg: "27.0", projectedPoints: "27.0", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Jon Rahm", team: "ESP", position: "G", salary: 10800, fppg: "26.0", projectedPoints: "26.0", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Xander Schauffele", team: "USA", position: "G", salary: 10500, fppg: "25.5", projectedPoints: "25.5", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Collin Morikawa", team: "USA", position: "G", salary: 10200, fppg: "24.5", projectedPoints: "24.5", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Viktor Hovland", team: "NOR", position: "G", salary: 9900, fppg: "24.0", projectedPoints: "24.0", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Patrick Cantlay", team: "USA", position: "G", salary: 9600, fppg: "23.0", projectedPoints: "23.0", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Ludvig Åberg", team: "SWE", position: "G", salary: 9400, fppg: "22.5", projectedPoints: "22.5", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Wyndham Clark", team: "USA", position: "G", salary: 9100, fppg: "22.0", projectedPoints: "22.0", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Matt Fitzpatrick", team: "ENG", position: "G", salary: 8800, fppg: "21.0", projectedPoints: "21.0", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Brooks Koepka", team: "USA", position: "G", salary: 8600, fppg: "20.5", projectedPoints: "20.5", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Jordan Spieth", team: "USA", position: "G", salary: 8400, fppg: "20.0", projectedPoints: "20.0", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Justin Thomas", team: "USA", position: "G", salary: 8200, fppg: "19.5", projectedPoints: "19.5", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Shane Lowry", team: "IRL", position: "G", salary: 8000, fppg: "19.0", projectedPoints: "19.0", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Tommy Fleetwood", team: "ENG", position: "G", salary: 7800, fppg: "18.5", projectedPoints: "18.5", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Tony Finau", team: "USA", position: "G", salary: 7600, fppg: "18.0", projectedPoints: "18.0", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Sam Burns", team: "USA", position: "G", salary: 7400, fppg: "17.5", projectedPoints: "17.5", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Sahith Theegala", team: "USA", position: "G", salary: 7200, fppg: "17.0", projectedPoints: "17.0", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Cameron Young", team: "USA", position: "G", salary: 7000, fppg: "16.5", projectedPoints: "16.5", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Hideki Matsuyama", team: "JPN", position: "G", salary: 6800, fppg: "16.0", projectedPoints: "16.0", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Brian Harman", team: "USA", position: "G", salary: 6600, fppg: "15.5", projectedPoints: "15.5", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Min Woo Lee", team: "AUS", position: "G", salary: 6400, fppg: "15.0", projectedPoints: "15.0", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Sungjae Im", team: "KOR", position: "G", salary: 6200, fppg: "14.5", projectedPoints: "14.5", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Tom Kim", team: "KOR", position: "G", salary: 6000, fppg: "14.0", projectedPoints: "14.0", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Keegan Bradley", team: "USA", position: "G", salary: 5800, fppg: "13.5", projectedPoints: "13.5", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Russell Henley", team: "USA", position: "G", salary: 5600, fppg: "13.0", projectedPoints: "13.0", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Jason Day", team: "AUS", position: "G", salary: 5400, fppg: "12.5", projectedPoints: "12.5", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Byeong Hun An", team: "KOR", position: "G", salary: 5200, fppg: "12.0", projectedPoints: "12.0", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Adam Scott", team: "AUS", position: "G", salary: 5000, fppg: "11.5", projectedPoints: "11.5", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+  { name: "Rickie Fowler", team: "USA", position: "G", salary: 4800, fppg: "11.0", projectedPoints: "11.0", opponent: "", gameInfo: GOLF_TOURNAMENT_INFO },
+];
+
+function scaleSalaryForGolf(dkSalary: number): number {
+  return Math.round((dkSalary / 50000) * 60000 / 100) * 100;
+}
+
+export const GOLF_PLAYERS_DK = GOLF_BASE_PLAYERS.map(p => ({ ...p }));
+
+export const GOLF_PLAYERS_FD = GOLF_BASE_PLAYERS.map(p => ({
+  ...p,
+  salary: scaleSalaryForGolf(p.salary),
+  fppg: scaleProjForFD(p.fppg || "0"),
+  projectedPoints: scaleProjForFD(p.projectedPoints?.toString() || "0"),
+}));

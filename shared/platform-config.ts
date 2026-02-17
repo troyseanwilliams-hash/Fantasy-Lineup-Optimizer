@@ -1,8 +1,8 @@
 export type Platform = "draftkings" | "fanduel";
-export type Sport = "NBA" | "NHL" | "MLB" | "NFL";
+export type Sport = "NBA" | "NHL" | "MLB" | "NFL" | "GOLF";
 
-export const SPORT_ORDER: Sport[] = ["NBA", "NHL", "MLB", "NFL"];
-export const ACTIVE_SPORTS: Sport[] = ["NBA", "NHL", "MLB"];
+export const SPORT_ORDER: Sport[] = ["NBA", "NHL", "GOLF", "MLB", "NFL"];
+export const ACTIVE_SPORTS: Sport[] = ["NBA", "NHL", "GOLF"];
 
 export interface PlatformConfig {
   platform: Platform;
@@ -170,6 +170,34 @@ export const PLATFORM_CONFIGS: Record<string, Record<Platform, PlatformConfig>> 
       positionFilters: ["QB", "RB", "WR", "TE", "DEF"],
     },
   },
+  GOLF: {
+    draftkings: {
+      platform: "draftkings",
+      sport: "GOLF",
+      label: "DraftKings",
+      shortLabel: "DK",
+      salaryCap: 50000,
+      rosterSize: 6,
+      slots: ["G", "G2", "G3", "G4", "G5", "G6"],
+      positionConstraints: {
+        G: { equal: 6 },
+      },
+      positionFilters: ["G"],
+    },
+    fanduel: {
+      platform: "fanduel",
+      sport: "GOLF",
+      label: "FanDuel",
+      shortLabel: "FD",
+      salaryCap: 60000,
+      rosterSize: 6,
+      slots: ["G", "G2", "G3", "G4", "G5", "G6"],
+      positionConstraints: {
+        G: { equal: 6 },
+      },
+      positionFilters: ["G"],
+    },
+  },
 };
 
 export function getPlatformConfig(sport: string, platform: Platform): PlatformConfig {
@@ -196,6 +224,7 @@ export function positionFitsSlot(position: string, slot: string, sport?: string)
 
     case "G":
       if (sport === "NHL") return positions.includes("G");
+      if (sport === "GOLF") return positions.includes("G");
       return positions.includes("PG") || positions.includes("SG");
     case "F":
       return positions.includes("SF") || positions.includes("PF");

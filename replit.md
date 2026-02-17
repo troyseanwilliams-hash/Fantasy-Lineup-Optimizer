@@ -4,7 +4,7 @@
 
 EliteLineup AI is a Daily Fantasy Sports (DFS) lineup optimizer web application. It helps users build winning DFS lineups for platforms like DraftKings and FanDuel by using Linear Programming (LP) optimization on player projections. Users can browse available slates (game sets), view player pools with stats and salaries, lock/exclude players, adjust projections, run LP-based optimization to generate optimal lineups under salary cap constraints, and save lineups to a personal vault.
 
-The app supports 4 sports: NBA, NHL, MLB, and NFL (ordered by priority in SPORT_ORDER). Each sport has platform-specific roster configurations for both DraftKings and FanDuel. The Home dashboard features a sport selector to switch between sports.
+The app supports 5 sports: NBA, NHL, GOLF, MLB, and NFL (ordered by priority in SPORT_ORDER). Active sports (NBA, NHL, GOLF) are shown in the dashboard; MLB and NFL are hidden until their seasons start. GOLF uses a tournament-style format (6 golfers, no home/away matchups). Each sport has platform-specific roster configurations for both DraftKings and FanDuel. The Home dashboard features a sport selector to switch between active sports.
 
 ## User Preferences
 
@@ -41,9 +41,11 @@ Preferred communication style: Simple, everyday language.
 
 ### Platform Configuration
 - **Shared config**: `shared/platform-config.ts` defines roster slots, salary caps, position constraints, and position filters per sport/platform
-- **Sport order**: Defined in `SPORT_ORDER` array: NBA, NHL, MLB, NFL
+- **Sport order**: Defined in `SPORT_ORDER` array: NBA, NHL, GOLF, MLB, NFL
+- **Active sports**: Defined in `ACTIVE_SPORTS` array: NBA, NHL, GOLF (MLB and NFL hidden until season)
 - **NBA DK**: 8 slots (PG, SG, SF, PF, C, G, F, UTIL), $50K cap | **NBA FD**: 9 slots (PG×2, SG×2, SF×2, PF×2, C), $60K cap
 - **NHL DK**: 9 slots (C×2, W×3, D×2, G, UTIL), $50K cap | **NHL FD**: 9 slots (C×2, W×4, D×2, G), $55K cap
+- **GOLF DK**: 6 slots (G×6), $50K cap | **GOLF FD**: 6 slots (G×6), $60K cap (tournament-style, all golfers)
 - **MLB DK**: 10 slots (P×2, C, 1B, 2B, 3B, SS, OF×3), $50K cap | **MLB FD**: 9 slots (P, C/1B, 2B, 3B, SS, OF×3, UTIL), $35K cap
 - **NFL DK**: 9 slots (QB, RB×2, WR×3, TE, FLEX, DST), $50K cap | **NFL FD**: 9 slots (QB, RB×2, WR×3, TE, FLEX, DEF), $60K cap
 - **Color schemes**: DraftKings = emerald, FanDuel = blue
