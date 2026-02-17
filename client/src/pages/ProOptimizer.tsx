@@ -17,7 +17,9 @@ import {
   Lock, Unlock, X, Zap, Save, Search,
   ChevronDown, ChevronUp, ArrowUpDown, Loader2,
   Crown, TrendingUp, TrendingDown, AlertTriangle,
-  ShieldAlert, Activity, SaveAll, Star
+  ShieldAlert, Activity, SaveAll, Star, Flag, MapPin,
+  Cloud, Sun, Wind, CloudRain, Droplets, Target,
+  Trophy, Flame, Award, BarChart3, Users, Percent
 } from "lucide-react";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "boostedProj";
@@ -102,6 +104,18 @@ export default function ProOptimizer() {
   const { data: subData } = useQuery<{ tier: string; lineupCount: number; maxLineups: number; sportCounts: Record<string, number> }>({
     queryKey: ["/api/subscription"],
     enabled: !!user,
+  });
+
+  const isGolf = sport === "GOLF";
+
+  const { data: golfAnalysis } = useQuery<any>({
+    queryKey: ["/api/golf-analysis", slateId],
+    queryFn: async () => {
+      const res = await fetch(`/api/golf-analysis/${slateId}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: isGolf && !!slateId,
   });
 
   const isPro = subData?.tier === "pro" || subData?.tier === "premium";
@@ -587,8 +601,258 @@ export default function ProOptimizer() {
         {/* RIGHT: Results & Summary Panels */}
         <div className="w-full xl:w-[480px] flex flex-col bg-slate-900/30 overflow-hidden">
           <div className="flex-1 overflow-auto p-4 space-y-4">
-            {/* Slate Games */}
-            {games.length > 0 && (
+            {/* GOLF Tournament Analysis */}
+            {isGolf && golfAnalysis && (
+              <>
+                {/* Tournament Header */}
+                <div data-testid="golf-tournament-header">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Trophy className="w-4 h-4 text-lime-400" />
+                    <span className="text-sm font-black text-white uppercase tracking-widest">Tournament Analysis</span>
+                    <Badge className="text-[10px] font-black bg-lime-500/20 text-lime-300 border-lime-500/30">AI</Badge>
+                  </div>
+                  <Card className="bg-gradient-to-br from-lime-500/10 via-emerald-500/5 to-slate-900 border-lime-500/20 p-4" data-testid="tournament-overview-card">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <Flag className="w-4 h-4 text-lime-400" />
+                          <span className="text-base font-black text-white">{golfAnalysis.tournament.name}</span>
+                        </div>
+                        {golfAnalysis.tournament.course && (
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="w-3 h-3 text-slate-400" />
+                            <span className="text-xs text-slate-300">{golfAnalysis.tournament.course}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 bg-slate-800/80 rounded-lg px-2.5 py-1 border border-slate-700/50">
+                        <Users className="w-3 h-3 text-slate-400" />
+                        <span className="text-xs font-bold text-slate-300">{golfAnalysis.tournament.fieldSize}</span>
+                      </div>
+                    </div>
+                    {golfAnalysis.courseProfile && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {golfAnalysis.courseProfile.traits.map((trait: string, i: number) => (
+                          <Badge key={i} variant="outline" className="text-[10px] font-bold border-lime-500/20 text-lime-300/80 bg-lime-500/5">
+                            {trait}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </Card>
+                </div>
+
+                {/* Weather & Course Conditions */}
+                <div data-testid="golf-weather-panel">
+                  <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-3">
+                    {golfAnalysis.weather.icon === "sun" ? <Sun className="w-4 h-4 text-amber-400" /> :
+                     golfAnalysis.weather.icon === "wind" ? <Wind className="w-4 h-4 text-cyan-400" /> :
+                     golfAnalysis.weather.icon === "cloud-rain" ? <CloudRain className="w-4 h-4 text-blue-400" /> :
+                     <Cloud className="w-4 h-4 text-slate-400" />}
+                    Course Conditions
+                  </h3>
+                  <Card className="bg-slate-800/60 border-slate-700/50 p-3">
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div className="bg-slate-900/60 rounded-lg p-2.5 border border-slate-700/30">
+                        <div className="text-[10px] font-black text-slate-400 uppercase mb-1">Weather</div>
+                        <div className="text-sm font-bold text-white">{golfAnalysis.weather.condition}</div>
+                      </div>
+                      <div className="bg-slate-900/60 rounded-lg p-2.5 border border-slate-700/30">
+                        <div className="text-[10px] font-black text-slate-400 uppercase mb-1">Temperature</div>
+                        <div className="text-sm font-bold text-amber-400">{golfAnalysis.weather.temp}</div>
+                      </div>
+                      <div className="bg-slate-900/60 rounded-lg p-2.5 border border-slate-700/30">
+                        <div className="text-[10px] font-black text-slate-400 uppercase mb-1">Wind</div>
+                        <div className="text-sm font-bold text-cyan-400">{golfAnalysis.weather.wind}</div>
+                      </div>
+                      <div className="bg-slate-900/60 rounded-lg p-2.5 border border-slate-700/30">
+                        <div className="text-[10px] font-black text-slate-400 uppercase mb-1">Humidity</div>
+                        <div className="text-sm font-bold text-blue-400">{golfAnalysis.weather.humidity}</div>
+                      </div>
+                    </div>
+                    {golfAnalysis.courseProfile?.keyStats && (
+                      <div className="border-t border-slate-700/50 pt-2.5">
+                        <div className="text-[10px] font-black text-slate-400 uppercase mb-2">Key Stats for This Course</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {golfAnalysis.courseProfile.keyStats.map((stat: string, i: number) => (
+                            <Badge key={i} className="text-[10px] font-bold bg-amber-500/10 text-amber-300 border-amber-500/20">
+                              <BarChart3 className="w-2.5 h-2.5 mr-1" />
+                              {stat}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </Card>
+                </div>
+
+                {/* Algorithm Top Picks */}
+                <div data-testid="golf-algo-picks">
+                  <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-3">
+                    <Flame className="w-4 h-4 text-amber-400" />
+                    Algorithm Top Picks
+                    <Badge className="text-[10px] font-black bg-amber-500/15 text-amber-300 border-amber-500/20">TOP 6</Badge>
+                  </h3>
+                  <Card className="bg-slate-800/60 border-slate-700/50 p-3">
+                    <div className="space-y-2">
+                      {golfAnalysis.topAlgoPicks?.map((p: any, i: number) => (
+                        <div key={p.playerId} className="flex items-center gap-2 group" data-testid={`algo-pick-${i}`}>
+                          <span className={`text-[11px] font-black w-5 text-center rounded-full ${
+                            i === 0 ? "bg-amber-500/20 text-amber-400" :
+                            i === 1 ? "bg-slate-500/20 text-slate-300" :
+                            i === 2 ? "bg-orange-500/20 text-orange-400" :
+                            "text-slate-500"
+                          }`}>
+                            {i + 1}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-bold text-white group-hover:text-lime-400 transition-colors truncate block">{p.name}</span>
+                            <span className="text-[10px] text-slate-500">{p.team}</span>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <div className="text-right">
+                              <div className="text-[10px] text-slate-500 font-bold">Course Fit</div>
+                              <div className={`text-[11px] font-black ${p.courseFitScore >= 80 ? "text-lime-400" : p.courseFitScore >= 65 ? "text-amber-400" : "text-slate-400"}`}>
+                                {p.courseFitScore}%
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-[10px] text-slate-500 font-bold">Algo</div>
+                              <div className="text-[11px] font-black text-amber-400">{p.algoScore}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Value Plays */}
+                <div data-testid="golf-value-plays">
+                  <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-3">
+                    <Award className="w-4 h-4 text-cyan-400" />
+                    Value Plays
+                  </h3>
+                  <Card className="bg-slate-800/60 border-slate-700/50 p-3">
+                    <div className="space-y-2">
+                      {golfAnalysis.valuePlays?.map((p: any, i: number) => (
+                        <div key={p.playerId} className="flex items-center gap-2 group" data-testid={`value-play-${i}`}>
+                          <Target className="w-3 h-3 text-cyan-400/60 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-bold text-white group-hover:text-cyan-400 transition-colors truncate block">{p.name}</span>
+                          </div>
+                          <span className="text-[10px] font-mono text-slate-400 flex-shrink-0">${p.salary.toLocaleString()}</span>
+                          <span className={`text-[11px] font-black flex-shrink-0 ${p.courseFitScore >= 75 ? "text-lime-400" : "text-amber-400"}`}>
+                            {p.courseFitScore}% fit
+                          </span>
+                          <span className="text-[11px] font-black text-cyan-400 flex-shrink-0">{p.algoScore}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Contrarian Picks */}
+                {golfAnalysis.contrarianPicks?.length > 0 && (
+                  <div data-testid="golf-contrarian-picks">
+                    <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-3">
+                      <Percent className="w-4 h-4 text-purple-400" />
+                      Low Ownership Gems
+                    </h3>
+                    <Card className="bg-gradient-to-br from-purple-500/10 via-slate-900 to-slate-900 border-purple-500/20 p-3">
+                      <div className="space-y-2">
+                        {golfAnalysis.contrarianPicks.map((p: any, i: number) => (
+                          <div key={p.playerId} className="flex items-center gap-2 group" data-testid={`contrarian-pick-${i}`}>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs font-bold text-white group-hover:text-purple-400 transition-colors truncate block">{p.name}</span>
+                              <span className="text-[10px] text-slate-500">{p.team} · ${p.salary.toLocaleString()}</span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <div className="text-right">
+                                <div className="text-[10px] text-slate-500 font-bold">Own%</div>
+                                <div className="text-[11px] font-black text-purple-400">{p.ownershipProjection}%</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-[10px] text-slate-500 font-bold">Score</div>
+                                <div className="text-[11px] font-black text-amber-400">{p.algoScore}</div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  </div>
+                )}
+
+                {/* Strokes Gained Leaders */}
+                {golfAnalysis.topAlgoPicks && (
+                  <div data-testid="golf-sg-leaders">
+                    <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-3">
+                      <BarChart3 className="w-4 h-4 text-emerald-400" />
+                      Strokes Gained Leaders
+                    </h3>
+                    <Card className="bg-slate-800/60 border-slate-700/50 p-3">
+                      <div className="grid grid-cols-3 gap-2 mb-2">
+                        <div className="text-[10px] font-black text-slate-400 uppercase text-center">SG: Approach</div>
+                        <div className="text-[10px] font-black text-slate-400 uppercase text-center">SG: Putting</div>
+                        <div className="text-[10px] font-black text-slate-400 uppercase text-center">SG: Off-Tee</div>
+                      </div>
+                      {golfAnalysis.playerAnalysis?.slice(0, 5).map((p: any) => (
+                        <div key={p.playerId} className="grid grid-cols-3 gap-2 py-1 border-t border-slate-700/30">
+                          <div className="text-center">
+                            <div className="text-[10px] text-slate-500 truncate">{p.name.split(' ').pop()}</div>
+                            <div className={`text-[11px] font-black ${p.sgApproach > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                              {p.sgApproach > 0 ? "+" : ""}{p.sgApproach.toFixed(2)}
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-[10px] text-slate-500 truncate">{p.name.split(' ').pop()}</div>
+                            <div className={`text-[11px] font-black ${p.sgPutting > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                              {p.sgPutting > 0 ? "+" : ""}{p.sgPutting.toFixed(2)}
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-[10px] text-slate-500 truncate">{p.name.split(' ').pop()}</div>
+                            <div className={`text-[11px] font-black ${p.sgOffTee > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                              {p.sgOffTee > 0 ? "+" : ""}{p.sgOffTee.toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </Card>
+                  </div>
+                )}
+
+                {/* Round-by-Round Forecast */}
+                <div data-testid="golf-rounds-forecast">
+                  <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-3">
+                    <Activity className="w-4 h-4 text-amber-400" />
+                    Round Schedule
+                  </h3>
+                  <Card className="bg-slate-800/60 border-slate-700/50 p-3">
+                    <div className="space-y-2">
+                      {golfAnalysis.rounds?.map((r: any, i: number) => (
+                        <div key={i} className="flex items-center justify-between py-1 border-b border-slate-700/30 last:border-0" data-testid={`round-${i}`}>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-[10px] font-black border-amber-500/20 text-amber-300 bg-amber-500/5 w-10 justify-center">
+                              R{i + 1}
+                            </Badge>
+                            <div>
+                              <span className="text-xs font-bold text-white">{r.day}</span>
+                              <span className="text-[10px] text-slate-500 ml-2">{r.time}</span>
+                            </div>
+                          </div>
+                          <span className="text-[11px] font-bold text-slate-400">{r.conditions}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                </div>
+              </>
+            )}
+
+            {/* Slate Games (non-golf) */}
+            {!isGolf && games.length > 0 && (
               <div data-testid="pro-games-panel">
                 <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-3">
                   <Activity className="w-4 h-4 text-amber-400" />

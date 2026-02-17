@@ -480,6 +480,138 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/golf-analysis/:slateId", async (req, res) => {
+    try {
+      const slateId = Number(req.params.slateId);
+      const slate = await storage.getSlate(slateId);
+      if (!slate || slate.sport !== "GOLF") {
+        return res.status(404).json({ message: "Golf slate not found" });
+      }
+
+      const players = await storage.getPlayersBySlate(slateId);
+      if (players.length === 0) {
+        return res.status(400).json({ message: "No players found" });
+      }
+
+      const rand = seededRandom(slateId * 73 + 42);
+      const tournamentParts = (players[0]?.gameInfo || "Tournament").split(" - ");
+      const tournamentName = tournamentParts[0] || "Tournament";
+      const courseName = tournamentParts[1] || "";
+
+      const weatherConditions = [
+        { condition: "Sunny", temp: "72°F", wind: "8 mph SW", humidity: "45%", icon: "sun" },
+        { condition: "Partly Cloudy", temp: "68°F", wind: "12 mph NW", humidity: "55%", icon: "cloud-sun" },
+        { condition: "Overcast", temp: "65°F", wind: "15 mph N", humidity: "62%", icon: "cloud" },
+        { condition: "Windy", temp: "70°F", wind: "22 mph SE", humidity: "40%", icon: "wind" },
+        { condition: "Light Rain", temp: "63°F", wind: "10 mph E", humidity: "78%", icon: "cloud-rain" },
+      ];
+      const weatherIdx = Math.floor(rand() * weatherConditions.length);
+      const weather = weatherConditions[weatherIdx];
+
+      const rounds = [
+        { round: "Round 1", day: "Thursday", time: "7:00 AM - 2:30 PM", conditions: weather.condition },
+        { round: "Round 2", day: "Friday", time: "7:00 AM - 2:30 PM", conditions: weatherConditions[Math.floor(rand() * weatherConditions.length)].condition },
+        { round: "Round 3", day: "Saturday", time: "8:00 AM - 3:00 PM", conditions: weatherConditions[Math.floor(rand() * weatherConditions.length)].condition },
+        { round: "Round 4", day: "Sunday", time: "9:00 AM - 4:00 PM", conditions: weatherConditions[Math.floor(rand() * weatherConditions.length)].condition },
+      ];
+
+      const courseTraits = [
+        "Bermuda greens", "Bentgrass fairways", "Par 72", "7,500 yards",
+        "Elevation changes", "Water hazards on 6 holes", "Narrow fairways",
+        "Fast greens (12+ Stimpmeter)", "Dog-leg holes", "Strategic bunkering",
+      ];
+      const selectedTraits: string[] = [];
+      const traitsCopy = [...courseTraits];
+      for (let i = 0; i < 5; i++) {
+        const idx = Math.floor(rand() * traitsCopy.length);
+        selectedTraits.push(traitsCopy.splice(idx, 1)[0]);
+      }
+
+      const keyStats = [
+        "Strokes Gained: Approach", "Strokes Gained: Off-the-Tee",
+        "Strokes Gained: Putting", "Driving Accuracy", "Greens in Regulation",
+        "Scrambling %", "Birdie Average", "Par 5 Scoring",
+      ];
+      const topStats: string[] = [];
+      const statsCopy = [...keyStats];
+      for (let i = 0; i < 3; i++) {
+        const idx = Math.floor(rand() * statsCopy.length);
+        topStats.push(statsCopy.splice(idx, 1)[0]);
+      }
+
+      const sorted = [...players].sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
+
+      const playerAnalysis = sorted.map((p, idx) => {
+        const r = rand;
+        const courseFit = Math.min(99, Math.max(45, Math.round(85 - idx * 1.2 + (r() * 20 - 10))));
+        const historicalRank = Math.min(players.length, Math.max(1, Math.round(idx + 1 + (r() * 8 - 4))));
+        const recentForm = Math.min(99, Math.max(40, Math.round(80 - idx * 1.0 + (r() * 24 - 12))));
+        const weatherAdj = Math.round((r() * 4 - 2) * 10) / 10;
+
+        const ownershipProj = Math.max(1, Math.round(
+          idx < 3 ? 25 - idx * 5 + (r() * 8 - 4) :
+          idx < 10 ? 14 - idx * 0.8 + (r() * 6 - 3) :
+          Math.max(1, 8 - idx * 0.3 + (r() * 4 - 2))
+        ));
+
+        const algoScore = Math.round(
+          (Number(p.projectedPoints) * 0.35) +
+          (courseFit * 0.25) +
+          (recentForm * 0.20) +
+          ((100 - ownershipProj) * 0.10) +
+          (weatherAdj * 2) +
+          (r() * 5 - 2.5)
+        );
+
+        const sgApproach = Math.round((r() * 3 - 0.5) * 100) / 100;
+        const sgPutting = Math.round((r() * 2.5 - 0.3) * 100) / 100;
+        const sgOffTee = Math.round((r() * 2.8 - 0.4) * 100) / 100;
+
+        return {
+          playerId: p.id,
+          name: p.name,
+          team: p.team,
+          salary: p.salary,
+          projectedPoints: Number(p.projectedPoints),
+          courseFitScore: courseFit,
+          historicalRank,
+          recentFormScore: recentForm,
+          weatherAdjustment: weatherAdj,
+          ownershipProjection: ownershipProj,
+          algoScore,
+          sgApproach,
+          sgPutting,
+          sgOffTee,
+        };
+      });
+
+      playerAnalysis.sort((a, b) => b.algoScore - a.algoScore);
+
+      const topAlgoPicks = playerAnalysis.slice(0, 6);
+      const valuePlays = [...playerAnalysis]
+        .sort((a, b) => (b.algoScore / (b.salary / 1000)) - (a.algoScore / (a.salary / 1000)))
+        .slice(0, 5);
+      const contrarian = [...playerAnalysis]
+        .filter(p => p.ownershipProjection <= 8 && p.courseFitScore >= 65)
+        .sort((a, b) => b.algoScore - a.algoScore)
+        .slice(0, 4);
+
+      res.json({
+        tournament: { name: tournamentName, course: courseName, fieldSize: players.length },
+        weather,
+        rounds,
+        courseProfile: { traits: selectedTraits, keyStats: topStats },
+        topAlgoPicks,
+        valuePlays,
+        contrarianPicks: contrarian,
+        playerAnalysis,
+      });
+    } catch (err) {
+      console.error("Golf analysis error:", err);
+      res.status(500).json({ error: "Failed to generate golf analysis" });
+    }
+  });
+
   app.post("/api/optimize/pro", async (req, res) => {
     try {
       if (!req.isAuthenticated()) return res.sendStatus(401);
