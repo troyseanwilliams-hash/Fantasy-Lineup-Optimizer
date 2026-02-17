@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square } from "lucide-react";
+import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
+import { AFFILIATE_LINKS } from "@shared/affiliate-config";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -249,6 +250,29 @@ export default function SavedLineups() {
           </Link>
         </div>
       </div>
+
+      <a
+        href={AFFILIATE_LINKS.draftkings.dfs.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block mb-8"
+        data-testid="vault-dk-dfs-banner"
+      >
+        <div className="bg-gradient-to-r from-emerald-900/30 to-slate-900/50 border border-emerald-700/20 rounded-xl p-5 transition-all hover-elevate">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                <span className="text-emerald-400 font-black text-sm">DK</span>
+              </div>
+              <div>
+                <p className="text-sm font-black text-white">{AFFILIATE_LINKS.draftkings.dfs.label}</p>
+                <p className="text-xs text-slate-400">{AFFILIATE_LINKS.draftkings.dfs.description}</p>
+              </div>
+            </div>
+            <ExternalLink className="w-4 h-4 text-emerald-500/50" />
+          </div>
+        </div>
+      </a>
 
       {lineups?.length ? (
         <div className="flex flex-col gap-6">
