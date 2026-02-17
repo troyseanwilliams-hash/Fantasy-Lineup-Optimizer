@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link, useSearch } from "wouter";
-import { Lock, Crown, Zap, ArrowUpRight, ArrowDownRight, ExternalLink, Trophy, Activity, Target, Dribbble } from "lucide-react";
+import { Lock, Crown, Zap, ArrowUpRight, ArrowDownRight, ExternalLink, Trophy, Activity, Target, Dribbble, Clock } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import { AFFILIATE_LINKS, AFFILIATE_PROMOS } from "@shared/affiliate-config";
 
@@ -145,7 +145,21 @@ function PropCard({ prop, index }: { prop: PropBet; index: number }) {
       data-testid={`prop-card-${index}`}
     >
       <div className="flex items-start justify-between mb-3">
-        <span className="text-[11px] font-bold text-slate-400">{prop.team} vs {prop.opponent}</span>
+        <div>
+          <span className="text-[11px] font-bold text-slate-400">{prop.team} vs {prop.opponent}</span>
+          {prop.gameInfo && (() => {
+            const timeMatch = prop.gameInfo.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)(?:\s*ET)?)/i);
+            const gameTime = timeMatch ? timeMatch[1] : null;
+            return gameTime ? (
+              <div className="flex items-center gap-1 mt-1" data-testid={`prop-gametime-${index}`}>
+                <Clock className="w-3 h-3 text-emerald-400/70" />
+                <span className="text-[11px] font-bold text-emerald-400/90">{gameTime}</span>
+              </div>
+            ) : (
+              <p className="text-[11px] text-slate-500 mt-1">{prop.gameInfo}</p>
+            );
+          })()}
+        </div>
         <div className={`px-2 py-0.5 rounded text-[11px] font-black ${
           Number(prop.confidence) >= 75
             ? "bg-emerald-500/20 text-emerald-400"
@@ -158,7 +172,6 @@ function PropCard({ prop, index }: { prop: PropBet; index: number }) {
       </div>
 
       <h3 className="text-base font-bold text-white mb-1" data-testid={`prop-player-${index}`}>{prop.playerName}</h3>
-      <p className="text-xs text-slate-400 mb-3">{prop.gameInfo}</p>
 
       <div className="flex items-center justify-between bg-slate-900/50 rounded-xl px-4 py-3 border border-slate-800/50">
         <div>

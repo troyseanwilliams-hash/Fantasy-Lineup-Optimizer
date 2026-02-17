@@ -69,6 +69,7 @@ interface PropBet {
   line: string;
   pick: string;
   confidence: string;
+  gameInfo: string;
   isLocked: boolean;
 }
 
@@ -423,7 +424,15 @@ function DailyPicksCompact() {
                   }`}>{prop.confidence}</Badge>
                 </div>
                 <p className="text-sm font-bold text-white truncate">{prop.playerName}</p>
-                <p className="text-[11px] text-slate-500 font-bold mt-0.5">{prop.team} vs {prop.opponent}</p>
+                <div className="flex items-center justify-between mt-0.5">
+                  <p className="text-[11px] text-slate-500 font-bold">{prop.team} vs {prop.opponent}</p>
+                  {prop.gameInfo && (() => {
+                    const tm = prop.gameInfo.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)(?:\s*ET)?)/i);
+                    return tm ? (
+                      <span className="text-[10px] font-bold text-emerald-400/80">{tm[1]}</span>
+                    ) : null;
+                  })()}
+                </div>
                 <div className="flex items-center justify-between mt-3">
                   <span className="text-[11px] text-slate-400 font-bold">{prop.propType}</span>
                   <div className="flex items-center gap-1">
