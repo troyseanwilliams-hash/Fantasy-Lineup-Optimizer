@@ -303,6 +303,112 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/dashboard/:sport", async (req, res) => {
+    try {
+      const sport = req.params.sport.toUpperCase();
+      const allSlates = await storage.getSlates();
+      const slate = allSlates.find(s => s.sport === sport && s.platform === "draftkings" && s.isMain);
+      if (!slate) {
+        return res.json({ sport, topScorers: [], trending: [], matchups: [], slateId: null });
+      }
+
+      const allPlayers = await storage.getPlayersBySlate(slate.id);
+      if (!allPlayers || allPlayers.length === 0) {
+        return res.json({ sport, topScorers: [], trending: [], matchups: [], slateId: slate.id });
+      }
+
+      const topScorers = [...allPlayers]
+        .sort((a, b) => parseFloat(b.projectedPoints || "0") - parseFloat(a.projectedPoints || "0"))
+        .slice(0, 8)
+        .map(p => ({
+          id: p.id,
+          name: p.name,
+          position: p.position,
+          team: p.team,
+          salary: p.salary,
+          projectedPoints: p.projectedPoints,
+          fppg: p.fppg,
+          opponent: p.opponent,
+          gameInfo: p.gameInfo,
+        }));
+
+      const withValue = allPlayers
+        .filter(p => p.salary && p.salary > 0 && parseFloat(p.projectedPoints || "0") > 0)
+        .map(p => ({
+          ...p,
+          valueScore: parseFloat(p.projectedPoints || "0") / (p.salary / 1000),
+        }));
+
+      const sortedByValue = [...withValue].sort((a, b) => b.valueScore - a.valueScore);
+      const trendingUp = sortedByValue.slice(0, 5).map(p => ({
+        id: p.id,
+        name: p.name,
+        position: p.position,
+        team: p.team,
+        salary: p.salary,
+        projectedPoints: p.projectedPoints,
+        fppg: p.fppg,
+        opponent: p.opponent,
+        gameInfo: p.gameInfo,
+        valueScore: p.valueScore.toFixed(2),
+        direction: "up" as const,
+      }));
+
+      const sortedByValueAsc = [...withValue]
+        .filter(p => p.salary >= 4000)
+        .sort((a, b) => a.valueScore - b.valueScore);
+      const trendingDown = sortedByValueAsc.slice(0, 3).map(p => ({
+        id: p.id,
+        name: p.name,
+        position: p.position,
+        team: p.team,
+        salary: p.salary,
+        projectedPoints: p.projectedPoints,
+        fppg: p.fppg,
+        opponent: p.opponent,
+        gameInfo: p.gameInfo,
+        valueScore: p.valueScore.toFixed(2),
+        direction: "down" as const,
+      }));
+
+      const trending = [...trendingUp, ...trendingDown];
+
+      const gameMap = new Map<string, typeof allPlayers>();
+      for (const p of allPlayers) {
+        const key = p.gameInfo || "unknown";
+        if (!gameMap.has(key)) gameMap.set(key, []);
+        gameMap.get(key)!.push(p);
+      }
+
+      const matchups = Array.from(gameMap.entries())
+        .filter(([key]) => key !== "unknown")
+        .map(([gameInfo, gamePlayers]) => {
+          const avgProj = gamePlayers.reduce((sum, p) => sum + parseFloat(p.projectedPoints || "0"), 0) / gamePlayers.length;
+          const topPlayer = [...gamePlayers].sort((a, b) => parseFloat(b.projectedPoints || "0") - parseFloat(a.projectedPoints || "0"))[0];
+          return {
+            gameInfo,
+            playerCount: gamePlayers.length,
+            avgProjection: avgProj.toFixed(1),
+            topPlayer: topPlayer ? {
+              id: topPlayer.id,
+              name: topPlayer.name,
+              position: topPlayer.position,
+              team: topPlayer.team,
+              salary: topPlayer.salary,
+              projectedPoints: topPlayer.projectedPoints,
+            } : null,
+          };
+        })
+        .sort((a, b) => parseFloat(b.avgProjection) - parseFloat(a.avgProjection))
+        .slice(0, 6);
+
+      res.json({ sport, slateId: slate.id, topScorers, trending, matchups });
+    } catch (err) {
+      console.error("Dashboard data error:", err);
+      res.status(500).json({ error: "Failed to load dashboard data" });
+    }
+  });
+
   const ROTOBALLER_RSS_URLS: Record<string, string> = {
     NBA: "https://www.rotoballer.com/category/nba/feed",
     NHL: "https://www.rotoballer.com/category/nhl/feed",
