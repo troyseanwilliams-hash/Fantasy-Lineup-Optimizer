@@ -19,6 +19,7 @@ export interface IStorage extends IAuthStorage {
   clearAllSlatesAndPlayers(): Promise<void>;
 
   getPlayersBySlate(slateId: number): Promise<Player[]>;
+  getAllPlayers(): Promise<Player[]>;
   createPlayer(player: InsertPlayer): Promise<Player>;
   bulkCreatePlayers(players: InsertPlayer[]): Promise<Player[]>;
   updatePlayerBoosts(slateId: number, boosts: { playerId: number; boostScore: string; boostReason: string }[]): Promise<void>;
@@ -74,6 +75,10 @@ export class DatabaseStorage implements IStorage {
 
   async getPlayersBySlate(slateId: number): Promise<Player[]> {
     return await db.select().from(players).where(eq(players.slateId, slateId));
+  }
+
+  async getAllPlayers(): Promise<Player[]> {
+    return await db.select().from(players);
   }
 
   async createPlayer(insertPlayer: InsertPlayer): Promise<Player> {
