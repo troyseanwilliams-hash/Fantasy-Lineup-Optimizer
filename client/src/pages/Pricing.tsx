@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, Crown, Zap, Lock, Trophy, Sparkles } from "lucide-react";
+import { Check, Crown, Zap, Lock, Trophy, Sparkles, Layers } from "lucide-react";
 
 export default function Pricing() {
   const { user } = useAuth();
@@ -74,6 +74,10 @@ export default function Pricing() {
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-400">
               <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
+              <span>No SGP Parlay Builder</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-400">
+              <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
               <span>No AI boost analysis</span>
             </li>
           </ul>
@@ -127,6 +131,10 @@ export default function Pricing() {
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
               <span className="font-bold">Multi-lineup generation (up to 5)</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span className="font-bold">SGP Parlay Builder (4 legs)</span>
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-400">
               <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
@@ -200,6 +208,10 @@ export default function Pricing() {
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
               <span className="font-bold">Multi-lineup generation (up to 20)</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <span className="font-bold text-amber-300">SGP Parlay Builder (8 legs + AI insights)</span>
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
