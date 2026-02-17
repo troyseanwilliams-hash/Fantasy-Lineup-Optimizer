@@ -967,7 +967,8 @@ export async function generateDailyProps(date: string) {
             let gameInfoWithTime = p.gameInfo;
             if (p.commenceTime) {
               const d = new Date(p.commenceTime);
-              const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" }) + " ET";
+              const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
+              const timeStr = dateStr + ", " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" }) + " ET";
               gameInfoWithTime = `${p.gameInfo} · ${timeStr}`;
             }
             allProps.push({
