@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import { Button } from "@/components/ui/button";
-import { Newspaper, ExternalLink, Clock, Dribbble, Activity, Target, ArrowLeft } from "lucide-react";
+import { Newspaper, ExternalLink, Clock, Dribbble, Activity, Target, ArrowLeft, Shield } from "lucide-react";
 
 interface NewsArticle {
   id: string;
@@ -23,10 +23,11 @@ interface NewsResponse {
   articles: NewsArticle[];
 }
 
-const SPORT_META: Record<string, { icon: typeof Dribbble; color: string; bgColor: string; label: string }> = {
-  NBA: { icon: Dribbble, color: "text-orange-400", bgColor: "bg-orange-500/20", label: "NBA" },
-  NHL: { icon: Activity, color: "text-cyan-400", bgColor: "bg-cyan-500/20", label: "NHL" },
-  MLB: { icon: Target, color: "text-red-400", bgColor: "bg-red-500/20", label: "MLB" },
+const SPORT_META: Record<string, { icon: typeof Dribbble; color: string; bgColor: string; label: string; gradient: string; image: string }> = {
+  NBA: { icon: Dribbble, color: "text-orange-400", bgColor: "bg-orange-500/20", label: "NBA", gradient: "from-orange-900/80 via-slate-900/90 to-slate-950", image: "/images/sport-nba.png" },
+  NHL: { icon: Activity, color: "text-cyan-400", bgColor: "bg-cyan-500/20", label: "NHL", gradient: "from-cyan-900/80 via-slate-900/90 to-slate-950", image: "/images/sport-nhl.png" },
+  MLB: { icon: Target, color: "text-red-400", bgColor: "bg-red-500/20", label: "MLB", gradient: "from-red-900/80 via-slate-900/90 to-slate-950", image: "/images/sport-mlb.png" },
+  NFL: { icon: Shield, color: "text-green-400", bgColor: "bg-green-500/20", label: "NFL", gradient: "from-green-900/80 via-slate-900/90 to-slate-950", image: "/images/sport-nfl.png" },
 };
 
 function timeAgo(dateStr: string): string {
@@ -52,49 +53,60 @@ export default function News() {
   });
 
   return (
-    <div className="container mx-auto px-4 py-10 max-w-5xl">
-      <div className="mb-8">
-        <Link href="/">
-          <span className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors cursor-pointer mb-4" data-testid="news-back-link">
-            <ArrowLeft className="w-4 h-4" />
-            Dashboard
-          </span>
-        </Link>
-        <div className="flex items-center gap-4 mt-3">
-          <div className={`w-12 h-12 rounded-xl ${meta.bgColor} flex items-center justify-center`}>
-            <Icon className={`w-6 h-6 ${meta.color}`} />
-          </div>
-          <div>
-            <h1 className="text-3xl font-black text-white tracking-tight" data-testid="news-title">
-              {sport} News
-            </h1>
-            <p className="text-slate-400 text-sm mt-0.5">Fantasy sports news and analysis from RotoBaller</p>
-          </div>
+    <div>
+      <div className="relative overflow-hidden mb-8" data-testid="news-hero">
+        <div className="absolute inset-0">
+          <img
+            src={meta.image}
+            alt={`${sport} background`}
+            className="w-full h-full object-cover opacity-30"
+          />
+          <div className={`absolute inset-0 bg-gradient-to-b ${meta.gradient}`} />
         </div>
+        <div className="relative container mx-auto px-4 max-w-5xl pt-8 pb-10">
+          <Link href="/">
+            <span className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors cursor-pointer mb-4" data-testid="news-back-link">
+              <ArrowLeft className="w-4 h-4" />
+              Dashboard
+            </span>
+          </Link>
+          <div className="flex items-center gap-4 mt-3">
+            <div className={`w-12 h-12 rounded-xl ${meta.bgColor} flex items-center justify-center`}>
+              <Icon className={`w-6 h-6 ${meta.color}`} />
+            </div>
+            <div>
+              <h1 className="text-3xl font-black text-white tracking-tight" data-testid="news-title">
+                {sport} News
+              </h1>
+              <p className="text-slate-400 text-sm mt-0.5">Fantasy sports news and analysis from RotoBaller</p>
+            </div>
+          </div>
 
-        <div className="flex gap-2 mt-6" data-testid="news-sport-tabs">
-          {ACTIVE_SPORTS.map(s => {
-            const m = SPORT_META[s] || SPORT_META.NBA;
-            const SIcon = m.icon;
-            const isActive = s === sport;
-            return (
-              <Link key={s} href={`/news/${s.toLowerCase()}`}>
-                <Button
-                  variant={isActive ? "secondary" : "ghost"}
-                  size="sm"
-                  className={isActive ? "font-bold" : "text-slate-500 font-bold"}
-                  data-testid={`news-tab-${s.toLowerCase()}`}
-                >
-                  <SIcon className={`w-4 h-4 mr-1.5 ${isActive ? m.color : ""}`} />
-                  {s}
-                </Button>
-              </Link>
-            );
-          })}
+          <div className="flex gap-2 mt-6" data-testid="news-sport-tabs">
+            {ACTIVE_SPORTS.map(s => {
+              const sm = SPORT_META[s] || SPORT_META.NBA;
+              const SIcon = sm.icon;
+              const isActive = s === sport;
+              return (
+                <Link key={s} href={`/news/${s.toLowerCase()}`}>
+                  <Button
+                    variant={isActive ? "secondary" : "ghost"}
+                    size="sm"
+                    className={isActive ? "font-bold" : "text-slate-500 font-bold"}
+                    data-testid={`news-tab-${s.toLowerCase()}`}
+                  >
+                    <SIcon className={`w-4 h-4 mr-1.5 ${isActive ? sm.color : ""}`} />
+                    {s}
+                  </Button>
+                </Link>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {isLoading && (
+      <div className="container mx-auto px-4 max-w-5xl pb-8">
+        {isLoading && (
         <div className="space-y-4" data-testid="news-loading">
           {Array.from({ length: 6 }).map((_, i) => (
             <Card key={i} className="bg-slate-800/30 border-slate-800 p-5">
@@ -187,8 +199,9 @@ export default function News() {
         </div>
       )}
 
-      <div className="mt-8 text-center">
-        <p className="text-[11px] text-slate-400">News powered by <a href="https://www.rotoballer.com" target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400">RotoBaller</a></p>
+        <div className="mt-8 text-center">
+          <p className="text-[11px] text-slate-400">News powered by <a href="https://www.rotoballer.com" target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400">RotoBaller</a></p>
+        </div>
       </div>
     </div>
   );
