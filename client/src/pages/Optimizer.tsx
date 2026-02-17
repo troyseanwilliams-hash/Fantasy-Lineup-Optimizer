@@ -297,13 +297,26 @@ export default function Optimizer() {
   const positions = ["ALL", ...(config.positionFilters || ["PG", "SG", "SF", "PF", "C"])];
   const platformColor = platform === "fanduel" ? "blue" : "emerald";
 
+  const sportImages: Record<string, string> = {
+    NBA: "/images/sport-nba.png", NHL: "/images/sport-nhl.png",
+    MLB: "/images/sport-mlb.png", NFL: "/images/sport-nfl.png",
+  };
+
   return (
     <div className="flex flex-col xl:flex-row h-[calc(100vh-80px)] overflow-hidden">
       {/* LEFT: Player Pool */}
       <div className="flex-1 flex flex-col overflow-hidden border-r border-slate-800">
         {/* Top Bar */}
-        <div className="border-b border-slate-800 bg-slate-900/40">
-          <div className="px-4 py-3 flex flex-wrap items-center gap-3">
+        <div className="relative border-b border-slate-800 overflow-hidden">
+          <div className="absolute inset-0">
+            <img
+              src={sportImages[sport] || sportImages.NBA}
+              alt=""
+              className="w-full h-full object-cover opacity-15"
+            />
+            <div className={`absolute inset-0 bg-gradient-to-r ${platform === "fanduel" ? "from-blue-950/90 via-slate-900/95 to-slate-900" : "from-emerald-950/90 via-slate-900/95 to-slate-900"}`} />
+          </div>
+          <div className="relative px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
               <Zap className={`w-5 h-5 fill-current ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`} />
               <span className="text-lg font-black text-white tracking-tight">{sport} OPTIMIZER</span>
