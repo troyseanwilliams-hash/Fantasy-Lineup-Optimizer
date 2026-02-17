@@ -524,41 +524,65 @@ export async function registerRoutes(
         return { ...p, projectedPoints: boostedPoints.toString() };
       });
 
-      const lineupResults = [];
-      const usedPlayerSets: Set<string>[] = [];
+      const lineupResults: any[] = [];
+      const usedLineupKeys = new Set<string>();
 
-      for (let i = 0; i < constraints.lineupCount; i++) {
+      const baseExcluded = [...constraints.excludedPlayerIds];
+      if (constraints.useInjuryAdjustments) {
+        allPlayers.forEach(p => {
+          if (p.injuryStatus === "OUT" && !baseExcluded.includes(p.id)) {
+            baseExcluded.push(p.id);
+          }
+        });
+      }
+
+      const maxAttempts = constraints.lineupCount * 8;
+      let attempts = 0;
+
+      while (lineupResults.length < constraints.lineupCount && attempts < maxAttempts) {
+        attempts++;
+        const iteration = lineupResults.length;
+        const noiseScale = iteration === 0 ? 0 : Math.min(0.10 + iteration * 0.04, 0.40);
+
         const perturbedPool = pool.map(p => {
-          if (constraints.excludedPlayerIds.includes(p.id)) return p;
+          if (baseExcluded.includes(p.id)) return p;
           const base = Number(p.projectedPoints);
-          const noise = (Math.random() - 0.5) * base * 0.12 * (i > 0 ? 1 : 0);
+          const noise = iteration === 0 ? 0 : (Math.random() - 0.5) * base * noiseScale;
           return { ...p, projectedPoints: Math.max(0, base + noise).toString() };
         });
 
-        const excluded = [...constraints.excludedPlayerIds];
-        if (constraints.useInjuryAdjustments) {
-          allPlayers.forEach(p => {
-            if (p.injuryStatus === "OUT" && !excluded.includes(p.id)) {
-              excluded.push(p.id);
+        const iterationExcluded = [...baseExcluded];
+
+        if (iteration > 0 && lineupResults.length > 0) {
+          const prevLineup = lineupResults[lineupResults.length - 1];
+          const prevPlayers = (prevLineup.lineup || []) as Player[];
+          const nonLockedPrev = prevPlayers.filter(
+            p => !constraints.lockedPlayerIds.includes(p.id)
+          );
+          if (nonLockedPrev.length > 0) {
+            const excludeCount = Math.min(
+              1 + Math.floor(iteration / 3),
+              Math.ceil(nonLockedPrev.length / 3)
+            );
+            const shuffled = nonLockedPrev.sort(() => Math.random() - 0.5);
+            for (let e = 0; e < excludeCount; e++) {
+              if (!iterationExcluded.includes(shuffled[e].id)) {
+                iterationExcluded.push(shuffled[e].id);
+              }
             }
-          });
-        }
-
-        const modConstraints = { ...constraints, excludedPlayerIds: excluded };
-        const result = solveLineup(perturbedPool, modConstraints, slate.sport, platform);
-
-        if (!result.error) {
-          const key = result.lineup.map(p => p.id).sort().join(",");
-          const isDuplicate = usedPlayerSets.some(s => s.has(key));
-          if (!isDuplicate) {
-            lineupResults.push({ ...result, platform });
-            usedPlayerSets.push(new Set([key]));
-          } else if (i < constraints.lineupCount + 5) {
-            continue;
           }
         }
 
-        if (lineupResults.length >= constraints.lineupCount) break;
+        const modConstraints = { ...constraints, excludedPlayerIds: iterationExcluded };
+        const result = solveLineup(perturbedPool, modConstraints, slate.sport, platform);
+
+        if (!result.error && result.lineup.length > 0) {
+          const key = result.lineup.map((p: Player) => p.id).sort().join(",");
+          if (!usedLineupKeys.has(key)) {
+            lineupResults.push({ ...result, platform });
+            usedLineupKeys.add(key);
+          }
+        }
       }
 
       const boostsSummary = allPlayers
