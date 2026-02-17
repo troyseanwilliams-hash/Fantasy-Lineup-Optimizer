@@ -245,19 +245,34 @@ export function assignPlayersToSlots(
   slots: string[],
   sport?: string
 ): Record<string, any | null> {
+  const specificSlots = slots.filter(s => {
+    const base = getSlotDisplayName(s);
+    return base !== "UTIL" && base !== "FLEX" && base !== "G" && base !== "F";
+  });
+  const flexSlots = slots.filter(s => {
+    const base = getSlotDisplayName(s);
+    return base === "G" || base === "F";
+  });
+  const utilSlots = slots.filter(s => {
+    const base = getSlotDisplayName(s);
+    return base === "UTIL" || base === "FLEX";
+  });
+  const orderedSlots = [...specificSlots, ...flexSlots, ...utilSlots];
+
   function solve(slotIdx: number, used: Set<number>): Record<string, any | null> | null {
-    if (slotIdx >= slots.length) {
+    if (slotIdx >= orderedSlots.length) {
       const result: Record<string, any | null> = {};
       slots.forEach(s => result[s] = null);
       return result;
     }
-    const slot = slots[slotIdx];
+    const slot = orderedSlots[slotIdx];
+    const remainingSlots = orderedSlots.slice(slotIdx + 1);
     const eligible = players.filter(p => !used.has(p.id) && positionFitsSlot(p.position, slot, sport));
 
     const sorted = [...eligible].sort((a, b) => {
-      const aSlots = slots.filter(s => s !== slot && positionFitsSlot(a.position, s, sport)).length;
-      const bSlots = slots.filter(s => s !== slot && positionFitsSlot(b.position, s, sport)).length;
-      return aSlots - bSlots;
+      const aFlex = remainingSlots.filter(s => positionFitsSlot(a.position, s, sport)).length;
+      const bFlex = remainingSlots.filter(s => positionFitsSlot(b.position, s, sport)).length;
+      return aFlex - bFlex;
     });
 
     for (const p of sorted) {
@@ -272,7 +287,34 @@ export function assignPlayersToSlots(
     return null;
   }
 
-  const emptyResult: Record<string, any | null> = {};
-  slots.forEach(s => emptyResult[s] = null);
-  return solve(0, new Set()) || emptyResult;
+  const btResult = solve(0, new Set());
+  if (btResult) return btResult;
+
+  const greedyResult: Record<string, any | null> = {};
+  slots.forEach(s => greedyResult[s] = null);
+  const used = new Set<number>();
+
+  for (const slot of orderedSlots) {
+    const eligible = players.filter(p => !used.has(p.id) && positionFitsSlot(p.position, slot, sport));
+    if (eligible.length > 0) {
+      const best = eligible.sort((a, b) => {
+        const aFlex = orderedSlots.filter(s => greedyResult[s] === null && s !== slot && positionFitsSlot(a.position, s, sport)).length;
+        const bFlex = orderedSlots.filter(s => greedyResult[s] === null && s !== slot && positionFitsSlot(b.position, s, sport)).length;
+        return aFlex - bFlex;
+      })[0];
+      greedyResult[slot] = best;
+      used.add(best.id);
+    }
+  }
+
+  const unassigned = players.filter(p => !used.has(p.id));
+  for (const p of unassigned) {
+    const emptySlot = slots.find(s => greedyResult[s] === null);
+    if (emptySlot) {
+      greedyResult[emptySlot] = p;
+      used.add(p.id);
+    }
+  }
+
+  return greedyResult;
 }
