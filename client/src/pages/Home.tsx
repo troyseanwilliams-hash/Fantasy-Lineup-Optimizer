@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Zap, Newspaper, TrendingUp, ArrowRight, Clock, ExternalLink,
   ArrowUpRight, ArrowDownRight, Archive, Crown, Trophy, Dribbble,
-  Activity, Target, Lock, Sparkles, Star, Flame, Shield, Swords, Flag
+  Activity, Target, Lock, Sparkles, Star, Flame, Shield, Swords, Flag,
+  Radio, Circle
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -603,6 +604,216 @@ function NewsCompact({ sport }: { sport: string }) {
   );
 }
 
+interface LiveGameScore {
+  id: string;
+  sport: string;
+  status: "pre" | "in" | "post";
+  statusDetail: string;
+  shortDetail: string;
+  startTime?: string;
+  homeTeam?: { name: string; abbreviation: string; score: string };
+  awayTeam?: { name: string; abbreviation: string; score: string };
+  period?: number;
+  clock?: string;
+  tournamentName?: string;
+  leaderboard?: { playerName: string; position: string; score: string; round: number; thru: string }[];
+}
+
+function getStatusColor(status: string) {
+  if (status === "in") return "text-emerald-400";
+  if (status === "post") return "text-slate-500";
+  return "text-amber-400";
+}
+
+function getStatusBg(status: string) {
+  if (status === "in") return "bg-emerald-500/20 border-emerald-500/30";
+  if (status === "post") return "bg-slate-700/40 border-slate-600/30";
+  return "bg-amber-500/15 border-amber-500/20";
+}
+
+function formatGameTime(startTime?: string) {
+  if (!startTime) return "";
+  try {
+    const d = new Date(startTime);
+    return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" }) + " ET";
+  } catch { return ""; }
+}
+
+function LiveScoresSection({ sport }: { sport: string }) {
+  const { data: games, isLoading } = useQuery<LiveGameScore[]>({
+    queryKey: [`/api/scores/${sport}`],
+    refetchInterval: 120000,
+  });
+
+  if (isLoading) {
+    return (
+      <div data-testid="live-scores-section" className="mb-6">
+        <div className="flex items-center gap-2.5 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+            <Radio className="w-4 h-4 text-emerald-400" />
+          </div>
+          <h2 className="text-lg font-black text-white tracking-tight">Live Scores</h2>
+        </div>
+        <div className="flex gap-3 overflow-x-auto pb-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="bg-slate-800/30 border-slate-800 p-4 min-w-[220px] shrink-0">
+              <Skeleton className="h-4 w-20 mb-3" />
+              <Skeleton className="h-5 w-full mb-2" />
+              <Skeleton className="h-5 w-full" />
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!games || games.length === 0) {
+    return (
+      <div data-testid="live-scores-section" className="mb-6">
+        <div className="flex items-center gap-2.5 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+            <Radio className="w-4 h-4 text-emerald-400" />
+          </div>
+          <h2 className="text-lg font-black text-white tracking-tight">Live Scores</h2>
+        </div>
+        <Card className="bg-slate-800/30 border-slate-800 p-6 text-center" data-testid="no-games-message">
+          <Clock className="w-6 h-6 text-slate-600 mx-auto mb-2" />
+          <p className="text-sm text-slate-400 font-bold">No games scheduled today</p>
+        </Card>
+      </div>
+    );
+  }
+
+  const isGolf = sport === "GOLF";
+  const liveGames = games.filter(g => g.status === "in");
+  const hasLive = liveGames.length > 0;
+
+  if (isGolf) {
+    const tournament = games[0];
+    if (!tournament?.leaderboard?.length) return null;
+    return (
+      <div data-testid="live-scores-section" className="mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-lime-500/20 flex items-center justify-center">
+              <Flag className="w-4 h-4 text-lime-400" />
+            </div>
+            <h2 className="text-lg font-black text-white tracking-tight">{tournament.tournamentName || "Tournament"}</h2>
+          </div>
+          {tournament.status === "in" && (
+            <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[11px] font-black px-2 py-0.5 gap-1 animate-pulse" data-testid="live-indicator">
+              <Circle className="w-2 h-2 fill-current" /> LIVE
+            </Badge>
+          )}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {tournament.leaderboard.slice(0, 10).map((player, idx) => (
+            <div
+              key={idx}
+              className={`flex items-center justify-between px-4 py-2.5 rounded-lg ${idx < 3 ? "bg-lime-950/30 border border-lime-800/20" : "bg-slate-800/30 border border-slate-800/50"}`}
+              data-testid={`golf-leaderboard-${idx}`}
+            >
+              <div className="flex items-center gap-3">
+                <span className={`text-sm font-black w-6 text-center ${idx < 3 ? "text-lime-400" : "text-slate-500"}`}>
+                  {player.position || `T${idx + 1}`}
+                </span>
+                <span className="text-sm font-bold text-white">{player.playerName}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                {player.thru && (
+                  <span className="text-[11px] text-slate-500 font-bold">Thru {player.thru}</span>
+                )}
+                <span className={`text-sm font-black ${player.score.startsWith("-") ? "text-emerald-400" : player.score === "E" ? "text-slate-300" : "text-red-400"}`}>
+                  {player.score}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div data-testid="live-scores-section" className="mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+            <Radio className="w-4 h-4 text-emerald-400" />
+          </div>
+          <h2 className="text-lg font-black text-white tracking-tight">Live Scores</h2>
+        </div>
+        {hasLive && (
+          <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[11px] font-black px-2 py-0.5 gap-1 animate-pulse" data-testid="live-indicator">
+            <Circle className="w-2 h-2 fill-current" /> {liveGames.length} LIVE
+          </Badge>
+        )}
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
+        {games.map(game => {
+          if (!game.homeTeam || !game.awayTeam) return null;
+          const isLive = game.status === "in";
+          const isFinal = game.status === "post";
+          return (
+            <Card
+              key={game.id}
+              className={`min-w-[240px] shrink-0 p-4 transition-all ${
+                isLive ? "bg-emerald-950/30 border-emerald-800/30 ring-1 ring-emerald-500/20" :
+                isFinal ? "bg-slate-800/30 border-slate-700/40" :
+                "bg-slate-800/40 border-slate-700/50"
+              }`}
+              data-testid={`game-card-${game.id}`}
+            >
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <Badge className={`text-[10px] font-black px-1.5 py-0 ${getStatusBg(game.status)} ${getStatusColor(game.status)}`} data-testid={`game-status-${game.id}`}>
+                  {isLive ? (game.shortDetail || "LIVE") : isFinal ? "FINAL" : formatGameTime(game.startTime)}
+                </Badge>
+                {isLive && game.clock && (
+                  <span className="text-[10px] text-emerald-400/70 font-bold" data-testid={`game-clock-${game.id}`}>{game.clock}</span>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <TeamLogo team={game.awayTeam.abbreviation} sport={sport} size={22} />
+                    <span className={`text-sm font-bold ${!isFinal ? "text-white" : parseInt(game.awayTeam.score) > parseInt(game.homeTeam.score) ? "text-white" : "text-slate-400"}`} data-testid={`away-team-${game.id}`}>
+                      {game.awayTeam.abbreviation}
+                    </span>
+                  </div>
+                  <span className={`text-lg font-black tabular-nums ${
+                    isLive ? "text-emerald-400" :
+                    isFinal && parseInt(game.awayTeam.score) > parseInt(game.homeTeam.score) ? "text-white" :
+                    isFinal ? "text-slate-500" : "text-slate-300"
+                  }`} data-testid={`away-score-${game.id}`}>
+                    {game.status === "pre" ? "-" : game.awayTeam.score}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <TeamLogo team={game.homeTeam.abbreviation} sport={sport} size={22} />
+                    <span className={`text-sm font-bold ${!isFinal ? "text-white" : parseInt(game.homeTeam.score) > parseInt(game.awayTeam.score) ? "text-white" : "text-slate-400"}`} data-testid={`home-team-${game.id}`}>
+                      {game.homeTeam.abbreviation}
+                    </span>
+                  </div>
+                  <span className={`text-lg font-black tabular-nums ${
+                    isLive ? "text-emerald-400" :
+                    isFinal && parseInt(game.homeTeam.score) > parseInt(game.awayTeam.score) ? "text-white" :
+                    isFinal ? "text-slate-500" : "text-slate-300"
+                  }`} data-testid={`home-score-${game.id}`}>
+                    {game.status === "pre" ? "-" : game.homeTeam.score}
+                  </span>
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function QuickActions({ slateId, tier }: { slateId: number | null; tier: string }) {
   return (
     <div className="flex gap-3 flex-wrap" data-testid="quick-actions">
@@ -667,6 +878,8 @@ function AuthenticatedDashboard() {
     <div className="container mx-auto px-4 py-6 max-w-6xl">
       <HeroBanner firstName={firstName} tier={tier} />
       <SportSelector activeSport={activeSport} onSelect={setActiveSport} />
+
+      <LiveScoresSection sport={activeSport} />
 
       <div className="mb-6">
         <QuickActions slateId={dashData?.slateId || null} tier={tier} />
