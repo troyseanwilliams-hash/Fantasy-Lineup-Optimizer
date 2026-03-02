@@ -78,7 +78,7 @@ export default function News() {
         </div>
         <div className="relative container mx-auto px-4 max-w-4xl pt-8 pb-10">
           <Link href="/">
-            <span className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-[var(--text-main)] transition-colors cursor-pointer mb-4" data-testid="news-back-link">
+            <span className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors cursor-pointer mb-4" data-testid="news-back-link">
               <ArrowLeft className="w-4 h-4" />
               Dashboard
             </span>
@@ -88,7 +88,7 @@ export default function News() {
               <Icon className={`w-6 h-6 ${meta.color}`} />
             </div>
             <div>
-              <h1 className="text-3xl font-black text-[var(--text-main)] tracking-tight" data-testid="news-title">
+              <h1 className="text-3xl font-black text-white tracking-tight" data-testid="news-title">
                 {sport} News
               </h1>
               <p className="text-slate-400 text-sm mt-0.5">Latest fantasy sports news and analysis</p>
@@ -122,7 +122,7 @@ export default function News() {
         {isLoading && (
           <div className="space-y-5" data-testid="news-loading">
             {Array.from({ length: 6 }).map((_, i) => (
-              <Card key={i} className="bg-white dark:bg-slate-800/30 shadow-sm dark:shadow-none border-border p-6">
+              <Card key={i} className="bg-slate-800/30 border-border p-6">
                 <div className="flex gap-5">
                   <Skeleton className="w-36 h-24 rounded-lg shrink-0" />
                   <div className="flex-1 space-y-3">
@@ -145,7 +145,7 @@ export default function News() {
         )}
 
         {data && data.articles.length === 0 && (
-          <Card className="bg-white dark:bg-slate-800/30 shadow-sm dark:shadow-none border-border p-12 text-center">
+          <Card className="bg-slate-800/30 border-border p-12 text-center">
             <Newspaper className="w-14 h-14 text-slate-600 mx-auto mb-4" />
             <p className="text-slate-300 font-bold text-lg">No {sport} news available right now</p>
             <p className="text-sm text-slate-500 mt-2">Check back later for updates</p>
@@ -163,7 +163,7 @@ export default function News() {
                 className="block group"
                 data-testid={`news-article-${article.id}`}
               >
-                <Card className="bg-[var(--bg-card)] border-border overflow-hidden transition-all hover:border-slate-400 dark:hover:border-slate-600 hover:shadow-lg hover:shadow-black/10">
+                <Card className="bg-[#1E293B] border-border overflow-hidden transition-all hover:border-slate-600 hover:shadow-lg hover:shadow-black/10">
                   {index === 0 && article.imageUrl ? (
                     <div>
                       <div className="w-full h-52 overflow-hidden bg-slate-800">
@@ -187,7 +187,7 @@ export default function News() {
                             </span>
                           )}
                         </div>
-                        <h3 className="text-xl font-bold text-[var(--text-main)] group-hover:text-emerald-400 transition-colors leading-tight">
+                        <h3 className="text-xl font-bold text-white group-hover:text-emerald-400 transition-colors leading-tight">
                           {article.headline}
                         </h3>
                         {article.description && (
@@ -214,7 +214,7 @@ export default function News() {
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-base font-bold text-[var(--text-main)] group-hover:text-emerald-400 transition-colors leading-snug line-clamp-2">
+                        <h3 className="text-base font-bold text-white group-hover:text-emerald-400 transition-colors leading-snug line-clamp-2">
                           {article.headline}
                         </h3>
                         {article.description && (

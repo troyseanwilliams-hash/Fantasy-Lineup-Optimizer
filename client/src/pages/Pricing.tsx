@@ -35,20 +35,20 @@ export default function Pricing() {
         <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 font-bold text-sm px-3 py-1 mb-6">
           <Crown className="w-4 h-4 mr-1" /> Pricing
         </Badge>
-        <h1 className="text-5xl font-black text-[var(--text-main)] mb-4 tracking-tight" data-testid="pricing-title">
+        <h1 className="text-5xl font-black text-white mb-4 tracking-tight" data-testid="pricing-title">
           Choose Your Edge
         </h1>
         <p className="text-lg text-slate-400 max-w-xl mx-auto mb-8">
           Start with the Basic plan, then level up your DFS strategy with more lineups and powerful tools.
         </p>
 
-        <div className="inline-flex items-center bg-black/[0.06] dark:bg-slate-800/60 rounded-xl p-1 border border-border/50" data-testid="billing-toggle">
+        <div className="inline-flex items-center bg-slate-800/60 rounded-xl p-1 border border-border/50" data-testid="billing-toggle">
           <button
             onClick={() => setBilling("monthly")}
             className={`px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${
               billing === "monthly"
                 ? "bg-emerald-500 text-black shadow-lg"
-                : "text-slate-400 hover:text-[var(--text-main)]"
+                : "text-slate-400 hover:text-white"
             }`}
             data-testid="billing-monthly"
           >
@@ -59,7 +59,7 @@ export default function Pricing() {
             className={`px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-1.5 ${
               billing === "annual"
                 ? "bg-emerald-500 text-black shadow-lg"
-                : "text-slate-400 hover:text-[var(--text-main)]"
+                : "text-slate-400 hover:text-white"
             }`}
             data-testid="billing-annual"
           >
@@ -70,14 +70,14 @@ export default function Pricing() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-        <Card className={`bg-white dark:bg-slate-800/30 shadow-sm dark:shadow-none border-border p-8 relative ${currentTier === "free" ? "ring-2 ring-slate-600" : ""}`} data-testid="plan-basic">
+        <Card className={`bg-slate-800/30 border-border p-8 relative ${currentTier === "free" ? "ring-2 ring-slate-600" : ""}`} data-testid="plan-basic">
           {currentTier === "free" && (
             <Badge className="absolute -top-3 left-6 bg-slate-700 text-slate-300 text-[11px] font-black">CURRENT PLAN</Badge>
           )}
           <div className="mb-6">
-            <h3 className="text-2xl font-black text-[var(--text-main)] mb-2">Basic</h3>
+            <h3 className="text-2xl font-black text-white mb-2">Basic</h3>
             <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-black text-[var(--text-main)]">$0</span>
+              <span className="text-4xl font-black text-white">$0</span>
               <span className="text-slate-400 font-bold">/month</span>
             </div>
             <p className="text-xs text-slate-500 mt-2">Get started with the basics</p>
@@ -125,18 +125,18 @@ export default function Pricing() {
           </Button>
         </Card>
 
-        <Card className={`bg-[var(--bg-card)] border-emerald-500/30 p-8 relative ${currentTier === "star" ? "ring-2 ring-emerald-500" : ""}`} data-testid="plan-star">
+        <Card className={`bg-[#1E293B] border-emerald-500/30 p-8 relative ${currentTier === "star" ? "ring-2 ring-emerald-500" : ""}`} data-testid="plan-star">
           {currentTier === "star" ? (
             <Badge className="absolute -top-3 left-6 bg-emerald-500 text-black text-[11px] font-black">CURRENT PLAN</Badge>
           ) : currentTier === "free" ? (
             <Badge className="absolute -top-3 left-6 bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[11px] font-black">POPULAR</Badge>
           ) : null}
           <div className="mb-6">
-            <h3 className="text-2xl font-black text-[var(--text-main)] mb-2 flex items-center gap-2">
+            <h3 className="text-2xl font-black text-white mb-2 flex items-center gap-2">
               Star <Trophy className="w-5 h-5 text-emerald-400" />
             </h3>
             <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-black text-[var(--text-main)]" data-testid="star-price">{starPrice}</span>
+              <span className="text-4xl font-black text-white" data-testid="star-price">{starPrice}</span>
               <span className="text-slate-400 font-bold">{starPeriod}</span>
             </div>
             {starFirstMonth && (
@@ -213,18 +213,18 @@ export default function Pricing() {
           )}
         </Card>
 
-        <Card className={`bg-[var(--bg-card)] border-amber-500/30 p-8 relative ${currentTier === "pro" ? "ring-2 ring-amber-500" : ""}`} data-testid="plan-pro">
+        <Card className={`bg-[#1E293B] border-amber-500/30 p-8 relative ${currentTier === "pro" ? "ring-2 ring-amber-500" : ""}`} data-testid="plan-pro">
           {currentTier === "pro" ? (
             <Badge className="absolute -top-3 left-6 bg-amber-500 text-black text-[11px] font-black">CURRENT PLAN</Badge>
           ) : (
             <Badge className="absolute -top-3 left-6 bg-amber-500/20 text-amber-400 border-amber-500/30 text-[11px] font-black">MAX EDGE</Badge>
           )}
           <div className="mb-6">
-            <h3 className="text-2xl font-black text-[var(--text-main)] mb-2 flex items-center gap-2">
+            <h3 className="text-2xl font-black text-white mb-2 flex items-center gap-2">
               Pro <Sparkles className="w-5 h-5 text-amber-400" />
             </h3>
             <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-black text-[var(--text-main)]" data-testid="pro-price">{proPrice}</span>
+              <span className="text-4xl font-black text-white" data-testid="pro-price">{proPrice}</span>
               <span className="text-slate-400 font-bold">{proPeriod}</span>
             </div>
             {proFirstMonth && (

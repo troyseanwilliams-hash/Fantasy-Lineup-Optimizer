@@ -223,24 +223,24 @@ export default function SavedLineups() {
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 mb-2">
             <Trophy className="w-10 h-10 text-cyan-400" />
           </div>
-          <h1 className="text-3xl font-black text-[var(--text-main)] tracking-tight">The Vault</h1>
+          <h1 className="text-3xl font-black text-white tracking-tight">The Vault</h1>
           <p className="text-slate-400 text-lg leading-relaxed">
             Your personal lineup vault stores every optimized lineup you build. Save your best lineups, compare strategies across sports, swap players, and export to CSV for easy upload to DraftKings.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-            <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-none rounded-xl p-4 space-y-2">
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
               <Shield className="w-5 h-5 text-cyan-400 mx-auto" />
-              <div className="text-sm font-bold text-[var(--text-main)]">Save Lineups</div>
+              <div className="text-sm font-bold text-white">Save Lineups</div>
               <div className="text-xs text-slate-400">Store optimized lineups per sport and revisit them anytime</div>
             </div>
-            <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-none rounded-xl p-4 space-y-2">
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
               <ArrowLeftRight className="w-5 h-5 text-amber-400 mx-auto" />
-              <div className="text-sm font-bold text-[var(--text-main)]">Swap Players</div>
+              <div className="text-sm font-bold text-white">Swap Players</div>
               <div className="text-xs text-slate-400">Fine-tune saved lineups with inline player swaps</div>
             </div>
-            <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-none rounded-xl p-4 space-y-2">
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
               <Download className="w-5 h-5 text-emerald-400 mx-auto" />
-              <div className="text-sm font-bold text-[var(--text-main)]">CSV Export</div>
+              <div className="text-sm font-bold text-white">CSV Export</div>
               <div className="text-xs text-slate-400">Export lineups to CSV for direct upload to DFS platforms</div>
             </div>
           </div>
@@ -286,7 +286,7 @@ export default function SavedLineups() {
                 <Shield className="w-7 h-7 text-emerald-400" />
               </div>
               <div>
-                <h1 className="text-4xl font-black text-[var(--text-main)] tracking-tight" data-testid="vault-title">Lineup Vault</h1>
+                <h1 className="text-4xl font-black text-white tracking-tight" data-testid="vault-title">Lineup Vault</h1>
                 <p className="text-slate-400 text-sm mt-1">Your optimized winning combinations. Expand, swap, and export.</p>
               </div>
             </div>
@@ -363,22 +363,22 @@ export default function SavedLineups() {
 
           {totalLineups > 0 && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/30 shadow-sm dark:shadow-none rounded-xl px-4 py-3" data-testid="stat-total-lineups">
+              <div className="bg-slate-800/40 border border-slate-700/30 rounded-xl px-4 py-3" data-testid="stat-total-lineups">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Saved Lineups</p>
-                <p className="text-2xl font-black text-[var(--text-main)]">{totalLineups}</p>
+                <p className="text-2xl font-black text-white">{totalLineups}</p>
               </div>
-              <div className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/30 shadow-sm dark:shadow-none rounded-xl px-4 py-3" data-testid="stat-total-proj">
+              <div className="bg-slate-800/40 border border-slate-700/30 rounded-xl px-4 py-3" data-testid="stat-total-proj">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Proj Points</p>
                 <p className="text-2xl font-black text-emerald-400">{totalProjectedPts.toFixed(1)}</p>
               </div>
-              <div className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/30 shadow-sm dark:shadow-none rounded-xl px-4 py-3" data-testid="stat-avg-proj">
+              <div className="bg-slate-800/40 border border-slate-700/30 rounded-xl px-4 py-3" data-testid="stat-avg-proj">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Avg Proj / Lineup</p>
                 <div className="flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-emerald-400" />
-                  <p className="text-2xl font-black text-[var(--text-main)]">{totalLineups > 0 ? (totalProjectedPts / totalLineups).toFixed(1) : "0"}</p>
+                  <p className="text-2xl font-black text-white">{totalLineups > 0 ? (totalProjectedPts / totalLineups).toFixed(1) : "0"}</p>
                 </div>
               </div>
-              <div className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/30 shadow-sm dark:shadow-none rounded-xl px-4 py-3" data-testid="stat-sports">
+              <div className="bg-slate-800/40 border border-slate-700/30 rounded-xl px-4 py-3" data-testid="stat-sports">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Sports</p>
                 <div className="flex items-center gap-2 flex-wrap">
                   {Object.entries(sportBreakdown).map(([sport, count]) => (
@@ -442,7 +442,7 @@ export default function SavedLineups() {
                       <span className="text-emerald-400 font-black text-sm">DK</span>
                     </div>
                     <div>
-                      <p className="text-sm font-black text-[var(--text-main)]">{AFFILIATE_LINKS.draftkings.dfs.label}</p>
+                      <p className="text-sm font-black text-white">{AFFILIATE_LINKS.draftkings.dfs.label}</p>
                       <p className="text-xs text-slate-400">{AFFILIATE_LINKS.draftkings.dfs.description}</p>
                     </div>
                   </div>
@@ -477,7 +477,7 @@ export default function SavedLineups() {
                 <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-6">
                   <Shield className="w-10 h-10 text-emerald-500/40" />
                 </div>
-                <h5 className="text-xl font-black text-[var(--text-main)] mb-2" data-testid="no-lineups-message">No Saved Lineups Yet</h5>
+                <h5 className="text-xl font-black text-white mb-2" data-testid="no-lineups-message">No Saved Lineups Yet</h5>
                 <p className="text-slate-400 max-w-sm mx-auto mb-6">Optimize a lineup and save it here to track, edit, and export to DraftKings.</p>
                 <Link href="/">
                   <Button className="btn-primary" data-testid="build-first-lineup">
@@ -516,7 +516,7 @@ function ReviewTabContent({
         <div className="w-20 h-20 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-6">
           <History className="w-10 h-10 text-amber-500/40" />
         </div>
-        <h5 className="text-xl font-black text-[var(--text-main)] mb-2" data-testid="no-review-lineups">No Review Lineups</h5>
+        <h5 className="text-xl font-black text-white mb-2" data-testid="no-review-lineups">No Review Lineups</h5>
         <p className="text-slate-400 max-w-sm mx-auto">
           Expired lineups are moved here at 2 AM ET for review. They are kept for 24 hours before being removed.
         </p>
@@ -530,7 +530,7 @@ function ReviewTabContent({
         <div className="flex items-center gap-3">
           <Eye className="w-5 h-5 text-amber-400 flex-shrink-0" />
           <div>
-            <p className="text-sm font-bold text-[var(--text-main)]">Review Mode</p>
+            <p className="text-sm font-bold text-white">Review Mode</p>
             <p className="text-xs text-slate-400">These lineups have expired and are read-only. Compare your lineups against contest winners to learn and improve.</p>
           </div>
         </div>
@@ -545,7 +545,7 @@ function ReviewTabContent({
         return (
           <Card
             key={lineup.id}
-            className="bg-white dark:bg-slate-800/20 border-slate-200 dark:border-slate-700/40 shadow-sm dark:shadow-none"
+            className="bg-slate-800/20 border-slate-700/40"
             data-testid={`review-lineup-card-${lineup.id}`}
           >
             <div
@@ -559,7 +559,7 @@ function ReviewTabContent({
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-0.5">
-                    <h3 className="text-base font-black text-[var(--text-main)]">{lineup.name || "Optimized Lineup"}</h3>
+                    <h3 className="text-base font-black text-white">{lineup.name || "Optimized Lineup"}</h3>
                     <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-[10px] font-black uppercase">
                       Review
                     </Badge>
@@ -585,7 +585,7 @@ function ReviewTabContent({
                   </div>
                   <div className="text-right">
                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Salary</p>
-                    <p className="text-lg font-black text-[var(--text-main)] tabular-nums" data-testid={`review-salary-${lineup.id}`}>${lineup.totalSalary.toLocaleString()}</p>
+                    <p className="text-lg font-black text-white tabular-nums" data-testid={`review-salary-${lineup.id}`}>${lineup.totalSalary.toLocaleString()}</p>
                   </div>
                 </div>
                 {isExpanded ? <ChevronUp className="w-5 h-5 text-slate-500" /> : <ChevronDown className="w-5 h-5 text-slate-500" />}
@@ -597,7 +597,7 @@ function ReviewTabContent({
                 {lineup.players && lineup.players.length > 0 ? (
                   <div className={contestWinner ? "grid grid-cols-1 lg:grid-cols-2 gap-6" : ""}>
                     <div>
-                      <h4 className="text-sm font-bold text-[var(--text-main)] mb-3 flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
                         <Trophy className="w-4 h-4 text-emerald-400" /> Your Lineup
                       </h4>
                       <ReviewRosterTable players={lineup.players} sport={lineup.sport} platform={lineup.platform} totalSalary={lineup.totalSalary} totalProjectedPoints={lineup.totalProjectedPoints} />
@@ -605,7 +605,7 @@ function ReviewTabContent({
 
                     {contestWinner && (
                       <div>
-                        <h4 className="text-sm font-bold text-[var(--text-main)] mb-3 flex items-center gap-2">
+                        <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
                           <Trophy className="w-4 h-4 text-amber-400" /> Contest Winner
                         </h4>
                         <ReviewRosterTable
@@ -673,10 +673,10 @@ function ReviewRosterTable({
                     {getSlotDisplayName(slot)}
                   </span>
                 </td>
-                <td className="py-2 pr-4 text-sm font-semibold text-[var(--text-main)]">{player?.name || "—"}</td>
+                <td className="py-2 pr-4 text-sm font-semibold text-white">{player?.name || "—"}</td>
                 <td className="py-2 pr-4 text-xs text-slate-400">{player?.position || "—"}</td>
                 <td className="py-2 pr-4 text-xs text-slate-400">{player?.team || "—"}</td>
-                <td className="py-2 pr-4 text-right text-sm font-medium text-[var(--text-main)]">
+                <td className="py-2 pr-4 text-right text-sm font-medium text-white">
                   {player ? `$${player.salary.toLocaleString()}` : "—"}
                 </td>
                 <td className={`py-2 pr-4 text-right text-sm font-semibold ${accentColor}`}>
@@ -689,7 +689,7 @@ function ReviewRosterTable({
         <tfoot>
           <tr className="border-t border-slate-700">
             <td colSpan={4} className="py-2 pr-4 text-xs font-bold text-slate-400 uppercase">Total</td>
-            <td className="py-2 pr-4 text-right text-sm font-bold text-[var(--text-main)]">${totalSalary.toLocaleString()}</td>
+            <td className="py-2 pr-4 text-right text-sm font-bold text-white">${totalSalary.toLocaleString()}</td>
             <td className={`py-2 pr-4 text-right text-sm font-bold ${accentColor}`}>{Number(totalProjectedPoints).toFixed(1)}</td>
           </tr>
         </tfoot>
@@ -759,7 +759,7 @@ function LineupCard({
           </div>
           <div>
             <div className="flex items-center gap-2 mb-0.5">
-              <h3 className="text-base font-black text-[var(--text-main)]">{lineup.name || "Optimized Lineup"}</h3>
+              <h3 className="text-base font-black text-white">{lineup.name || "Optimized Lineup"}</h3>
             </div>
             <div className="flex items-center gap-2">
               <Badge className={`${isFD ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"} text-[10px] font-black uppercase`}>
@@ -801,7 +801,7 @@ function LineupCard({
             )}
             <div className="text-right">
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Salary</p>
-              <p className="text-lg font-black text-[var(--text-main)] tabular-nums" data-testid={`lineup-salary-${lineup.id}`}>${lineup.totalSalary.toLocaleString()}</p>
+              <p className="text-lg font-black text-white tabular-nums" data-testid={`lineup-salary-${lineup.id}`}>${lineup.totalSalary.toLocaleString()}</p>
             </div>
           </div>
 
@@ -916,11 +916,11 @@ function ExpandedRoster({
                     </span>
                   </td>
                   <td className="py-3 pr-4">
-                    <span className="text-sm font-semibold text-[var(--text-main)]">{player?.name || "—"}</span>
+                    <span className="text-sm font-semibold text-white">{player?.name || "—"}</span>
                   </td>
                   <td className="py-3 pr-4 text-xs text-slate-400">{player?.position || "—"}</td>
                   <td className="py-3 pr-4 text-xs text-slate-400">{player?.team || "—"}</td>
-                  <td className="py-3 pr-4 text-right text-sm font-medium text-[var(--text-main)]">
+                  <td className="py-3 pr-4 text-right text-sm font-medium text-white">
                     {player ? `$${player.salary.toLocaleString()}` : "—"}
                   </td>
                   <td className="py-3 pr-4 text-right text-sm text-slate-400">
@@ -964,7 +964,7 @@ function ExpandedRoster({
               <td colSpan={4} className="py-3 pr-4 text-xs font-bold text-slate-400 uppercase">
                 Total ({lineup.playerIds.length} players)
               </td>
-              <td className="py-3 pr-4 text-right text-sm font-bold text-[var(--text-main)]">
+              <td className="py-3 pr-4 text-right text-sm font-bold text-white">
                 ${lineup.totalSalary.toLocaleString()}
               </td>
               <td className="py-3 pr-4"></td>
@@ -990,7 +990,7 @@ function ExpandedRoster({
       {isSwapping && currentSwapSlot && (
         <div className="mt-6 border-t border-slate-700 pt-4" data-testid={`swap-panel-${lineup.id}`}>
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-bold text-[var(--text-main)]">
+            <h4 className="text-sm font-bold text-white">
               Select replacement for <span className="text-emerald-400">{getSlotDisplayName(currentSwapSlot)}</span> slot
             </h4>
             <Button variant="ghost" size="sm" onClick={() => setSwappingSlot(null)} className="text-slate-400">
@@ -1015,10 +1015,10 @@ function ExpandedRoster({
                 <tbody>
                   {eligibleReplacements.slice(0, 30).map(player => (
                     <tr key={player.id} className="border-t border-slate-800/50 hover:bg-slate-800/30" data-testid={`replacement-row-${player.id}`}>
-                      <td className="py-2 px-3 text-sm font-medium text-[var(--text-main)]">{player.name}</td>
+                      <td className="py-2 px-3 text-sm font-medium text-white">{player.name}</td>
                       <td className="py-2 px-3 text-xs text-slate-400">{player.position}</td>
                       <td className="py-2 px-3 text-xs text-slate-400">{player.team}</td>
-                      <td className="py-2 px-3 text-right text-sm text-[var(--text-main)]">${player.salary.toLocaleString()}</td>
+                      <td className="py-2 px-3 text-right text-sm text-white">${player.salary.toLocaleString()}</td>
                       <td className="py-2 px-3 text-right text-sm font-semibold text-emerald-400">{Number(player.projectedPoints).toFixed(1)}</td>
                       <td className="py-2 px-3 text-center">
                         <Button
