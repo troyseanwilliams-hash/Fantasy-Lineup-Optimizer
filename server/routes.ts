@@ -1379,6 +1379,13 @@ function buildPositionVariables(position: string, sport: string): Record<string,
     case "GOLF":
       if (positions.includes("G")) { vars.G = 1; }
       break;
+
+    case "SOCCER":
+      if (positions.includes("F")) { vars.F = 1; vars.OUTFIELD = 1; }
+      if (positions.includes("M")) { vars.M = 1; vars.OUTFIELD = 1; }
+      if (positions.includes("D")) { vars.D = 1; vars.OUTFIELD = 1; }
+      if (positions.includes("GK")) { vars.GK = 1; }
+      break;
   }
 
   return vars;
@@ -1604,6 +1611,16 @@ const BOOST_REASONS: Record<string, string[]> = {
     "Trending up in strokes gained approach",
     "Recent top-5 finish momentum",
   ],
+  SOCCER: [
+    "Goal-scoring form: multiple goals in recent matches",
+    "Favorable matchup vs weak defensive side",
+    "Set piece specialist: corner and free kick duties",
+    "Increased minutes with teammate suspension",
+    "Strong home pitch advantage",
+    "Key creative role: high expected assists",
+    "Penalty taker with upcoming high-foul opponent",
+    "Recent position change: pushed further forward",
+  ],
 };
 
 const INJURY_STATUSES = ["Questionable", "Probable", "Doubtful", "OUT", "Day-to-Day"];
@@ -1613,6 +1630,7 @@ const INJURY_DETAILS: Record<string, string[]> = {
   MLB: ["Right shoulder inflammation", "Left oblique strain", "Back spasms", "Knee discomfort", "Wrist soreness"],
   NFL: ["Hamstring injury", "Ankle sprain", "Concussion protocol", "Knee injury", "Shoulder strain", "Illness"],
   GOLF: ["Back stiffness", "Wrist inflammation", "Knee soreness", "Shoulder discomfort", "Neck strain"],
+  SOCCER: ["Hamstring strain", "Ankle injury", "Groin tightness", "Knee ligament concern", "Calf strain", "Muscle fatigue"],
 };
 
 export async function generatePlayerBoostsAndInjuries() {
