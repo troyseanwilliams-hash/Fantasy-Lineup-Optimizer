@@ -4,38 +4,6 @@
 
 @layer base {
   :root {
-    --background: 210 20% 92%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 161 72% 40%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 217.2 91.2% 59.8%;
-    --secondary-foreground: 0 0% 100%;
-    --muted: 210 20% 88%;
-    --muted-foreground: 215 25% 35%;
-    --accent: 210 20% 88%;
-    --accent-foreground: 222.2 84% 4.9%;
-    --destructive: 0 62.8% 50%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 214 25% 74%;
-    --input: 214 25% 74%;
-    --ring: 161 72% 40%;
-    --radius: 0.75rem;
-
-    --bg-dark: #E2E8F0;
-    --bg-card: #FFFFFF;
-    --text-main: #0F172A;
-    --text-muted: #475569;
-    --primary-hex: #10B981;
-    --primary-hover: #059669;
-    --header-bg: #F8FAFC;
-    --header-border: #CBD5E1;
-  }
-
-  .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
     --card: 222.2 84% 4.9%;
@@ -55,15 +23,7 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 161 72% 40%;
-
-    --bg-dark: #0F172A;
-    --bg-card: #1E293B;
-    --text-main: #F8FAFC;
-    --text-muted: #94A3B8;
-    --primary-hex: #10B981;
-    --primary-hover: #059669;
-    --header-bg: #0F172A;
-    --header-border: #1E293B;
+    --radius: 0.75rem;
   }
 }
 
@@ -72,7 +32,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-[var(--bg-dark)] text-[var(--text-main)] font-sans antialiased;
+    @apply bg-[#0F172A] text-white font-sans antialiased;
   }
 }
 
@@ -81,12 +41,12 @@
     @apply bg-[#10B981] text-white hover:bg-[#059669] transition-all duration-200 shadow-lg shadow-emerald-500/10;
   }
   .card {
-    @apply bg-[var(--bg-card)] border border-border rounded-xl p-6 shadow-xl;
+    @apply bg-[#1E293B] border border-border rounded-xl p-6 shadow-xl;
   }
   .input-dark {
-    @apply bg-[var(--bg-card)] border border-border text-[var(--text-main)] rounded-lg px-4 py-2 w-full focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] outline-none transition-all;
+    @apply bg-[#1E293B] border border-border text-white rounded-lg px-4 py-2 w-full focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] outline-none transition-all;
   }
   .nav-link {
-    @apply text-[var(--text-muted)] hover:text-[#10B981] transition-colors duration-200 font-medium;
+    @apply text-slate-400 hover:text-[#10B981] transition-colors duration-200 font-medium;
   }
 }

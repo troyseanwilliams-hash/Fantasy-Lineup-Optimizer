@@ -44,7 +44,7 @@ function TeamLogo({ team, sport, size = 20 }: { team: string; sport: string; siz
       <img
         src={SPORT_FALLBACK_IMAGE[sport] || SPORT_FALLBACK_IMAGE.NBA}
         alt={team}
-        className="rounded-full bg-black/10 dark:bg-slate-800/60 object-contain shrink-0"
+        className="rounded-full bg-slate-800/60 object-contain shrink-0"
         style={{ width: size, height: size }}
       />
     );
@@ -194,7 +194,7 @@ function HeroBanner({ firstName, tier }: { firstName: string; tier: string }) {
               <Zap className="w-5 h-5 text-emerald-400 fill-current" />
               <span className="text-emerald-400 text-sm font-black uppercase tracking-widest">EliteLineup AI</span>
             </div>
-            <h1 className="text-3xl md:text-4xl font-black text-[var(--text-main)] tracking-tight leading-tight">
+            <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight leading-tight">
               Welcome back, <span className="text-emerald-400">{firstName}</span>
             </h1>
             <p className="text-slate-300 text-sm mt-2 font-bold">
@@ -244,7 +244,7 @@ function SportSelector({ activeSport, onSelect }: { activeSport: string; onSelec
             <div className={`absolute inset-0 bg-gradient-to-t ${meta.gradientFrom} to-black/70 group-hover:to-black/60 transition-colors`} />
             <div className="relative z-10 px-4 py-4 text-center">
               <Icon className={`w-6 h-6 mx-auto mb-1.5 ${isActive ? meta.color : "text-slate-300"}`} />
-              <span className={`text-sm font-black tracking-wide ${isActive ? "text-[var(--text-main)]" : "text-slate-300"}`}>{sport}</span>
+              <span className={`text-sm font-black tracking-wide ${isActive ? "text-white" : "text-slate-300"}`}>{sport}</span>
             </div>
           </button>
         );
@@ -289,7 +289,7 @@ function AIInsightsBanner({ players, matchups, sport }: { players: DashboardPlay
             return (
               <div key={idx} className="text-center" data-testid={`ai-stat-${idx}`}>
                 <Icon className={`w-5 h-5 mx-auto mb-1.5 ${stat.color}`} />
-                <p className="text-2xl font-black text-[var(--text-main)] tracking-tight">{stat.value}</p>
+                <p className="text-2xl font-black text-white tracking-tight">{stat.value}</p>
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{stat.label}</p>
               </div>
             );
@@ -315,7 +315,7 @@ function TopScorersSection({ players, slateId, sport }: { players: DashboardPlay
             <Zap className="w-4 h-4 text-amber-400 fill-current" />
           </div>
           <div>
-            <h2 className="text-lg font-black text-[var(--text-main)] tracking-tight">AI Top Plays</h2>
+            <h2 className="text-lg font-black text-white tracking-tight">AI Top Plays</h2>
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Highest projected fantasy output</p>
           </div>
         </div>
@@ -335,7 +335,7 @@ function TopScorersSection({ players, slateId, sport }: { players: DashboardPlay
             <div className="relative">
               <TeamLogo team={hero.team} sport={sport} size={52} />
               <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center">
-                <Crown className="w-3 h-3 text-[var(--text-main)]" />
+                <Crown className="w-3 h-3 text-white" />
               </div>
             </div>
             <div>
@@ -343,7 +343,7 @@ function TopScorersSection({ players, slateId, sport }: { players: DashboardPlay
                 <span className="text-xs font-black text-amber-400 uppercase tracking-wider">#1 AI Pick</span>
                 <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px] font-black px-1.5 py-0" data-testid="hero-value-badge">{heroValue}x value</Badge>
               </div>
-              <p className="text-xl font-black text-[var(--text-main)]">{hero.name}</p>
+              <p className="text-xl font-black text-white">{hero.name}</p>
               <p className="text-xs text-slate-400 font-bold">{hero.position} • {hero.team} vs {hero.opponent}</p>
             </div>
           </div>
@@ -353,7 +353,7 @@ function TopScorersSection({ players, slateId, sport }: { players: DashboardPlay
               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Proj Points</p>
             </div>
             <div className="text-center">
-              <p className="text-xl font-black text-[var(--text-main)]" data-testid="hero-salary">${(hero.salary / 1000).toFixed(1)}K</p>
+              <p className="text-xl font-black text-white" data-testid="hero-salary">${(hero.salary / 1000).toFixed(1)}K</p>
               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Salary</p>
             </div>
             <div className="text-center">
@@ -372,7 +372,7 @@ function TopScorersSection({ players, slateId, sport }: { players: DashboardPlay
           return (
             <Card
               key={player.id}
-              className="bg-white dark:bg-slate-800/40 shadow-sm dark:shadow-none border-border p-4 relative overflow-hidden"
+              className="bg-slate-800/40 border-border p-4 relative overflow-hidden"
               data-testid={`top-scorer-${player.id}`}
             >
               <div className="absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-emerald-500/60 to-emerald-500/0" style={{ width: `${projPct}%` }} />
@@ -381,7 +381,7 @@ function TopScorersSection({ players, slateId, sport }: { players: DashboardPlay
                   <span className="text-lg font-black text-slate-600 w-5 text-center shrink-0">#{idx + 2}</span>
                   <TeamLogo team={player.team} sport={sport} size={30} />
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-[var(--text-main)] truncate">{player.name}</p>
+                    <p className="text-sm font-bold text-white truncate">{player.name}</p>
                     <p className="text-[11px] text-slate-500 font-bold">{player.position} • {player.team} vs {player.opponent}</p>
                   </div>
                 </div>
@@ -413,7 +413,7 @@ function TrendingSection({ players, sport }: { players: TrendingPlayer[]; sport:
           <TrendingUp className="w-4 h-4 text-emerald-400" />
         </div>
         <div>
-          <h2 className="text-lg font-black text-[var(--text-main)] tracking-tight">AI Value Radar</h2>
+          <h2 className="text-lg font-black text-white tracking-tight">AI Value Radar</h2>
           <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Points per $1K salary analysis</p>
         </div>
       </div>
@@ -435,7 +435,7 @@ function TrendingSection({ players, sport }: { players: TrendingPlayer[]; sport:
                     <div className="flex items-center gap-2.5 min-w-0">
                       <TeamLogo team={player.team} sport={sport} size={26} />
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-[var(--text-main)] truncate">{player.name}</p>
+                        <p className="text-sm font-bold text-white truncate">{player.name}</p>
                         <p className="text-[10px] text-slate-500 font-bold">{player.position} • vs {player.opponent}</p>
                       </div>
                     </div>
@@ -444,7 +444,7 @@ function TrendingSection({ players, sport }: { players: TrendingPlayer[]; sport:
                       <p className="text-[10px] text-slate-500 font-bold">{parseFloat(player.projectedPoints).toFixed(1)} pts • ${(player.salary / 1000).toFixed(1)}K</p>
                     </div>
                   </div>
-                  <div className="h-1.5 bg-black/10 dark:bg-slate-800/60 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-slate-800/60 rounded-full overflow-hidden">
                     <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-700" style={{ width: `${valuePct}%` }} />
                   </div>
                 </div>
@@ -469,7 +469,7 @@ function TrendingSection({ players, sport }: { players: TrendingPlayer[]; sport:
                     <div className="flex items-center gap-2.5 min-w-0">
                       <TeamLogo team={player.team} sport={sport} size={26} />
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-[var(--text-main)] truncate">{player.name}</p>
+                        <p className="text-sm font-bold text-white truncate">{player.name}</p>
                         <p className="text-[10px] text-slate-500 font-bold">{player.position} • vs {player.opponent}</p>
                       </div>
                     </div>
@@ -478,7 +478,7 @@ function TrendingSection({ players, sport }: { players: TrendingPlayer[]; sport:
                       <p className="text-[10px] text-slate-500 font-bold">{parseFloat(player.projectedPoints).toFixed(1)} pts • ${(player.salary / 1000).toFixed(1)}K</p>
                     </div>
                   </div>
-                  <div className="h-1.5 bg-black/10 dark:bg-slate-800/60 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-slate-800/60 rounded-full overflow-hidden">
                     <div className="h-full bg-gradient-to-r from-red-500 to-red-400 rounded-full transition-all duration-700" style={{ width: `${valuePct}%` }} />
                   </div>
                 </div>
@@ -503,7 +503,7 @@ function MatchupsSection({ matchups, sport }: { matchups: MatchupData[]; sport: 
           <Swords className="w-4 h-4 text-purple-400" />
         </div>
         <div>
-          <h2 className="text-lg font-black text-[var(--text-main)] tracking-tight">Game Breakdown</h2>
+          <h2 className="text-lg font-black text-white tracking-tight">Game Breakdown</h2>
           <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">AI-ranked matchups by fantasy potential</p>
         </div>
       </div>
@@ -517,7 +517,7 @@ function MatchupsSection({ matchups, sport }: { matchups: MatchupData[]; sport: 
               className={`relative overflow-hidden p-4 ${
                 isTop
                   ? "bg-gradient-to-br from-purple-950/40 to-slate-900/60 border-purple-800/30 ring-1 ring-purple-500/10"
-                  : "bg-white dark:bg-slate-800/40 shadow-sm dark:shadow-none border-border"
+                  : "bg-slate-800/40 border-border"
               }`}
               data-testid={`matchup-${idx}`}
             >
@@ -542,15 +542,15 @@ function MatchupsSection({ matchups, sport }: { matchups: MatchupData[]; sport: 
                   }
                   return null;
                 })()}
-                <p className="text-sm font-black text-[var(--text-main)] flex-1 truncate">{m.gameInfo}</p>
+                <p className="text-sm font-black text-white flex-1 truncate">{m.gameInfo}</p>
               </div>
 
               <div className="mb-3">
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Fantasy Potential</span>
-                  <span className="text-sm font-black text-[var(--text-main)]" data-testid={`matchup-avg-${idx}`}>{m.avgProjection} avg</span>
+                  <span className="text-sm font-black text-white" data-testid={`matchup-avg-${idx}`}>{m.avgProjection} avg</span>
                 </div>
-                <div className="h-2 bg-black/10 dark:bg-slate-800/60 rounded-full overflow-hidden">
+                <div className="h-2 bg-slate-800/60 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-700 ${isTop ? "bg-gradient-to-r from-purple-500 to-violet-400" : "bg-gradient-to-r from-slate-500 to-slate-400"}`}
                     style={{ width: `${avgPct}%` }}
@@ -601,7 +601,7 @@ function DailyPicksCompact() {
             <Sparkles className="w-4 h-4 text-amber-400" />
           </div>
           <div>
-            <h2 className="text-lg font-black text-[var(--text-main)] tracking-tight">AI Prop Picks</h2>
+            <h2 className="text-lg font-black text-white tracking-tight">AI Prop Picks</h2>
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Machine learning confidence analysis</p>
           </div>
         </div>
@@ -615,7 +615,7 @@ function DailyPicksCompact() {
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i} className="bg-white dark:bg-slate-800/30 shadow-sm dark:shadow-none border-border p-4">
+            <Card key={i} className="bg-slate-800/30 border-border p-4">
               <Skeleton className="h-4 w-1/2 mb-2" />
               <Skeleton className="h-3 w-3/4" />
             </Card>
@@ -635,7 +635,7 @@ function DailyPicksCompact() {
                 className={`relative overflow-hidden p-4 ${
                   prop.confidence === "high"
                     ? "bg-gradient-to-br from-emerald-950/30 to-slate-900/50 border-emerald-800/20"
-                    : "bg-white dark:bg-slate-800/40 shadow-sm dark:shadow-none border-border"
+                    : "bg-slate-800/40 border-border"
                 }`}
                 data-testid={`daily-pick-${prop.id}`}
               >
@@ -650,7 +650,7 @@ function DailyPicksCompact() {
                   </div>
                 </div>
 
-                <p className="text-sm font-bold text-[var(--text-main)] truncate">{prop.playerName}</p>
+                <p className="text-sm font-bold text-white truncate">{prop.playerName}</p>
                 <div className="flex items-center gap-1.5 mt-0.5 mb-3">
                   <TeamLogo team={prop.team} sport={prop.sport} size={14} />
                   <span className="text-[10px] text-slate-500 font-bold">vs</span>
@@ -658,7 +658,7 @@ function DailyPicksCompact() {
                   <span className="text-[10px] text-slate-500 font-bold">{prop.opponent}</span>
                 </div>
 
-                <div className="h-1 bg-black/10 dark:bg-slate-800/60 rounded-full overflow-hidden mb-2.5">
+                <div className="h-1 bg-slate-800/60 rounded-full overflow-hidden mb-2.5">
                   <div className={`h-full rounded-full bg-gradient-to-r ${barClass}`} style={{ width: `${confVal}%` }} />
                 </div>
 
@@ -674,7 +674,7 @@ function DailyPicksCompact() {
           })}
         </div>
       ) : (
-        <Card className="bg-white dark:bg-slate-800/30 shadow-sm dark:shadow-none border-border p-6 text-center">
+        <Card className="bg-slate-800/30 border-border p-6 text-center">
           <p className="text-sm text-slate-400 font-bold">No picks available today</p>
         </Card>
       )}
@@ -719,10 +719,10 @@ function NewsCompact({ sport }: { sport: string }) {
           <div className="w-8 h-8 rounded-lg bg-slate-700/50 flex items-center justify-center">
             <Newspaper className="w-4 h-4 text-slate-400" />
           </div>
-          <h2 className="text-lg font-black text-[var(--text-main)] tracking-tight">Latest News</h2>
+          <h2 className="text-lg font-black text-white tracking-tight">Latest News</h2>
         </div>
         <Link href={`/news/${sport.toLowerCase()}`}>
-          <Button variant="ghost" size="sm" className="text-slate-400 hover:text-[var(--text-main)] font-bold gap-1 text-xs" data-testid="view-all-news">
+          <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white font-bold gap-1 text-xs" data-testid="view-all-news">
             More News <ArrowRight className="w-3.5 h-3.5" />
           </Button>
         </Link>
@@ -739,7 +739,7 @@ function NewsCompact({ sport }: { sport: string }) {
           >
             <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-slate-800/40 transition-colors">
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-slate-300 group-hover:text-[var(--text-main)] transition-colors line-clamp-1">{article.headline}</p>
+                <p className="text-sm font-bold text-slate-300 group-hover:text-white transition-colors line-clamp-1">{article.headline}</p>
                 {article.description && (
                   <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{article.description}</p>
                 )}
@@ -808,11 +808,11 @@ function LiveScoresSection({ sport }: { sport: string }) {
           <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
             <Radio className="w-4 h-4 text-emerald-400" />
           </div>
-          <h2 className="text-lg font-black text-[var(--text-main)] tracking-tight">Live Scores</h2>
+          <h2 className="text-lg font-black text-white tracking-tight">Live Scores</h2>
         </div>
         <div className="flex gap-3 overflow-x-auto pb-2">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i} className="bg-white dark:bg-slate-800/30 shadow-sm dark:shadow-none border-border p-4 min-w-[220px] shrink-0">
+            <Card key={i} className="bg-slate-800/30 border-border p-4 min-w-[220px] shrink-0">
               <Skeleton className="h-4 w-20 mb-3" />
               <Skeleton className="h-5 w-full mb-2" />
               <Skeleton className="h-5 w-full" />
@@ -830,9 +830,9 @@ function LiveScoresSection({ sport }: { sport: string }) {
           <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
             <Radio className="w-4 h-4 text-emerald-400" />
           </div>
-          <h2 className="text-lg font-black text-[var(--text-main)] tracking-tight">Live Scores</h2>
+          <h2 className="text-lg font-black text-white tracking-tight">Live Scores</h2>
         </div>
-        <Card className="bg-white dark:bg-slate-800/30 shadow-sm dark:shadow-none border-border p-6 text-center" data-testid="no-games-message">
+        <Card className="bg-slate-800/30 border-border p-6 text-center" data-testid="no-games-message">
           <Clock className="w-6 h-6 text-slate-600 mx-auto mb-2" />
           <p className="text-sm text-slate-400 font-bold">No games scheduled today</p>
         </Card>
@@ -854,7 +854,7 @@ function LiveScoresSection({ sport }: { sport: string }) {
             <div className="w-8 h-8 rounded-lg bg-lime-500/20 flex items-center justify-center">
               <Flag className="w-4 h-4 text-lime-400" />
             </div>
-            <h2 className="text-lg font-black text-[var(--text-main)] tracking-tight">{tournament.tournamentName || "Tournament"}</h2>
+            <h2 className="text-lg font-black text-white tracking-tight">{tournament.tournamentName || "Tournament"}</h2>
           </div>
           {tournament.status === "in" && (
             <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[11px] font-black px-2 py-0.5 gap-1 animate-pulse" data-testid="live-indicator">
@@ -866,14 +866,14 @@ function LiveScoresSection({ sport }: { sport: string }) {
           {tournament.leaderboard.slice(0, 10).map((player, idx) => (
             <div
               key={idx}
-              className={`flex items-center justify-between px-4 py-2.5 rounded-lg ${idx < 3 ? "bg-lime-100 dark:bg-lime-950/30 border border-lime-300 dark:border-lime-800/20" : "bg-white dark:bg-slate-800/30 border border-slate-200 dark:border-slate-800/50 shadow-sm dark:shadow-none"}`}
+              className={`flex items-center justify-between px-4 py-2.5 rounded-lg ${idx < 3 ? "bg-lime-950/30 border border-lime-800/20" : "bg-slate-800/30 border border-slate-800/50"}`}
               data-testid={`golf-leaderboard-${idx}`}
             >
               <div className="flex items-center gap-3">
                 <span className={`text-sm font-black w-6 text-center ${idx < 3 ? "text-lime-400" : "text-slate-500"}`}>
                   {player.position || `T${idx + 1}`}
                 </span>
-                <span className="text-sm font-bold text-[var(--text-main)]">{player.playerName}</span>
+                <span className="text-sm font-bold text-white">{player.playerName}</span>
               </div>
               <div className="flex items-center gap-3">
                 {player.thru && (
@@ -897,7 +897,7 @@ function LiveScoresSection({ sport }: { sport: string }) {
           <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
             <Radio className="w-4 h-4 text-emerald-400" />
           </div>
-          <h2 className="text-lg font-black text-[var(--text-main)] tracking-tight">Live Scores</h2>
+          <h2 className="text-lg font-black text-white tracking-tight">Live Scores</h2>
         </div>
         {hasLive && (
           <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[11px] font-black px-2 py-0.5 gap-1 animate-pulse" data-testid="live-indicator">
@@ -914,9 +914,9 @@ function LiveScoresSection({ sport }: { sport: string }) {
             <Card
               key={game.id}
               className={`min-w-[240px] shrink-0 p-4 transition-all ${
-                isLive ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/30 ring-1 ring-emerald-500/20" :
-                isFinal ? "bg-slate-100 dark:bg-slate-800/30 border-slate-300 dark:border-slate-700/40" :
-                "bg-white dark:bg-slate-800/40 shadow-sm dark:shadow-none border-border"
+                isLive ? "bg-emerald-950/30 border-emerald-800/30 ring-1 ring-emerald-500/20" :
+                isFinal ? "bg-slate-800/30 border-slate-700/40" :
+                "bg-slate-800/40 border-border"
               }`}
               data-testid={`game-card-${game.id}`}
             >
@@ -933,13 +933,13 @@ function LiveScoresSection({ sport }: { sport: string }) {
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <TeamLogo team={game.awayTeam.abbreviation} sport={sport} size={22} />
-                    <span className={`text-sm font-bold ${!isFinal ? "text-[var(--text-main)]" : parseInt(game.awayTeam.score) > parseInt(game.homeTeam.score) ? "text-[var(--text-main)]" : "text-slate-400"}`} data-testid={`away-team-${game.id}`}>
+                    <span className={`text-sm font-bold ${!isFinal ? "text-white" : parseInt(game.awayTeam.score) > parseInt(game.homeTeam.score) ? "text-white" : "text-slate-400"}`} data-testid={`away-team-${game.id}`}>
                       {game.awayTeam.abbreviation}
                     </span>
                   </div>
                   <span className={`text-lg font-black tabular-nums ${
                     isLive ? "text-emerald-400" :
-                    isFinal && parseInt(game.awayTeam.score) > parseInt(game.homeTeam.score) ? "text-[var(--text-main)]" :
+                    isFinal && parseInt(game.awayTeam.score) > parseInt(game.homeTeam.score) ? "text-white" :
                     isFinal ? "text-slate-500" : "text-slate-300"
                   }`} data-testid={`away-score-${game.id}`}>
                     {game.status === "pre" ? "-" : game.awayTeam.score}
@@ -949,13 +949,13 @@ function LiveScoresSection({ sport }: { sport: string }) {
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <TeamLogo team={game.homeTeam.abbreviation} sport={sport} size={22} />
-                    <span className={`text-sm font-bold ${!isFinal ? "text-[var(--text-main)]" : parseInt(game.homeTeam.score) > parseInt(game.awayTeam.score) ? "text-[var(--text-main)]" : "text-slate-400"}`} data-testid={`home-team-${game.id}`}>
+                    <span className={`text-sm font-bold ${!isFinal ? "text-white" : parseInt(game.homeTeam.score) > parseInt(game.awayTeam.score) ? "text-white" : "text-slate-400"}`} data-testid={`home-team-${game.id}`}>
                       {game.homeTeam.abbreviation}
                     </span>
                   </div>
                   <span className={`text-lg font-black tabular-nums ${
                     isLive ? "text-emerald-400" :
-                    isFinal && parseInt(game.homeTeam.score) > parseInt(game.awayTeam.score) ? "text-[var(--text-main)]" :
+                    isFinal && parseInt(game.homeTeam.score) > parseInt(game.awayTeam.score) ? "text-white" :
                     isFinal ? "text-slate-500" : "text-slate-300"
                   }`} data-testid={`home-score-${game.id}`}>
                     {game.status === "pre" ? "-" : game.homeTeam.score}
@@ -1049,7 +1049,7 @@ function AuthenticatedDashboard() {
             <Skeleton className="h-6 w-48 mb-4" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
               {Array.from({ length: 4 }).map((_, i) => (
-                <Card key={i} className="bg-white dark:bg-slate-800/30 shadow-sm dark:shadow-none border-border p-4">
+                <Card key={i} className="bg-slate-800/30 border-border p-4">
                   <Skeleton className="h-8 w-8 rounded-full mb-2" />
                   <Skeleton className="h-4 w-3/4 mb-1" />
                   <Skeleton className="h-3 w-1/2" />

@@ -17,7 +17,7 @@ Preferred communication style: Simple, everyday language.
 - **Routing**: Wouter (lightweight client-side router)
 - **State/Data Management**: TanStack React Query for server state, local React state for UI
 - **UI Components**: shadcn/ui component library (New York style) built on Radix UI primitives
-- **Styling**: Tailwind CSS with light/dark theme support (slate/emerald color scheme for DK, blue for FD), CSS custom properties for theming. Dark mode default, toggle via Sun/Moon button in header. Theme persisted in localStorage (`elitelineup-theme`). ThemeProvider component manages `.dark` class on `<html>`. FOUC prevention via inline script in `client/index.html`
+- **Styling**: Tailwind CSS with dark theme (slate/emerald color scheme for DK, blue for FD), CSS custom properties for theming
 - **Build Tool**: Vite with HMR in development
 - **Tables**: @tanstack/react-table for player data tables with sorting/filtering
 - **Path aliases**: `@/` maps to `client/src/`, `@shared/` maps to `shared/`

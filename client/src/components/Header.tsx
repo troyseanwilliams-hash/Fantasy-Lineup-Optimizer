@@ -13,8 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Sun, Moon } from "lucide-react";
-import { useTheme } from "@/components/ThemeProvider";
+import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 
@@ -40,8 +39,6 @@ export function Header() {
   const { user, logout } = useAuth();
   const [location, navigate] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { theme, toggleTheme } = useTheme();
-  const isLanding = !user && location === "/";
 
   const { data: subData } = useQuery<{ tier: string }>({
     queryKey: ["/api/subscription"],
@@ -87,7 +84,7 @@ export function Header() {
   };
 
   return (
-    <header className={`border-b sticky top-0 z-50 ${isLanding ? "bg-[#0F172A]/90 border-[#1E293B] backdrop-blur-md" : "bg-[var(--header-bg)] border-[var(--header-border)]"}`}>
+    <header className="border-b sticky top-0 z-50 bg-[#0F172A] border-[#1E293B]">
       <div className="container mx-auto px-4 h-16 lg:h-20 flex items-center justify-between">
         <div className="flex items-center space-x-10">
           <Link href="/">
@@ -95,7 +92,7 @@ export function Header() {
               <div className="w-8 h-8 lg:w-10 lg:h-10 bg-[#10B981] rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
                 <Zap className="text-white w-5 h-5 lg:w-6 lg:h-6 fill-current" />
               </div>
-              <span className={`text-xl lg:text-2xl font-black tracking-tighter uppercase ${isLanding ? "text-white" : "text-[var(--text-main)]"}`}>
+              <span className="text-xl lg:text-2xl font-black tracking-tighter uppercase text-white">
                 ELITE<span className="text-[#10B981]">LINEUP</span>
               </span>
             </div>
@@ -106,7 +103,7 @@ export function Header() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className="flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer outline-none text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                    className="flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer outline-none text-slate-400 hover:text-white"
                     data-testid="sport-selector"
                   >
                     <LayoutGrid className="w-4 h-4" />
@@ -114,7 +111,7 @@ export function Header() {
                     <ChevronDown className="w-3 h-3 opacity-50" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-72 bg-[var(--bg-card)] border-border">
+                <DropdownMenuContent align="start" className="w-72 bg-[#1E293B] border-border">
                   {ACTIVE_SPORTS.map((sport, idx) => {
                     const meta = SPORT_META[sport] || { icon: Dribbble, color: "text-slate-400", bgColor: "bg-slate-500/20" };
                     const Icon = meta.icon;
@@ -122,12 +119,12 @@ export function Header() {
 
                     return (
                       <div key={sport}>
-                        {idx > 0 && <DropdownMenuSeparator className="bg-slate-200 dark:bg-slate-800" />}
+                        {idx > 0 && <DropdownMenuSeparator className="bg-slate-800" />}
                         <DropdownMenuLabel className="flex items-center gap-2 py-2">
                           <div className={`w-6 h-6 rounded flex items-center justify-center ${meta.bgColor}`}>
                             <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
                           </div>
-                          <span className="text-xs font-black text-[var(--text-main)] uppercase tracking-wider">{sport}</span>
+                          <span className="text-xs font-black text-white uppercase tracking-wider">{sport}</span>
                         </DropdownMenuLabel>
 
                         <Link href={`/news/${sport.toLowerCase()}`}>
@@ -213,7 +210,7 @@ export function Header() {
 
             <Link href="/props">
               <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                location === "/props" ? "text-[#10B981]" : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                location === "/props" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
               }`} data-testid="nav-props">
                 <TrendingUp className="w-4 h-4" />
                 <span>Props</span>
@@ -221,7 +218,7 @@ export function Header() {
             </Link>
             <Link href="/prizepicks">
               <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                location === "/prizepicks" ? "text-[#10B981]" : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                location === "/prizepicks" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
               }`} data-testid="nav-prizepicks">
                 <Zap className="w-4 h-4" />
                 <span>PrizePicks</span>
@@ -229,7 +226,7 @@ export function Header() {
             </Link>
             <Link href="/lineups">
               <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                location === "/lineups" ? "text-[#10B981]" : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                location === "/lineups" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
               }`} data-testid="nav-vault">
                 <Archive className="w-4 h-4" />
                 <span>Vault</span>
@@ -238,7 +235,7 @@ export function Header() {
             {!user && (
               <Link href="/pricing">
                 <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                  location === "/pricing" ? "text-[#10B981]" : isLanding ? "text-slate-300 hover:text-white" : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                  location === "/pricing" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
                 }`} data-testid="nav-pricing">
                   <Crown className="w-4 h-4" />
                   <span>Pricing</span>
@@ -248,7 +245,7 @@ export function Header() {
             {user?.isAdmin && (
               <Link href="/admin">
                 <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                  location === "/admin" ? "text-[#10B981]" : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                  location === "/admin" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
                 }`} data-testid="nav-admin">
                   <ShieldAlert className="w-4 h-4" />
                   <span>Admin</span>
@@ -259,25 +256,12 @@ export function Header() {
         </div>
 
         <div className="flex items-center space-x-3 lg:space-x-6">
-          <button
-            onClick={toggleTheme}
-            className={`p-2 rounded-lg transition-colors ${isLanding ? "hover:bg-white/10 text-slate-300" : "hover:bg-black/10 dark:hover:bg-slate-800"}`}
-            data-testid="theme-toggle"
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {theme === "dark" ? (
-              <Sun className="w-5 h-5 text-amber-400" />
-            ) : (
-              <Moon className="w-5 h-5 text-slate-600" />
-            )}
-          </button>
-
           {user ? (
             <div className="hidden lg:flex items-center space-x-4">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="relative p-2 rounded-lg hover:bg-black/10 dark:hover:bg-black/10 dark:hover:bg-slate-800 transition-colors" data-testid="alerts-bell">
-                    <Bell className="w-5 h-5 text-slate-500 dark:text-slate-400" />
+                  <button className="relative p-2 rounded-lg hover:bg-slate-800 transition-colors" data-testid="alerts-bell">
+                    <Bell className="w-5 h-5 text-slate-400" />
                     {unreadCount > 0 && (
                       <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-[11px] font-black text-white" data-testid="alerts-badge">
                         {unreadCount > 9 ? "9+" : unreadCount}
@@ -285,9 +269,9 @@ export function Header() {
                     )}
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-80 bg-[var(--bg-card)] border-border max-h-96 overflow-y-auto">
+                <DropdownMenuContent align="end" className="w-80 bg-[#1E293B] border-border max-h-96 overflow-y-auto">
                   <DropdownMenuLabel className="flex items-center justify-between">
-                    <span className="text-xs font-black text-[var(--text-main)] uppercase tracking-wider">Alerts</span>
+                    <span className="text-xs font-black text-white uppercase tracking-wider">Alerts</span>
                     {unreadCount > 0 && (
                       <button
                         onClick={() => markAllReadMutation.mutate()}
@@ -298,7 +282,7 @@ export function Header() {
                       </button>
                     )}
                   </DropdownMenuLabel>
-                  <DropdownMenuSeparator className="bg-slate-200 dark:bg-slate-800" />
+                  <DropdownMenuSeparator className="bg-slate-800" />
                   {recentAlerts.length === 0 ? (
                     <div className="py-6 text-center">
                       <Bell className="w-8 h-8 text-slate-600 mx-auto mb-2" />
@@ -315,10 +299,10 @@ export function Header() {
                         <div className="flex items-start gap-2">
                           {severityIcon(alert.severity)}
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-[var(--text-main)] truncate">{alert.title}</p>
+                            <p className="text-sm font-bold text-white truncate">{alert.title}</p>
                             <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">{alert.message}</p>
                             <div className="flex items-center gap-2 mt-1">
-                              <Badge className="text-[11px] font-bold bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700 px-1.5 py-0">{alert.sport}</Badge>
+                              <Badge className="text-[11px] font-bold bg-slate-800 text-slate-400 border-slate-700 px-1.5 py-0">{alert.sport}</Badge>
                               {!alert.isRead && (
                                 <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
                               )}
@@ -333,9 +317,9 @@ export function Header() {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-3 hover:bg-black/5 dark:hover:bg-slate-800/50 rounded-lg px-3 py-2 transition-colors cursor-pointer outline-none" data-testid="account-menu">
+                  <button className="flex items-center gap-3 hover:bg-slate-800/50 rounded-lg px-3 py-2 transition-colors cursor-pointer outline-none" data-testid="account-menu">
                     <div className="flex flex-col items-end">
-                      <span className="text-sm font-bold text-[var(--text-main)]">{user.firstName || user.email?.split('@')[0]}</span>
+                      <span className="text-sm font-bold text-white">{user.firstName || user.email?.split('@')[0]}</span>
                       {isPro ? (
                         <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[11px] font-black px-1.5 py-0">
                           <Crown className="w-3 h-3 mr-0.5" /> PRO
@@ -351,9 +335,9 @@ export function Header() {
                     <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 bg-[var(--bg-card)] border-border">
-                  <DropdownMenuLabel className="text-[var(--text-muted)] text-xs font-bold uppercase tracking-wider">Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator className="bg-slate-200 dark:bg-slate-800" />
+                <DropdownMenuContent align="end" className="w-56 bg-[#1E293B] border-border">
+                  <DropdownMenuLabel className="text-slate-400 text-xs font-bold uppercase tracking-wider">Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-slate-800" />
                   {!isPaid && (
                     <Link href="/pricing">
                       <DropdownMenuItem className="cursor-pointer" data-testid="menu-upgrade">
@@ -382,7 +366,7 @@ export function Header() {
                       <span className="text-sm font-bold text-slate-300">Plans & Billing</span>
                     </DropdownMenuItem>
                   </Link>
-                  <DropdownMenuSeparator className="bg-slate-200 dark:bg-slate-800" />
+                  <DropdownMenuSeparator className="bg-slate-800" />
                   <DropdownMenuItem 
                     className="cursor-pointer text-red-400 focus:text-red-400"
                     onClick={() => logout()}
@@ -406,26 +390,26 @@ export function Header() {
 
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className={`lg:hidden p-2 rounded-lg transition-colors ${isLanding ? "hover:bg-white/10" : "hover:bg-black/10 dark:hover:bg-slate-800"}`}
+            className="lg:hidden p-2 rounded-lg transition-colors hover:bg-slate-800"
             data-testid="mobile-menu-btn"
           >
             {mobileMenuOpen ? (
-              <X className={`w-6 h-6 ${isLanding ? "text-white" : "text-[var(--text-main)]"}`} />
+              <X className="w-6 h-6 text-white" />
             ) : (
-              <Menu className={`w-6 h-6 ${isLanding ? "text-white" : "text-[var(--text-main)]"}`} />
+              <Menu className="w-6 h-6 text-white" />
             )}
           </button>
         </div>
       </div>
 
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-border bg-[var(--header-bg)] max-h-[calc(100vh-4rem)] overflow-y-auto" data-testid="mobile-menu">
+        <div className="lg:hidden border-t border-border bg-[#0F172A] max-h-[calc(100vh-4rem)] overflow-y-auto" data-testid="mobile-menu">
           <div className="container mx-auto px-4 py-4 space-y-1">
             {user && (
-              <div className="flex items-center gap-3 px-3 py-3 mb-3 rounded-lg bg-black/5 dark:bg-slate-800/50">
+              <div className="flex items-center gap-3 px-3 py-3 mb-3 rounded-lg bg-slate-800/50">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-[var(--text-main)] truncate">{user.firstName || user.email?.split('@')[0]}</p>
-                  <p className="text-[11px] text-[var(--text-muted)] truncate">{user.email}</p>
+                  <p className="text-sm font-bold text-white truncate">{user.firstName || user.email?.split('@')[0]}</p>
+                  <p className="text-[11px] text-slate-400 truncate">{user.email}</p>
                 </div>
                 {isPro ? (
                   <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[11px] font-black px-1.5 py-0 shrink-0">
@@ -455,7 +439,7 @@ export function Header() {
             <button
               onClick={() => mobileNav("/")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                location === "/" ? "bg-emerald-500/10 text-emerald-400" : "text-[var(--text-main)] hover:bg-black/5 dark:hover:bg-slate-800"
+                location === "/" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
               }`}
               data-testid="mobile-nav-home"
             >
@@ -466,7 +450,7 @@ export function Header() {
             <button
               onClick={() => mobileNav("/props")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                location === "/props" ? "bg-emerald-500/10 text-emerald-400" : "text-[var(--text-main)] hover:bg-black/5 dark:hover:bg-slate-800"
+                location === "/props" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
               }`}
               data-testid="mobile-nav-props"
             >
@@ -477,7 +461,7 @@ export function Header() {
             <button
               onClick={() => mobileNav("/prizepicks")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                location === "/prizepicks" ? "bg-emerald-500/10 text-emerald-400" : "text-[var(--text-main)] hover:bg-black/5 dark:hover:bg-slate-800"
+                location === "/prizepicks" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
               }`}
               data-testid="mobile-nav-prizepicks"
             >
@@ -489,7 +473,7 @@ export function Header() {
             <button
               onClick={() => mobileNav("/lineups")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                location === "/lineups" ? "bg-emerald-500/10 text-emerald-400" : "text-[var(--text-main)] hover:bg-black/5 dark:hover:bg-slate-800"
+                location === "/lineups" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
               }`}
               data-testid="mobile-nav-vault"
             >
@@ -500,7 +484,7 @@ export function Header() {
             <button
               onClick={() => mobileNav("/pricing")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                location === "/pricing" ? "bg-emerald-500/10 text-emerald-400" : "text-[var(--text-main)] hover:bg-black/5 dark:hover:bg-slate-800"
+                location === "/pricing" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
               }`}
               data-testid="mobile-nav-pricing"
             >
@@ -511,7 +495,7 @@ export function Header() {
             {user && (
               <>
                 <div className="border-t border-border my-2 pt-2">
-                  <p className="px-3 py-1 text-[11px] font-black text-[var(--text-muted)] uppercase tracking-wider">Sports</p>
+                  <p className="px-3 py-1 text-[11px] font-black text-slate-400 uppercase tracking-wider">Sports</p>
                 </div>
                 {ACTIVE_SPORTS.map(sport => {
                   const meta = SPORT_META[sport] || { icon: Dribbble, color: "text-slate-400", bgColor: "bg-slate-500/20" };
@@ -524,13 +508,13 @@ export function Header() {
                         <div className={`w-6 h-6 rounded flex items-center justify-center ${meta.bgColor}`}>
                           <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
                         </div>
-                        <span className="text-xs font-black text-[var(--text-main)] uppercase tracking-wider">{sport}</span>
+                        <span className="text-xs font-black text-white uppercase tracking-wider">{sport}</span>
                       </div>
 
                       <div className="pl-6 space-y-0.5">
                         <button
                           onClick={() => mobileNav(`/news/${sport.toLowerCase()}`)}
-                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-[var(--text-muted)] hover:bg-black/5 dark:hover:bg-slate-800 hover:text-[var(--text-main)] transition-colors"
+                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
                           data-testid={`mobile-sport-${sport.toLowerCase()}-news`}
                         >
                           <Newspaper className="w-4 h-4 text-amber-400 shrink-0" />
@@ -540,7 +524,7 @@ export function Header() {
                         {dkSlate ? (
                           <button
                             onClick={() => mobileNav(`/optimizer/${dkSlate.id}`)}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-[var(--text-muted)] hover:bg-black/5 dark:hover:bg-slate-800 hover:text-[var(--text-main)] transition-colors"
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
                             data-testid={`mobile-sport-${sport.toLowerCase()}-dk`}
                           >
                             <div className="w-5 h-5 rounded bg-emerald-500/20 flex items-center justify-center shrink-0">
@@ -560,7 +544,7 @@ export function Header() {
                         {isPro && dkSlate ? (
                           <button
                             onClick={() => mobileNav(`/optimizer-pro/${dkSlate.id}`)}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-amber-300 hover:bg-black/10 dark:hover:bg-slate-800 transition-colors"
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-amber-300 hover:bg-slate-800 transition-colors"
                             data-testid={`mobile-sport-${sport.toLowerCase()}-pro`}
                           >
                             <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
@@ -570,7 +554,7 @@ export function Header() {
                         ) : isStar && dkSlate ? (
                           <button
                             onClick={() => mobileNav(`/optimizer-pro/${dkSlate.id}`)}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-emerald-300 hover:bg-black/10 dark:hover:bg-slate-800 transition-colors"
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-emerald-300 hover:bg-slate-800 transition-colors"
                             data-testid={`mobile-sport-${sport.toLowerCase()}-star`}
                           >
                             <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -580,7 +564,7 @@ export function Header() {
                         ) : (
                           <button
                             onClick={() => mobileNav("/pricing")}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-slate-600 hover:bg-black/10 dark:hover:bg-slate-800 transition-colors"
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-slate-600 hover:bg-slate-800 transition-colors"
                           >
                             <Lock className="w-4 h-4 shrink-0" />
                             <span>Pro DK</span>
@@ -599,7 +583,7 @@ export function Header() {
                 <button
                   onClick={() => mobileNav("/admin")}
                   className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                    location === "/admin" ? "bg-emerald-500/10 text-emerald-400" : "text-[var(--text-main)] hover:bg-black/5 dark:hover:bg-slate-800"
+                    location === "/admin" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
                   }`}
                   data-testid="mobile-nav-admin"
                 >

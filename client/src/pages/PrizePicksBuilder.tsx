@@ -131,31 +131,31 @@ function UnauthenticatedView() {
         <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-violet-500/10 border border-violet-500/20 mb-2">
           <TrendingUp className="w-10 h-10 text-violet-400" />
         </div>
-        <h1 className="text-3xl font-black text-[var(--text-main)] tracking-tight" data-testid="pp-builder-title">PrizePicks Builder</h1>
+        <h1 className="text-3xl font-black text-white tracking-tight" data-testid="pp-builder-title">PrizePicks Builder</h1>
         <p className="text-slate-400 text-lg leading-relaxed">
           Build PrizePicks entries using real-time player projections. Pick More or Less on stat lines, combine picks, and calculate your potential payout.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-          <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-none rounded-xl p-4 space-y-2">
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
             <TrendingUp className="w-5 h-5 text-violet-400 mx-auto" />
-            <div className="text-sm font-bold text-[var(--text-main)]">Live Lines</div>
+            <div className="text-sm font-bold text-white">Live Lines</div>
             <div className="text-xs text-slate-400">Real-time PrizePicks projections across all sports</div>
           </div>
-          <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-none rounded-xl p-4 space-y-2">
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
             <ArrowUp className="w-5 h-5 text-emerald-400 mx-auto" />
-            <div className="text-sm font-bold text-[var(--text-main)]">More or Less</div>
+            <div className="text-sm font-bold text-white">More or Less</div>
             <div className="text-xs text-slate-400">Pick over or under on any player stat line</div>
           </div>
-          <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-none rounded-xl p-4 space-y-2">
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
             <DollarSign className="w-5 h-5 text-amber-400 mx-auto" />
-            <div className="text-sm font-bold text-[var(--text-main)]">Payout Calc</div>
+            <div className="text-sm font-bold text-white">Payout Calc</div>
             <div className="text-xs text-slate-400">See potential payouts for 2-6 pick entries</div>
           </div>
         </div>
         <div className="bg-gradient-to-r from-violet-500/10 via-slate-800/50 to-violet-500/10 border border-violet-500/20 rounded-xl p-4">
           <div className="flex items-center gap-2 justify-center mb-2">
             <Crown className="w-4 h-4 text-amber-400" />
-            <span className="text-sm font-bold text-[var(--text-main)]">Pro Feature</span>
+            <span className="text-sm font-bold text-white">Pro Feature</span>
           </div>
           <p className="text-xs text-slate-400">The PrizePicks Builder is available exclusively to Pro members. Upgrade to start building entries.</p>
         </div>
@@ -187,7 +187,7 @@ function NonProView() {
               <TrendingUp className="w-7 h-7 text-violet-400" />
             </div>
             <div>
-              <h1 className="text-4xl font-black text-[var(--text-main)] tracking-tight" data-testid="pp-builder-title">PrizePicks Builder</h1>
+              <h1 className="text-4xl font-black text-white tracking-tight" data-testid="pp-builder-title">PrizePicks Builder</h1>
               <p className="text-slate-400 text-sm mt-1">Build PrizePicks entries with live lines</p>
             </div>
           </div>
@@ -198,12 +198,12 @@ function NonProView() {
         <div className="max-w-2xl mx-auto text-center space-y-8">
           <div className="bg-gradient-to-b from-violet-500/5 to-transparent border border-violet-500/20 rounded-2xl p-8">
             <Lock className="w-12 h-12 text-violet-400/60 mx-auto mb-4" />
-            <h2 className="text-2xl font-black text-[var(--text-main)] mb-3">Upgrade to Pro for PrizePicks Builder</h2>
+            <h2 className="text-2xl font-black text-white mb-3">Upgrade to Pro for PrizePicks Builder</h2>
             <p className="text-slate-400 mb-6">
               The PrizePicks Builder is an exclusive Pro feature ($49.99/mo). Build multi-pick entries using real-time PrizePicks lines with potential payout calculations.
             </p>
 
-            <div className="bg-white dark:bg-slate-800/40 border border-amber-300 dark:border-amber-500/20 shadow-sm dark:shadow-none rounded-xl p-5 text-left max-w-sm mx-auto mb-6">
+            <div className="bg-slate-800/40 border border-amber-500/20 rounded-xl p-5 text-left max-w-sm mx-auto mb-6">
               <div className="flex items-center gap-2 mb-3">
                 <Crown className="w-5 h-5 text-amber-400" />
                 <span className="text-sm font-bold text-amber-400">Pro Plan Includes</span>
@@ -224,8 +224,8 @@ function NonProView() {
             </Link>
           </div>
 
-          <div className="bg-white dark:bg-slate-800/30 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none rounded-2xl p-6">
-            <h3 className="text-lg font-bold text-[var(--text-main)] mb-4 flex items-center gap-2 justify-center">
+          <div className="bg-slate-800/30 border border-slate-800 rounded-2xl p-6">
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2 justify-center">
               <Info className="w-5 h-5 text-violet-400" /> How PrizePicks Builder Works
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
@@ -233,21 +233,21 @@ function NonProView() {
                 <div className="w-8 h-8 rounded-full bg-violet-500/20 flex items-center justify-center mx-auto">
                   <span className="text-sm font-black text-violet-400">1</span>
                 </div>
-                <div className="text-sm font-bold text-[var(--text-main)]">Browse Lines</div>
+                <div className="text-sm font-bold text-white">Browse Lines</div>
                 <div className="text-xs text-slate-400">Explore real-time PrizePicks projections across every sport</div>
               </div>
               <div className="space-y-2">
                 <div className="w-8 h-8 rounded-full bg-violet-500/20 flex items-center justify-center mx-auto">
                   <span className="text-sm font-black text-violet-400">2</span>
                 </div>
-                <div className="text-sm font-bold text-[var(--text-main)]">Pick More/Less</div>
+                <div className="text-sm font-bold text-white">Pick More/Less</div>
                 <div className="text-xs text-slate-400">Select over or under on each player stat line</div>
               </div>
               <div className="space-y-2">
                 <div className="w-8 h-8 rounded-full bg-violet-500/20 flex items-center justify-center mx-auto">
                   <span className="text-sm font-black text-violet-400">3</span>
                 </div>
-                <div className="text-sm font-bold text-[var(--text-main)]">See Payout</div>
+                <div className="text-sm font-bold text-white">See Payout</div>
                 <div className="text-xs text-slate-400">Calculate your potential payout and copy your entry</div>
               </div>
             </div>
@@ -553,7 +553,7 @@ export default function PrizePicksBuilder() {
                 <TrendingUp className="w-7 h-7 text-violet-400" />
               </div>
               <div>
-                <h1 className="text-3xl font-black text-[var(--text-main)] tracking-tight" data-testid="pp-builder-title">PrizePicks Builder</h1>
+                <h1 className="text-3xl font-black text-white tracking-tight" data-testid="pp-builder-title">PrizePicks Builder</h1>
                 <p className="text-slate-400 text-sm mt-0.5">Build entries with live lines</p>
               </div>
               <Badge className="ml-2 bg-amber-500/20 text-amber-400 border-amber-500/30 font-bold">
@@ -573,7 +573,7 @@ export default function PrizePicksBuilder() {
                     size="sm"
                     onClick={() => { setSelectedSport(sport); setEntries([]); setStatFilter("ALL"); setSearchQuery(""); setShowAIEntries(false); setAiEntries([]); setExpandedAIEntry(null); setAiError(null); }}
                     className={selectedSport === sport
-                      ? "bg-violet-500 text-[var(--text-main)] font-bold"
+                      ? "bg-violet-500 text-white font-bold"
                       : "border-slate-700 text-slate-400 font-bold"
                     }
                     data-testid={`pp-builder-sport-${sport.toLowerCase()}`}
@@ -608,8 +608,8 @@ export default function PrizePicksBuilder() {
             onClick={() => setActiveTab("builder")}
             className={`px-5 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${
               activeTab === "builder"
-                ? "bg-violet-500 text-[var(--text-main)] shadow-lg"
-                : "text-slate-400 hover:text-[var(--text-main)]"
+                ? "bg-violet-500 text-white shadow-lg"
+                : "text-slate-400 hover:text-white"
             }`}
             data-testid="pp-tab-builder"
           >
@@ -619,8 +619,8 @@ export default function PrizePicksBuilder() {
             onClick={() => setActiveTab("vault")}
             className={`px-5 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${
               activeTab === "vault"
-                ? "bg-violet-500 text-[var(--text-main)] shadow-lg"
-                : "text-slate-400 hover:text-[var(--text-main)]"
+                ? "bg-violet-500 text-white shadow-lg"
+                : "text-slate-400 hover:text-white"
             }`}
             data-testid="pp-tab-vault"
           >
@@ -638,7 +638,7 @@ export default function PrizePicksBuilder() {
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-xl font-black text-[var(--text-main)] flex items-center gap-2" data-testid="pp-vault-title">
+              <h2 className="text-xl font-black text-white flex items-center gap-2" data-testid="pp-vault-title">
                 <Vault className="w-5 h-5 text-violet-400" /> PrizePicks Vault
               </h2>
               <p className="text-sm text-slate-400 mt-1">{savedEntries.length}/50 entries saved</p>
@@ -660,7 +660,7 @@ export default function PrizePicksBuilder() {
               {savedEntries.map((entry) => (
                 <div
                   key={entry.id}
-                  className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/40 shadow-sm dark:shadow-none rounded-xl overflow-hidden"
+                  className="bg-slate-800/40 border border-slate-700/40 rounded-xl overflow-hidden"
                   data-testid={`pp-vault-entry-${entry.id}`}
                 >
                   <button
@@ -674,7 +674,7 @@ export default function PrizePicksBuilder() {
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-black text-[var(--text-main)]">{entry.label || `${entry.sport} Entry`}</span>
+                          <span className="text-sm font-black text-white">{entry.label || `${entry.sport} Entry`}</span>
                           <Badge className="bg-slate-700 text-slate-300 text-[10px] font-bold">{entry.sport}</Badge>
                           {entry.overallConfidence && (
                             <Badge className={`text-[10px] font-bold ${
@@ -719,7 +719,7 @@ export default function PrizePicksBuilder() {
                               </div>
                             )}
                             <div>
-                              <span className="text-sm font-bold text-[var(--text-main)]">{pick.playerName}</span>
+                              <span className="text-sm font-bold text-white">{pick.playerName}</span>
                               <div className="text-[11px] text-slate-400">{pick.team} · {pick.statType}</div>
                             </div>
                           </div>
@@ -763,7 +763,7 @@ export default function PrizePicksBuilder() {
         <div className="container mx-auto px-4 pt-6 pb-2">
           <div className="bg-gradient-to-b from-amber-500/5 to-transparent border border-amber-500/20 rounded-2xl p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-black text-[var(--text-main)] flex items-center gap-2">
+              <h2 className="text-lg font-black text-white flex items-center gap-2">
                 <Bot className="w-5 h-5 text-amber-400" />
                 AI-Built Entries
                 <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[10px] font-bold">{selectedSport}</Badge>
@@ -821,7 +821,7 @@ export default function PrizePicksBuilder() {
                           {idx + 1}
                         </div>
                         <div>
-                          <div className="text-sm font-black text-[var(--text-main)]">{entry.label}</div>
+                          <div className="text-sm font-black text-white">{entry.label}</div>
                           <div className="text-xs text-slate-400">{entry.picks.length} picks · {entry.multiplier}x multiplier</div>
                         </div>
                       </div>
@@ -861,7 +861,7 @@ export default function PrizePicksBuilder() {
                             )}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-bold text-[var(--text-main)] truncate">{pick.projection.playerName}</span>
+                                <span className="text-sm font-bold text-white truncate">{pick.projection.playerName}</span>
                                 <span className="text-[10px] text-slate-500 font-bold">{pick.projection.team}</span>
                               </div>
                               <div className="text-[11px] text-slate-500 mt-0.5">{pick.reasoning}</div>
@@ -870,7 +870,7 @@ export default function PrizePicksBuilder() {
                               <Badge className={`${getStatColor(pick.projection.statType)} text-[9px] font-bold border px-1.5 py-0 mb-1`}>
                                 {pick.projection.statType}
                               </Badge>
-                              <div className="text-sm font-black text-[var(--text-main)]">{pick.projection.line}</div>
+                              <div className="text-sm font-black text-white">{pick.projection.line}</div>
                             </div>
                             <div className={`text-xs font-black px-2.5 py-1 rounded-md border shrink-0 ${
                               pick.pick === "more"
@@ -927,7 +927,7 @@ export default function PrizePicksBuilder() {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           <div className="lg:col-span-3 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <TrendingUp className="w-5 h-5 text-violet-400" />
                 Available Lines
                 <span className="text-sm text-slate-400 font-normal ml-1">- {selectedSport}</span>
@@ -944,7 +944,7 @@ export default function PrizePicksBuilder() {
                   placeholder="Search player or team..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 bg-slate-800/50 border-slate-700/50 text-[var(--text-main)] placeholder:text-slate-500"
+                  className="pl-9 bg-slate-800/50 border-slate-700/50 text-white placeholder:text-slate-500"
                   data-testid="pp-builder-search"
                 />
               </div>
@@ -952,7 +952,7 @@ export default function PrizePicksBuilder() {
                 <Button
                   size="sm"
                   variant={statFilter === "ALL" ? "default" : "ghost"}
-                  className={statFilter === "ALL" ? "bg-violet-500 text-[var(--text-main)] font-bold text-xs" : "text-slate-400 font-bold text-xs border border-slate-700/50"}
+                  className={statFilter === "ALL" ? "bg-violet-500 text-white font-bold text-xs" : "text-slate-400 font-bold text-xs border border-slate-700/50"}
                   onClick={() => setStatFilter("ALL")}
                   data-testid="pp-builder-filter-all"
                 >
@@ -963,7 +963,7 @@ export default function PrizePicksBuilder() {
                     key={stat}
                     size="sm"
                     variant={statFilter === stat ? "default" : "ghost"}
-                    className={statFilter === stat ? "bg-violet-500 text-[var(--text-main)] font-bold text-xs" : "text-slate-400 font-bold text-xs border border-slate-700/50"}
+                    className={statFilter === stat ? "bg-violet-500 text-white font-bold text-xs" : "text-slate-400 font-bold text-xs border border-slate-700/50"}
                     onClick={() => setStatFilter(stat)}
                     data-testid={`pp-builder-filter-${stat.toLowerCase().replace(/\s+/g, '-')}`}
                   >
@@ -1008,7 +1008,7 @@ export default function PrizePicksBuilder() {
                         )}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-black text-[var(--text-main)] truncate">{proj.playerName}</span>
+                            <span className="text-sm font-black text-white truncate">{proj.playerName}</span>
                             {proj.isLive && (
                               <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[9px] font-black px-1.5 py-0">LIVE</Badge>
                             )}
@@ -1029,7 +1029,7 @@ export default function PrizePicksBuilder() {
                           <Badge className={`${getStatColor(proj.statType)} text-[9px] font-bold border px-1.5 py-0 mb-1`}>
                             {proj.statType}
                           </Badge>
-                          <div className="text-lg font-black text-[var(--text-main)]">{proj.line}</div>
+                          <div className="text-lg font-black text-white">{proj.line}</div>
                         </div>
                         <div className="flex flex-col gap-1 shrink-0">
                           {inEntry ? (
@@ -1082,9 +1082,9 @@ export default function PrizePicksBuilder() {
 
           <div className="lg:col-span-2">
             <div className="sticky top-6 space-y-4">
-              <Card className="bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-none p-5">
+              <Card className="bg-slate-800/60 border-slate-700/50 p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-black text-[var(--text-main)] flex items-center gap-2">
+                  <h3 className="text-lg font-black text-white flex items-center gap-2">
                     <Sparkles className="w-5 h-5 text-violet-400" />
                     Your Entry
                   </h3>
@@ -1120,7 +1120,7 @@ export default function PrizePicksBuilder() {
                             <Badge className={`text-[9px] font-bold px-1.5 py-0 shrink-0 ${entry.projection.league !== selectedSport ? "bg-slate-600/30 text-slate-300 border-slate-600/30" : "bg-violet-500/10 text-violet-400 border-violet-500/20"}`}>
                               {entry.projection.league}
                             </Badge>
-                            <span className="text-sm font-bold text-[var(--text-main)] truncate">{entry.projection.playerName}</span>
+                            <span className="text-sm font-bold text-white truncate">{entry.projection.playerName}</span>
                           </div>
                           <button
                             onClick={() => removeEntry(entry.projection.id)}
@@ -1133,7 +1133,7 @@ export default function PrizePicksBuilder() {
                         <div className="flex items-center justify-between mt-1.5">
                           <span className="text-xs text-slate-400">{entry.projection.statType}</span>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-black text-[var(--text-main)]">{entry.projection.line}</span>
+                            <span className="text-sm font-black text-white">{entry.projection.line}</span>
                             <button
                               onClick={() => togglePick(entry.projection.id)}
                               className={`text-xs font-black px-2 py-0.5 rounded-md border cursor-pointer ${
@@ -1155,7 +1155,7 @@ export default function PrizePicksBuilder() {
                 <div className="border-t border-slate-700/50 pt-4 space-y-3">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-slate-400">Picks</span>
-                    <span className="text-[var(--text-main)] font-bold">{entries.length} / {maxPicks}</span>
+                    <span className="text-white font-bold">{entries.length} / {maxPicks}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-slate-400">Multiplier</span>
@@ -1188,7 +1188,7 @@ export default function PrizePicksBuilder() {
                           size="sm"
                           variant={wagerAmount === amt ? "default" : "ghost"}
                           className={wagerAmount === amt
-                            ? "bg-violet-500 text-[var(--text-main)] font-bold text-xs flex-1"
+                            ? "bg-violet-500 text-white font-bold text-xs flex-1"
                             : "text-slate-400 font-bold text-xs border border-slate-700/50 flex-1"
                           }
                           onClick={() => setWagerAmount(amt)}
@@ -1235,7 +1235,7 @@ export default function PrizePicksBuilder() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Brain className="w-4 h-4 text-emerald-400" />
-                          <span className="text-sm font-bold text-[var(--text-main)]">AI Analysis</span>
+                          <span className="text-sm font-bold text-white">AI Analysis</span>
                         </div>
                         <Badge className={`text-[10px] font-black px-2 py-0.5 ${
                           analysisResult.overallConfidence >= 65
@@ -1249,9 +1249,9 @@ export default function PrizePicksBuilder() {
                       </div>
                       <div className="space-y-2">
                         {analysisResult.analyzedPicks.map((ap) => (
-                          <div key={ap.projectionId} className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/30 shadow-sm dark:shadow-none rounded-lg p-2.5">
+                          <div key={ap.projectionId} className="bg-slate-800/50 border border-slate-700/30 rounded-lg p-2.5">
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-bold text-[var(--text-main)]">{ap.playerName}</span>
+                              <span className="text-xs font-bold text-white">{ap.playerName}</span>
                               <div className="flex items-center gap-1.5">
                                 {ap.dataSources.length > 0 && (
                                   <Badge className="bg-slate-700/50 text-slate-400 text-[8px] font-bold px-1 py-0 border-slate-600/30">
@@ -1284,7 +1284,7 @@ export default function PrizePicksBuilder() {
 
                   <div className="flex gap-2 pt-1">
                     <Button
-                      className="flex-1 bg-violet-500 text-[var(--text-main)] font-bold"
+                      className="flex-1 bg-violet-500 text-white font-bold"
                       disabled={entries.length < 2}
                       onClick={copyEntry}
                       data-testid="pp-builder-copy"
@@ -1321,13 +1321,13 @@ export default function PrizePicksBuilder() {
                 </div>
               </Card>
 
-              <div className="bg-white dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700/30 shadow-sm dark:shadow-none rounded-xl p-4">
-                <h4 className="text-sm font-bold text-[var(--text-main)] mb-2">Payout Multipliers</h4>
+              <div className="bg-slate-800/30 border border-slate-700/30 rounded-xl p-4">
+                <h4 className="text-sm font-bold text-white mb-2">Payout Multipliers</h4>
                 <div className="grid grid-cols-5 gap-2 text-center">
                   {[2, 3, 4, 5, 6].map(n => (
-                    <div key={n} className={`rounded-lg p-2 border ${entries.length === n ? "bg-violet-500/10 border-violet-500/30" : "bg-slate-200 dark:bg-slate-800/40 border-slate-300 dark:border-slate-700/40"}`}>
+                    <div key={n} className={`rounded-lg p-2 border ${entries.length === n ? "bg-violet-500/10 border-violet-500/30" : "bg-slate-800/40 border-slate-700/40"}`}>
                       <div className="text-xs text-slate-400">{n} picks</div>
-                      <div className={`text-sm font-black ${entries.length === n ? "text-violet-400" : "text-[var(--text-main)]"}`}>{getEntryMultiplier(n)}x</div>
+                      <div className={`text-sm font-black ${entries.length === n ? "text-violet-400" : "text-white"}`}>{getEntryMultiplier(n)}x</div>
                     </div>
                   ))}
                 </div>

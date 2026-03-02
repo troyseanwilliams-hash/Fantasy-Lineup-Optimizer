@@ -74,7 +74,7 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--bg-dark)] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 mb-4">
