@@ -278,6 +278,10 @@ export default function Pricing() {
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
               <span className="font-bold text-amber-300">Ownership projections & player fading</span>
             </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <span className="font-bold text-amber-300">PrizePicks Builder with live lines</span>
+            </li>
           </ul>
           {currentTier === "pro" ? (
             <Button className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-black font-black" disabled>

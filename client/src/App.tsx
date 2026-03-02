@@ -14,6 +14,8 @@ import PropBets from "@/pages/PropBets";
 import Admin from "@/pages/Admin";
 import Pricing from "@/pages/Pricing";
 import News from "@/pages/News";
+import ParlayBuilder from "@/pages/ParlayBuilder";
+import PrizePicksBuilder from "@/pages/PrizePicksBuilder";
 
 import NotFound from "@/pages/not-found";
 import { Header } from "@/components/Header";
@@ -42,6 +44,8 @@ function Router() {
           <Route path="/optimizer-pro/:id" component={ProOptimizer} />
           <Route path="/lineups" component={SavedLineups} />
           <Route path="/props" component={PropBets} />
+          <Route path="/parlays" component={ParlayBuilder} />
+          <Route path="/prizepicks" component={PrizePicksBuilder} />
 
           <Route path="/news/:sport" component={News} />
           <Route path="/pricing" component={Pricing} />
