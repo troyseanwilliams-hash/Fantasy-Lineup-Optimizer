@@ -36,10 +36,6 @@ function Router() {
     );
   }
 
-  if (user && !user.onboardingComplete && !isOnboarding) {
-    return <Redirect to="/onboarding" />;
-  }
-
   if (!user && isOnboarding) {
     return <Redirect to="/" />;
   }

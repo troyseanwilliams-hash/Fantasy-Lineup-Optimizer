@@ -88,6 +88,14 @@ export default function Onboarding() {
           <p className="text-slate-400 mt-2">
             Let's set up your profile to get started
           </p>
+          <button
+            type="button"
+            onClick={() => navigate("/")}
+            className="text-sm text-slate-500 hover:text-slate-300 mt-3 transition-colors"
+            data-testid="button-skip-onboarding"
+          >
+            Skip for now
+          </button>
         </div>
 
         <Card className="bg-slate-800/60 border-slate-700/50 p-6" data-testid="onboarding-card">
