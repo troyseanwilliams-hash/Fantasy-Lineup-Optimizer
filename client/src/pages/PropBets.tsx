@@ -155,7 +155,7 @@ function DfsAffiliateBanner() {
                 <span className="text-emerald-400 font-black text-sm">DK</span>
               </div>
               <div>
-                <p className="text-sm font-black text-white">{AFFILIATE_LINKS.draftkings.dfs.label}</p>
+                <p className="text-sm font-black text-[var(--text-main)]">{AFFILIATE_LINKS.draftkings.dfs.label}</p>
                 <p className="text-xs text-slate-400">{AFFILIATE_LINKS.draftkings.dfs.description}</p>
               </div>
             </div>
@@ -177,7 +177,7 @@ function DfsAffiliateBanner() {
                 <span className="text-blue-400 font-black text-sm">FD</span>
               </div>
               <div>
-                <p className="text-sm font-black text-white">{AFFILIATE_LINKS.fanduel.dfs.label}</p>
+                <p className="text-sm font-black text-[var(--text-main)]">{AFFILIATE_LINKS.fanduel.dfs.label}</p>
                 <p className="text-xs text-slate-400">{AFFILIATE_LINKS.fanduel.dfs.description}</p>
               </div>
             </div>
@@ -232,7 +232,7 @@ function PropCard({ prop, index }: { prop: PropBet; index: number }) {
 
   return (
     <Card
-      className="bg-slate-800/30 border-slate-800 p-5 transition-all hover-elevate relative overflow-hidden"
+      className="bg-black/[0.03] dark:bg-slate-800/30 border-border p-5 transition-all hover-elevate relative overflow-hidden"
       data-testid={`prop-card-${index}`}
     >
       {isGold && (
@@ -301,12 +301,12 @@ function PropCard({ prop, index }: { prop: PropBet; index: number }) {
         </div>
       </div>
 
-      <h3 className="text-base font-bold text-white mb-1" data-testid={`prop-player-${index}`}>{prop.playerName}</h3>
+      <h3 className="text-base font-bold text-[var(--text-main)] mb-1" data-testid={`prop-player-${index}`}>{prop.playerName}</h3>
 
       <div className="flex items-center justify-between bg-slate-900/50 rounded-xl px-4 py-3 border border-slate-800/50">
         <div>
           <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">{prop.propType}</p>
-          <p className="text-lg font-black text-white">{prop.line}</p>
+          <p className="text-lg font-black text-[var(--text-main)]">{prop.line}</p>
         </div>
         <div className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-black text-sm ${
           prop.pick === "Over"
@@ -477,7 +477,7 @@ export default function PropBets() {
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-4xl font-black text-white tracking-tight" data-testid="prop-bets-title">Prop Bets</h1>
+                <h1 className="text-4xl font-black text-[var(--text-main)] tracking-tight" data-testid="prop-bets-title">Prop Bets</h1>
                 <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-xs font-black">
                   <Zap className="w-3 h-3 mr-1 fill-current" /> AI PICKS
                 </Badge>
@@ -519,7 +519,7 @@ export default function PropBets() {
               <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 mb-3">
                 <Sparkles className="w-7 h-7 text-amber-400" />
               </div>
-              <h2 className="text-2xl font-black text-white tracking-tight mb-2">AI-Powered Prop Picks</h2>
+              <h2 className="text-2xl font-black text-[var(--text-main)] tracking-tight mb-2">AI-Powered Prop Picks</h2>
               <p className="text-slate-400 max-w-xl mx-auto">
                 Our algorithm analyzes player stats, matchups, and trends to deliver high-confidence prop bet picks daily across every active sport. Here's a preview — sign in to unlock more.
               </p>
@@ -527,17 +527,17 @@ export default function PropBets() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mx-auto">
               <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 text-center space-y-2">
                 <Target className="w-5 h-5 text-emerald-400 mx-auto" />
-                <div className="text-sm font-bold text-white">Confidence Ratings</div>
+                <div className="text-sm font-bold text-[var(--text-main)]">Confidence Ratings</div>
                 <div className="text-xs text-slate-400">Each pick rated with a 5-star confidence score</div>
               </div>
               <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 text-center space-y-2">
                 <TrendingUp className="w-5 h-5 text-amber-400 mx-auto" />
-                <div className="text-sm font-bold text-white">Daily Updates</div>
+                <div className="text-sm font-bold text-[var(--text-main)]">Daily Updates</div>
                 <div className="text-xs text-slate-400">Fresh picks generated every day for active sports</div>
               </div>
               <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 text-center space-y-2">
                 <Shield className="w-5 h-5 text-cyan-400 mx-auto" />
-                <div className="text-sm font-bold text-white">Multi-Sport</div>
+                <div className="text-sm font-bold text-[var(--text-main)]">Multi-Sport</div>
                 <div className="text-xs text-slate-400">NBA, NHL, GOLF and more covered daily</div>
               </div>
             </div>
@@ -556,7 +556,7 @@ export default function PropBets() {
 
           <div className="flex items-center gap-2 mb-6">
             <Zap className="w-5 h-5 text-amber-400 fill-amber-400" />
-            <h3 className="text-lg font-black text-white">Today's Picks</h3>
+            <h3 className="text-lg font-black text-[var(--text-main)]">Today's Picks</h3>
             <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px] font-black">1 PER SPORT</Badge>
           </div>
         </div>
@@ -565,7 +565,7 @@ export default function PropBets() {
       <div className="bg-slate-800/30 border border-slate-800 rounded-xl p-4 mb-8" data-testid="star-rating-legend">
         <div className="flex items-center gap-2 mb-3">
           <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-          <span className="text-sm font-bold text-white">Confidence Rating</span>
+          <span className="text-sm font-bold text-[var(--text-main)]">Confidence Rating</span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
           {[
@@ -582,7 +582,7 @@ export default function PropBets() {
                 ))}
               </div>
               <div className="flex flex-col">
-                <span className="text-[11px] font-bold text-white leading-tight">{label}</span>
+                <span className="text-[11px] font-bold text-[var(--text-main)] leading-tight">{label}</span>
                 <span className="text-[10px] text-slate-500 leading-tight">{range}</span>
               </div>
             </div>
@@ -601,7 +601,7 @@ export default function PropBets() {
           <section key={sport} className="mb-12" data-testid={`sport-section-${sport.toLowerCase()}`}>
             <div className="flex items-center gap-3 mb-4">
               {(() => { const Icon = SPORT_ICON_COMPONENTS[sport]; return Icon ? <Icon className="w-6 h-6 text-emerald-400" /> : null; })()}
-              <h2 className="text-2xl font-black text-white tracking-tight">{sport}</h2>
+              <h2 className="text-2xl font-black text-[var(--text-main)] tracking-tight">{sport}</h2>
               {sportProps.length > 0 && (
                 <Badge variant="outline" className="text-[11px] font-bold border-slate-700 text-slate-400">
                   {sportProps.length} pick{sportProps.length !== 1 ? "s" : ""}
@@ -634,7 +634,7 @@ export default function PropBets() {
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500/30 to-purple-600/20 flex items-center justify-center border border-violet-500/30">
             <TrendingUp className="w-4 h-4 text-violet-400" />
           </div>
-          <h2 className="text-2xl font-black text-white tracking-tight">PrizePicks Board</h2>
+          <h2 className="text-2xl font-black text-[var(--text-main)] tracking-tight">PrizePicks Board</h2>
           <Badge className="bg-violet-500/10 text-violet-400 border-violet-500/20 text-[10px] font-black">LIVE LINES</Badge>
         </div>
         <p className="text-sm text-slate-400 mb-4 ml-11">Real-time player projections from PrizePicks. Pick More or Less on any stat line.</p>
@@ -646,7 +646,7 @@ export default function PropBets() {
               size="sm"
               variant={ppSport === s ? "default" : "ghost"}
               className={ppSport === s
-                ? "bg-violet-500 text-white font-black text-xs"
+                ? "bg-violet-500 text-[var(--text-main)] font-black text-xs"
                 : "text-slate-400 font-bold text-xs border border-slate-700/50"
               }
               onClick={() => setPpSport(s)}
@@ -701,7 +701,7 @@ export default function PropBets() {
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-black text-white truncate">{proj.playerName}</span>
+                        <span className="text-sm font-black text-[var(--text-main)] truncate">{proj.playerName}</span>
                         {proj.isLive && (
                           <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[9px] font-black px-1.5 py-0">LIVE</Badge>
                         )}
@@ -717,7 +717,7 @@ export default function PropBets() {
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="text-lg font-black text-white">{proj.line}</div>
+                      <div className="text-lg font-black text-[var(--text-main)]">{proj.line}</div>
                       <Badge className={`${getStatColor(proj.statType)} text-[9px] font-bold border px-1.5 py-0`}>
                         {proj.statType}
                       </Badge>
@@ -762,7 +762,7 @@ export default function PropBets() {
       {!isPro && (isGuest || (data?.lockedCount && data.lockedCount > 0)) && (
         <div className="mt-4 mb-12 text-center bg-gradient-to-r from-amber-900/20 via-amber-800/10 to-amber-900/20 border border-amber-700/20 rounded-2xl p-8" data-testid="unlock-all-cta">
           <Crown className="w-10 h-10 text-amber-500/60 mx-auto mb-3" />
-          <h3 className="text-xl font-black text-white mb-2">
+          <h3 className="text-xl font-black text-[var(--text-main)] mb-2">
             {isGuest ? "Sign In to Unlock AI Picks" : tier === "star" ? "Get Up to 15 Picks Per Sport" : "Unlock More Daily Picks"}
           </h3>
           <p className="text-slate-400 text-sm mb-5 max-w-md mx-auto">

@@ -17,7 +17,7 @@ Preferred communication style: Simple, everyday language.
 - **Routing**: Wouter (lightweight client-side router)
 - **State/Data Management**: TanStack React Query for server state, local React state for UI
 - **UI Components**: shadcn/ui component library (New York style) built on Radix UI primitives
-- **Styling**: Tailwind CSS with dark theme (slate/emerald color scheme for DK, blue for FD), CSS custom properties for theming
+- **Styling**: Tailwind CSS with light/dark theme support (slate/emerald color scheme for DK, blue for FD), CSS custom properties for theming. Dark mode default, toggle via Sun/Moon button in header. Theme persisted in localStorage (`elitelineup-theme`). ThemeProvider component manages `.dark` class on `<html>`. FOUC prevention via inline script in `client/index.html`
 - **Build Tool**: Vite with HMR in development
 - **Tables**: @tanstack/react-table for player data tables with sorting/filtering
 - **Path aliases**: `@/` maps to `client/src/`, `@shared/` maps to `shared/`
@@ -30,7 +30,7 @@ Preferred communication style: Simple, everyday language.
 - **Prop Bets** (`/props`): AI-generated daily prop picks organized per sport, PrizePicks live lines board with sport tabs, and DraftKings/FanDuel affiliate marketing links (DFS + Sportsbook)
 - **Parlay Builder** (`/parlays`): Pro-exclusive feature to combine multiple player props across any sport into cross-sport parlays with combined odds, potential payout calculator, wager presets, AI confidence insights, and direct DraftKings bet placement links. Free/Star/unauth users see an upgrade prompt. Pro: up to 8 legs with AI insights and DK affiliate links.
 - **PrizePicks Builder** (`/prizepicks`): Pro-exclusive feature to build PrizePicks entries using live player projections. Browse real-time lines across all sports, pick More or Less on stat lines, build 2-6 pick entries with payout multiplier calculator (3x-25x), search/filter by player or stat type, copy entry details, and link to PrizePicks. Non-Pro users see upgrade prompt. Pro: AI Builder button generates up to 5 optimized entries with confidence scores, reasoning per pick, and "Save Entry" to save to the PrizePicks Vault (max 50 entries). Manual entries can also be saved. AI scoring cross-references PrizePicks lines with DraftKings player data (FPPG, projections, injuries, boosts) and Odds API sportsbook props (implied probabilities, line comparisons). Data source tags [DK], [Odds], [DK+Odds] shown in reasoning. Deterministic scoring — no randomness.
-- **News** (`/news/:sport`): Live sport-specific player news from ESPN's public API, with sport tabs to switch between NBA/NHL/MLB
+- **News** (`/news/:sport`): Live sport-specific player news from RotoBaller RSS feeds (5-minute server cache), with sport tabs to switch between active sports. Featured first article with hero image, readable card layout
 - **Onboarding** (`/onboarding`): First-time user profile setup (salutation, name, email, phone, SMS/email consent). Authenticated users with `onboardingComplete=false` are auto-redirected here. Full-screen layout without header/footer. After completion, navigates to home dashboard.
 - **Admin** (`/admin`): Slate creation, player bulk upload (JSON), and database seeding
 
