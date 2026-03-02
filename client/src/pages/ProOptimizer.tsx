@@ -84,6 +84,7 @@ export default function ProOptimizer() {
   const [useBoosts, setUseBoosts] = useState(false);
   const [useInjuryAdjustments, setUseInjuryAdjustments] = useState(false);
   const [fadedIds, setFadedIds] = useState<number[]>([]);
+  const [exposureLimits, setExposureLimits] = useState<Record<string, number>>({});
 
   const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"] });
   const slate = useMemo(() => slates?.find(s => s.id === slateId), [slates, slateId]);
@@ -112,6 +113,7 @@ export default function ProOptimizer() {
   });
 
   const isGolf = sport === "GOLF";
+  const slateHasStarted = slate ? new Date(slate.startTime) <= new Date() : false;
 
   const { data: golfAnalysis } = useQuery<any>({
     queryKey: ["/api/golf-analysis", slateId],
@@ -271,6 +273,34 @@ export default function ProOptimizer() {
 
   const generatedLineups = optimizeMutation.data?.lineups || [];
 
+  const exposureTracking = useMemo(() => {
+    if (generatedLineups.length === 0 || !players) return [];
+    const appearances: Record<number, number> = {};
+    for (const lineupData of generatedLineups) {
+      const lineupPlayers = lineupData.lineup || [];
+      for (const p of lineupPlayers) {
+        appearances[p.id] = (appearances[p.id] || 0) + 1;
+      }
+    }
+    return Object.entries(appearances)
+      .map(([id, count]) => {
+        const player = players.find(p => p.id === Number(id));
+        const pct = (count / generatedLineups.length) * 100;
+        const limit = exposureLimits[id];
+        return {
+          playerId: Number(id),
+          playerName: player?.name || `Player #${id}`,
+          position: player?.position || "",
+          count,
+          total: generatedLineups.length,
+          pct,
+          limit,
+          overLimit: limit !== undefined && pct > limit,
+        };
+      })
+      .sort((a, b) => b.pct - a.pct);
+  }, [generatedLineups, players, exposureLimits]);
+
   const handleOptimize = () => {
     const projections: Record<string, number> = { ...customProjections };
     if (isPro && fadedIds.length > 0 && players) {
@@ -283,6 +313,7 @@ export default function ProOptimizer() {
         }
       }
     }
+    const activeExposureLimits = Object.keys(exposureLimits).length > 0 ? exposureLimits : undefined;
     optimizeMutation.mutate({
       slateId,
       platform,
@@ -292,6 +323,7 @@ export default function ProOptimizer() {
       lineupCount,
       useBoosts,
       useInjuryAdjustments,
+      exposureLimits: activeExposureLimits,
     });
   };
 
@@ -327,6 +359,7 @@ export default function ProOptimizer() {
     setExcludedIds([]);
     setFadedIds([]);
     setCustomProjections({});
+    setExposureLimits({});
     optimizeMutation.reset();
   };
 
@@ -441,19 +474,27 @@ export default function ProOptimizer() {
           </div>
 
           <div className="flex items-center gap-2 ml-auto flex-shrink-0">
+            {slateHasStarted && (
+              <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px] font-black flex-shrink-0" data-testid="badge-slate-started">
+                <Lock className="w-3 h-3 mr-1" />
+                Slate Has Started
+              </Badge>
+            )}
             <Button
               onClick={handleOptimize}
-              disabled={optimizeMutation.isPending}
+              disabled={optimizeMutation.isPending || slateHasStarted}
               size="sm"
               className="bg-amber-500 text-black font-black shadow-lg shadow-amber-500/20 h-8 text-xs"
               data-testid="button-generate"
             >
               {optimizeMutation.isPending ? (
                 <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+              ) : slateHasStarted ? (
+                <Lock className="w-3.5 h-3.5 mr-1.5" />
               ) : (
                 <Zap className="w-3.5 h-3.5 mr-1.5" />
               )}
-              Generate {lineupCount}
+              {slateHasStarted ? "Locked" : `Generate ${lineupCount}`}
             </Button>
 
             {generatedLineups.length > 0 && (
@@ -631,6 +672,17 @@ export default function ProOptimizer() {
                       </div>
                     </th>
                   )}
+                  {isPro ? (
+                    <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400 text-center">Exp%</th>
+                  ) : (
+                    <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-center">
+                      <div className="flex items-center justify-center gap-1 text-amber-500/70">
+                        <Lock className="w-3 h-3" />
+                        <span>Exp%</span>
+                        <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[8px] px-1 py-0 font-black">PRO</Badge>
+                      </div>
+                    </th>
+                  )}
                   <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400">Rating</th>
                 </tr>
               </thead>
@@ -759,6 +811,37 @@ export default function ProOptimizer() {
                       ) : (
                         <td className="px-3 py-2 text-center">
                           <div className="p-1.5 text-slate-700 cursor-not-allowed" title="Upgrade to Pro to fade players">
+                            <Lock className="w-3.5 h-3.5" />
+                          </div>
+                        </td>
+                      )}
+                      {isPro ? (
+                        <td className="px-3 py-2 text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            placeholder="—"
+                            value={exposureLimits[player.id.toString()] ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setExposureLimits(prev => {
+                                const next = { ...prev };
+                                if (val === "" || val === undefined) {
+                                  delete next[player.id.toString()];
+                                } else {
+                                  next[player.id.toString()] = Math.min(100, Math.max(0, Number(val)));
+                                }
+                                return next;
+                              });
+                            }}
+                            className="w-16 h-7 text-center text-[11px] font-bold bg-slate-800 border-slate-700 px-1"
+                            data-testid={`input-exposure-${player.id}`}
+                          />
+                        </td>
+                      ) : (
+                        <td className="px-3 py-2 text-center">
+                          <div className="p-1.5 text-slate-700 cursor-not-allowed" title="Upgrade to Pro for exposure limits">
                             <Lock className="w-3.5 h-3.5" />
                           </div>
                         </td>
@@ -1183,6 +1266,41 @@ export default function ProOptimizer() {
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* Exposure Tracking */}
+            {isPro && exposureTracking.length > 0 && (
+              <div data-testid="exposure-tracking-panel">
+                <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-3">
+                  <Target className="w-4 h-4 text-cyan-400" />
+                  Player Exposure ({generatedLineups.length} lineups)
+                </h3>
+                <Card className="bg-slate-800/60 border-slate-700/50 p-3">
+                  <div className="space-y-1.5">
+                    {exposureTracking.slice(0, 20).map((ep) => (
+                      <div key={ep.playerId} className="flex items-center gap-2" data-testid={`exposure-row-${ep.playerId}`}>
+                        <span className="text-[10px] font-bold text-amber-400/70 w-8 text-right">{ep.position}</span>
+                        <span className="text-xs font-bold text-white flex-1 truncate">{ep.playerName}</span>
+                        <span className="text-[11px] font-mono text-slate-400">{ep.count}/{ep.total}</span>
+                        <div className="w-12 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${ep.overLimit ? "bg-red-400" : "bg-cyan-400"}`}
+                            style={{ width: `${Math.min(ep.pct, 100)}%` }}
+                          />
+                        </div>
+                        <span className={`text-[11px] font-black min-w-[36px] text-right ${ep.overLimit ? "text-red-400" : "text-cyan-400"}`} data-testid={`text-exposure-pct-${ep.playerId}`}>
+                          {ep.pct.toFixed(0)}%
+                        </span>
+                        {ep.limit !== undefined && (
+                          <span className={`text-[10px] font-bold ${ep.overLimit ? "text-red-400" : "text-slate-500"}`} data-testid={`text-exposure-limit-${ep.playerId}`}>
+                            /{ep.limit}%
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </Card>
               </div>
             )}
 

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, numeric, date } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, numeric, date, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users } from "./models/auth";
@@ -52,10 +52,13 @@ export const lineups = pgTable("lineups", {
   totalProjectedPoints: numeric("total_projected_points").notNull(),
   playerIds: integer("player_ids").array().notNull(),
   name: text("name"),
+  status: text("status").notNull().default("active"),
+  reviewedAt: timestamp("reviewed_at"),
+  contestWinnerData: jsonb("contest_winner_data"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertLineupSchema = createInsertSchema(lineups).omit({ id: true, createdAt: true });
+export const insertLineupSchema = createInsertSchema(lineups).omit({ id: true, createdAt: true, reviewedAt: true });
 export type Lineup = typeof lineups.$inferSelect;
 export type InsertLineup = z.infer<typeof insertLineupSchema>;
 
@@ -144,6 +147,7 @@ export const proOptimizationConstraintSchema = optimizationConstraintSchema.exte
   lineupCount: z.number().min(1).max(20).default(1),
   useBoosts: z.boolean().default(true),
   useInjuryAdjustments: z.boolean().default(true),
+  exposureLimits: z.record(z.string(), z.number()).optional(),
 });
 
 export type ProOptimizationConstraints = z.infer<typeof proOptimizationConstraintSchema>;

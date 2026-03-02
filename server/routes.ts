@@ -117,6 +117,10 @@ export async function registerRoutes(
       const slate = await storage.getSlate(constraints.slateId);
       if (!slate) return res.status(404).json({ message: "Slate not found" });
 
+      if (new Date(slate.startTime) <= new Date()) {
+        return res.status(400).json({ message: "This slate has already started. Lineups can no longer be generated." });
+      }
+
       const platform = (constraints.platform || slate.platform || "draftkings") as Platform;
 
       if (req.isAuthenticated()) {
@@ -290,6 +294,27 @@ export async function registerRoutes(
       if (lineup.userId !== userId) return res.sendStatus(403);
       await storage.deleteLineup(id);
       res.sendStatus(204);
+  });
+
+  app.get("/api/lineups/review", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any).claims.sub;
+
+    const sub = await storage.getSubscription(userId);
+    const tier = sub?.tier || "free";
+    if (tier !== "star" && tier !== "pro") {
+      return res.status(403).json({ message: "Review lineups require a Star or Pro subscription." });
+    }
+
+    const reviewLineups = await storage.getReviewLineups(userId);
+
+    const enriched = await Promise.all(reviewLineups.map(async (lineup: any) => {
+      const allPlayers = await storage.getPlayersBySlate(lineup.slateId);
+      const rosterPlayers = allPlayers.filter((p: any) => lineup.playerIds.includes(p.id));
+      return { ...lineup, players: rosterPlayers };
+    }));
+
+    res.json(enriched);
   });
 
   app.post("/api/lineups/bulk-delete", async (req, res) => {
@@ -685,6 +710,10 @@ export async function registerRoutes(
       const slate = await storage.getSlate(constraints.slateId);
       if (!slate) return res.status(404).json({ message: "Slate not found" });
 
+      if (new Date(slate.startTime) <= new Date()) {
+        return res.status(400).json({ message: "This slate has already started. Lineups can no longer be generated." });
+      }
+
       const platform = (constraints.platform || slate.platform || "draftkings") as Platform;
       const allPlayers = await storage.getPlayersBySlate(constraints.slateId);
       if (allPlayers.length === 0) {
@@ -729,6 +758,8 @@ export async function registerRoutes(
       const maxAttempts = constraints.lineupCount * 8;
       let attempts = 0;
 
+      const playerAppearances: Record<number, number> = {};
+
       while (lineupResults.length < constraints.lineupCount && attempts < maxAttempts) {
         attempts++;
         const iteration = lineupResults.length;
@@ -742,6 +773,17 @@ export async function registerRoutes(
         });
 
         const iterationExcluded = [...baseExcluded];
+
+        if (constraints.exposureLimits && lineupResults.length > 0) {
+          for (const [playerIdStr, maxPct] of Object.entries(constraints.exposureLimits)) {
+            const playerId = Number(playerIdStr);
+            const appearances = playerAppearances[playerId] || 0;
+            const currentExposure = (appearances / constraints.lineupCount) * 100;
+            if (currentExposure >= maxPct && !constraints.lockedPlayerIds.includes(playerId) && !iterationExcluded.includes(playerId)) {
+              iterationExcluded.push(playerId);
+            }
+          }
+        }
 
         if (iteration > 0 && lineupResults.length > 0) {
           const prevLineup = lineupResults[lineupResults.length - 1];
@@ -771,6 +813,9 @@ export async function registerRoutes(
           if (!usedLineupKeys.has(key)) {
             lineupResults.push({ ...result, platform });
             usedLineupKeys.add(key);
+            for (const p of result.lineup as Player[]) {
+              playerAppearances[p.id] = (playerAppearances[p.id] || 0) + 1;
+            }
           }
         }
       }

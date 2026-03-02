@@ -42,6 +42,10 @@ export interface IStorage extends IAuthStorage {
   bulkCreateProps(props: InsertProp[]): Promise<Prop[]>;
   clearPropsByDate(date: string): Promise<void>;
 
+  getReviewLineups(userId: string): Promise<Lineup[]>;
+  moveLineupsToReview(slateIds: number[]): Promise<number>;
+  deleteOldReviewLineups(cutoffDate: Date): Promise<number>;
+
   getAlerts(userId: string): Promise<Alert[]>;
   getUnreadAlertCount(userId: string): Promise<number>;
   createAlert(alert: InsertAlert): Promise<Alert>;
@@ -112,7 +116,7 @@ export class DatabaseStorage implements IStorage {
     if (activeSlateIds.length === 0) return [];
     const ids = activeSlateIds.map(s => s.id);
     return await db.select().from(lineups).where(
-      and(eq(lineups.userId, userId), inArray(lineups.slateId, ids))
+      and(eq(lineups.userId, userId), inArray(lineups.slateId, ids), eq(lineups.status, "active"))
     );
   }
 
@@ -165,8 +169,11 @@ export class DatabaseStorage implements IStorage {
     const expiredSlateIds = await db.select({ id: slates.id }).from(slates).where(lt(slates.startTime, now));
     if (expiredSlateIds.length === 0) return 0;
     const ids = expiredSlateIds.map(s => s.id);
-    const deleted = await db.delete(lineups).where(inArray(lineups.slateId, ids)).returning();
-    return deleted.length;
+    const moved = await db.update(lineups)
+      .set({ status: "review", reviewedAt: now })
+      .where(and(inArray(lineups.slateId, ids), eq(lineups.status, "active")))
+      .returning();
+    return moved.length;
   }
 
   async getAllActiveLineups(): Promise<Lineup[]> {
@@ -175,6 +182,28 @@ export class DatabaseStorage implements IStorage {
     if (activeSlateIds.length === 0) return [];
     const ids = activeSlateIds.map(s => s.id);
     return await db.select().from(lineups).where(inArray(lineups.slateId, ids));
+  }
+
+  async getReviewLineups(userId: string): Promise<Lineup[]> {
+    return await db.select().from(lineups).where(
+      and(eq(lineups.userId, userId), eq(lineups.status, "review"))
+    );
+  }
+
+  async moveLineupsToReview(slateIds: number[]): Promise<number> {
+    if (slateIds.length === 0) return 0;
+    const updated = await db.update(lineups)
+      .set({ status: "review", reviewedAt: new Date() })
+      .where(and(inArray(lineups.slateId, slateIds), eq(lineups.status, "active")))
+      .returning();
+    return updated.length;
+  }
+
+  async deleteOldReviewLineups(cutoffDate: Date): Promise<number> {
+    const deleted = await db.delete(lineups)
+      .where(and(eq(lineups.status, "review"), lt(lineups.reviewedAt, cutoffDate)))
+      .returning();
+    return deleted.length;
   }
 
   async getSubscription(userId: string): Promise<Subscription | undefined> {
