@@ -640,7 +640,7 @@ export default function PropBets() {
         <p className="text-sm text-slate-400 mb-4 ml-11">Real-time player projections from PrizePicks. Pick More or Less on any stat line.</p>
 
         <div className="flex gap-2 mb-5 ml-11 flex-wrap">
-          {(["NBA", "NHL", "NFL", "MLB", "GOLF", "SOCCER"] as const).map(s => (
+          {ACTIVE_SPORTS.map(s => (
             <Button
               key={s}
               size="sm"
