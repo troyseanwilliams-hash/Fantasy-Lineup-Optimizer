@@ -19,7 +19,7 @@ import {
 import { fetchAllSportsLiveData, getRollingSlateDate } from "./balldontlie";
 import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
 import { getLiveScores, getAllLiveScores } from "./espn-scores";
-import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries } from "./prizepicks";
+import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analyzeManualPicks } from "./prizepicks";
 
 function computeOwnershipProjections(players: Player[]): (Player & { ownershipProjection: number })[] {
   if (players.length === 0) return [];
@@ -537,6 +537,49 @@ export async function registerRoutes(
     } catch (err) {
       console.error(`Error fetching ${req.params.sport} scores:`, err);
       res.status(500).json({ error: "Failed to fetch scores" });
+    }
+  });
+
+  app.post("/api/prizepicks/analyze", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      const userId = (req.user as any).claims.sub;
+      const sub = await storage.getSubscription(userId);
+      if (!sub || sub.tier !== "pro") {
+        return res.status(403).json({ error: "Pro subscription required" });
+      }
+
+      const { picks } = req.body;
+      if (!Array.isArray(picks) || picks.length < 1) {
+        return res.status(400).json({ error: "At least 1 pick is required" });
+      }
+
+      const sports = new Set(picks.map((p: any) => (p.league || p.sport || "NBA").toUpperCase()));
+      let allProjections: any[] = [];
+      let dbPlayers: Player[] = [];
+      let dbProps: any[] = [];
+
+      for (const sport of sports) {
+        const projections = await fetchPrizePicksProjections(sport);
+        allProjections.push(...projections);
+
+        const allSlates = await storage.getSlates();
+        const sportSlates = allSlates.filter(s => s.sport === sport);
+        for (const slate of sportSlates) {
+          const slatePlayers = await storage.getPlayersBySlate(slate.id);
+          dbPlayers.push(...slatePlayers);
+        }
+
+        const today = new Date().toISOString().split('T')[0];
+        const sportProps = await storage.getPropsByDate(today, sport);
+        dbProps.push(...sportProps);
+      }
+
+      const result = analyzeManualPicks(picks, allProjections, dbPlayers, dbProps);
+      res.json(result);
+    } catch (err) {
+      console.error("[PrizePicks Analyze] Error:", err);
+      res.status(500).json({ error: "Failed to analyze picks" });
     }
   });
 

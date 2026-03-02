@@ -13,7 +13,8 @@ import {
   TrendingUp, Lock, Crown, Zap, Plus, X, Trash2,
   ArrowUp, ArrowDown, Dribbble, Activity, Flag, Target, Trophy,
   DollarSign, Sparkles, CheckCircle2, Info, Copy, ExternalLink,
-  Search, Bot, ChevronDown, ChevronUp, Loader2, Save, Vault, Clock
+  Search, Bot, ChevronDown, ChevronUp, Loader2, Save, Vault, Clock,
+  Brain, AlertTriangle
 } from "lucide-react";
 
 const PP_SPORTS = ["NBA", "NHL", "NFL", "MLB", "GOLF", "SOCCER"] as const;
@@ -272,6 +273,21 @@ export default function PrizePicksBuilder() {
   const [aiEntries, setAiEntries] = useState<AIBuiltEntry[]>([]);
   const [activeTab, setActiveTab] = useState<"builder" | "vault">("builder");
   const [expandedVaultEntry, setExpandedVaultEntry] = useState<number | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<{
+    analyzedPicks: Array<{
+      projectionId: string;
+      playerName: string;
+      statType: string;
+      line: number;
+      pick: "more" | "less";
+      confidence: number;
+      suggestedPick: "more" | "less";
+      reasoning: string;
+      dataSources: string[];
+    }>;
+    overallConfidence: number;
+  } | null>(null);
 
   const { data: subData } = useQuery<{ tier: string }>({
     queryKey: ["/api/subscription"],
@@ -383,6 +399,7 @@ export default function PrizePicksBuilder() {
 
   const removeEntry = (projId: string) => {
     setEntries(prev => prev.filter(e => e.projection.id !== projId));
+    setAnalysisResult(null);
   };
 
   const togglePick = (projId: string) => {
@@ -391,10 +408,12 @@ export default function PrizePicksBuilder() {
         ? { ...e, pick: e.pick === "more" ? "less" : "more" }
         : e
     ));
+    setAnalysisResult(null);
   };
 
   const clearAll = () => {
     setEntries([]);
+    setAnalysisResult(null);
   };
 
   const runAIBuilder = async () => {
@@ -448,6 +467,43 @@ export default function PrizePicksBuilder() {
       label: entry.label,
       overallConfidence: entry.overallConfidence,
     });
+  };
+
+  const analyzeEntry = async () => {
+    if (entries.length < 1) return;
+    setAnalyzing(true);
+    setAnalysisResult(null);
+    try {
+      const picksPayload = entries.map(e => ({
+        projectionId: e.projection.id,
+        playerName: e.projection.playerName,
+        team: e.projection.team,
+        statType: e.projection.statType,
+        line: e.projection.line,
+        pick: e.pick,
+        league: e.projection.league,
+      }));
+      const res = await fetch("/api/prizepicks/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ picks: picksPayload }),
+      });
+      if (res.status === 401) {
+        toast({ title: "Sign in required", description: "Please sign in to analyze picks.", variant: "destructive" });
+        return;
+      }
+      if (res.status === 403) {
+        toast({ title: "Pro feature", description: "Pick analysis requires a Pro subscription.", variant: "destructive" });
+        return;
+      }
+      if (!res.ok) throw new Error("Analysis failed");
+      const data = await res.json();
+      setAnalysisResult(data);
+    } catch (err) {
+      toast({ title: "Analysis failed", description: "Could not analyze your picks. Try again.", variant: "destructive" });
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   const saveManualEntry = () => {
@@ -1154,6 +1210,74 @@ export default function PrizePicksBuilder() {
                       </div>
                       <div className="text-xs text-slate-500">
                         ${wagerAmount} wager at {multiplier}x multiplier
+                      </div>
+                    </div>
+                  )}
+
+                  {isPro && entries.length >= 1 && (
+                    <Button
+                      variant="outline"
+                      className="w-full border-emerald-500/30 text-emerald-400 font-bold"
+                      disabled={analyzing}
+                      onClick={analyzeEntry}
+                      data-testid="pp-builder-analyze"
+                    >
+                      {analyzing ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analyzing...</>
+                      ) : (
+                        <><Brain className="w-4 h-4 mr-2" /> Analyze Picks</>
+                      )}
+                    </Button>
+                  )}
+
+                  {analysisResult && (
+                    <div className="bg-slate-900/60 border border-emerald-500/20 rounded-lg p-3 space-y-3" data-testid="pp-analysis-results">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Brain className="w-4 h-4 text-emerald-400" />
+                          <span className="text-sm font-bold text-white">AI Analysis</span>
+                        </div>
+                        <Badge className={`text-[10px] font-black px-2 py-0.5 ${
+                          analysisResult.overallConfidence >= 65
+                            ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                            : analysisResult.overallConfidence >= 50
+                            ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                            : "bg-red-500/20 text-red-400 border-red-500/30"
+                        }`}>
+                          {analysisResult.overallConfidence}% confidence
+                        </Badge>
+                      </div>
+                      <div className="space-y-2">
+                        {analysisResult.analyzedPicks.map((ap) => (
+                          <div key={ap.projectionId} className="bg-slate-800/50 border border-slate-700/30 rounded-lg p-2.5">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold text-white">{ap.playerName}</span>
+                              <div className="flex items-center gap-1.5">
+                                {ap.dataSources.length > 0 && (
+                                  <Badge className="bg-slate-700/50 text-slate-400 text-[8px] font-bold px-1 py-0 border-slate-600/30">
+                                    {ap.dataSources.join("+")}
+                                  </Badge>
+                                )}
+                                <Badge className={`text-[9px] font-black px-1.5 py-0 ${
+                                  ap.confidence >= 65
+                                    ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/25"
+                                    : ap.confidence >= 50
+                                    ? "bg-amber-500/15 text-amber-400 border-amber-500/25"
+                                    : "bg-red-500/15 text-red-400 border-red-500/25"
+                                }`}>
+                                  {ap.confidence}%
+                                </Badge>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <span className="text-[11px] text-slate-400">{ap.statType} {ap.line}</span>
+                              <span className={`text-[10px] font-black ${ap.pick === ap.suggestedPick ? "text-emerald-400" : "text-amber-400"}`}>
+                                {ap.pick === ap.suggestedPick ? "✓ Aligns with AI" : `⚠ AI suggests ${ap.suggestedPick.toUpperCase()}`}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 leading-relaxed">{ap.reasoning}</p>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}

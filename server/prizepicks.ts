@@ -553,3 +553,103 @@ export function buildAIEntries(
 
   return entries;
 }
+
+export interface AnalyzedPick {
+  projectionId: string;
+  playerName: string;
+  statType: string;
+  line: number;
+  pick: "more" | "less";
+  confidence: number;
+  suggestedPick: "more" | "less";
+  reasoning: string;
+  dataSources: string[];
+}
+
+export function analyzeManualPicks(
+  picks: Array<{ projectionId: string; playerName: string; team: string; statType: string; line: number; pick: "more" | "less" }>,
+  allProjections: PrizePicksProjection[],
+  dbPlayers: Player[],
+  dbProps: Prop[],
+): { analyzedPicks: AnalyzedPick[]; overallConfidence: number } {
+  const playerMap = new Map<string, PlayerIntel>();
+  for (const p of dbPlayers) {
+    playerMap.set(normalizePlayerName(p.name), {
+      fppg: p.fppg ? parseFloat(String(p.fppg)) : null,
+      projectedPoints: p.projectedPoints ? parseFloat(String(p.projectedPoints)) : null,
+      salary: p.salary,
+      injuryStatus: p.injuryStatus || null,
+      injuryDetail: p.injuryDetail || null,
+      boostScore: p.boostScore ? parseFloat(String(p.boostScore)) : null,
+      boostReason: p.boostReason || null,
+    });
+  }
+
+  const propMap = new Map<string, PropIntel[]>();
+  for (const prop of dbProps) {
+    const conf = parseFloat(String(prop.confidence));
+    const line = parseFloat(String(prop.line));
+    if (isNaN(conf) || isNaN(line)) continue;
+    const key = normalizePlayerName(prop.playerName);
+    if (!propMap.has(key)) propMap.set(key, []);
+    propMap.get(key)!.push({ pick: prop.pick, confidence: conf, line, propType: prop.propType });
+  }
+
+  const projMap = new Map<string, PrizePicksProjection>();
+  for (const p of allProjections) projMap.set(p.id, p);
+
+  const analyzedPicks: AnalyzedPick[] = picks.map(pick => {
+    const proj = projMap.get(pick.projectionId) || {
+      id: pick.projectionId, playerName: pick.playerName, team: pick.team,
+      position: "", statType: pick.statType, line: pick.line,
+      startTime: "", gameInfo: "", imageUrl: null, league: "",
+      oddsType: "standard", isLive: false, status: "pre_game",
+    };
+
+    const nameKey = normalizePlayerName(pick.playerName);
+    let playerData: PlayerIntel | null = playerMap.get(nameKey) || null;
+    if (!playerData) {
+      for (const [dbKey, dbVal] of playerMap) {
+        if (matchPlayerName(pick.playerName, dbKey)) { playerData = dbVal; break; }
+      }
+    }
+
+    let propData: PropIntel | null = null;
+    const playerProps = propMap.get(nameKey);
+    if (playerProps) {
+      const matchingProp = playerProps.find(p => matchStatType(pick.statType, p.propType));
+      if (matchingProp) propData = matchingProp;
+    }
+    if (!propData) {
+      for (const [propKey, propVals] of propMap) {
+        if (matchPlayerName(pick.playerName, propKey)) {
+          const matchingProp = propVals.find(p => matchStatType(pick.statType, p.propType));
+          if (matchingProp) { propData = matchingProp; break; }
+        }
+      }
+    }
+
+    const { score, direction, reasoning } = scoreWithData(proj, playerData, propData);
+    const dataSources: string[] = [];
+    if (playerData) dataSources.push("DK");
+    if (propData) dataSources.push("Odds");
+
+    return {
+      projectionId: pick.projectionId,
+      playerName: pick.playerName,
+      statType: pick.statType,
+      line: pick.line,
+      pick: pick.pick,
+      confidence: score,
+      suggestedPick: direction,
+      reasoning,
+      dataSources,
+    };
+  });
+
+  const overallConfidence = analyzedPicks.length > 0
+    ? Math.round(analyzedPicks.reduce((s, p) => s + p.confidence, 0) / analyzedPicks.length)
+    : 0;
+
+  return { analyzedPicks, overallConfidence };
+}
