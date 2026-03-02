@@ -253,56 +253,146 @@ function SportSelector({ activeSport, onSelect }: { activeSport: string; onSelec
   );
 }
 
+function AIInsightsBanner({ players, matchups, sport }: { players: DashboardPlayer[]; matchups: MatchupData[]; sport: string }) {
+  if (!players.length) return null;
+
+  const totalPlayers = players.length;
+  const avgProj = players.length > 0 ? (players.reduce((s, p) => s + parseFloat(p.projectedPoints), 0) / players.length).toFixed(1) : "0";
+  const topValue = players.length > 0 ? Math.max(...players.map(p => parseFloat(p.projectedPoints) / (p.salary / 1000))).toFixed(1) : "0";
+  const totalGames = matchups.length;
+
+  const stats = [
+    { label: "Players Analyzed", value: totalPlayers.toString(), icon: Target, color: "text-cyan-400" },
+    { label: "Avg Projection", value: `${avgProj} pts`, icon: Activity, color: "text-emerald-400" },
+    { label: "Best Value Score", value: `${topValue}x`, icon: TrendingUp, color: "text-amber-400" },
+    { label: "Games on Slate", value: totalGames.toString(), icon: Swords, color: "text-purple-400" },
+  ];
+
+  return (
+    <div className="relative rounded-xl overflow-hidden mb-8" data-testid="ai-insights-banner">
+      <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/80 via-slate-900/90 to-purple-950/70" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-500/10 via-transparent to-purple-500/10" />
+      <div className="relative z-10 px-6 py-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-6 h-6 rounded-md bg-emerald-500/30 flex items-center justify-center">
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+          </div>
+          <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">AI Analysis • {sport}</span>
+          <div className="flex-1" />
+          <span className="text-[10px] text-slate-500 font-bold flex items-center gap-1">
+            <Clock className="w-3 h-3" /> Updated {new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {stats.map((stat, idx) => {
+            const Icon = stat.icon;
+            return (
+              <div key={idx} className="text-center" data-testid={`ai-stat-${idx}`}>
+                <Icon className={`w-5 h-5 mx-auto mb-1.5 ${stat.color}`} />
+                <p className="text-2xl font-black text-white tracking-tight">{stat.value}</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{stat.label}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TopScorersSection({ players, slateId, sport }: { players: DashboardPlayer[]; slateId: number | null; sport: string }) {
   if (!players.length) return null;
 
+  const hero = players[0];
+  const rest = players.slice(1, 7);
+  const heroValue = (parseFloat(hero.projectedPoints) / (hero.salary / 1000)).toFixed(1);
+
   return (
     <div data-testid="top-scorers-section">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
-            <Flame className="w-4 h-4 text-amber-400" />
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500/30 to-orange-500/20 flex items-center justify-center">
+            <Zap className="w-4 h-4 text-amber-400 fill-current" />
           </div>
-          <h2 className="text-lg font-black text-white tracking-tight">Top Fantasy Scorers</h2>
+          <div>
+            <h2 className="text-lg font-black text-white tracking-tight">AI Top Plays</h2>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Highest projected fantasy output</p>
+          </div>
         </div>
         {slateId && (
           <Link href={`/optimizer/${slateId}`}>
-            <Button variant="ghost" size="sm" className="text-emerald-400 hover:text-emerald-300 font-bold gap-1 text-xs" data-testid="optimize-from-scorers">
+            <Button variant="ghost" size="sm" className="text-emerald-400 font-bold gap-1 text-xs" data-testid="optimize-from-scorers">
               Build Lineup <ArrowRight className="w-3.5 h-3.5" />
             </Button>
           </Link>
         )}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-        {players.slice(0, 8).map((player, idx) => (
-          <Card
-            key={player.id}
-            className="bg-slate-800/40 border-slate-700/50 p-4 transition-all hover:bg-slate-800/60 hover:border-slate-600/50"
-            data-testid={`top-scorer-${player.id}`}
-          >
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <div className="flex items-center gap-2">
-                <TeamLogo team={player.team} sport={sport} size={32} />
-                <div>
-                  <p className="text-sm font-bold text-white leading-tight">{player.name}</p>
-                  <p className="text-[11px] text-slate-400 font-bold">{player.position} - {player.team}</p>
+
+      <div className="relative rounded-xl overflow-hidden mb-4 p-5 bg-gradient-to-r from-amber-950/40 via-slate-900/60 to-emerald-950/30 border border-amber-800/20" data-testid={`top-scorer-hero-${hero.id}`}>
+        <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-amber-500/10 to-transparent rounded-bl-full" />
+        <div className="relative z-10 flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <TeamLogo team={hero.team} sport={sport} size={52} />
+              <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center">
+                <Crown className="w-3 h-3 text-white" />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-xs font-black text-amber-400 uppercase tracking-wider">#1 AI Pick</span>
+                <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px] font-black px-1.5 py-0" data-testid="hero-value-badge">{heroValue}x value</Badge>
+              </div>
+              <p className="text-xl font-black text-white">{hero.name}</p>
+              <p className="text-xs text-slate-400 font-bold">{hero.position} • {hero.team} vs {hero.opponent}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="text-center">
+              <p className="text-3xl font-black text-emerald-400" data-testid="hero-proj-points">{parseFloat(hero.projectedPoints).toFixed(1)}</p>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Proj Points</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xl font-black text-white" data-testid="hero-salary">${(hero.salary / 1000).toFixed(1)}K</p>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Salary</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xl font-black text-slate-300" data-testid="hero-fppg">{parseFloat(hero.fppg).toFixed(1)}</p>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">FPPG</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {rest.map((player, idx) => {
+          const val = (parseFloat(player.projectedPoints) / (player.salary / 1000)).toFixed(1);
+          const projMax = parseFloat(hero.projectedPoints) || 1;
+          const projPct = Math.min((parseFloat(player.projectedPoints) / projMax) * 100, 100);
+          return (
+            <Card
+              key={player.id}
+              className="bg-slate-800/40 border-slate-700/50 p-4 relative overflow-hidden"
+              data-testid={`top-scorer-${player.id}`}
+            >
+              <div className="absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-emerald-500/60 to-emerald-500/0" style={{ width: `${projPct}%` }} />
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-lg font-black text-slate-600 w-5 text-center shrink-0">#{idx + 2}</span>
+                  <TeamLogo team={player.team} sport={sport} size={30} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-white truncate">{player.name}</p>
+                    <p className="text-[11px] text-slate-500 font-bold">{player.position} • {player.team} vs {player.opponent}</p>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-lg font-black text-emerald-400">{parseFloat(player.projectedPoints).toFixed(1)}</p>
+                  <p className="text-[10px] text-slate-500 font-bold">${(player.salary / 1000).toFixed(1)}K • {val}x</p>
                 </div>
               </div>
-              <span className="text-lg font-black text-slate-700">#{idx + 1}</span>
-            </div>
-            <div className="flex items-center justify-between mt-2">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-slate-500 font-bold">vs</span>
-                <TeamLogo team={player.opponent} sport={sport} size={16} />
-                <span className="text-[11px] text-slate-500 font-bold">{player.opponent}</span>
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-black text-emerald-400">{parseFloat(player.projectedPoints).toFixed(1)}</p>
-                <p className="text-[11px] text-slate-500 font-bold">${(player.salary / 1000).toFixed(1)}K</p>
-              </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
@@ -314,69 +404,86 @@ function TrendingSection({ players, sport }: { players: TrendingPlayer[]; sport:
 
   if (!players.length) return null;
 
+  const maxValue = Math.max(...players.map(p => parseFloat(p.valueScore) || 0), 1);
+
   return (
     <div data-testid="trending-section">
-      <div className="flex items-center gap-2.5 mb-4">
-        <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+      <div className="flex items-center gap-2.5 mb-5">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500/30 to-cyan-500/20 flex items-center justify-center">
           <TrendingUp className="w-4 h-4 text-emerald-400" />
         </div>
-        <h2 className="text-lg font-black text-white tracking-tight">Trending Players</h2>
+        <div>
+          <h2 className="text-lg font-black text-white tracking-tight">AI Value Radar</h2>
+          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Points per $1K salary analysis</p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div>
-          <div className="flex items-center gap-2 mb-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="relative rounded-xl overflow-hidden border border-emerald-800/20 bg-gradient-to-b from-emerald-950/30 to-slate-900/50 p-4">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-emerald-500/0" />
+          <div className="flex items-center gap-2 mb-4">
             <ArrowUpRight className="w-4 h-4 text-emerald-400" />
-            <span className="text-sm font-black text-emerald-400 uppercase tracking-wider">Best Value</span>
+            <span className="text-sm font-black text-emerald-400 uppercase tracking-wider">Smash Plays</span>
+            <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px] font-black px-1.5 py-0 ml-auto" data-testid="smash-count">{trendingUp.length} picks</Badge>
           </div>
-          <div className="space-y-2">
-            {trendingUp.map(player => (
-              <Card
-                key={player.id}
-                className="bg-emerald-950/30 border-emerald-800/30 p-3 flex items-center justify-between gap-3"
-                data-testid={`trending-up-${player.id}`}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <TeamLogo team={player.team} sport={sport} size={28} />
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-white truncate">{player.name}</p>
-                    <p className="text-[11px] text-slate-400 font-bold">{player.position} - {player.team} vs {player.opponent}</p>
+          <div className="space-y-3">
+            {trendingUp.map(player => {
+              const valuePct = (parseFloat(player.valueScore) / maxValue) * 100;
+              return (
+                <div key={player.id} data-testid={`trending-up-${player.id}`}>
+                  <div className="flex items-center justify-between gap-3 mb-1.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <TeamLogo team={player.team} sport={sport} size={26} />
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-white truncate">{player.name}</p>
+                        <p className="text-[10px] text-slate-500 font-bold">{player.position} • vs {player.opponent}</p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-sm font-black text-emerald-400">{player.valueScore}x</span>
+                      <p className="text-[10px] text-slate-500 font-bold">{parseFloat(player.projectedPoints).toFixed(1)} pts • ${(player.salary / 1000).toFixed(1)}K</p>
+                    </div>
+                  </div>
+                  <div className="h-1.5 bg-slate-800/60 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-700" style={{ width: `${valuePct}%` }} />
                   </div>
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-black text-emerald-400">{parseFloat(player.projectedPoints).toFixed(1)} pts</p>
-                  <p className="text-[11px] text-slate-500 font-bold">${(player.salary / 1000).toFixed(1)}K | {player.valueScore}x</p>
-                </div>
-              </Card>
-            ))}
+              );
+            })}
           </div>
         </div>
 
-        <div>
-          <div className="flex items-center gap-2 mb-3">
+        <div className="relative rounded-xl overflow-hidden border border-red-800/15 bg-gradient-to-b from-red-950/20 to-slate-900/50 p-4">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 to-red-500/0" />
+          <div className="flex items-center gap-2 mb-4">
             <ArrowDownRight className="w-4 h-4 text-red-400" />
-            <span className="text-sm font-black text-red-400 uppercase tracking-wider">Overpriced</span>
+            <span className="text-sm font-black text-red-400 uppercase tracking-wider">Fade Candidates</span>
+            <Badge className="bg-red-500/15 text-red-400 border-red-500/20 text-[10px] font-black px-1.5 py-0 ml-auto" data-testid="fade-count">{trendingDown.length} picks</Badge>
           </div>
-          <div className="space-y-2">
-            {trendingDown.map(player => (
-              <Card
-                key={player.id}
-                className="bg-red-950/20 border-red-800/20 p-3 flex items-center justify-between gap-3"
-                data-testid={`trending-down-${player.id}`}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <TeamLogo team={player.team} sport={sport} size={28} />
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-white truncate">{player.name}</p>
-                    <p className="text-[11px] text-slate-400 font-bold">{player.position} - {player.team} vs {player.opponent}</p>
+          <div className="space-y-3">
+            {trendingDown.map(player => {
+              const valuePct = (parseFloat(player.valueScore) / maxValue) * 100;
+              return (
+                <div key={player.id} data-testid={`trending-down-${player.id}`}>
+                  <div className="flex items-center justify-between gap-3 mb-1.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <TeamLogo team={player.team} sport={sport} size={26} />
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-white truncate">{player.name}</p>
+                        <p className="text-[10px] text-slate-500 font-bold">{player.position} • vs {player.opponent}</p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-sm font-black text-red-400">{player.valueScore}x</span>
+                      <p className="text-[10px] text-slate-500 font-bold">{parseFloat(player.projectedPoints).toFixed(1)} pts • ${(player.salary / 1000).toFixed(1)}K</p>
+                    </div>
+                  </div>
+                  <div className="h-1.5 bg-slate-800/60 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-red-500 to-red-400 rounded-full transition-all duration-700" style={{ width: `${valuePct}%` }} />
                   </div>
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-black text-red-400">{parseFloat(player.projectedPoints).toFixed(1)} pts</p>
-                  <p className="text-[11px] text-slate-500 font-bold">${(player.salary / 1000).toFixed(1)}K | {player.valueScore}x</p>
-                </div>
-              </Card>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -387,57 +494,85 @@ function TrendingSection({ players, sport }: { players: TrendingPlayer[]; sport:
 function MatchupsSection({ matchups, sport }: { matchups: MatchupData[]; sport: string }) {
   if (!matchups.length) return null;
 
+  const maxAvg = Math.max(...matchups.map(m => parseFloat(m.avgProjection) || 0), 1);
+
   return (
     <div data-testid="matchups-section">
-      <div className="flex items-center gap-2.5 mb-4">
-        <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
+      <div className="flex items-center gap-2.5 mb-5">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500/30 to-violet-500/20 flex items-center justify-center">
           <Swords className="w-4 h-4 text-purple-400" />
         </div>
-        <h2 className="text-lg font-black text-white tracking-tight">Best Matchups</h2>
+        <div>
+          <h2 className="text-lg font-black text-white tracking-tight">Game Breakdown</h2>
+          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">AI-ranked matchups by fantasy potential</p>
+        </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {matchups.map((m, idx) => (
-          <Card
-            key={idx}
-            className="bg-slate-800/40 border-slate-700/50 p-4 transition-all hover:bg-slate-800/60 hover:border-slate-600/50"
-            data-testid={`matchup-${idx}`}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
+        {matchups.map((m, idx) => {
+          const avgPct = (parseFloat(m.avgProjection) / maxAvg) * 100;
+          const isTop = idx === 0;
+          return (
+            <Card
+              key={idx}
+              className={`relative overflow-hidden p-4 ${
+                isTop
+                  ? "bg-gradient-to-br from-purple-950/40 to-slate-900/60 border-purple-800/30 ring-1 ring-purple-500/10"
+                  : "bg-slate-800/40 border-slate-700/50"
+              }`}
+              data-testid={`matchup-${idx}`}
+            >
+              {isTop && (
+                <div className="absolute top-0 right-0">
+                  <Badge className="bg-purple-500/30 text-purple-300 border-0 rounded-none rounded-bl-lg text-[9px] font-black px-2 py-0.5" data-testid="top-matchup-badge">
+                    TOP GAME
+                  </Badge>
+                </div>
+              )}
+              <div className="flex items-center gap-2 mb-3">
                 {(() => {
                   const parts = m.gameInfo.match(/^(\w+)\s*[@vs]+\s*(\w+)/i);
                   if (parts) {
                     return (
-                      <div className="flex items-center gap-1.5">
-                        <TeamLogo team={parts[1]} sport={sport} size={22} />
-                        <span className="text-[10px] font-black text-slate-500">vs</span>
-                        <TeamLogo team={parts[2]} sport={sport} size={22} />
+                      <div className="flex items-center gap-2">
+                        <TeamLogo team={parts[1]} sport={sport} size={26} />
+                        <span className="text-xs font-black text-slate-500">@</span>
+                        <TeamLogo team={parts[2]} sport={sport} size={26} />
                       </div>
                     );
                   }
                   return null;
                 })()}
-                <p className="text-sm font-black text-white">{m.gameInfo}</p>
+                <p className="text-sm font-black text-white flex-1 truncate">{m.gameInfo}</p>
               </div>
-              <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[11px] font-black px-1.5 py-0">
-                {m.playerCount} players
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Avg Proj</p>
-                <p className="text-lg font-black text-white">{m.avgProjection}</p>
-              </div>
-              {m.topPlayer && (
-                <div className="text-right">
-                  <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Top Player</p>
-                  <p className="text-sm font-bold text-emerald-400">{m.topPlayer.name}</p>
-                  <p className="text-[11px] text-slate-500 font-bold">{m.topPlayer.projectedPoints} pts</p>
+
+              <div className="mb-3">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Fantasy Potential</span>
+                  <span className="text-sm font-black text-white" data-testid={`matchup-avg-${idx}`}>{m.avgProjection} avg</span>
                 </div>
-              )}
-            </div>
-          </Card>
-        ))}
+                <div className="h-2 bg-slate-800/60 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ${isTop ? "bg-gradient-to-r from-purple-500 to-violet-400" : "bg-gradient-to-r from-slate-500 to-slate-400"}`}
+                    style={{ width: `${avgPct}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <Badge className="bg-slate-700/40 text-slate-400 border-slate-600/30 text-[10px] font-bold px-1.5 py-0" data-testid={`matchup-players-${idx}`}>
+                  {m.playerCount} players
+                </Badge>
+                {m.topPlayer && (
+                  <div className="flex items-center gap-1.5">
+                    <Flame className="w-3 h-3 text-amber-400" />
+                    <span className="text-xs font-bold text-amber-300">{m.topPlayer.name}</span>
+                    <span className="text-[10px] text-slate-500 font-bold">{m.topPlayer.projectedPoints}pts</span>
+                  </div>
+                )}
+              </div>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
@@ -452,17 +587,26 @@ function DailyPicksCompact() {
   const lockedCount = data?.props?.filter(p => p.isLocked).length || 0;
   const tier = data?.tier || "free";
 
+  function getConfidenceValue(c: string): number {
+    if (c === "high") return 85;
+    if (c === "medium") return 65;
+    return 45;
+  }
+
   return (
     <div data-testid="daily-picks-section">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
-            <Star className="w-4 h-4 text-amber-400" />
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500/30 to-orange-500/20 flex items-center justify-center">
+            <Sparkles className="w-4 h-4 text-amber-400" />
           </div>
-          <h2 className="text-lg font-black text-white tracking-tight">Daily Pick Specials</h2>
+          <div>
+            <h2 className="text-lg font-black text-white tracking-tight">AI Prop Picks</h2>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Machine learning confidence analysis</p>
+          </div>
         </div>
         <Link href="/props">
-          <Button variant="ghost" size="sm" className="text-amber-400 hover:text-amber-300 font-bold gap-1 text-xs" data-testid="view-all-props">
+          <Button variant="ghost" size="sm" className="text-amber-400 font-bold gap-1 text-xs" data-testid="view-all-props">
             All Picks <ArrowRight className="w-3.5 h-3.5" />
           </Button>
         </Link>
@@ -480,35 +624,47 @@ function DailyPicksCompact() {
       ) : visibleProps.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {visibleProps.map(prop => {
-            const isOver = prop.pick.toLowerCase().includes("over");
+            const isOver = prop.pick.toLowerCase().includes("over") || prop.pick.toLowerCase().includes("more");
+            const confVal = getConfidenceValue(prop.confidence);
+            const dotClass = prop.confidence === "high" ? "bg-emerald-400" : prop.confidence === "medium" ? "bg-amber-400" : "bg-slate-400";
+            const textClass = prop.confidence === "high" ? "text-emerald-400" : prop.confidence === "medium" ? "text-amber-400" : "text-slate-400";
+            const barClass = prop.confidence === "high" ? "from-emerald-500 to-emerald-400" : prop.confidence === "medium" ? "from-amber-500 to-amber-400" : "from-slate-500 to-slate-400";
             return (
-              <Card key={prop.id} className="bg-slate-800/40 border-slate-700/50 p-4 transition-all hover:bg-slate-800/60" data-testid={`daily-pick-${prop.id}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <Badge className="bg-slate-700/50 text-slate-300 border-slate-600/50 text-[11px] font-black px-1.5 py-0">{prop.sport}</Badge>
-                  <Badge className={`text-[11px] font-black px-1.5 py-0 ${
-                    prop.confidence === "high" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
-                    prop.confidence === "medium" ? "bg-amber-500/20 text-amber-400 border-amber-500/30" :
-                    "bg-slate-700/50 text-slate-400 border-slate-700"
-                  }`}>{prop.confidence}</Badge>
-                </div>
-                <p className="text-sm font-bold text-white truncate">{prop.playerName}</p>
-                <div className="flex items-center justify-between mt-0.5">
+              <Card
+                key={prop.id}
+                className={`relative overflow-hidden p-4 ${
+                  prop.confidence === "high"
+                    ? "bg-gradient-to-br from-emerald-950/30 to-slate-900/50 border-emerald-800/20"
+                    : "bg-slate-800/40 border-slate-700/50"
+                }`}
+                data-testid={`daily-pick-${prop.id}`}
+              >
+                {prop.confidence === "high" && (
+                  <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-emerald-500 to-emerald-500/0" />
+                )}
+                <div className="flex items-center justify-between gap-2 mb-2.5">
+                  <Badge className="bg-slate-700/50 text-slate-300 border-slate-600/50 text-[10px] font-black px-1.5 py-0">{prop.sport}</Badge>
                   <div className="flex items-center gap-1.5">
-                    <TeamLogo team={prop.team} sport={prop.sport} size={16} />
-                    <span className="text-[11px] text-slate-500 font-bold">vs</span>
-                    <TeamLogo team={prop.opponent} sport={prop.sport} size={16} />
-                    <span className="text-[11px] text-slate-500 font-bold">{prop.opponent}</span>
+                    <div className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
+                    <span className={`text-[10px] font-black uppercase ${textClass}`} data-testid={`pick-confidence-${prop.id}`}>{confVal}%</span>
                   </div>
-                  {prop.gameInfo && (() => {
-                    const tm = prop.gameInfo.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)(?:\s*ET)?)/i);
-                    return tm ? (
-                      <span className="text-[10px] font-bold text-emerald-400/80">{tm[1]}</span>
-                    ) : null;
-                  })()}
                 </div>
-                <div className="flex items-center justify-between mt-3">
-                  <span className="text-[11px] text-slate-400 font-bold">{prop.propType}</span>
-                  <div className="flex items-center gap-1">
+
+                <p className="text-sm font-bold text-white truncate">{prop.playerName}</p>
+                <div className="flex items-center gap-1.5 mt-0.5 mb-3">
+                  <TeamLogo team={prop.team} sport={prop.sport} size={14} />
+                  <span className="text-[10px] text-slate-500 font-bold">vs</span>
+                  <TeamLogo team={prop.opponent} sport={prop.sport} size={14} />
+                  <span className="text-[10px] text-slate-500 font-bold">{prop.opponent}</span>
+                </div>
+
+                <div className="h-1 bg-slate-800/60 rounded-full overflow-hidden mb-2.5">
+                  <div className={`h-full rounded-full bg-gradient-to-r ${barClass}`} style={{ width: `${confVal}%` }} />
+                </div>
+
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-slate-500 font-bold truncate">{prop.propType}</span>
+                  <div className="flex items-center gap-1 shrink-0">
                     {isOver ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" /> : <ArrowDownRight className="w-3.5 h-3.5 text-red-400" />}
                     <span className={`text-sm font-black ${isOver ? "text-emerald-400" : "text-red-400"}`}>{prop.pick} {prop.line}</span>
                   </div>
@@ -915,6 +1071,7 @@ function AuthenticatedDashboard() {
         </div>
       ) : (
         <div className="space-y-10">
+          <AIInsightsBanner players={dashData?.topScorers || []} matchups={dashData?.matchups || []} sport={activeSport} />
           <TopScorersSection players={dashData?.topScorers || []} slateId={dashData?.slateId || null} sport={activeSport} />
           <TrendingSection players={dashData?.trending || []} sport={activeSport} />
           <MatchupsSection matchups={dashData?.matchups || []} sport={activeSport} />
