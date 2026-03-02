@@ -4,6 +4,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import cron from "node-cron";
 import { storage } from "./storage";
+import { fetchPrizePicksProjections, getSupportedPPSports } from "./prizepicks";
 
 const app = express();
 const httpServer = createServer(app);
@@ -107,6 +108,14 @@ app.use((req, res, next) => {
           if (delCount > 0) log(`Moved ${delCount} expired lineup(s) to review on startup`, "cron");
           await seedDatabase();
           log("Startup seed check completed", "cron");
+          const ppSports = getSupportedPPSports();
+          for (const sport of ppSports) {
+            try {
+              const projs = await fetchPrizePicksProjections(sport);
+              if (projs.length > 0) log(`PrizePicks ${sport}: cached ${projs.length} projections`, "cron");
+            } catch {}
+          }
+          log("PrizePicks cache pre-warm completed", "cron");
         } catch (err) {
           console.error("Startup initialization failed:", err);
         }
@@ -120,7 +129,14 @@ app.use((req, res, next) => {
           await seedDatabase(true);
           const today = new Date().toISOString().split("T")[0];
           await generateDailyProps(today);
-          log("Scheduled seed data refresh + props generation completed", "cron");
+          const ppSports = getSupportedPPSports();
+          for (const sport of ppSports) {
+            try {
+              const projs = await fetchPrizePicksProjections(sport);
+              if (projs.length > 0) log(`PrizePicks ${sport}: refreshed ${projs.length} projections`, "cron");
+            } catch {}
+          }
+          log("Scheduled seed data refresh + props + PrizePicks completed", "cron");
         } catch (err) {
           console.error("Scheduled seed refresh failed:", err);
         }
