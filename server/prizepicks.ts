@@ -159,3 +159,221 @@ export async function fetchPrizePicksProjections(sport: string): Promise<PrizePi
 export function getSupportedPPSports(): string[] {
   return Object.keys(SPORT_TO_LEAGUE_ID);
 }
+
+export interface PPBuiltEntry {
+  picks: Array<{
+    projection: PrizePicksProjection;
+    pick: "more" | "less";
+    confidence: number;
+    reasoning: string;
+  }>;
+  multiplier: number;
+  overallConfidence: number;
+  label: string;
+}
+
+function scoreLine(proj: PrizePicksProjection): { score: number; direction: "more" | "less"; reasoning: string } {
+  let score = 50;
+  let direction: "more" | "less" = "more";
+  const reasons: string[] = [];
+
+  if (proj.oddsType === "goblin") {
+    score += 12;
+    reasons.push("Goblin line (favorable odds)");
+  } else if (proj.oddsType === "demon") {
+    score -= 15;
+    reasons.push("Demon line (tough odds)");
+  } else if (proj.oddsType === "standard") {
+    score += 3;
+  }
+
+  const stat = proj.statType.toLowerCase();
+  const line = proj.line;
+
+  if (stat.includes("pts+rebs+asts") || stat.includes("fantasy")) {
+    if (line > 35) {
+      direction = "less";
+      score += 6;
+      reasons.push("High combo line favors under");
+    } else {
+      direction = "more";
+      score += 4;
+      reasons.push("Reachable combo total");
+    }
+  } else if (stat.includes("points") || stat === "pts") {
+    if (line >= 30) {
+      direction = "less";
+      score += 5;
+      reasons.push("High scoring line");
+    } else if (line <= 15) {
+      direction = "more";
+      score += 7;
+      reasons.push("Low scoring line easily cleared");
+    } else {
+      direction = "more";
+      score += 3;
+    }
+  } else if (stat.includes("rebound")) {
+    if (line >= 10) {
+      direction = "less";
+      score += 4;
+      reasons.push("Double-digit boards are hard to sustain");
+    } else {
+      direction = "more";
+      score += 5;
+      reasons.push("Manageable rebounding line");
+    }
+  } else if (stat.includes("assist")) {
+    if (line >= 9) {
+      direction = "less";
+      score += 5;
+      reasons.push("Elite assist totals are volatile");
+    } else {
+      direction = "more";
+      score += 4;
+    }
+  } else if (stat.includes("3-pointer") || stat.includes("three")) {
+    if (line >= 3.5) {
+      direction = "less";
+      score += 6;
+      reasons.push("3PT shooting is high variance");
+    } else {
+      direction = "more";
+      score += 3;
+    }
+  } else if (stat.includes("goal") && !stat.includes("shot")) {
+    if (line >= 4) {
+      direction = "less";
+      score += 5;
+      reasons.push("High goal totals rarely hit");
+    } else {
+      direction = "more";
+      score += 4;
+    }
+  } else if (stat.includes("save")) {
+    if (line >= 28) {
+      direction = "more";
+      score += 5;
+      reasons.push("Busy goalie likely to see volume");
+    } else {
+      direction = "less";
+      score += 3;
+    }
+  } else if (stat.includes("shot")) {
+    if (line >= 5) {
+      direction = "less";
+      score += 3;
+    } else {
+      direction = "more";
+      score += 4;
+    }
+  } else if (stat.includes("steal") || stat.includes("block")) {
+    direction = "more";
+    score += 2;
+    reasons.push("Defensive stats are volatile");
+  } else if (stat.includes("time on ice") || stat.includes("toi")) {
+    direction = "more";
+    score += 3;
+    reasons.push("Minutes tend to be consistent");
+  } else {
+    score += 2;
+    direction = Math.random() > 0.5 ? "more" : "less";
+  }
+
+  if (proj.status === "pre_game") {
+    score += 2;
+  }
+
+  const nameHash = proj.playerName.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  const dayFactor = new Date().getDate();
+  const variation = ((nameHash * 7 + dayFactor * 13) % 100) / 100 * 6 - 3;
+  score += variation;
+
+  if (reasons.length === 0) {
+    reasons.push(direction === "more" ? "Line looks beatable" : "Line set high");
+  }
+
+  return { score: Math.max(30, Math.min(85, Math.round(score))), direction, reasoning: reasons.join(". ") };
+}
+
+function getMultiplier(picks: number): number {
+  if (picks === 2) return 3;
+  if (picks === 3) return 5;
+  if (picks === 4) return 10;
+  if (picks === 5) return 20;
+  if (picks === 6) return 25;
+  return 0;
+}
+
+export function buildAIEntries(projections: PrizePicksProjection[], count: number = 5): PPBuiltEntry[] {
+  const validProjs = projections.filter(p => p.status !== "closed" && !p.isLive);
+
+  const scored = validProjs.map(proj => {
+    const { score, direction, reasoning } = scoreLine(proj);
+    return { proj, score, direction, reasoning };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+
+  const entries: PPBuiltEntry[] = [];
+  const usedIds = new Set<string>();
+  const usedPlayers = new Map<string, number>();
+
+  const labels = [
+    "Best Value Play",
+    "High Floor Entry",
+    "Sharp Picks",
+    "Balanced Build",
+    "Swing for the Fences"
+  ];
+
+  const entrySizes = [4, 3, 5, 3, 6];
+
+  for (let i = 0; i < count && i < labels.length; i++) {
+    const entrySize = Math.min(entrySizes[i], scored.length);
+    const picks: PPBuiltEntry["picks"] = [];
+    const entryPlayerTeams = new Set<string>();
+
+    for (const item of scored) {
+      if (picks.length >= entrySize) break;
+      if (usedIds.has(`${i}-${item.proj.id}`)) continue;
+
+      const playerUsed = usedPlayers.get(item.proj.playerName) || 0;
+      if (playerUsed >= 2) continue;
+
+      if (entryPlayerTeams.has(`${item.proj.playerName}-${item.proj.statType}`)) continue;
+
+      picks.push({
+        projection: item.proj,
+        pick: item.direction,
+        confidence: item.score,
+        reasoning: item.reasoning,
+      });
+
+      usedIds.add(`${i}-${item.proj.id}`);
+      usedPlayers.set(item.proj.playerName, playerUsed + 1);
+      entryPlayerTeams.add(`${item.proj.playerName}-${item.proj.statType}`);
+    }
+
+    if (picks.length >= 2) {
+      const avgConf = Math.round(picks.reduce((s, p) => s + p.confidence, 0) / picks.length);
+      entries.push({
+        picks,
+        multiplier: getMultiplier(picks.length),
+        overallConfidence: avgConf,
+        label: labels[i],
+      });
+    }
+
+    const entryOffset = (i + 1) * 7;
+    scored.sort((a, b) => {
+      const aHash = a.proj.playerName.charCodeAt(0) + entryOffset;
+      const bHash = b.proj.playerName.charCodeAt(0) + entryOffset;
+      return (b.score - (bHash % 5)) - (a.score - (aHash % 5));
+    });
+  }
+
+  entries.sort((a, b) => b.overallConfidence - a.overallConfidence);
+
+  return entries;
+}
