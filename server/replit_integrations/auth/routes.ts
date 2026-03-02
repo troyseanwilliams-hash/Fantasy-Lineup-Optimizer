@@ -4,13 +4,13 @@ import { isAuthenticated } from "./replitAuth";
 import { z } from "zod";
 
 const onboardingSchema = z.object({
-  salutation: z.string().min(1),
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
-  email: z.string().email(),
-  phone: z.string().min(7),
-  smsConsent: z.boolean(),
-  emailConsent: z.boolean(),
+  salutation: z.string().optional().default(""),
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  email: z.string().email("Valid email is required"),
+  phone: z.string().optional().default(""),
+  smsConsent: z.boolean().optional().default(false),
+  emailConsent: z.boolean().optional().default(false),
 });
 
 export function registerAuthRoutes(app: Express): void {

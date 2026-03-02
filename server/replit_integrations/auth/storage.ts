@@ -77,24 +77,24 @@ class AuthStorage implements IAuthStorage {
   }
 
   async completeOnboarding(id: string, data: {
-    salutation: string;
+    salutation?: string;
     firstName: string;
     lastName: string;
     email: string;
-    phone: string;
-    smsConsent: boolean;
-    emailConsent: boolean;
+    phone?: string;
+    smsConsent?: boolean;
+    emailConsent?: boolean;
   }): Promise<User> {
     const [user] = await db
       .update(users)
       .set({
-        salutation: data.salutation,
+        salutation: data.salutation || "",
         firstName: data.firstName,
         lastName: data.lastName,
         email: data.email,
-        phone: data.phone,
-        smsConsent: data.smsConsent,
-        emailConsent: data.emailConsent,
+        phone: data.phone || "",
+        smsConsent: data.smsConsent ?? false,
+        emailConsent: data.emailConsent ?? false,
         onboardingComplete: true,
         updatedAt: new Date(),
       })

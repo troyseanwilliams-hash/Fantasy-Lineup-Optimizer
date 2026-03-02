@@ -60,11 +60,9 @@ export default function Onboarding() {
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    if (!salutation) newErrors.salutation = "Please select a salutation";
     if (!firstName.trim()) newErrors.firstName = "First name is required";
     if (!lastName.trim()) newErrors.lastName = "Last name is required";
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = "Valid email is required";
-    if (!phone.trim() || phone.replace(/\D/g, "").length < 7) newErrors.phone = "Valid phone number is required";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -107,7 +105,7 @@ export default function Onboarding() {
 
             <div>
               <Label htmlFor="salutation" className="text-sm font-bold text-slate-300 mb-1.5 block">
-                Salutation
+                Salutation <span className="text-slate-500 font-normal">(optional)</span>
               </Label>
               <Select value={salutation} onValueChange={setSalutation}>
                 <SelectTrigger
@@ -123,13 +121,12 @@ export default function Onboarding() {
                   ))}
                 </SelectContent>
               </Select>
-              {errors.salutation && <p className="text-red-400 text-xs mt-1">{errors.salutation}</p>}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="firstName" className="text-sm font-bold text-slate-300 mb-1.5 block">
-                  First Name
+                  First Name <span className="text-red-400">*</span>
                 </Label>
                 <Input
                   id="firstName"
@@ -143,7 +140,7 @@ export default function Onboarding() {
               </div>
               <div>
                 <Label htmlFor="lastName" className="text-sm font-bold text-slate-300 mb-1.5 block">
-                  Last Name
+                  Last Name <span className="text-red-400">*</span>
                 </Label>
                 <Input
                   id="lastName"
@@ -164,7 +161,7 @@ export default function Onboarding() {
 
             <div>
               <Label htmlFor="email" className="text-sm font-bold text-slate-300 mb-1.5 block">
-                Email Address
+                Email Address <span className="text-red-400">*</span>
               </Label>
               <Input
                 id="email"
@@ -180,7 +177,7 @@ export default function Onboarding() {
 
             <div>
               <Label htmlFor="phone" className="text-sm font-bold text-slate-300 mb-1.5 block">
-                Phone Number
+                Mobile Number <span className="text-slate-500 font-normal">(optional)</span>
               </Label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -194,7 +191,6 @@ export default function Onboarding() {
                   data-testid="input-phone"
                 />
               </div>
-              {errors.phone && <p className="text-red-400 text-xs mt-1">{errors.phone}</p>}
             </div>
 
             <div className="flex items-center gap-2 pt-2 pb-2 border-b border-slate-700/50">
