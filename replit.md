@@ -42,19 +42,20 @@ Preferred communication style: Simple, everyday language.
 - **Authentication**: Replit OpenID Connect (OIDC) auth via Passport.js with session-based auth stored in PostgreSQL
 - **Session Store**: `connect-pg-simple` storing sessions in the `sessions` table
 - **Cron Jobs**: (1) Hourly at :30 — auto-refresh DraftKings slates/players, Odds API props, and PrizePicks projections cache via `seedDatabase(true)` + `generateDailyProps` + PrizePicks pre-warm. (2) Daily at 2 AM ET — vault reset moving expired lineups to "review" status and deleting old reviews.
-- **Live Scores**: ESPN public scoreboard API with 60-second server-side caching. Endpoints: `GET /api/scores` (all sports) and `GET /api/scores/:sport`. Supports NBA, NHL, MLB, NFL, GOLF with team scores, game status, and golf leaderboards.
+- **Live Scores**: ESPN public scoreboard API with 60-second server-side caching. Endpoints: `GET /api/scores` (all sports) and `GET /api/scores/:sport`. Supports NBA, NHL, MLB, NFL, GOLF, SOCCER with team scores, game status, and golf leaderboards.
 - **Optimizer Lock**: Both client and server prevent lineup generation after a slate's start time has passed
 - **Player Exposure Limits**: Pro optimizer supports per-player exposure percentage caps during multi-lineup generation (tracked and enforced server-side)
 
 ### Platform Configuration
 - **Shared config**: `shared/platform-config.ts` defines roster slots, salary caps, position constraints, and position filters per sport/platform
-- **Sport order**: Defined in `SPORT_ORDER` array: NBA, NHL, GOLF, MLB, NFL
-- **Active sports**: Defined in `ACTIVE_SPORTS` array: NBA, NHL, GOLF (MLB and NFL hidden until season)
+- **Sport order**: Defined in `SPORT_ORDER` array: NBA, GOLF, NHL, SOCCER, MLB, NFL
+- **Active sports**: Defined in `ACTIVE_SPORTS` array: NBA, GOLF, NHL, SOCCER (MLB and NFL hidden until season)
 - **NBA DK**: 8 slots (PG, SG, SF, PF, C, G, F, UTIL), $50K cap | **NBA FD**: 9 slots (PG×2, SG×2, SF×2, PF×2, C), $60K cap
 - **NHL DK**: 9 slots (C×2, W×3, D×2, G, UTIL), $50K cap | **NHL FD**: 9 slots (C×2, W×4, D×2, G), $55K cap
 - **GOLF DK**: 6 slots (G×6), $50K cap | **GOLF FD**: 6 slots (G×6), $60K cap (tournament-style, all golfers)
 - **MLB DK**: 10 slots (P×2, C, 1B, 2B, 3B, SS, OF×3), $50K cap | **MLB FD**: 9 slots (P, C/1B, 2B, 3B, SS, OF×3, UTIL), $35K cap
 - **NFL DK**: 9 slots (QB, RB×2, WR×3, TE, FLEX, DST), $50K cap | **NFL FD**: 9 slots (QB, RB×2, WR×3, TE, FLEX, DEF), $60K cap
+- **SOCCER DK**: 8 slots (F×2, M×2, D×2, GK, UTIL), $50K cap | **SOCCER FD**: 7 slots (F×2, M×2, D×2, GK), $60K cap (UTIL = any non-GK outfield player)
 - **Color schemes**: DraftKings = emerald, FanDuel = blue
 
 ### Data Storage

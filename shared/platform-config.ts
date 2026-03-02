@@ -198,6 +198,40 @@ export const PLATFORM_CONFIGS: Record<string, Record<Platform, PlatformConfig>> 
       positionFilters: ["G"],
     },
   },
+  SOCCER: {
+    draftkings: {
+      platform: "draftkings",
+      sport: "SOCCER",
+      label: "DraftKings",
+      shortLabel: "DK",
+      salaryCap: 50000,
+      rosterSize: 8,
+      slots: ["F", "F2", "M", "M2", "D", "D2", "GK", "UTIL"],
+      positionConstraints: {
+        F: { min: 2 },
+        M: { min: 2 },
+        D: { min: 2 },
+        GK: { min: 1, max: 1 },
+      },
+      positionFilters: ["F", "M", "D", "GK"],
+    },
+    fanduel: {
+      platform: "fanduel",
+      sport: "SOCCER",
+      label: "FanDuel",
+      shortLabel: "FD",
+      salaryCap: 60000,
+      rosterSize: 7,
+      slots: ["F", "F2", "M", "M2", "D", "D2", "GK"],
+      positionConstraints: {
+        F: { min: 2 },
+        M: { min: 2 },
+        D: { min: 2 },
+        GK: { min: 1, max: 1 },
+      },
+      positionFilters: ["F", "M", "D", "GK"],
+    },
+  },
 };
 
 export function getPlatformConfig(sport: string, platform: Platform): PlatformConfig {
@@ -227,6 +261,7 @@ export function positionFitsSlot(position: string, slot: string, sport?: string)
       if (sport === "GOLF") return positions.includes("G");
       return positions.includes("PG") || positions.includes("SG");
     case "F":
+      if (sport === "SOCCER") return positions.includes("F");
       return positions.includes("SF") || positions.includes("PF");
 
     case "C":
@@ -253,6 +288,9 @@ export function positionFitsSlot(position: string, slot: string, sport?: string)
     case "DST": return positions.includes("DST");
     case "DEF": return positions.includes("DEF") || positions.includes("DST");
 
+    case "GK": return positions.includes("GK");
+    case "M": return positions.includes("M") || positions.includes("MF");
+
     case "FLEX":
       return positions.includes("RB") || positions.includes("WR") || positions.includes("TE");
 
@@ -262,6 +300,9 @@ export function positionFitsSlot(position: string, slot: string, sport?: string)
       }
       if (sport === "MLB") {
         return !positions.includes("P") && !positions.includes("SP") && !positions.includes("RP");
+      }
+      if (sport === "SOCCER") {
+        return positions.includes("F") || positions.includes("M") || positions.includes("MF") || positions.includes("D");
       }
       return true;
 
@@ -274,13 +315,19 @@ export function assignPlayersToSlots(
   slots: string[],
   sport?: string
 ): Record<string, any | null> {
+  const isFlexSlot = (base: string) => {
+    if (sport === "SOCCER") return false;
+    if (sport === "GOLF" && base === "G") return false;
+    if (sport === "NHL" && base === "G") return false;
+    return base === "G" || base === "F";
+  };
   const specificSlots = slots.filter(s => {
     const base = getSlotDisplayName(s);
-    return base !== "UTIL" && base !== "FLEX" && base !== "G" && base !== "F";
+    return base !== "UTIL" && base !== "FLEX" && !isFlexSlot(base);
   });
   const flexSlots = slots.filter(s => {
     const base = getSlotDisplayName(s);
-    return base === "G" || base === "F";
+    return isFlexSlot(base);
   });
   const utilSlots = slots.filter(s => {
     const base = getSlotDisplayName(s);
