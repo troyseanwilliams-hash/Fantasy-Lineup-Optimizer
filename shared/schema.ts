@@ -177,6 +177,7 @@ export const proOptimizationConstraintSchema = optimizationConstraintSchema.exte
   useBoosts: z.boolean().default(true),
   useInjuryAdjustments: z.boolean().default(true),
   exposureLimits: z.record(z.string(), z.number()).optional(),
+  globalMaxExposure: z.number().min(10).max(100).optional(),
 });
 
 export type ProOptimizationConstraints = z.infer<typeof proOptimizationConstraintSchema>;

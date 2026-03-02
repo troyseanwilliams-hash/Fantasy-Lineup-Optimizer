@@ -981,13 +981,16 @@ export async function registerRoutes(
 
         const iterationExcluded = [...baseExcluded];
 
-        if (constraints.exposureLimits && lineupResults.length > 0) {
-          for (const [playerIdStr, maxPct] of Object.entries(constraints.exposureLimits)) {
-            const playerId = Number(playerIdStr);
-            const appearances = playerAppearances[playerId] || 0;
+        if (lineupResults.length > 0) {
+          for (const p of pool) {
+            if (constraints.lockedPlayerIds.includes(p.id)) continue;
+            if (iterationExcluded.includes(p.id)) continue;
+            const appearances = playerAppearances[p.id] || 0;
             const currentExposure = (appearances / constraints.lineupCount) * 100;
-            if (currentExposure >= maxPct && !constraints.lockedPlayerIds.includes(playerId) && !iterationExcluded.includes(playerId)) {
-              iterationExcluded.push(playerId);
+            const playerLimit = constraints.exposureLimits?.[p.id.toString()];
+            const effectiveLimit = playerLimit ?? constraints.globalMaxExposure;
+            if (effectiveLimit !== undefined && currentExposure >= effectiveLimit) {
+              iterationExcluded.push(p.id);
             }
           }
         }
