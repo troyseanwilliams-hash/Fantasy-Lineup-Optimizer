@@ -1139,9 +1139,9 @@ export default function Home() {
               className="h-16 px-12 text-xl font-black bg-emerald-500 hover:bg-emerald-600 text-white shadow-2xl shadow-emerald-500/30"
               data-testid="login-btn"
             >
-              Get Started Free
+              Get Started
             </Button>
-            <p className="text-sm text-slate-400 mt-4">1 free optimized lineup. Upgrade for more.</p>
+            <p className="text-sm text-slate-400 mt-4">1 optimized lineup included. Upgrade for more.</p>
           </div>
         </div>
       </div>

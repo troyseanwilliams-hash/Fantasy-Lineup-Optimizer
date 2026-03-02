@@ -19,6 +19,7 @@ import {
 import { fetchAllSportsLiveData, getRollingSlateDate } from "./balldontlie";
 import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
 import { getLiveScores, getAllLiveScores } from "./espn-scores";
+import { fetchPrizePicksProjections, getSupportedPPSports } from "./prizepicks";
 
 function computeOwnershipProjections(players: Player[]): (Player & { ownershipProjection: number })[] {
   if (players.length === 0) return [];
@@ -202,7 +203,7 @@ export async function registerRoutes(
       const sportCount = await storage.getLineupCountBySport(userId, input.sport);
       if (sportCount >= maxPerSport) {
         const upgradeMsg = tier === "free"
-          ? "Free plan allows 1 saved team per sport. Upgrade to Star for 20 teams or Pro for 150 teams per sport."
+          ? "Basic plan allows 1 saved team per sport. Upgrade to Star for 20 teams or Pro for 150 teams per sport."
           : tier === "star"
           ? "Star plan allows 20 saved teams per sport. Upgrade to Pro for 150 teams per sport."
           : "You've reached the maximum of 150 saved teams per sport.";
@@ -536,6 +537,21 @@ export async function registerRoutes(
     } catch (err) {
       console.error(`Error fetching ${req.params.sport} scores:`, err);
       res.status(500).json({ error: "Failed to fetch scores" });
+    }
+  });
+
+  app.get("/api/prizepicks/:sport", async (req, res) => {
+    try {
+      const sport = req.params.sport.toUpperCase();
+      const supported = getSupportedPPSports();
+      if (!supported.includes(sport)) {
+        return res.status(400).json({ error: `Invalid sport: ${sport}. Valid: ${supported.join(", ")}` });
+      }
+      const projections = await fetchPrizePicksProjections(sport);
+      res.json({ sport, projections });
+    } catch (err) {
+      console.error(`[PrizePicks] Error in route for ${req.params.sport}:`, err);
+      res.json({ sport: req.params.sport.toUpperCase(), projections: [] });
     }
   });
 

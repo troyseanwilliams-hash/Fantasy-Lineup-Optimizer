@@ -867,7 +867,7 @@ export default function Optimizer() {
                   <Crown className="w-3 h-3 mr-1" /> PRO
                 </Badge>
               ) : (
-                <Badge variant="outline" className="border-slate-700 text-slate-400 text-[11px] font-black">FREE</Badge>
+                <Badge variant="outline" className="border-slate-700 text-slate-400 text-[11px] font-black">BASIC</Badge>
               )}
               <span className="text-[11px] text-slate-400 font-bold">
                 {subData.tier === "pro" 
@@ -978,7 +978,7 @@ export default function Optimizer() {
                       </div>
                       <p className="text-xs text-slate-300 leading-relaxed">
                         {subData?.tier === "free" ? (
-                          <>Free accounts can save 1 team per sport. Upgrade to <span className="font-black text-emerald-400">Star ($9.99/mo)</span> for 20 teams or <span className="font-black text-amber-400">Pro ($19.99/mo)</span> for 150 teams per sport, plus CSV export to DraftKings.</>
+                          <>Basic accounts can save 1 team per sport. Upgrade to <span className="font-black text-emerald-400">Star ($9.99/mo)</span> for 20 teams or <span className="font-black text-amber-400">Pro ($19.99/mo)</span> for 150 teams per sport, plus CSV export to DraftKings.</>
                         ) : subData?.tier === "star" ? (
                           <>Star accounts can save 20 teams per sport. Upgrade to <span className="font-black text-amber-400">Pro ($19.99/mo)</span> for 150 teams per sport with AI boost analysis.</>
                         ) : (

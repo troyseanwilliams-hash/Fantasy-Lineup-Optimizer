@@ -374,12 +374,55 @@ const SPORT_ICON_COMPONENTS: Record<string, typeof Trophy> = {
   GOLF: Flag,
 };
 
+interface PrizePicksProjection {
+  id: string;
+  playerName: string;
+  team: string;
+  position: string;
+  statType: string;
+  line: number;
+  startTime: string;
+  gameInfo: string;
+  imageUrl: string | null;
+  league: string;
+  oddsType: string;
+  isLive: boolean;
+  status: string;
+}
+
+interface PrizePicksResponse {
+  sport: string;
+  projections: PrizePicksProjection[];
+}
+
+const PP_STAT_COLORS: Record<string, string> = {
+  "Points": "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+  "Rebounds": "text-blue-400 bg-blue-500/10 border-blue-500/20",
+  "Assists": "text-purple-400 bg-purple-500/10 border-purple-500/20",
+  "Pts+Rebs+Asts": "text-amber-400 bg-amber-500/10 border-amber-500/20",
+  "3-Pointers Made": "text-cyan-400 bg-cyan-500/10 border-cyan-500/20",
+  "Fantasy Score": "text-pink-400 bg-pink-500/10 border-pink-500/20",
+  "Goals": "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+  "Shots on Goal": "text-blue-400 bg-blue-500/10 border-blue-500/20",
+  "Saves": "text-orange-400 bg-orange-500/10 border-orange-500/20",
+};
+
+function getStatColor(statType: string): string {
+  return PP_STAT_COLORS[statType] || "text-slate-300 bg-slate-500/10 border-slate-500/20";
+}
+
 export default function PropBets() {
   const searchString = useSearch();
   const sportParam = new URLSearchParams(searchString).get("sport")?.toUpperCase() || null;
+  const [ppSport, setPpSport] = useState<string>("NBA");
 
   const { data, isLoading } = useQuery<PropsResponse>({
     queryKey: ["/api/props"],
+  });
+
+  const { data: ppData, isLoading: ppLoading } = useQuery<PrizePicksResponse>({
+    queryKey: ["/api/prizepicks", ppSport],
+    refetchInterval: 300000,
   });
 
   useEffect(() => {
@@ -478,7 +521,7 @@ export default function PropBets() {
               </div>
               <h2 className="text-2xl font-black text-white tracking-tight mb-2">AI-Powered Prop Picks</h2>
               <p className="text-slate-400 max-w-xl mx-auto">
-                Our algorithm analyzes player stats, matchups, and trends to deliver high-confidence prop bet picks daily across every active sport. Here's a free preview — sign in to unlock more.
+                Our algorithm analyzes player stats, matchups, and trends to deliver high-confidence prop bet picks daily across every active sport. Here's a preview — sign in to unlock more.
               </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mx-auto">
@@ -500,7 +543,7 @@ export default function PropBets() {
             </div>
             <div className="flex flex-wrap items-center justify-center gap-4 mt-6">
               <Badge className="bg-slate-800/80 border-slate-700 text-slate-300 text-xs font-bold px-3 py-1">
-                Free: 1 pick/sport
+                Basic: 1 pick/sport
               </Badge>
               <Badge className="bg-emerald-500/10 border-emerald-500/20 text-emerald-400 text-xs font-bold px-3 py-1">
                 Star: 5 picks/sport
@@ -513,7 +556,7 @@ export default function PropBets() {
 
           <div className="flex items-center gap-2 mb-6">
             <Zap className="w-5 h-5 text-amber-400 fill-amber-400" />
-            <h3 className="text-lg font-black text-white">Today's Free Picks</h3>
+            <h3 className="text-lg font-black text-white">Today's Picks</h3>
             <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px] font-black">1 PER SPORT</Badge>
           </div>
         </div>
@@ -586,6 +629,130 @@ export default function PropBets() {
         );
       })}
 
+      <section className="mb-12" data-testid="prizepicks-section">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500/30 to-purple-600/20 flex items-center justify-center border border-violet-500/30">
+            <TrendingUp className="w-4 h-4 text-violet-400" />
+          </div>
+          <h2 className="text-2xl font-black text-white tracking-tight">PrizePicks Board</h2>
+          <Badge className="bg-violet-500/10 text-violet-400 border-violet-500/20 text-[10px] font-black">LIVE LINES</Badge>
+        </div>
+        <p className="text-sm text-slate-400 mb-4 ml-11">Real-time player projections from PrizePicks. Pick More or Less on any stat line.</p>
+
+        <div className="flex gap-2 mb-5 ml-11 flex-wrap">
+          {(["NBA", "NHL", "NFL", "MLB", "GOLF", "SOCCER"] as const).map(s => (
+            <Button
+              key={s}
+              size="sm"
+              variant={ppSport === s ? "default" : "ghost"}
+              className={ppSport === s
+                ? "bg-violet-500 text-white font-black text-xs"
+                : "text-slate-400 font-bold text-xs border border-slate-700/50"
+              }
+              onClick={() => setPpSport(s)}
+              data-testid={`pp-sport-${s.toLowerCase()}`}
+            >
+              {s}
+            </Button>
+          ))}
+        </div>
+
+        {ppLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-24 bg-slate-800 rounded-xl" />)}
+          </div>
+        ) : !ppData?.projections?.length ? (
+          <div className="py-10 text-center bg-slate-800/20 rounded-2xl border border-dashed border-slate-800/50">
+            <p className="text-slate-400 text-sm">No PrizePicks lines available for {ppSport} right now</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-2 mb-4 ml-11">
+              {(() => {
+                const statCounts: Record<string, number> = {};
+                ppData.projections.forEach(p => { statCounts[p.statType] = (statCounts[p.statType] || 0) + 1; });
+                const sorted = Object.entries(statCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+                return sorted.map(([stat, count]) => (
+                  <Badge key={stat} className={`${getStatColor(stat)} text-[10px] font-bold border`}>
+                    {stat} ({count})
+                  </Badge>
+                ));
+              })()}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {ppData.projections.slice(0, 30).map((proj) => (
+                <div
+                  key={proj.id}
+                  className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 hover:border-violet-500/30 transition-colors"
+                  data-testid={`pp-card-${proj.id}`}
+                >
+                  <div className="flex items-center gap-3">
+                    {proj.imageUrl ? (
+                      <img
+                        src={proj.imageUrl}
+                        alt={proj.playerName}
+                        className="w-10 h-10 rounded-full bg-slate-700/50 object-cover shrink-0"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-slate-700/50 flex items-center justify-center shrink-0">
+                        <span className="text-xs font-black text-slate-400">{proj.team?.slice(0, 3)}</span>
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-black text-white truncate">{proj.playerName}</span>
+                        {proj.isLive && (
+                          <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[9px] font-black px-1.5 py-0">LIVE</Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] text-slate-400 font-bold">{proj.team}</span>
+                        {proj.position && (
+                          <>
+                            <span className="text-slate-600">·</span>
+                            <span className="text-[11px] text-slate-500">{proj.position}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-lg font-black text-white">{proj.line}</div>
+                      <Badge className={`${getStatColor(proj.statType)} text-[9px] font-bold border px-1.5 py-0`}>
+                        {proj.statType}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-700/30">
+                    <span className="text-[10px] text-slate-500">{proj.gameInfo}</span>
+                    {proj.oddsType === "demon" && (
+                      <Badge className="bg-red-500/10 text-red-400 border-red-500/20 text-[9px] font-bold px-1.5 py-0">
+                        <Flame className="w-2.5 h-2.5 mr-0.5 inline" /> Demon
+                      </Badge>
+                    )}
+                    {proj.oddsType === "goblin" && (
+                      <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px] font-bold px-1.5 py-0">
+                        <Shield className="w-2.5 h-2.5 mr-0.5 inline" /> Goblin
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {ppData.projections.length > 30 && (
+              <p className="text-center text-xs text-slate-500 mt-3">
+                Showing 30 of {ppData.projections.length} available lines
+              </p>
+            )}
+          </>
+        )}
+        <div className="mt-4 text-center">
+          <p className="text-[10px] text-slate-500">
+            Data provided by PrizePicks. Lines are for informational purposes only.
+          </p>
+        </div>
+      </section>
+
       {!isPro && (isGuest || (data?.lockedCount && data.lockedCount > 0)) && (
         <div className="mt-4 mb-12 text-center bg-gradient-to-r from-amber-900/20 via-amber-800/10 to-amber-900/20 border border-amber-700/20 rounded-2xl p-8" data-testid="unlock-all-cta">
           <Crown className="w-10 h-10 text-amber-500/60 mx-auto mb-3" />
@@ -594,7 +761,7 @@ export default function PropBets() {
           </h3>
           <p className="text-slate-400 text-sm mb-5 max-w-md mx-auto">
             {isGuest
-              ? "Create a free account to start seeing AI-powered prop picks. Upgrade for even more picks across all sports."
+              ? "Create an account to start seeing AI-powered prop picks. Upgrade for even more picks across all sports."
               : tier === "star"
                 ? "Upgrade to Pro ($19.99/mo) for up to 15 AI-powered prop picks per sport with higher confidence ratings."
                 : "Upgrade your plan for more AI-powered prop picks across all sports. Star gets up to 5, Pro gets up to 15."}

@@ -39,7 +39,7 @@ export default function Pricing() {
           Choose Your Edge
         </h1>
         <p className="text-lg text-slate-400 max-w-xl mx-auto mb-8">
-          Start free, then level up your DFS strategy with more lineups and powerful tools.
+          Start with the Basic plan, then level up your DFS strategy with more lineups and powerful tools.
         </p>
 
         <div className="inline-flex items-center bg-slate-800/60 rounded-xl p-1 border border-slate-700/50" data-testid="billing-toggle">
@@ -70,12 +70,12 @@ export default function Pricing() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-        <Card className={`bg-slate-800/30 border-slate-800 p-8 relative ${currentTier === "free" ? "ring-2 ring-slate-600" : ""}`} data-testid="plan-free">
+        <Card className={`bg-slate-800/30 border-slate-800 p-8 relative ${currentTier === "free" ? "ring-2 ring-slate-600" : ""}`} data-testid="plan-basic">
           {currentTier === "free" && (
             <Badge className="absolute -top-3 left-6 bg-slate-700 text-slate-300 text-[11px] font-black">CURRENT PLAN</Badge>
           )}
           <div className="mb-6">
-            <h3 className="text-2xl font-black text-white mb-2">Free</h3>
+            <h3 className="text-2xl font-black text-white mb-2">Basic</h3>
             <div className="flex items-baseline gap-1">
               <span className="text-4xl font-black text-white">$0</span>
               <span className="text-slate-400 font-bold">/month</span>
@@ -121,7 +121,7 @@ export default function Pricing() {
             </li>
           </ul>
           <Button variant="outline" className="w-full h-12 border-slate-700 text-slate-400 font-bold" disabled>
-            {currentTier === "free" ? "Current Plan" : "Included"}
+            {currentTier === "free" ? "Current Plan" : "Basic Plan"}
           </Button>
         </Card>
 
