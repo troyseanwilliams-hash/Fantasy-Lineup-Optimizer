@@ -40,6 +40,7 @@ Preferred communication style: Simple, everyday language.
 - **Authentication**: Replit OpenID Connect (OIDC) auth via Passport.js with session-based auth stored in PostgreSQL
 - **Session Store**: `connect-pg-simple` storing sessions in the `sessions` table
 - **Cron Jobs**: (1) Hourly at :30 — auto-refresh DraftKings slates/players and Odds API props via `seedDatabase(true)` + `generateDailyProps`. (2) Daily at 2 AM ET — vault reset moving expired lineups to "review" status and deleting old reviews.
+- **Live Scores**: ESPN public scoreboard API with 60-second server-side caching. Endpoints: `GET /api/scores` (all sports) and `GET /api/scores/:sport`. Supports NBA, NHL, MLB, NFL, GOLF with team scores, game status, and golf leaderboards.
 - **Optimizer Lock**: Both client and server prevent lineup generation after a slate's start time has passed
 - **Player Exposure Limits**: Pro optimizer supports per-player exposure percentage caps during multi-lineup generation (tracked and enforced server-side)
 
