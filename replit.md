@@ -26,8 +26,8 @@ Preferred communication style: Simple, everyday language.
 - **Home** (`/`): Landing page for unauthenticated users, slate dashboard for authenticated users (shows main slates only with platform badges)
 - **Optimizer** (`/optimizer/:id`): Full-screen lineup builder with player table, lock/exclude controls, custom projections, LP optimization, platform-aware slot display. Pro users see Own% column with color-coded ownership projections and Fade toggle (purple ghost icon) to reduce highly-owned player projections during optimization.
 - **Saved Lineups** (`/lineups`): "Vault" with expandable lineup cards, full roster table with slot assignments, inline player swap (position/salary-constrained), CSV export (Pro only), sort controls (by projection, ownership, salary, date), and Review tab (Star/Pro only) showing expired lineups with contest winner comparison
-- **Pricing** (`/pricing`): Subscription tiers (Free vs Pro) with feature comparison
-- **Prop Bets** (`/props`): AI-generated daily prop picks organized per sport, with DraftKings/FanDuel affiliate marketing links (DFS + Sportsbook)
+- **Pricing** (`/pricing`): Subscription tiers (Basic vs Star vs Pro) with feature comparison
+- **Prop Bets** (`/props`): AI-generated daily prop picks organized per sport, PrizePicks live lines board with sport tabs, and DraftKings/FanDuel affiliate marketing links (DFS + Sportsbook)
 - **Parlay Builder** (`/parlays`): Pro-exclusive feature to combine multiple player props across any sport into cross-sport parlays with combined odds, potential payout calculator, wager presets, AI confidence insights, and direct DraftKings bet placement links. Free/Star/unauth users see an upgrade prompt. Pro: up to 8 legs with AI insights and DK affiliate links.
 - **News** (`/news/:sport`): Live sport-specific player news from ESPN's public API, with sport tabs to switch between NBA/NHL/MLB
 - **Admin** (`/admin`): Slate creation, player bulk upload (JSON), and database seeding
@@ -76,7 +76,7 @@ Preferred communication style: Simple, everyday language.
 - **Links**: Update placeholder URLs in `shared/affiliate-config.ts` with actual affiliate tracking links
 
 ### Subscription System
-- **Free tier**: 1 saved team per sport, no CSV export, no multi-lineup generation, no AI boost
+- **Basic tier** (display name for "free" DB value): 1 saved team per sport, no CSV export, no multi-lineup generation, no AI boost
 - **Star tier** ($19.99/mo, first month $9.99, annual $200/yr): 20 saved teams per sport, CSV export, multi-lineup generation (up to 5)
 - **Pro tier** ($49.99/mo, first month $29.99, annual $499/yr): 150 saved teams per sport, CSV export, multi-lineup generation (up to 20), Parlay Builder (8 legs + DK bet links + AI insights), AI boost analysis & injury tracking, ownership projections & player fading
 - **Per-sport limits**: Backend checks per-sport count via `getLineupCountBySport()` with tier-based max (1/20/150)
@@ -112,6 +112,13 @@ The `shared/` directory contains code used by both client and server:
   - FanDuel data is derived from DK data with salary ratios based on platform salary caps
 - **Ball Don't Lie API**: Previously used for NBA data, replaced by DraftKings API for more accurate DFS-specific player pools
 - **ESPN Public API**: Used for live sport-specific news articles on the News page
+- **PrizePicks Public API**: Live player prop projections displayed on Prop Bets page. No API key required.
+  - Endpoint: `https://partner-api.prizepicks.com/projections?league_id={id}&per_page=1000`
+  - League IDs: NBA=7, NHL=8, GOLF=1, MLB=2, NFL=9, SOCCER=82
+  - JSON:API response format (data[] + included[] arrays); player data in `included` where `type === "new_player"`
+  - 5-minute server-side cache per sport to avoid rate limiting
+  - Module: `server/prizepicks.ts` with `fetchPrizePicksProjections(sport)` and `getSupportedPPSports()`
+  - Route: `GET /api/prizepicks/:sport` returns `{ sport, projections[] }`
 - **Data module**: `server/balldontlie.ts` handles all DK API fetching, player processing, and static fallbacks
 
 ### Key NPM Packages

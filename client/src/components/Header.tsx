@@ -321,7 +321,7 @@ export function Header() {
                           <Trophy className="w-3 h-3 mr-0.5" /> STAR
                         </Badge>
                       ) : (
-                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Free Plan</span>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Basic Plan</span>
                       )}
                     </div>
                     <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
