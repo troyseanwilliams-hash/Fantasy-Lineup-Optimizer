@@ -501,6 +501,9 @@ export async function registerRoutes(
     GOLF: "https://www.rotoballer.com/category/golf/feed",
   };
 
+  const newsCache = new Map<string, { data: any; fetchedAt: number }>();
+  const NEWS_CACHE_TTL_MS = 5 * 60 * 1000;
+
   const xmlParser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: "@_",
@@ -717,10 +720,17 @@ export async function registerRoutes(
       if (!url) {
         return res.status(400).json({ error: "Invalid sport" });
       }
+
+      const cached = newsCache.get(sport);
+      if (cached && Date.now() - cached.fetchedAt < NEWS_CACHE_TTL_MS) {
+        return res.json(cached.data);
+      }
+
       const response = await fetch(url, {
         headers: { "User-Agent": "EliteLineupAI/1.0" },
       });
       if (!response.ok) {
+        if (cached) return res.json(cached.data);
         return res.status(502).json({ error: "Failed to fetch news" });
       }
       const xmlText = await response.text();
@@ -739,7 +749,7 @@ export async function registerRoutes(
         return {
           id: typeof item.guid === "string" ? item.guid : (typeof item.guid === "object" && item.guid?.["#text"] ? String(item.guid["#text"]) : `${sport}-${idx}`),
           headline: item.title || "",
-          description: cleanDesc.length > 200 ? cleanDesc.substring(0, 200) + "..." : cleanDesc,
+          description: cleanDesc.length > 300 ? cleanDesc.substring(0, 300) + "..." : cleanDesc,
           published: item.pubDate || "",
           type: "Article",
           imageUrl,
@@ -747,7 +757,10 @@ export async function registerRoutes(
           categories,
         };
       });
-      res.json({ sport, articles });
+
+      const result = { sport, articles };
+      newsCache.set(sport, { data: result, fetchedAt: Date.now() });
+      res.json(result);
     } catch (err) {
       console.error("News fetch error:", err);
       res.status(500).json({ error: "Failed to fetch news" });
