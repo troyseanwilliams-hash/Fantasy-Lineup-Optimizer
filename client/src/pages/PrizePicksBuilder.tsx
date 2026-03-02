@@ -136,17 +136,17 @@ function UnauthenticatedView() {
           Build PrizePicks entries using real-time player projections. Pick More or Less on stat lines, combine picks, and calculate your potential payout.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
+          <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-none rounded-xl p-4 space-y-2">
             <TrendingUp className="w-5 h-5 text-violet-400 mx-auto" />
             <div className="text-sm font-bold text-[var(--text-main)]">Live Lines</div>
             <div className="text-xs text-slate-400">Real-time PrizePicks projections across all sports</div>
           </div>
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
+          <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-none rounded-xl p-4 space-y-2">
             <ArrowUp className="w-5 h-5 text-emerald-400 mx-auto" />
             <div className="text-sm font-bold text-[var(--text-main)]">More or Less</div>
             <div className="text-xs text-slate-400">Pick over or under on any player stat line</div>
           </div>
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
+          <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-none rounded-xl p-4 space-y-2">
             <DollarSign className="w-5 h-5 text-amber-400 mx-auto" />
             <div className="text-sm font-bold text-[var(--text-main)]">Payout Calc</div>
             <div className="text-xs text-slate-400">See potential payouts for 2-6 pick entries</div>
@@ -203,7 +203,7 @@ function NonProView() {
               The PrizePicks Builder is an exclusive Pro feature ($49.99/mo). Build multi-pick entries using real-time PrizePicks lines with potential payout calculations.
             </p>
 
-            <div className="bg-slate-800/40 border border-amber-500/20 rounded-xl p-5 text-left max-w-sm mx-auto mb-6">
+            <div className="bg-white dark:bg-slate-800/40 border border-amber-300 dark:border-amber-500/20 shadow-sm dark:shadow-none rounded-xl p-5 text-left max-w-sm mx-auto mb-6">
               <div className="flex items-center gap-2 mb-3">
                 <Crown className="w-5 h-5 text-amber-400" />
                 <span className="text-sm font-bold text-amber-400">Pro Plan Includes</span>
@@ -224,7 +224,7 @@ function NonProView() {
             </Link>
           </div>
 
-          <div className="bg-slate-800/30 border border-slate-800 rounded-2xl p-6">
+          <div className="bg-white dark:bg-slate-800/30 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none rounded-2xl p-6">
             <h3 className="text-lg font-bold text-[var(--text-main)] mb-4 flex items-center gap-2 justify-center">
               <Info className="w-5 h-5 text-violet-400" /> How PrizePicks Builder Works
             </h3>
@@ -660,7 +660,7 @@ export default function PrizePicksBuilder() {
               {savedEntries.map((entry) => (
                 <div
                   key={entry.id}
-                  className="bg-slate-800/40 border border-slate-700/40 rounded-xl overflow-hidden"
+                  className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/40 shadow-sm dark:shadow-none rounded-xl overflow-hidden"
                   data-testid={`pp-vault-entry-${entry.id}`}
                 >
                   <button
@@ -1082,7 +1082,7 @@ export default function PrizePicksBuilder() {
 
           <div className="lg:col-span-2">
             <div className="sticky top-6 space-y-4">
-              <Card className="bg-slate-800/60 border-slate-700/50 p-5">
+              <Card className="bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-none p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-black text-[var(--text-main)] flex items-center gap-2">
                     <Sparkles className="w-5 h-5 text-violet-400" />
@@ -1249,7 +1249,7 @@ export default function PrizePicksBuilder() {
                       </div>
                       <div className="space-y-2">
                         {analysisResult.analyzedPicks.map((ap) => (
-                          <div key={ap.projectionId} className="bg-slate-800/50 border border-slate-700/30 rounded-lg p-2.5">
+                          <div key={ap.projectionId} className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/30 shadow-sm dark:shadow-none rounded-lg p-2.5">
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-xs font-bold text-[var(--text-main)]">{ap.playerName}</span>
                               <div className="flex items-center gap-1.5">
@@ -1321,11 +1321,11 @@ export default function PrizePicksBuilder() {
                 </div>
               </Card>
 
-              <div className="bg-slate-800/30 border border-slate-700/30 rounded-xl p-4">
+              <div className="bg-white dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700/30 shadow-sm dark:shadow-none rounded-xl p-4">
                 <h4 className="text-sm font-bold text-[var(--text-main)] mb-2">Payout Multipliers</h4>
                 <div className="grid grid-cols-5 gap-2 text-center">
                   {[2, 3, 4, 5, 6].map(n => (
-                    <div key={n} className={`rounded-lg p-2 border ${entries.length === n ? "bg-violet-500/10 border-violet-500/30" : "bg-slate-800/40 border-slate-700/40"}`}>
+                    <div key={n} className={`rounded-lg p-2 border ${entries.length === n ? "bg-violet-500/10 border-violet-500/30" : "bg-slate-200 dark:bg-slate-800/40 border-slate-300 dark:border-slate-700/40"}`}>
                       <div className="text-xs text-slate-400">{n} picks</div>
                       <div className={`text-sm font-black ${entries.length === n ? "text-violet-400" : "text-[var(--text-main)]"}`}>{getEntryMultiplier(n)}x</div>
                     </div>

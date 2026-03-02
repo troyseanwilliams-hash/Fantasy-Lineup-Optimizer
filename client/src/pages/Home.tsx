@@ -372,7 +372,7 @@ function TopScorersSection({ players, slateId, sport }: { players: DashboardPlay
           return (
             <Card
               key={player.id}
-              className="bg-black/[0.03] dark:bg-slate-800/40 border-border p-4 relative overflow-hidden"
+              className="bg-white dark:bg-slate-800/40 shadow-sm dark:shadow-none border-border p-4 relative overflow-hidden"
               data-testid={`top-scorer-${player.id}`}
             >
               <div className="absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-emerald-500/60 to-emerald-500/0" style={{ width: `${projPct}%` }} />
@@ -517,7 +517,7 @@ function MatchupsSection({ matchups, sport }: { matchups: MatchupData[]; sport: 
               className={`relative overflow-hidden p-4 ${
                 isTop
                   ? "bg-gradient-to-br from-purple-950/40 to-slate-900/60 border-purple-800/30 ring-1 ring-purple-500/10"
-                  : "bg-black/[0.03] dark:bg-slate-800/40 border-border"
+                  : "bg-white dark:bg-slate-800/40 shadow-sm dark:shadow-none border-border"
               }`}
               data-testid={`matchup-${idx}`}
             >
@@ -615,7 +615,7 @@ function DailyPicksCompact() {
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i} className="bg-black/[0.03] dark:bg-slate-800/30 border-border p-4">
+            <Card key={i} className="bg-white dark:bg-slate-800/30 shadow-sm dark:shadow-none border-border p-4">
               <Skeleton className="h-4 w-1/2 mb-2" />
               <Skeleton className="h-3 w-3/4" />
             </Card>
@@ -635,7 +635,7 @@ function DailyPicksCompact() {
                 className={`relative overflow-hidden p-4 ${
                   prop.confidence === "high"
                     ? "bg-gradient-to-br from-emerald-950/30 to-slate-900/50 border-emerald-800/20"
-                    : "bg-black/[0.03] dark:bg-slate-800/40 border-border"
+                    : "bg-white dark:bg-slate-800/40 shadow-sm dark:shadow-none border-border"
                 }`}
                 data-testid={`daily-pick-${prop.id}`}
               >
@@ -674,7 +674,7 @@ function DailyPicksCompact() {
           })}
         </div>
       ) : (
-        <Card className="bg-black/[0.03] dark:bg-slate-800/30 border-border p-6 text-center">
+        <Card className="bg-white dark:bg-slate-800/30 shadow-sm dark:shadow-none border-border p-6 text-center">
           <p className="text-sm text-slate-400 font-bold">No picks available today</p>
         </Card>
       )}
@@ -812,7 +812,7 @@ function LiveScoresSection({ sport }: { sport: string }) {
         </div>
         <div className="flex gap-3 overflow-x-auto pb-2">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i} className="bg-black/[0.03] dark:bg-slate-800/30 border-border p-4 min-w-[220px] shrink-0">
+            <Card key={i} className="bg-white dark:bg-slate-800/30 shadow-sm dark:shadow-none border-border p-4 min-w-[220px] shrink-0">
               <Skeleton className="h-4 w-20 mb-3" />
               <Skeleton className="h-5 w-full mb-2" />
               <Skeleton className="h-5 w-full" />
@@ -832,7 +832,7 @@ function LiveScoresSection({ sport }: { sport: string }) {
           </div>
           <h2 className="text-lg font-black text-[var(--text-main)] tracking-tight">Live Scores</h2>
         </div>
-        <Card className="bg-black/[0.03] dark:bg-slate-800/30 border-border p-6 text-center" data-testid="no-games-message">
+        <Card className="bg-white dark:bg-slate-800/30 shadow-sm dark:shadow-none border-border p-6 text-center" data-testid="no-games-message">
           <Clock className="w-6 h-6 text-slate-600 mx-auto mb-2" />
           <p className="text-sm text-slate-400 font-bold">No games scheduled today</p>
         </Card>
@@ -866,7 +866,7 @@ function LiveScoresSection({ sport }: { sport: string }) {
           {tournament.leaderboard.slice(0, 10).map((player, idx) => (
             <div
               key={idx}
-              className={`flex items-center justify-between px-4 py-2.5 rounded-lg ${idx < 3 ? "bg-lime-950/30 border border-lime-800/20" : "bg-slate-800/30 border border-slate-800/50"}`}
+              className={`flex items-center justify-between px-4 py-2.5 rounded-lg ${idx < 3 ? "bg-lime-100 dark:bg-lime-950/30 border border-lime-300 dark:border-lime-800/20" : "bg-white dark:bg-slate-800/30 border border-slate-200 dark:border-slate-800/50 shadow-sm dark:shadow-none"}`}
               data-testid={`golf-leaderboard-${idx}`}
             >
               <div className="flex items-center gap-3">
@@ -914,9 +914,9 @@ function LiveScoresSection({ sport }: { sport: string }) {
             <Card
               key={game.id}
               className={`min-w-[240px] shrink-0 p-4 transition-all ${
-                isLive ? "bg-emerald-950/30 border-emerald-800/30 ring-1 ring-emerald-500/20" :
-                isFinal ? "bg-slate-800/30 border-slate-700/40" :
-                "bg-black/[0.03] dark:bg-slate-800/40 border-border"
+                isLive ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/30 ring-1 ring-emerald-500/20" :
+                isFinal ? "bg-slate-100 dark:bg-slate-800/30 border-slate-300 dark:border-slate-700/40" :
+                "bg-white dark:bg-slate-800/40 shadow-sm dark:shadow-none border-border"
               }`}
               data-testid={`game-card-${game.id}`}
             >
@@ -1049,7 +1049,7 @@ function AuthenticatedDashboard() {
             <Skeleton className="h-6 w-48 mb-4" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
               {Array.from({ length: 4 }).map((_, i) => (
-                <Card key={i} className="bg-black/[0.03] dark:bg-slate-800/30 border-border p-4">
+                <Card key={i} className="bg-white dark:bg-slate-800/30 shadow-sm dark:shadow-none border-border p-4">
                   <Skeleton className="h-8 w-8 rounded-full mb-2" />
                   <Skeleton className="h-4 w-3/4 mb-1" />
                   <Skeleton className="h-3 w-1/2" />

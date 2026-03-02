@@ -87,7 +87,7 @@ export function Header() {
   };
 
   return (
-    <header className="bg-[var(--header-bg)] border-b border-[var(--header-border)] sticky top-0 z-50">
+    <header className={`border-b sticky top-0 z-50 ${isLanding ? "bg-[#0F172A]/90 border-[#1E293B] backdrop-blur-md" : "bg-[var(--header-bg)] border-[var(--header-border)]"}`}>
       <div className="container mx-auto px-4 h-16 lg:h-20 flex items-center justify-between">
         <div className="flex items-center space-x-10">
           <Link href="/">
@@ -95,7 +95,7 @@ export function Header() {
               <div className="w-8 h-8 lg:w-10 lg:h-10 bg-[#10B981] rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
                 <Zap className="text-white w-5 h-5 lg:w-6 lg:h-6 fill-current" />
               </div>
-              <span className="text-xl lg:text-2xl font-black tracking-tighter text-[var(--text-main)] uppercase">
+              <span className={`text-xl lg:text-2xl font-black tracking-tighter uppercase ${isLanding ? "text-white" : "text-[var(--text-main)]"}`}>
                 ELITE<span className="text-[#10B981]">LINEUP</span>
               </span>
             </div>
@@ -122,7 +122,7 @@ export function Header() {
 
                     return (
                       <div key={sport}>
-                        {idx > 0 && <DropdownMenuSeparator className="bg-slate-800" />}
+                        {idx > 0 && <DropdownMenuSeparator className="bg-slate-200 dark:bg-slate-800" />}
                         <DropdownMenuLabel className="flex items-center gap-2 py-2">
                           <div className={`w-6 h-6 rounded flex items-center justify-center ${meta.bgColor}`}>
                             <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
@@ -238,7 +238,7 @@ export function Header() {
             {!user && (
               <Link href="/pricing">
                 <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                  location === "/pricing" ? "text-[#10B981]" : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                  location === "/pricing" ? "text-[#10B981]" : isLanding ? "text-slate-300 hover:text-white" : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
                 }`} data-testid="nav-pricing">
                   <Crown className="w-4 h-4" />
                   <span>Pricing</span>
@@ -261,7 +261,7 @@ export function Header() {
         <div className="flex items-center space-x-3 lg:space-x-6">
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-lg hover:bg-black/10 dark:hover:bg-slate-800 transition-colors"
+            className={`p-2 rounded-lg transition-colors ${isLanding ? "hover:bg-white/10 text-slate-300" : "hover:bg-black/10 dark:hover:bg-slate-800"}`}
             data-testid="theme-toggle"
             aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           >
@@ -276,8 +276,8 @@ export function Header() {
             <div className="hidden lg:flex items-center space-x-4">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="relative p-2 rounded-lg hover:bg-slate-800 transition-colors" data-testid="alerts-bell">
-                    <Bell className="w-5 h-5 text-slate-400" />
+                  <button className="relative p-2 rounded-lg hover:bg-black/10 dark:hover:bg-black/10 dark:hover:bg-slate-800 transition-colors" data-testid="alerts-bell">
+                    <Bell className="w-5 h-5 text-slate-500 dark:text-slate-400" />
                     {unreadCount > 0 && (
                       <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-[11px] font-black text-white" data-testid="alerts-badge">
                         {unreadCount > 9 ? "9+" : unreadCount}
@@ -287,7 +287,7 @@ export function Header() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-80 bg-[var(--bg-card)] border-border max-h-96 overflow-y-auto">
                   <DropdownMenuLabel className="flex items-center justify-between">
-                    <span className="text-xs font-black text-white uppercase tracking-wider">Alerts</span>
+                    <span className="text-xs font-black text-[var(--text-main)] uppercase tracking-wider">Alerts</span>
                     {unreadCount > 0 && (
                       <button
                         onClick={() => markAllReadMutation.mutate()}
@@ -298,7 +298,7 @@ export function Header() {
                       </button>
                     )}
                   </DropdownMenuLabel>
-                  <DropdownMenuSeparator className="bg-slate-800" />
+                  <DropdownMenuSeparator className="bg-slate-200 dark:bg-slate-800" />
                   {recentAlerts.length === 0 ? (
                     <div className="py-6 text-center">
                       <Bell className="w-8 h-8 text-slate-600 mx-auto mb-2" />
@@ -315,10 +315,10 @@ export function Header() {
                         <div className="flex items-start gap-2">
                           {severityIcon(alert.severity)}
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-white truncate">{alert.title}</p>
+                            <p className="text-sm font-bold text-[var(--text-main)] truncate">{alert.title}</p>
                             <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">{alert.message}</p>
                             <div className="flex items-center gap-2 mt-1">
-                              <Badge className="text-[11px] font-bold bg-slate-800 text-slate-400 border-slate-700 px-1.5 py-0">{alert.sport}</Badge>
+                              <Badge className="text-[11px] font-bold bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700 px-1.5 py-0">{alert.sport}</Badge>
                               {!alert.isRead && (
                                 <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
                               )}
@@ -353,7 +353,7 @@ export function Header() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56 bg-[var(--bg-card)] border-border">
                   <DropdownMenuLabel className="text-[var(--text-muted)] text-xs font-bold uppercase tracking-wider">Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator className="bg-slate-800" />
+                  <DropdownMenuSeparator className="bg-slate-200 dark:bg-slate-800" />
                   {!isPaid && (
                     <Link href="/pricing">
                       <DropdownMenuItem className="cursor-pointer" data-testid="menu-upgrade">
@@ -382,7 +382,7 @@ export function Header() {
                       <span className="text-sm font-bold text-slate-300">Plans & Billing</span>
                     </DropdownMenuItem>
                   </Link>
-                  <DropdownMenuSeparator className="bg-slate-800" />
+                  <DropdownMenuSeparator className="bg-slate-200 dark:bg-slate-800" />
                   <DropdownMenuItem 
                     className="cursor-pointer text-red-400 focus:text-red-400"
                     onClick={() => logout()}
@@ -406,13 +406,13 @@ export function Header() {
 
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-2 rounded-lg hover:bg-slate-800 transition-colors"
+            className={`lg:hidden p-2 rounded-lg transition-colors ${isLanding ? "hover:bg-white/10" : "hover:bg-black/10 dark:hover:bg-slate-800"}`}
             data-testid="mobile-menu-btn"
           >
             {mobileMenuOpen ? (
-              <X className="w-6 h-6 text-white" />
+              <X className={`w-6 h-6 ${isLanding ? "text-white" : "text-[var(--text-main)]"}`} />
             ) : (
-              <Menu className="w-6 h-6 text-white" />
+              <Menu className={`w-6 h-6 ${isLanding ? "text-white" : "text-[var(--text-main)]"}`} />
             )}
           </button>
         </div>
@@ -560,7 +560,7 @@ export function Header() {
                         {isPro && dkSlate ? (
                           <button
                             onClick={() => mobileNav(`/optimizer-pro/${dkSlate.id}`)}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-amber-300 hover:bg-slate-800 transition-colors"
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-amber-300 hover:bg-black/10 dark:hover:bg-slate-800 transition-colors"
                             data-testid={`mobile-sport-${sport.toLowerCase()}-pro`}
                           >
                             <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
@@ -570,7 +570,7 @@ export function Header() {
                         ) : isStar && dkSlate ? (
                           <button
                             onClick={() => mobileNav(`/optimizer-pro/${dkSlate.id}`)}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-emerald-300 hover:bg-slate-800 transition-colors"
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-emerald-300 hover:bg-black/10 dark:hover:bg-slate-800 transition-colors"
                             data-testid={`mobile-sport-${sport.toLowerCase()}-star`}
                           >
                             <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -580,7 +580,7 @@ export function Header() {
                         ) : (
                           <button
                             onClick={() => mobileNav("/pricing")}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-slate-600 hover:bg-slate-800 transition-colors"
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-slate-600 hover:bg-black/10 dark:hover:bg-slate-800 transition-colors"
                           >
                             <Lock className="w-4 h-4 shrink-0" />
                             <span>Pro DK</span>

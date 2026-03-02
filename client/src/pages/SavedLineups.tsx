@@ -228,17 +228,17 @@ export default function SavedLineups() {
             Your personal lineup vault stores every optimized lineup you build. Save your best lineups, compare strategies across sports, swap players, and export to CSV for easy upload to DraftKings.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
+            <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-none rounded-xl p-4 space-y-2">
               <Shield className="w-5 h-5 text-cyan-400 mx-auto" />
               <div className="text-sm font-bold text-[var(--text-main)]">Save Lineups</div>
               <div className="text-xs text-slate-400">Store optimized lineups per sport and revisit them anytime</div>
             </div>
-            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
+            <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-none rounded-xl p-4 space-y-2">
               <ArrowLeftRight className="w-5 h-5 text-amber-400 mx-auto" />
               <div className="text-sm font-bold text-[var(--text-main)]">Swap Players</div>
               <div className="text-xs text-slate-400">Fine-tune saved lineups with inline player swaps</div>
             </div>
-            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
+            <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-none rounded-xl p-4 space-y-2">
               <Download className="w-5 h-5 text-emerald-400 mx-auto" />
               <div className="text-sm font-bold text-[var(--text-main)]">CSV Export</div>
               <div className="text-xs text-slate-400">Export lineups to CSV for direct upload to DFS platforms</div>
@@ -363,22 +363,22 @@ export default function SavedLineups() {
 
           {totalLineups > 0 && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="bg-slate-800/40 border border-slate-700/30 rounded-xl px-4 py-3" data-testid="stat-total-lineups">
+              <div className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/30 shadow-sm dark:shadow-none rounded-xl px-4 py-3" data-testid="stat-total-lineups">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Saved Lineups</p>
                 <p className="text-2xl font-black text-[var(--text-main)]">{totalLineups}</p>
               </div>
-              <div className="bg-slate-800/40 border border-slate-700/30 rounded-xl px-4 py-3" data-testid="stat-total-proj">
+              <div className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/30 shadow-sm dark:shadow-none rounded-xl px-4 py-3" data-testid="stat-total-proj">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Proj Points</p>
                 <p className="text-2xl font-black text-emerald-400">{totalProjectedPts.toFixed(1)}</p>
               </div>
-              <div className="bg-slate-800/40 border border-slate-700/30 rounded-xl px-4 py-3" data-testid="stat-avg-proj">
+              <div className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/30 shadow-sm dark:shadow-none rounded-xl px-4 py-3" data-testid="stat-avg-proj">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Avg Proj / Lineup</p>
                 <div className="flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-emerald-400" />
                   <p className="text-2xl font-black text-[var(--text-main)]">{totalLineups > 0 ? (totalProjectedPts / totalLineups).toFixed(1) : "0"}</p>
                 </div>
               </div>
-              <div className="bg-slate-800/40 border border-slate-700/30 rounded-xl px-4 py-3" data-testid="stat-sports">
+              <div className="bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/30 shadow-sm dark:shadow-none rounded-xl px-4 py-3" data-testid="stat-sports">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Sports</p>
                 <div className="flex items-center gap-2 flex-wrap">
                   {Object.entries(sportBreakdown).map(([sport, count]) => (
@@ -545,7 +545,7 @@ function ReviewTabContent({
         return (
           <Card
             key={lineup.id}
-            className="bg-slate-800/20 border-slate-700/40"
+            className="bg-white dark:bg-slate-800/20 border-slate-200 dark:border-slate-700/40 shadow-sm dark:shadow-none"
             data-testid={`review-lineup-card-${lineup.id}`}
           >
             <div
