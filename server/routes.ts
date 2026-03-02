@@ -19,7 +19,7 @@ import {
 import { fetchAllSportsLiveData, getRollingSlateDate } from "./balldontlie";
 import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
 import { getLiveScores, getAllLiveScores } from "./espn-scores";
-import { fetchPrizePicksProjections, getSupportedPPSports } from "./prizepicks";
+import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries } from "./prizepicks";
 
 function computeOwnershipProjections(players: Player[]): (Player & { ownershipProjection: number })[] {
   if (players.length === 0) return [];
@@ -537,6 +537,31 @@ export async function registerRoutes(
     } catch (err) {
       console.error(`Error fetching ${req.params.sport} scores:`, err);
       res.status(500).json({ error: "Failed to fetch scores" });
+    }
+  });
+
+  app.get("/api/prizepicks/build/:sport", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      const userId = (req.user as any).claims.sub;
+      const sub = await storage.getSubscription(userId);
+      if (!sub || sub.tier !== "pro") {
+        return res.status(403).json({ error: "Pro subscription required" });
+      }
+      const sport = req.params.sport.toUpperCase();
+      const supported = getSupportedPPSports();
+      if (!supported.includes(sport)) {
+        return res.status(400).json({ error: `Invalid sport: ${sport}` });
+      }
+      const projections = await fetchPrizePicksProjections(sport);
+      if (projections.length === 0) {
+        return res.json({ sport, entries: [] });
+      }
+      const entries = buildAIEntries(projections, 5);
+      res.json({ sport, entries });
+    } catch (err) {
+      console.error(`[PrizePicks Builder] Error for ${req.params.sport}:`, err);
+      res.status(500).json({ error: "Failed to build entries" });
     }
   });
 

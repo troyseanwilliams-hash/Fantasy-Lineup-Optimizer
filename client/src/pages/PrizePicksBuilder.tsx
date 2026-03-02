@@ -11,7 +11,7 @@ import {
   TrendingUp, Lock, Crown, Zap, Plus, X, Trash2,
   ArrowUp, ArrowDown, Dribbble, Activity, Flag, Target, Trophy,
   DollarSign, Sparkles, CheckCircle2, Info, Copy, ExternalLink,
-  Search
+  Search, Bot, ChevronDown, ChevronUp, Loader2
 } from "lucide-react";
 
 const PP_SPORTS = ["NBA", "NHL", "NFL", "MLB", "GOLF", "SOCCER"] as const;
@@ -49,6 +49,25 @@ interface PrizePicksResponse {
 interface PPEntry {
   projection: PrizePicksProjection;
   pick: "more" | "less";
+}
+
+interface AIBuiltPick {
+  projection: PrizePicksProjection;
+  pick: "more" | "less";
+  confidence: number;
+  reasoning: string;
+}
+
+interface AIBuiltEntry {
+  picks: AIBuiltPick[];
+  multiplier: number;
+  overallConfidence: number;
+  label: string;
+}
+
+interface AIBuildResponse {
+  sport: string;
+  entries: AIBuiltEntry[];
 }
 
 const PP_STAT_COLORS: Record<string, string> = {
@@ -220,6 +239,10 @@ export default function PrizePicksBuilder() {
   const [copied, setCopied] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statFilter, setStatFilter] = useState<string>("ALL");
+  const [showAIEntries, setShowAIEntries] = useState(false);
+  const [expandedAIEntry, setExpandedAIEntry] = useState<number | null>(null);
+  const [aiBuilding, setAiBuilding] = useState(false);
+  const [aiEntries, setAiEntries] = useState<AIBuiltEntry[]>([]);
 
   const { data: subData } = useQuery<{ tier: string }>({
     queryKey: ["/api/subscription"],
@@ -295,6 +318,47 @@ export default function PrizePicksBuilder() {
     setEntries([]);
   };
 
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const runAIBuilder = async () => {
+    setAiBuilding(true);
+    setShowAIEntries(true);
+    setExpandedAIEntry(null);
+    setAiError(null);
+    try {
+      const res = await fetch(`/api/prizepicks/build/${selectedSport}`);
+      if (res.status === 401) {
+        setAiError("Please sign in to use the AI Builder.");
+        setAiEntries([]);
+        return;
+      }
+      if (res.status === 403) {
+        setAiError("AI Builder requires a Pro subscription.");
+        setAiEntries([]);
+        return;
+      }
+      if (!res.ok) throw new Error("Failed to build entries");
+      const data: AIBuildResponse = await res.json();
+      setAiEntries(data.entries);
+      if (data.entries.length > 0) setExpandedAIEntry(0);
+    } catch (err) {
+      console.error("AI builder error:", err);
+      setAiError("Something went wrong building entries. Please try again.");
+      setAiEntries([]);
+    } finally {
+      setAiBuilding(false);
+    }
+  };
+
+  const useAIEntry = (entry: AIBuiltEntry) => {
+    const newEntries: PPEntry[] = entry.picks.map(p => ({
+      projection: p.projection,
+      pick: p.pick,
+    }));
+    setEntries(newEntries);
+    setShowAIEntries(false);
+  };
+
   const multiplier = getEntryMultiplier(entries.length);
   const potentialPayout = Math.round(wagerAmount * multiplier * 100) / 100;
 
@@ -346,7 +410,7 @@ export default function PrizePicksBuilder() {
                     key={sport}
                     variant={selectedSport === sport ? "default" : "outline"}
                     size="sm"
-                    onClick={() => { setSelectedSport(sport); setStatFilter("ALL"); }}
+                    onClick={() => { setSelectedSport(sport); setStatFilter("ALL"); setShowAIEntries(false); }}
                     className={selectedSport === sport
                       ? "bg-violet-500 text-white font-bold"
                       : "border-slate-700 text-slate-400 font-bold"
@@ -358,10 +422,181 @@ export default function PrizePicksBuilder() {
                   </Button>
                 );
               })}
+              <Button
+                onClick={runAIBuilder}
+                disabled={aiBuilding || ppLoading}
+                className="bg-gradient-to-r from-amber-500 to-orange-500 text-black font-black shadow-lg shadow-amber-500/20 ml-2"
+                size="sm"
+                data-testid="pp-builder-ai-build"
+              >
+                {aiBuilding ? (
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <Bot className="w-3.5 h-3.5 mr-1.5" />
+                )}
+                {aiBuilding ? "Building..." : "AI Builder"}
+              </Button>
             </div>
           </div>
         </div>
       </div>
+
+      {showAIEntries && (
+        <div className="container mx-auto px-4 pt-6 pb-2">
+          <div className="bg-gradient-to-b from-amber-500/5 to-transparent border border-amber-500/20 rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-black text-white flex items-center gap-2">
+                <Bot className="w-5 h-5 text-amber-400" />
+                AI-Built Entries
+                <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[10px] font-bold">{selectedSport}</Badge>
+              </h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAIEntries(false)}
+                className="text-slate-400 text-xs font-bold"
+                data-testid="pp-builder-ai-close"
+              >
+                <X className="w-3.5 h-3.5 mr-1" /> Close
+              </Button>
+            </div>
+
+            {aiBuilding ? (
+              <div className="py-12 text-center space-y-3">
+                <Loader2 className="w-8 h-8 text-amber-400 mx-auto animate-spin" />
+                <p className="text-sm text-slate-400">Analyzing {selectedSport} lines and building optimal entries...</p>
+              </div>
+            ) : aiError ? (
+              <div className="py-8 text-center space-y-3">
+                <p className="text-sm text-red-400">{aiError}</p>
+                {aiError.includes("Pro") && (
+                  <Link href="/pricing">
+                    <Button size="sm" className="bg-amber-500 text-black font-bold" data-testid="pp-builder-ai-upgrade">
+                      <Crown className="w-3.5 h-3.5 mr-1.5" /> Upgrade to Pro
+                    </Button>
+                  </Link>
+                )}
+              </div>
+            ) : aiEntries.length === 0 ? (
+              <div className="py-8 text-center">
+                <p className="text-sm text-slate-400">No entries could be built. There may not be enough lines available for {selectedSport} right now.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {aiEntries.map((entry, idx) => (
+                  <div
+                    key={idx}
+                    className={`bg-slate-800/60 border rounded-xl overflow-hidden transition-colors ${expandedAIEntry === idx ? "border-amber-500/40" : "border-slate-700/40"}`}
+                    data-testid={`pp-builder-ai-entry-${idx}`}
+                  >
+                    <button
+                      onClick={() => setExpandedAIEntry(expandedAIEntry === idx ? null : idx)}
+                      className="w-full flex items-center justify-between p-4 text-left"
+                      data-testid={`pp-builder-ai-entry-toggle-${idx}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${
+                          entry.overallConfidence >= 65 ? "bg-emerald-500/20 text-emerald-400" :
+                          entry.overallConfidence >= 55 ? "bg-amber-500/20 text-amber-400" :
+                          "bg-slate-700/50 text-slate-400"
+                        }`}>
+                          {idx + 1}
+                        </div>
+                        <div>
+                          <div className="text-sm font-black text-white">{entry.label}</div>
+                          <div className="text-xs text-slate-400">{entry.picks.length} picks · {entry.multiplier}x multiplier</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <div className={`text-xs font-bold ${
+                            entry.overallConfidence >= 65 ? "text-emerald-400" :
+                            entry.overallConfidence >= 55 ? "text-amber-400" :
+                            "text-slate-400"
+                          }`}>
+                            {entry.overallConfidence}% confidence
+                          </div>
+                        </div>
+                        {expandedAIEntry === idx ? (
+                          <ChevronUp className="w-4 h-4 text-slate-400" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-slate-400" />
+                        )}
+                      </div>
+                    </button>
+
+                    {expandedAIEntry === idx && (
+                      <div className="border-t border-slate-700/40 p-4 space-y-2">
+                        {entry.picks.map((pick, pIdx) => (
+                          <div key={pIdx} className="flex items-center gap-3 bg-slate-900/40 rounded-lg p-3" data-testid={`pp-builder-ai-pick-${idx}-${pIdx}`}>
+                            {pick.projection.imageUrl ? (
+                              <img
+                                src={pick.projection.imageUrl}
+                                alt={pick.projection.playerName}
+                                className="w-9 h-9 rounded-full bg-slate-700/50 object-cover shrink-0"
+                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                              />
+                            ) : (
+                              <div className="w-9 h-9 rounded-full bg-slate-700/50 flex items-center justify-center shrink-0">
+                                <span className="text-[10px] font-black text-slate-400">{pick.projection.team?.slice(0, 3)}</span>
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-bold text-white truncate">{pick.projection.playerName}</span>
+                                <span className="text-[10px] text-slate-500 font-bold">{pick.projection.team}</span>
+                              </div>
+                              <div className="text-[11px] text-slate-500 mt-0.5">{pick.reasoning}</div>
+                            </div>
+                            <div className="text-center shrink-0">
+                              <Badge className={`${getStatColor(pick.projection.statType)} text-[9px] font-bold border px-1.5 py-0 mb-1`}>
+                                {pick.projection.statType}
+                              </Badge>
+                              <div className="text-sm font-black text-white">{pick.projection.line}</div>
+                            </div>
+                            <div className={`text-xs font-black px-2.5 py-1 rounded-md border shrink-0 ${
+                              pick.pick === "more"
+                                ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
+                                : "text-red-400 bg-red-500/10 border-red-500/30"
+                            }`}>
+                              {pick.pick === "more" ? "MORE" : "LESS"}
+                            </div>
+                            <div className={`text-[10px] font-bold shrink-0 ${
+                              pick.confidence >= 65 ? "text-emerald-400" :
+                              pick.confidence >= 55 ? "text-amber-400" :
+                              "text-slate-400"
+                            }`}>
+                              {pick.confidence}%
+                            </div>
+                          </div>
+                        ))}
+
+                        <div className="flex items-center justify-between pt-2">
+                          <div className="text-xs text-slate-500">
+                            ${wagerAmount} wager · {entry.multiplier}x · Potential: <span className="text-emerald-400 font-bold">${(wagerAmount * entry.multiplier).toFixed(2)}</span>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={(e) => { e.stopPropagation(); useAIEntry(entry); }}
+                            className="bg-amber-500 text-black font-black text-xs px-4 py-2"
+                            data-testid={`pp-builder-ai-use-${idx}`}
+                          >
+                            <Zap className="w-3 h-3 mr-1" /> Use This Entry
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                <p className="text-[10px] text-slate-500 text-center pt-1">
+                  AI analysis based on line values, odds types, and statistical patterns. Not financial advice.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="container mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
