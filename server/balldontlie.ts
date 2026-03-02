@@ -10,6 +10,7 @@ const SPORT_MAP: Record<string, string> = {
   MLB: "MLB",
   NFL: "NFL",
   GOLF: "GOLF",
+  SOCCER: "SOC",
 };
 
 const CLASSIC_GAME_TYPES: Record<string, number[]> = {
@@ -18,6 +19,7 @@ const CLASSIC_GAME_TYPES: Record<string, number[]> = {
   MLB: [70, 177],
   NFL: [70, 158],
   GOLF: [70, 177],
+  SOCCER: [70, 177],
 };
 
 interface DKDraftGroup {
@@ -94,13 +96,22 @@ function mapDKPosition(sport: string, pos: string): string {
     };
     return mapping[pos] || pos;
   }
+  if (sport === "SOCCER") {
+    const mapping: Record<string, string> = {
+      F: "F", M: "M", D: "D", GK: "GK",
+      FWD: "F", MF: "M", MID: "M", DEF: "D",
+      UTIL: "UTIL",
+    };
+    return mapping[pos] || pos;
+  }
   return pos;
 }
 
 async function findMainSlate(sport: string): Promise<DKDraftGroup | null> {
   try {
+    const dkSport = SPORT_MAP[sport] || sport;
     const data = await fetchJSON<{ DraftGroups: DKDraftGroup[] }>(
-      `${DK_LOBBY}/getcontests?sport=${sport}`
+      `${DK_LOBBY}/getcontests?sport=${dkSport}`
     );
     if (!data.DraftGroups || data.DraftGroups.length === 0) return null;
 
@@ -154,7 +165,7 @@ export async function fetchLiveDKData(sport: string): Promise<LiveSlateData | nu
 
   const validPlayers = uniquePlayers.filter(p => p.salary && p.salary > 0 && p.position);
   const sortedPlayers = validPlayers.sort((a, b) => b.salary - a.salary);
-  const maxPlayers = sport === "MLB" ? 250 : sport === "NFL" ? 150 : 250;
+  const maxPlayers = sport === "MLB" ? 250 : sport === "NFL" ? 150 : sport === "SOCCER" ? 200 : 250;
   const trimmedPlayers = sortedPlayers.slice(0, maxPlayers);
 
   console.log(`[DK] ${sport}: ${trimmedPlayers.length} players (of ${uniquePlayers.length} unique) from ${mainSlate.GameCount} games`);
@@ -224,7 +235,7 @@ export async function fetchLiveDKData(sport: string): Promise<LiveSlateData | nu
 export async function fetchAllSportsLiveData(): Promise<Map<string, LiveSlateData>> {
   const results = new Map<string, LiveSlateData>();
 
-  for (const sport of ["NBA", "NHL", "MLB", "NFL", "GOLF"]) {
+  for (const sport of ["NBA", "NHL", "MLB", "NFL", "GOLF", "SOCCER"]) {
     try {
       const data = await fetchLiveDKData(sport);
       if (data && data.dkPlayers.length >= 10) {
@@ -254,6 +265,7 @@ export function getRollingSlateDate(sport: string): Date {
     case "MLB": return generateRollingDate(3);
     case "NFL": return generateRollingDate(4);
     case "GOLF": return generateRollingDate(2);
+    case "SOCCER": return generateRollingDate(2);
     default: return generateRollingDate(3);
   }
 }

@@ -1497,24 +1497,25 @@ export async function seedDatabase(forceRefresh = false) {
     },
   };
 
-  const sportSeeds = ["NBA", "NHL", "MLB", "NFL", "GOLF"].map(sport => {
+  const sportSeeds = ["NBA", "NHL", "MLB", "NFL", "GOLF", "SOCCER"].map(sport => {
     const live = liveData.get(sport);
     if (live) {
       return {
         sport,
-        dkSlate: { name: `${sport} Main Slate`, startTime: live.slateDate, isMain: true },
+        dkSlate: { name: sport === "SOCCER" ? "Soccer Main Slate" : `${sport} Main Slate`, startTime: live.slateDate, isMain: true },
         dkPlayers: live.dkPlayers,
         isLive: true,
       };
     }
     const fallback = staticFallbacks[sport];
+    if (!fallback) return null;
     return {
       sport,
       dkSlate: fallback.dkSlate,
       dkPlayers: fallback.dkPlayers,
       isLive: false,
     };
-  });
+  }).filter(Boolean) as any[];
 
   for (const seed of sportSeeds) {
     const existingSlate = existingSlates.find(
