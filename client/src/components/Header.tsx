@@ -216,6 +216,14 @@ export function Header() {
                 <span>Props</span>
               </div>
             </Link>
+            <Link href="/prizepicks">
+              <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
+                location === "/prizepicks" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
+              }`} data-testid="nav-prizepicks">
+                <Zap className="w-4 h-4" />
+                <span>PrizePicks</span>
+              </div>
+            </Link>
             <Link href="/lineups">
               <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
                 location === "/lineups" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
@@ -448,6 +456,18 @@ export function Header() {
             >
               <TrendingUp className="w-5 h-5 shrink-0" />
               <span>Prop Bets</span>
+            </button>
+
+            <button
+              onClick={() => mobileNav("/prizepicks")}
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                location === "/prizepicks" ? "bg-emerald-500/10 text-emerald-400" : "text-slate-300 hover:bg-slate-800"
+              }`}
+              data-testid="mobile-nav-prizepicks"
+            >
+              <Zap className="w-5 h-5 shrink-0" />
+              <span>PrizePicks Builder</span>
+              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[9px] font-bold px-1.5 py-0 ml-auto">PRO</Badge>
             </button>
 
             <button

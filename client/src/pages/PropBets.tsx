@@ -746,7 +746,13 @@ export default function PropBets() {
             )}
           </>
         )}
-        <div className="mt-4 text-center">
+        <div className="mt-4 text-center space-y-3">
+          <Link href="/prizepicks">
+            <Button variant="outline" className="border-violet-500/30 text-violet-400 font-bold" data-testid="pp-builder-cta">
+              <Zap className="w-4 h-4 mr-2" /> Open PrizePicks Builder
+              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[9px] font-bold px-1.5 py-0 ml-2">PRO</Badge>
+            </Button>
+          </Link>
           <p className="text-[10px] text-slate-500">
             Data provided by PrizePicks. Lines are for informational purposes only.
           </p>
