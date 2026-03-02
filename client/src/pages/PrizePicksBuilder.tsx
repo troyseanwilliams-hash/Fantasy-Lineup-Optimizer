@@ -515,7 +515,7 @@ export default function PrizePicksBuilder() {
                     key={sport}
                     variant={selectedSport === sport ? "default" : "outline"}
                     size="sm"
-                    onClick={() => { setSelectedSport(sport); setStatFilter("ALL"); setShowAIEntries(false); }}
+                    onClick={() => { setSelectedSport(sport); setEntries([]); setStatFilter("ALL"); setSearchQuery(""); setShowAIEntries(false); setAiEntries([]); setExpandedAIEntry(null); setAiError(null); }}
                     className={selectedSport === sport
                       ? "bg-violet-500 text-white font-bold"
                       : "border-slate-700 text-slate-400 font-bold"
