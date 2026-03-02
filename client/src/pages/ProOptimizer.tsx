@@ -161,6 +161,9 @@ export default function ProOptimizer() {
     },
   });
 
+  const [savedIndices, setSavedIndices] = useState<Set<number>>(new Set());
+  const [isSavingAll, setIsSavingAll] = useState(false);
+
   const saveLineupMutation = useMutation({
     mutationFn: async (data: any) => {
       const res = await apiRequest("POST", "/api/lineups", data);
@@ -171,7 +174,6 @@ export default function ProOptimizer() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Lineup Saved!", description: "Added to your vault." });
       queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
       queryClient.invalidateQueries({ queryKey: ["/api/subscription"] });
     },
@@ -315,6 +317,7 @@ export default function ProOptimizer() {
       }
     }
     const activeExposureLimits = Object.keys(exposureLimits).length > 0 ? exposureLimits : undefined;
+    setSavedIndices(new Set());
     optimizeMutation.mutate({
       slateId,
       platform,
@@ -329,7 +332,7 @@ export default function ProOptimizer() {
   };
 
   const handleSaveLineup = (lineup: any, index: number) => {
-    if (!user) return;
+    if (!user || savedIndices.has(index)) return;
     const lineupPlayers = lineup.lineup || [];
     saveLineupMutation.mutate({
       userId: (user as any).id,
@@ -340,13 +343,66 @@ export default function ProOptimizer() {
       totalProjectedPoints: String(lineup.totalProjectedPoints),
       playerIds: lineupPlayers.map((p: Player) => p.id),
       name: `Optimizer Pro #${index + 1} - ${sport} ${config.shortLabel}`,
+    }, {
+      onSuccess: () => {
+        setSavedIndices(prev => new Set(prev).add(index));
+        toast({ title: "Lineup Saved!", description: `Lineup #${index + 1} added to your vault.` });
+      },
     });
   };
 
   const handleSaveAll = async () => {
     if (!user || generatedLineups.length === 0) return;
-    for (let i = 0; i < generatedLineups.length; i++) {
-      handleSaveLineup(generatedLineups[i], i);
+    const unsavedLineups = generatedLineups
+      .map((lineup, i) => ({ lineup, index: i }))
+      .filter(({ index }) => !savedIndices.has(index));
+    if (unsavedLineups.length === 0) {
+      toast({ title: "Already Saved", description: "All lineups are already in your vault." });
+      return;
+    }
+    setIsSavingAll(true);
+    let successCount = 0;
+    let failCount = 0;
+    for (const { lineup, index } of unsavedLineups) {
+      const lineupPlayers = lineup.lineup || [];
+      try {
+        const res = await apiRequest("POST", "/api/lineups", {
+          userId: (user as any).id,
+          slateId,
+          sport,
+          platform,
+          totalSalary: lineup.totalSalary,
+          totalProjectedPoints: String(lineup.totalProjectedPoints),
+          playerIds: lineupPlayers.map((p: Player) => p.id),
+          name: `Optimizer Pro #${index + 1} - ${sport} ${config.shortLabel}`,
+        });
+        if (res.ok) {
+          successCount++;
+          setSavedIndices(prev => new Set(prev).add(index));
+        } else {
+          const err = await res.json();
+          failCount++;
+          if (err.message?.includes("limit") || err.message?.includes("maximum")) {
+            toast({ title: "Vault Limit Reached", description: err.message, variant: "destructive" });
+            break;
+          }
+        }
+      } catch {
+        failCount++;
+      }
+    }
+    queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/subscription"] });
+    setIsSavingAll(false);
+    if (successCount > 0) {
+      toast({
+        title: `${successCount} Lineup${successCount > 1 ? "s" : ""} Saved!`,
+        description: failCount > 0
+          ? `${successCount} added to vault, ${failCount} failed.`
+          : `All ${successCount} lineup${successCount > 1 ? "s" : ""} added to your vault.`,
+      });
+    } else if (failCount > 0) {
+      toast({ title: "Save Failed", description: "Could not save lineups. Please try again.", variant: "destructive" });
     }
   };
 
@@ -361,6 +417,7 @@ export default function ProOptimizer() {
     setFadedIds([]);
     setCustomProjections({});
     setExposureLimits({});
+    setSavedIndices(new Set());
     optimizeMutation.reset();
   };
 
@@ -493,14 +550,26 @@ export default function ProOptimizer() {
             {generatedLineups.length > 0 && (
               <Button
                 onClick={handleSaveAll}
-                disabled={saveLineupMutation.isPending}
+                disabled={isSavingAll || saveLineupMutation.isPending || savedIndices.size === generatedLineups.length}
                 variant="outline"
                 size="sm"
-                className="border-amber-500/30 text-amber-400 font-black h-8 text-xs"
+                className={`font-black h-8 text-xs ${savedIndices.size === generatedLineups.length ? "border-emerald-500/30 text-emerald-400" : "border-amber-500/30 text-amber-400"}`}
                 data-testid="button-save-all"
               >
-                <SaveAll className="w-3.5 h-3.5 mr-1.5" />
-                Save All
+                {isSavingAll ? (
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                ) : savedIndices.size === generatedLineups.length ? (
+                  <Trophy className="w-3.5 h-3.5 mr-1.5" />
+                ) : (
+                  <SaveAll className="w-3.5 h-3.5 mr-1.5" />
+                )}
+                {savedIndices.size === generatedLineups.length
+                  ? "All Saved"
+                  : isSavingAll
+                    ? `Saving ${savedIndices.size}/${generatedLineups.length}...`
+                    : savedIndices.size > 0
+                      ? `Save Remaining (${generatedLineups.length - savedIndices.size})`
+                      : `Save All (${generatedLineups.length})`}
               </Button>
             )}
 
@@ -1225,13 +1294,16 @@ export default function ProOptimizer() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="text-amber-400 font-bold text-[11px]"
+                            className={`font-bold text-[11px] ${savedIndices.has(idx) ? "text-emerald-400" : "text-amber-400"}`}
                             onClick={() => handleSaveLineup(lineupData, idx)}
-                            disabled={saveLineupMutation.isPending}
+                            disabled={saveLineupMutation.isPending || isSavingAll || savedIndices.has(idx)}
                             data-testid={`button-save-lineup-${idx}`}
                           >
-                            <Save className="w-3.5 h-3.5 mr-1" />
-                            Save
+                            {savedIndices.has(idx) ? (
+                              <><Trophy className="w-3.5 h-3.5 mr-1" /> Saved</>
+                            ) : (
+                              <><Save className="w-3.5 h-3.5 mr-1" /> Save</>
+                            )}
                           </Button>
                         </div>
                         <div className="space-y-1">
