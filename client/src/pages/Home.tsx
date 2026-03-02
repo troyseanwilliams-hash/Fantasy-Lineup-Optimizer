@@ -1091,9 +1091,9 @@ export default function Home() {
 
   if (!user) {
     return (
-      <div className="min-h-[calc(100vh-80px)] relative">
+      <div className="min-h-[calc(100vh-80px)] relative bg-[#0F172A]">
         <img src={heroBg} alt="" className="absolute inset-0 w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-black/80 dark:to-[#0F172A]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-[#0F172A]" />
         <div className="relative z-10 flex items-center justify-center min-h-[calc(100vh-80px)]">
           <div className="text-center px-4 max-w-4xl">
             <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-bold mb-8 backdrop-blur-sm">

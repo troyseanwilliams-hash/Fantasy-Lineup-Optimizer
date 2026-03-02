@@ -41,6 +41,7 @@ export function Header() {
   const [location, navigate] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const isLanding = !user && location === "/";
 
   const { data: subData } = useQuery<{ tier: string }>({
     queryKey: ["/api/subscription"],
