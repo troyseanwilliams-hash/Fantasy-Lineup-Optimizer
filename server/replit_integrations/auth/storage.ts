@@ -8,6 +8,15 @@ import { eq } from "drizzle-orm";
 export interface IAuthStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
+  completeOnboarding(id: string, data: {
+    salutation: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    smsConsent: boolean;
+    emailConsent: boolean;
+  }): Promise<User>;
 }
 
 class AuthStorage implements IAuthStorage {
@@ -17,17 +26,43 @@ class AuthStorage implements IAuthStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
-    const [user] = await db
-      .insert(users)
-      .values(userData)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          ...userData,
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
+    let user: User;
+    try {
+      const [result] = await db
+        .insert(users)
+        .values(userData)
+        .onConflictDoUpdate({
+          target: users.id,
+          set: {
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            profileImageUrl: userData.profileImageUrl,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+      user = result;
+    } catch (err: any) {
+      if (err?.code === "23505" && err?.constraint?.includes("email")) {
+        const withoutEmail = { ...userData, email: undefined };
+        const [result] = await db
+          .insert(users)
+          .values(withoutEmail)
+          .onConflictDoUpdate({
+            target: users.id,
+            set: {
+              firstName: userData.firstName,
+              lastName: userData.lastName,
+              profileImageUrl: userData.profileImageUrl,
+              updatedAt: new Date(),
+            },
+          })
+          .returning();
+        user = result;
+      } else {
+        throw err;
+      }
+    }
 
     const [existingSub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, user.id));
     if (!existingSub) {
@@ -38,6 +73,33 @@ class AuthStorage implements IAuthStorage {
       }).onConflictDoNothing();
     }
 
+    return user;
+  }
+
+  async completeOnboarding(id: string, data: {
+    salutation: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    smsConsent: boolean;
+    emailConsent: boolean;
+  }): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({
+        salutation: data.salutation,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone,
+        smsConsent: data.smsConsent,
+        emailConsent: data.emailConsent,
+        onboardingComplete: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, id))
+      .returning();
     return user;
   }
 }
