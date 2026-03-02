@@ -108,17 +108,17 @@ function UnauthenticatedView() {
           Combine multiple player props across sports into one powerful parlay. Our AI-powered engine calculates combined odds, potential payouts, and links you directly to DraftKings to place your bet.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
+          <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-none rounded-xl p-4 space-y-2">
             <Layers className="w-5 h-5 text-purple-400 mx-auto" />
             <div className="text-sm font-bold text-[var(--text-main)]">Build Parlays</div>
             <div className="text-xs text-slate-400">Stack props from any sport into high-value parlays</div>
           </div>
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
+          <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-none rounded-xl p-4 space-y-2">
             <TrendingUp className="w-5 h-5 text-emerald-400 mx-auto" />
             <div className="text-sm font-bold text-[var(--text-main)]">Live Odds</div>
             <div className="text-xs text-slate-400">See combined odds and potential payouts in real time</div>
           </div>
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
+          <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 shadow-sm dark:shadow-none rounded-xl p-4 space-y-2">
             <ExternalLink className="w-5 h-5 text-amber-400 mx-auto" />
             <div className="text-sm font-bold text-[var(--text-main)]">Place on DK</div>
             <div className="text-xs text-slate-400">One-click link to place your parlay on DraftKings</div>
@@ -175,7 +175,7 @@ function NonProView() {
               The Parlay Builder is an exclusive Pro feature ($49.99/mo). Combine multiple player props across any sport into a single parlay with combined odds and a direct link to place your bet on DraftKings.
             </p>
 
-            <div className="bg-slate-800/40 border border-amber-500/20 rounded-xl p-5 text-left max-w-sm mx-auto mb-6">
+            <div className="bg-white dark:bg-slate-800/40 border border-amber-300 dark:border-amber-500/20 shadow-sm dark:shadow-none rounded-xl p-5 text-left max-w-sm mx-auto mb-6">
               <div className="flex items-center gap-2 mb-3">
                 <Crown className="w-5 h-5 text-amber-400" />
                 <span className="text-sm font-bold text-amber-400">Pro Plan Includes</span>
@@ -196,7 +196,7 @@ function NonProView() {
             </Link>
           </div>
 
-          <div className="bg-slate-800/30 border border-slate-800 rounded-2xl p-6">
+          <div className="bg-white dark:bg-slate-800/30 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none rounded-2xl p-6">
             <h3 className="text-lg font-bold text-[var(--text-main)] mb-4 flex items-center gap-2 justify-center">
               <Info className="w-5 h-5 text-purple-400" /> How Parlay Builder Works
             </h3>
@@ -402,7 +402,7 @@ export default function ParlayBuilder() {
                 {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-20 bg-slate-800 rounded-xl" />)}
               </div>
             ) : filteredProps.length === 0 ? (
-              <Card className="bg-black/[0.03] dark:bg-slate-800/30 border-border p-8 text-center">
+              <Card className="bg-white dark:bg-slate-800/30 shadow-sm dark:shadow-none border-border p-8 text-center">
                 <AlertTriangle className="w-8 h-8 text-amber-400/60 mx-auto mb-3" />
                 <p className="text-sm text-slate-400">No props available{selectedSport !== "ALL" ? ` for ${selectedSport}` : ""} today. Props are generated daily — check back soon.</p>
               </Card>
@@ -420,7 +420,7 @@ export default function ParlayBuilder() {
                       className={`border p-4 transition-all cursor-pointer group ${
                         isAdded
                           ? "bg-purple-500/10 border-purple-500/30"
-                          : "bg-black/[0.03] dark:bg-slate-800/30 border-border hover:border-purple-500/30 hover:bg-slate-800/50"
+                          : "bg-white dark:bg-slate-800/30 shadow-sm dark:shadow-none border-border hover:border-purple-500/30 hover:bg-slate-800/50"
                       }`}
                       onClick={() => isAdded ? removeLeg(prop.id) : addLeg(prop)}
                       data-testid={`parlay-prop-${prop.id}`}
@@ -463,8 +463,8 @@ export default function ParlayBuilder() {
                             isAdded
                               ? "bg-purple-500 text-white"
                               : isFull
-                                ? "bg-slate-800 text-slate-600"
-                                : "bg-slate-800 text-slate-400 group-hover:bg-purple-500/20 group-hover:text-purple-400"
+                                ? "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600"
+                                : "bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 group-hover:bg-purple-500/20 group-hover:text-purple-400"
                           }`}>
                             {isAdded ? <CheckCircle2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                           </div>
@@ -478,7 +478,7 @@ export default function ParlayBuilder() {
           </div>
 
           <div className="lg:col-span-2 space-y-4">
-            <Card className="bg-slate-800/30 border-purple-500/20 p-5 sticky top-24">
+            <Card className="bg-white dark:bg-slate-800/30 border-purple-200 dark:border-purple-500/20 shadow-sm dark:shadow-none p-5 sticky top-24">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-black text-[var(--text-main)] flex items-center gap-2">
                   <Layers className="w-5 h-5 text-purple-400" />
@@ -595,7 +595,7 @@ export default function ParlayBuilder() {
                             className={`text-[10px] font-bold px-2 py-0.5 rounded ${
                               wagerAmount === amt
                                 ? "bg-purple-500/20 text-purple-400"
-                                : "bg-slate-800 text-slate-500 hover:text-slate-300"
+                                : "bg-slate-200 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
                             }`}
                             data-testid={`parlay-wager-${amt}`}
                           >
@@ -647,7 +647,7 @@ export default function ParlayBuilder() {
             </Card>
 
             {parlayLegs.length >= 2 && (
-              <Card className="bg-slate-800/20 border-slate-800 p-4">
+              <Card className="bg-white dark:bg-slate-800/20 border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none p-4">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-amber-400" /> AI Parlay Insight
                 </h4>

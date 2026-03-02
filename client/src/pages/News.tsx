@@ -122,7 +122,7 @@ export default function News() {
         {isLoading && (
           <div className="space-y-5" data-testid="news-loading">
             {Array.from({ length: 6 }).map((_, i) => (
-              <Card key={i} className="bg-black/[0.03] dark:bg-slate-800/30 border-border p-6">
+              <Card key={i} className="bg-white dark:bg-slate-800/30 shadow-sm dark:shadow-none border-border p-6">
                 <div className="flex gap-5">
                   <Skeleton className="w-36 h-24 rounded-lg shrink-0" />
                   <div className="flex-1 space-y-3">
@@ -145,7 +145,7 @@ export default function News() {
         )}
 
         {data && data.articles.length === 0 && (
-          <Card className="bg-black/[0.03] dark:bg-slate-800/30 border-border p-12 text-center">
+          <Card className="bg-white dark:bg-slate-800/30 shadow-sm dark:shadow-none border-border p-12 text-center">
             <Newspaper className="w-14 h-14 text-slate-600 mx-auto mb-4" />
             <p className="text-slate-300 font-bold text-lg">No {sport} news available right now</p>
             <p className="text-sm text-slate-500 mt-2">Check back later for updates</p>

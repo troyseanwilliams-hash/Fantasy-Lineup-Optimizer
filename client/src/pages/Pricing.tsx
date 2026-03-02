@@ -70,7 +70,7 @@ export default function Pricing() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-        <Card className={`bg-black/[0.03] dark:bg-slate-800/30 border-border p-8 relative ${currentTier === "free" ? "ring-2 ring-slate-600" : ""}`} data-testid="plan-basic">
+        <Card className={`bg-white dark:bg-slate-800/30 shadow-sm dark:shadow-none border-border p-8 relative ${currentTier === "free" ? "ring-2 ring-slate-600" : ""}`} data-testid="plan-basic">
           {currentTier === "free" && (
             <Badge className="absolute -top-3 left-6 bg-slate-700 text-slate-300 text-[11px] font-black">CURRENT PLAN</Badge>
           )}
