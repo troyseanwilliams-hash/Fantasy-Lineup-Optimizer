@@ -1,17 +1,19 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 import {
   TrendingUp, Lock, Crown, Zap, Plus, X, Trash2,
   ArrowUp, ArrowDown, Dribbble, Activity, Flag, Target, Trophy,
   DollarSign, Sparkles, CheckCircle2, Info, Copy, ExternalLink,
-  Search, Bot, ChevronDown, ChevronUp, Loader2
+  Search, Bot, ChevronDown, ChevronUp, Loader2, Save, Vault, Clock
 } from "lucide-react";
 
 const PP_SPORTS = ["NBA", "NHL", "NFL", "MLB", "GOLF", "SOCCER"] as const;
@@ -68,6 +70,30 @@ interface AIBuiltEntry {
 interface AIBuildResponse {
   sport: string;
   entries: AIBuiltEntry[];
+}
+
+interface SavedPPEntry {
+  id: number;
+  userId: string;
+  sport: string;
+  picks: Array<{
+    projectionId: string;
+    playerName: string;
+    team: string;
+    statType: string;
+    line: number;
+    pick: "more" | "less";
+    confidence: number;
+    reasoning: string;
+    imageUrl: string | null;
+  }>;
+  multiplier: number;
+  wager: string | null;
+  potentialPayout: string | null;
+  label: string | null;
+  overallConfidence: number | null;
+  status: string;
+  createdAt: string;
 }
 
 const PP_STAT_COLORS: Record<string, string> = {
@@ -233,6 +259,7 @@ function NonProView() {
 
 export default function PrizePicksBuilder() {
   const { user, isLoading: authLoading } = useAuth();
+  const { toast } = useToast();
   const [selectedSport, setSelectedSport] = useState<string>("NBA");
   const [entries, setEntries] = useState<PPEntry[]>([]);
   const [wagerAmount, setWagerAmount] = useState<number>(10);
@@ -243,6 +270,8 @@ export default function PrizePicksBuilder() {
   const [expandedAIEntry, setExpandedAIEntry] = useState<number | null>(null);
   const [aiBuilding, setAiBuilding] = useState(false);
   const [aiEntries, setAiEntries] = useState<AIBuiltEntry[]>([]);
+  const [activeTab, setActiveTab] = useState<"builder" | "vault">("builder");
+  const [expandedVaultEntry, setExpandedVaultEntry] = useState<number | null>(null);
 
   const { data: subData } = useQuery<{ tier: string }>({
     queryKey: ["/api/subscription"],
@@ -251,6 +280,46 @@ export default function PrizePicksBuilder() {
 
   const tier = subData?.tier || "free";
   const isPro = tier === "pro";
+
+  const { data: vaultData, isLoading: vaultLoading } = useQuery<{ entries: SavedPPEntry[] }>({
+    queryKey: ["/api/prizepicks/vault/entries"],
+    enabled: !!user && isPro,
+  });
+
+  const savedEntries = vaultData?.entries || [];
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: {
+      sport: string;
+      picks: SavedPPEntry["picks"];
+      multiplier: number;
+      wager: number;
+      potentialPayout: number;
+      label?: string;
+      overallConfidence?: number;
+    }) => {
+      const res = await apiRequest("POST", "/api/prizepicks/vault/entries", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/prizepicks/vault/entries"] });
+      toast({ title: "Entry saved to vault", description: "Your PrizePicks entry has been saved." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to save", description: err.message || "Could not save entry.", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/prizepicks/vault/entries/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/prizepicks/vault/entries"] });
+      toast({ title: "Entry deleted", description: "Entry removed from vault." });
+    },
+  });
   const maxPicks = 6;
 
   const { data: ppData, isLoading: ppLoading } = useQuery<PrizePicksResponse>({
@@ -350,13 +419,49 @@ export default function PrizePicksBuilder() {
     }
   };
 
-  const useAIEntry = (entry: AIBuiltEntry) => {
-    const newEntries: PPEntry[] = entry.picks.map(p => ({
-      projection: p.projection,
+  const saveAIEntry = (entry: AIBuiltEntry) => {
+    const picksToSave = entry.picks.map(p => ({
+      projectionId: p.projection.id,
+      playerName: p.projection.playerName,
+      team: p.projection.team,
+      statType: p.projection.statType,
+      line: p.projection.line,
       pick: p.pick,
+      confidence: p.confidence,
+      reasoning: p.reasoning,
+      imageUrl: p.projection.imageUrl,
     }));
-    setEntries(newEntries);
-    setShowAIEntries(false);
+    saveMutation.mutate({
+      sport: selectedSport,
+      picks: picksToSave,
+      multiplier: entry.multiplier,
+      wager: wagerAmount,
+      potentialPayout: wagerAmount * entry.multiplier,
+      label: entry.label,
+      overallConfidence: entry.overallConfidence,
+    });
+  };
+
+  const saveManualEntry = () => {
+    if (entries.length < 2) return;
+    const picksToSave = entries.map(e => ({
+      projectionId: e.projection.id,
+      playerName: e.projection.playerName,
+      team: e.projection.team,
+      statType: e.projection.statType,
+      line: e.projection.line,
+      pick: e.pick,
+      confidence: 0,
+      reasoning: "Manual pick",
+      imageUrl: e.projection.imageUrl,
+    }));
+    saveMutation.mutate({
+      sport: selectedSport,
+      picks: picksToSave,
+      multiplier,
+      wager: wagerAmount,
+      potentialPayout,
+    });
   };
 
   const multiplier = getEntryMultiplier(entries.length);
@@ -441,7 +546,164 @@ export default function PrizePicksBuilder() {
         </div>
       </div>
 
-      {showAIEntries && (
+      <div className="container mx-auto px-4 pt-4">
+        <div className="flex gap-1 bg-slate-800/40 rounded-xl p-1 w-fit border border-slate-700/40" data-testid="pp-tab-bar">
+          <button
+            onClick={() => setActiveTab("builder")}
+            className={`px-5 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${
+              activeTab === "builder"
+                ? "bg-violet-500 text-white shadow-lg"
+                : "text-slate-400 hover:text-white"
+            }`}
+            data-testid="pp-tab-builder"
+          >
+            <TrendingUp className="w-4 h-4" /> Builder
+          </button>
+          <button
+            onClick={() => setActiveTab("vault")}
+            className={`px-5 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${
+              activeTab === "vault"
+                ? "bg-violet-500 text-white shadow-lg"
+                : "text-slate-400 hover:text-white"
+            }`}
+            data-testid="pp-tab-vault"
+          >
+            <Vault className="w-4 h-4" /> Vault
+            {savedEntries.length > 0 && (
+              <Badge className="bg-violet-500/20 text-violet-300 border-violet-500/30 text-[10px] font-bold px-1.5 py-0">
+                {savedEntries.length}
+              </Badge>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {activeTab === "vault" && (
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-black text-white flex items-center gap-2" data-testid="pp-vault-title">
+                <Vault className="w-5 h-5 text-violet-400" /> PrizePicks Vault
+              </h2>
+              <p className="text-sm text-slate-400 mt-1">{savedEntries.length}/50 entries saved</p>
+            </div>
+          </div>
+
+          {vaultLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 bg-slate-800 rounded-xl" />)}
+            </div>
+          ) : savedEntries.length === 0 ? (
+            <div className="py-16 text-center bg-slate-800/20 rounded-2xl border border-dashed border-slate-700/40">
+              <Vault className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+              <p className="text-slate-400 text-sm font-bold mb-1">No saved entries yet</p>
+              <p className="text-slate-500 text-xs">Use AI Builder or manually build entries, then save them here.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {savedEntries.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="bg-slate-800/40 border border-slate-700/40 rounded-xl overflow-hidden"
+                  data-testid={`pp-vault-entry-${entry.id}`}
+                >
+                  <button
+                    className="w-full p-4 flex items-center justify-between text-left"
+                    onClick={() => setExpandedVaultEntry(expandedVaultEntry === entry.id ? null : entry.id)}
+                    data-testid={`pp-vault-expand-${entry.id}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+                        <span className="text-violet-400 font-black text-xs">{entry.picks.length}P</span>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-black text-white">{entry.label || `${entry.sport} Entry`}</span>
+                          <Badge className="bg-slate-700 text-slate-300 text-[10px] font-bold">{entry.sport}</Badge>
+                          {entry.overallConfidence && (
+                            <Badge className={`text-[10px] font-bold ${
+                              entry.overallConfidence >= 70 ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                              entry.overallConfidence >= 50 ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                              "bg-slate-700 text-slate-400"
+                            }`}>
+                              {entry.overallConfidence}%
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[11px] text-slate-400">{entry.multiplier}x multiplier</span>
+                          {entry.wager && <span className="text-[11px] text-slate-500">· ${entry.wager} wager</span>}
+                          {entry.potentialPayout && <span className="text-[11px] text-emerald-400 font-bold">· ${entry.potentialPayout}</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-slate-500">
+                        <Clock className="w-3 h-3 inline mr-1" />
+                        {new Date(entry.createdAt).toLocaleDateString()}
+                      </span>
+                      {expandedVaultEntry === entry.id ? (
+                        <ChevronUp className="w-4 h-4 text-slate-500" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-slate-500" />
+                      )}
+                    </div>
+                  </button>
+
+                  {expandedVaultEntry === entry.id && (
+                    <div className="border-t border-slate-700/40 p-4 space-y-2">
+                      {entry.picks.map((pick, pidx) => (
+                        <div key={pidx} className="flex items-center justify-between bg-slate-900/50 rounded-lg p-3" data-testid={`pp-vault-pick-${entry.id}-${pidx}`}>
+                          <div className="flex items-center gap-3">
+                            {pick.imageUrl ? (
+                              <img src={pick.imageUrl} alt={pick.playerName} className="w-8 h-8 rounded-full bg-slate-700/50 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-slate-700/50 flex items-center justify-center">
+                                <span className="text-[10px] font-bold text-slate-400">{pick.team?.slice(0, 3)}</span>
+                              </div>
+                            )}
+                            <div>
+                              <span className="text-sm font-bold text-white">{pick.playerName}</span>
+                              <div className="text-[11px] text-slate-400">{pick.team} · {pick.statType}</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge className={`text-[10px] font-bold ${
+                              pick.pick === "more"
+                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                : "bg-red-500/10 text-red-400 border-red-500/20"
+                            }`}>
+                              {pick.pick === "more" ? <ArrowUp className="w-3 h-3 mr-0.5 inline" /> : <ArrowDown className="w-3 h-3 mr-0.5 inline" />}
+                              {pick.pick.toUpperCase()} {pick.line}
+                            </Badge>
+                            {pick.confidence > 0 && (
+                              <span className="text-[10px] text-slate-500">{pick.confidence}%</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      <div className="flex justify-end pt-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => deleteMutation.mutate(entry.id)}
+                          disabled={deleteMutation.isPending}
+                          className="text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs"
+                          data-testid={`pp-vault-delete-${entry.id}`}
+                        >
+                          <Trash2 className="w-3 h-3 mr-1" /> Delete
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "builder" && showAIEntries && (
         <div className="container mx-auto px-4 pt-6 pb-2">
           <div className="bg-gradient-to-b from-amber-500/5 to-transparent border border-amber-500/20 rounded-2xl p-5">
             <div className="flex items-center justify-between mb-4">
@@ -577,11 +839,17 @@ export default function PrizePicksBuilder() {
                           </div>
                           <Button
                             size="sm"
-                            onClick={(e) => { e.stopPropagation(); useAIEntry(entry); }}
+                            onClick={(e) => { e.stopPropagation(); saveAIEntry(entry); }}
+                            disabled={saveMutation.isPending}
                             className="bg-amber-500 text-black font-black text-xs px-4 py-2"
-                            data-testid={`pp-builder-ai-use-${idx}`}
+                            data-testid={`pp-builder-ai-save-${idx}`}
                           >
-                            <Zap className="w-3 h-3 mr-1" /> Use This Entry
+                            {saveMutation.isPending ? (
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            ) : (
+                              <Save className="w-3 h-3 mr-1" />
+                            )}
+                            Save Entry
                           </Button>
                         </div>
                       </div>
@@ -598,6 +866,7 @@ export default function PrizePicksBuilder() {
         </div>
       )}
 
+      {activeTab === "builder" && (
       <div className="container mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           <div className="lg:col-span-3 space-y-4">
@@ -899,6 +1168,17 @@ export default function PrizePicksBuilder() {
                       {copied ? <CheckCircle2 className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
                       {copied ? "Copied" : "Copy Entry"}
                     </Button>
+                    {isPro && (
+                      <Button
+                        className="bg-amber-500 text-black font-bold"
+                        disabled={entries.length < 2 || saveMutation.isPending}
+                        onClick={saveManualEntry}
+                        data-testid="pp-builder-save-manual"
+                      >
+                        {saveMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                        Save
+                      </Button>
+                    )}
                     <a
                       href="https://www.prizepicks.com"
                       target="_blank"
@@ -936,6 +1216,7 @@ export default function PrizePicksBuilder() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

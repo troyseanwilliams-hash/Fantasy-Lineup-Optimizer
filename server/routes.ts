@@ -8,7 +8,7 @@ import solver from "javascript-lp-solver";
 import { getPlatformConfig, ACTIVE_SPORTS, assignPlayersToSlots, type Platform } from "@shared/platform-config";
 import { XMLParser } from "fast-xml-parser";
 
-import { type OptimizationConstraints, type ProOptimizationConstraints, type Player, type Slate, type InsertProp, type InsertAlert, proOptimizationConstraintSchema } from "@shared/schema";
+import { type OptimizationConstraints, type ProOptimizationConstraints, type Player, type Slate, type InsertProp, type InsertAlert, proOptimizationConstraintSchema, insertPrizePicksEntrySchema } from "@shared/schema";
 import {
   NBA_SLATE_FEB_19_DK, NBA_PLAYERS_FEB_19_DK,
   NHL_SLATE_FEB_20_DK, NHL_PLAYERS_FEB_20_DK,
@@ -576,6 +576,75 @@ export async function registerRoutes(
     } catch (err) {
       console.error(`[PrizePicks Builder] Error for ${req.params.sport}:`, err);
       res.status(500).json({ error: "Failed to build entries" });
+    }
+  });
+
+  app.get("/api/prizepicks/vault/entries", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      const userId = (req.user as any).claims.sub;
+      const entries = await storage.getPrizePicksEntries(userId);
+      res.json({ entries });
+    } catch (err) {
+      console.error("[PP Vault] Error fetching entries:", err);
+      res.status(500).json({ error: "Failed to fetch entries" });
+    }
+  });
+
+  app.post("/api/prizepicks/vault/entries", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      const userId = (req.user as any).claims.sub;
+      const sub = await storage.getSubscription(userId);
+      if (!sub || sub.tier !== "pro") {
+        return res.status(403).json({ error: "Pro subscription required" });
+      }
+
+      const count = await storage.getPrizePicksEntryCount(userId);
+      const maxEntries = 50;
+      if (count >= maxEntries) {
+        return res.status(400).json({ error: `Maximum ${maxEntries} saved entries reached. Delete some entries to save new ones.` });
+      }
+
+      const { sport, picks, multiplier, wager, potentialPayout, label, overallConfidence } = req.body;
+      if (!sport || !picks || !Array.isArray(picks) || picks.length < 2) {
+        return res.status(400).json({ error: "Invalid entry data: need sport and at least 2 picks" });
+      }
+
+      const parsed = insertPrizePicksEntrySchema.safeParse({
+        userId,
+        sport,
+        picks,
+        multiplier,
+        wager: wager?.toString() || null,
+        potentialPayout: potentialPayout?.toString() || null,
+        label: label || null,
+        overallConfidence: overallConfidence || null,
+        status: "active",
+      });
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Validation failed", details: parsed.error.flatten() });
+      }
+
+      const entry = await storage.createPrizePicksEntry(parsed.data);
+      res.json(entry);
+    } catch (err) {
+      console.error("[PP Vault] Error saving entry:", err);
+      res.status(500).json({ error: "Failed to save entry" });
+    }
+  });
+
+  app.delete("/api/prizepicks/vault/entries/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      const userId = (req.user as any).claims.sub;
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid entry ID" });
+      await storage.deletePrizePicksEntry(id, userId);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("[PP Vault] Error deleting entry:", err);
+      res.status(500).json({ error: "Failed to delete entry" });
     }
   });
 

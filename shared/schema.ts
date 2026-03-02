@@ -100,6 +100,35 @@ export const insertPropSchema = createInsertSchema(props).omit({ id: true });
 export type Prop = typeof props.$inferSelect;
 export type InsertProp = z.infer<typeof insertPropSchema>;
 
+// --- PRIZEPICKS ENTRIES (VAULT) ---
+export const prizePicksEntries = pgTable("prizepicks_entries", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  sport: text("sport").notNull(),
+  picks: jsonb("picks").$type<Array<{
+    projectionId: string;
+    playerName: string;
+    team: string;
+    statType: string;
+    line: number;
+    pick: "more" | "less";
+    confidence: number;
+    reasoning: string;
+    imageUrl: string | null;
+  }>>().notNull(),
+  multiplier: integer("multiplier").notNull(),
+  wager: numeric("wager"),
+  potentialPayout: numeric("potential_payout"),
+  label: text("label"),
+  overallConfidence: integer("overall_confidence"),
+  status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertPrizePicksEntrySchema = createInsertSchema(prizePicksEntries).omit({ id: true, createdAt: true });
+export type PrizePicksEntry = typeof prizePicksEntries.$inferSelect;
+export type InsertPrizePicksEntry = z.infer<typeof insertPrizePicksEntrySchema>;
+
 // --- ALERTS ---
 export const alerts = pgTable("alerts", {
   id: serial("id").primaryKey(),
