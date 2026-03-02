@@ -328,20 +328,7 @@ export default function PrizePicksBuilder() {
     refetchInterval: 300000,
   });
 
-  if (authLoading) {
-    return (
-      <div className="container mx-auto px-4 py-12">
-        <Skeleton className="h-12 w-64 bg-slate-800 mb-6" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Skeleton className="h-96 bg-slate-800 rounded-xl" />
-          <Skeleton className="h-96 bg-slate-800 rounded-xl" />
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) return <UnauthenticatedView />;
-  if (!isPro) return <NonProView />;
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const projections = ppData?.projections || [];
 
@@ -365,6 +352,29 @@ export default function PrizePicksBuilder() {
     return filtered;
   }, [projections, searchQuery, statFilter]);
 
+  const entrySports = useMemo(() => {
+    const sports = new Set(entries.map(e => e.projection.league));
+    return Array.from(sports);
+  }, [entries]);
+
+  const multiplier = getEntryMultiplier(entries.length);
+  const potentialPayout = Math.round(wagerAmount * multiplier * 100) / 100;
+
+  if (authLoading) {
+    return (
+      <div className="container mx-auto px-4 py-12">
+        <Skeleton className="h-12 w-64 bg-slate-800 mb-6" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Skeleton className="h-96 bg-slate-800 rounded-xl" />
+          <Skeleton className="h-96 bg-slate-800 rounded-xl" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) return <UnauthenticatedView />;
+  if (!isPro) return <NonProView />;
+
   const addEntry = (projection: PrizePicksProjection, pick: "more" | "less") => {
     if (entries.length >= maxPicks) return;
     if (entries.some(e => e.projection.id === projection.id)) return;
@@ -386,8 +396,6 @@ export default function PrizePicksBuilder() {
   const clearAll = () => {
     setEntries([]);
   };
-
-  const [aiError, setAiError] = useState<string | null>(null);
 
   const runAIBuilder = async () => {
     setAiBuilding(true);
@@ -463,14 +471,6 @@ export default function PrizePicksBuilder() {
       potentialPayout,
     });
   };
-
-  const multiplier = getEntryMultiplier(entries.length);
-  const potentialPayout = Math.round(wagerAmount * multiplier * 100) / 100;
-
-  const entrySports = useMemo(() => {
-    const sports = new Set(entries.map(e => e.projection.league));
-    return Array.from(sports);
-  }, [entries]);
 
   const copyEntry = () => {
     const lines = entries.map(e =>
