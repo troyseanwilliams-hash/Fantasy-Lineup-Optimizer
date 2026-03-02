@@ -33,6 +33,7 @@ const SPORT_META: Record<string, { icon: typeof Dribbble; color: string; bgColor
   NHL: { icon: Activity, color: "text-cyan-400", bgColor: "bg-cyan-500/20" },
   MLB: { icon: Target, color: "text-red-400", bgColor: "bg-red-500/20" },
   GOLF: { icon: Flag, color: "text-lime-400", bgColor: "bg-lime-500/20" },
+  SOCCER: { icon: Dribbble, color: "text-teal-400", bgColor: "bg-teal-500/20" },
 };
 
 export function Header() {

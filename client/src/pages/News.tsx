@@ -29,6 +29,7 @@ const SPORT_META: Record<string, { icon: typeof Dribbble; color: string; bgColor
   MLB: { icon: Target, color: "text-red-400", bgColor: "bg-red-500/20", label: "MLB", gradient: "from-red-900/80 via-slate-900/90 to-slate-950", image: "/images/sport-mlb.png" },
   NFL: { icon: Shield, color: "text-green-400", bgColor: "bg-green-500/20", label: "NFL", gradient: "from-green-900/80 via-slate-900/90 to-slate-950", image: "/images/sport-nfl.png" },
   GOLF: { icon: Flag, color: "text-lime-400", bgColor: "bg-lime-500/20", label: "GOLF", gradient: "from-lime-900/80 via-slate-900/90 to-slate-950", image: "/images/sport-golf.png" },
+  SOCCER: { icon: Dribbble, color: "text-teal-400", bgColor: "bg-teal-500/20", label: "SOCCER", gradient: "from-teal-900/80 via-slate-900/90 to-slate-950", image: "/images/sport-nba.png" },
 };
 
 function timeAgo(dateStr: string): string {
