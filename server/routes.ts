@@ -18,6 +18,7 @@ import {
 } from "@shared/seed_data";
 import { fetchAllSportsLiveData, getRollingSlateDate } from "./balldontlie";
 import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
+import { getLiveScores, getAllLiveScores } from "./espn-scores";
 
 function computeOwnershipProjections(players: Player[]): (Player & { ownershipProjection: number })[] {
   if (players.length === 0) return [];
@@ -512,6 +513,31 @@ export async function registerRoutes(
   function stripHtmlTags(html: string): string {
     return html?.replace(/<[^>]*>/g, "").replace(/\[&#8230;\]/g, "...").replace(/&#8217;/g, "'").replace(/&#8216;/g, "'").replace(/&#8220;/g, '"').replace(/&#8221;/g, '"').replace(/&#038;/g, "&").replace(/&amp;/g, "&").replace(/&#039;/g, "'").trim() || "";
   }
+
+  app.get("/api/scores", async (_req, res) => {
+    try {
+      const scores = await getAllLiveScores();
+      res.json(scores);
+    } catch (err) {
+      console.error("Error fetching all scores:", err);
+      res.status(500).json({ error: "Failed to fetch scores" });
+    }
+  });
+
+  app.get("/api/scores/:sport", async (req, res) => {
+    try {
+      const sport = req.params.sport.toUpperCase();
+      const validSports = ["NBA", "NHL", "MLB", "NFL", "GOLF"];
+      if (!validSports.includes(sport)) {
+        return res.status(400).json({ error: `Invalid sport: ${sport}. Valid: ${validSports.join(", ")}` });
+      }
+      const scores = await getLiveScores(sport);
+      res.json(scores);
+    } catch (err) {
+      console.error(`Error fetching ${req.params.sport} scores:`, err);
+      res.status(500).json({ error: "Failed to fetch scores" });
+    }
+  });
 
   app.get("/api/news/:sport", async (req, res) => {
     try {
