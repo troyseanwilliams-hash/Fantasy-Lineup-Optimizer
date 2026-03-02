@@ -86,7 +86,7 @@ export default function ProOptimizer() {
   const [fadedIds, setFadedIds] = useState<number[]>([]);
   const [exposureLimits, setExposureLimits] = useState<Record<string, number>>({});
 
-  const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"] });
+  const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"], refetchInterval: 300000 });
   const slate = useMemo(() => slates?.find(s => s.id === slateId), [slates, slateId]);
   const platform = (slate?.platform || "draftkings") as Platform;
   const sport = slate?.sport || "NBA";
@@ -105,6 +105,7 @@ export default function ProOptimizer() {
   const { data: players, isLoading } = useQuery<PlayerWithOwnership[]>({
     queryKey: [playerUrl],
     enabled: !!slateId,
+    refetchInterval: 300000,
   });
 
   const { data: subData } = useQuery<{ tier: string; lineupCount: number; maxLineups: number; sportCounts: Record<string, number> }>({

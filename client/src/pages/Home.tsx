@@ -1019,12 +1019,8 @@ function AuthenticatedDashboard() {
   });
 
   const { data: dashData, isLoading: dashLoading, error: dashError } = useQuery<DashboardResponse>({
-    queryKey: ["/api/dashboard", activeSport.toLowerCase()],
-    queryFn: async () => {
-      const res = await fetch(`/api/dashboard/${activeSport.toLowerCase()}`);
-      if (!res.ok) throw new Error("Failed to load");
-      return res.json();
-    },
+    queryKey: [`/api/dashboard/${activeSport.toLowerCase()}`],
+    refetchInterval: 300000,
   });
 
   const tier = subData?.tier || "free";
