@@ -20,10 +20,11 @@ const SPORT_META: Record<string, { icon: typeof Dribbble; color: string; bgColor
   NHL: { icon: Activity, color: "text-cyan-400", bgColor: "bg-cyan-500/20", accent: "cyan" },
   MLB: { icon: Target, color: "text-red-400", bgColor: "bg-red-500/20", accent: "red" },
   GOLF: { icon: Flag, color: "text-lime-400", bgColor: "bg-lime-500/20", accent: "lime" },
+  SOCCER: { icon: Dribbble, color: "text-teal-400", bgColor: "bg-teal-500/20", accent: "teal" },
 };
 
 const SPORT_LOGO_PATH: Record<string, string> = {
-  NBA: "nba", NHL: "nhl", MLB: "mlb", NFL: "nfl", GOLF: "golf",
+  NBA: "nba", NHL: "nhl", MLB: "mlb", NFL: "nfl", GOLF: "golf", SOCCER: "soccer",
 };
 const TEAM_ABBREV_MAP: Record<string, string> = {
   PHX: "phx", WSH: "wsh", WAS: "wsh", BKN: "bkn", NYK: "ny", NYM: "nym",

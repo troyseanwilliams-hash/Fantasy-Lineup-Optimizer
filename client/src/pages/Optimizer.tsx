@@ -971,7 +971,7 @@ export default function Optimizer() {
                 const atLimit = sportCount >= maxPerSport;
                 if (atLimit) {
                   return (
-                    <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-3 space-y-2" data-testid="free-limit-notice">
+                    <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-3 space-y-2" data-testid="basic-limit-notice">
                       <div className="flex items-center gap-2">
                         <Lock className="w-4 h-4 text-amber-400 shrink-0" />
                         <span className="text-sm font-bold text-amber-300">Vault Limit Reached</span>

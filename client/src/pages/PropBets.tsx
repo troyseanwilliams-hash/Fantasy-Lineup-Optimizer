@@ -11,7 +11,7 @@ import { ACTIVE_SPORTS } from "@shared/platform-config";
 import { AFFILIATE_LINKS, AFFILIATE_PROMOS } from "@shared/affiliate-config";
 
 const SPORT_LOGO_PATH: Record<string, string> = {
-  NBA: "nba", NHL: "nhl", MLB: "mlb", NFL: "nfl", GOLF: "golf",
+  NBA: "nba", NHL: "nhl", MLB: "mlb", NFL: "nfl", GOLF: "golf", SOCCER: "soccer",
 };
 
 const TEAM_ABBREV_MAP: Record<string, string> = {
@@ -33,6 +33,7 @@ const SPORT_FALLBACK_IMAGE: Record<string, string> = {
   MLB: "/images/fallback-mlb.png",
   NFL: "/images/fallback-nfl.png",
   GOLF: "/images/sport-golf.png",
+  SOCCER: "/images/fallback-nba.png",
 };
 
 function TeamLogo({ team, sport, size = 20 }: { team: string; sport: string; size?: number }) {

@@ -16,7 +16,7 @@ import { ACTIVE_SPORTS, SPORT_ORDER } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 
 const SPORT_LOGO_PATH: Record<string, string> = {
-  NBA: "nba", NHL: "nhl", MLB: "mlb", NFL: "nfl", GOLF: "golf",
+  NBA: "nba", NHL: "nhl", MLB: "mlb", NFL: "nfl", GOLF: "golf", SOCCER: "soccer",
 };
 const TEAM_ABBREV_MAP: Record<string, string> = {
   PHX: "phx", WSH: "wsh", WAS: "wsh", BKN: "bkn", NYK: "ny", NYM: "nym",
@@ -35,6 +35,7 @@ const SPORT_FALLBACK_IMAGE: Record<string, string> = {
   MLB: "/images/fallback-mlb.png",
   NFL: "/images/fallback-nfl.png",
   GOLF: "/images/sport-golf.png",
+  SOCCER: "/images/fallback-nba.png",
 };
 
 function TeamLogo({ team, sport, size = 20 }: { team: string; sport: string; size?: number }) {
@@ -66,6 +67,7 @@ const sportNhl = "/images/sport-nhl.png";
 const sportMlb = "/images/sport-mlb.png";
 const sportNfl = "/images/sport-nfl.png";
 const sportGolf = "/images/sport-golf.png";
+const sportSoccer = "/images/sport-nba.png";
 
 interface DashboardPlayer {
   id: number;
@@ -168,6 +170,11 @@ const SPORT_META: Record<string, {
     icon: Flag, color: "text-lime-400", textColor: "text-lime-300",
     bgColor: "bg-lime-500/20", borderColor: "border-lime-500/30",
     gradientFrom: "from-lime-900/60", image: sportGolf,
+  },
+  SOCCER: {
+    icon: Circle, color: "text-teal-400", textColor: "text-teal-300",
+    bgColor: "bg-teal-500/20", borderColor: "border-teal-500/30",
+    gradientFrom: "from-teal-900/60", image: sportSoccer,
   },
 };
 

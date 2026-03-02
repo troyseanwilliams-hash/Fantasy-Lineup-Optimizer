@@ -499,6 +499,7 @@ export async function registerRoutes(
     MLB: "https://www.rotoballer.com/category/mlb/feed",
     NFL: "https://www.rotoballer.com/category/nfl/feed",
     GOLF: "https://www.rotoballer.com/category/golf/feed",
+    SOCCER: "https://www.rotoballer.com/category/soccer/feed",
   };
 
   const newsCache = new Map<string, { data: any; fetchedAt: number }>();

@@ -5,6 +5,7 @@ const SPORT_KEY_MAP: Record<string, string> = {
   NHL: "icehockey_nhl",
   MLB: "baseball_mlb",
   NFL: "americanfootball_nfl",
+  SOCCER: "soccer_epl",
 };
 
 const PLAYER_PROP_MARKETS: Record<string, string[]> = {
@@ -12,6 +13,7 @@ const PLAYER_PROP_MARKETS: Record<string, string[]> = {
   NHL: ["player_points", "player_shots_on_goal", "player_assists"],
   MLB: ["pitcher_strikeouts", "batter_hits", "batter_total_bases", "batter_home_runs"],
   NFL: ["player_pass_yds", "player_rush_yds", "player_receptions", "player_pass_tds", "player_reception_yds"],
+  SOCCER: ["player_shots", "player_shots_on_target"],
 };
 
 const MARKET_DISPLAY_NAME: Record<string, string> = {
@@ -30,6 +32,8 @@ const MARKET_DISPLAY_NAME: Record<string, string> = {
   player_receptions: "Receptions",
   player_pass_tds: "Pass TDs",
   player_reception_yds: "Rec Yards",
+  player_shots: "Shots",
+  player_shots_on_target: "Shots on Target",
 };
 
 interface OddsEvent {
