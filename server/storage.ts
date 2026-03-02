@@ -1,13 +1,14 @@
 import { db } from "./db";
 import { eq, and, inArray, lt, gte, desc } from "drizzle-orm";
 import {
-  slates, players, lineups, subscriptions, props, alerts,
+  slates, players, lineups, subscriptions, props, alerts, prizePicksEntries,
   type Slate, type InsertSlate,
   type Player, type InsertPlayer,
   type Lineup, type InsertLineup,
   type Subscription, type InsertSubscription,
   type Prop, type InsertProp,
-  type Alert, type InsertAlert
+  type Alert, type InsertAlert,
+  type PrizePicksEntry, type InsertPrizePicksEntry,
 } from "@shared/schema";
 
 import { authStorage, type IAuthStorage } from "./replit_integrations/auth/storage";
@@ -53,6 +54,11 @@ export interface IStorage extends IAuthStorage {
   bulkCreateAlerts(alerts: InsertAlert[]): Promise<Alert[]>;
   markAlertRead(id: number, userId: string): Promise<void>;
   markAllAlertsRead(userId: string): Promise<void>;
+
+  getPrizePicksEntries(userId: string): Promise<PrizePicksEntry[]>;
+  createPrizePicksEntry(entry: InsertPrizePicksEntry): Promise<PrizePicksEntry>;
+  deletePrizePicksEntry(id: number, userId: string): Promise<void>;
+  getPrizePicksEntryCount(userId: string): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -292,6 +298,28 @@ export class DatabaseStorage implements IStorage {
     await db.update(alerts)
       .set({ isRead: true })
       .where(eq(alerts.userId, userId));
+  }
+
+  async getPrizePicksEntries(userId: string): Promise<PrizePicksEntry[]> {
+    return await db.select().from(prizePicksEntries)
+      .where(eq(prizePicksEntries.userId, userId))
+      .orderBy(desc(prizePicksEntries.createdAt));
+  }
+
+  async createPrizePicksEntry(entry: InsertPrizePicksEntry): Promise<PrizePicksEntry> {
+    const [created] = await db.insert(prizePicksEntries).values(entry).returning();
+    return created;
+  }
+
+  async deletePrizePicksEntry(id: number, userId: string): Promise<void> {
+    await db.delete(prizePicksEntries)
+      .where(and(eq(prizePicksEntries.id, id), eq(prizePicksEntries.userId, userId)));
+  }
+
+  async getPrizePicksEntryCount(userId: string): Promise<number> {
+    const rows = await db.select().from(prizePicksEntries)
+      .where(eq(prizePicksEntries.userId, userId));
+    return rows.length;
   }
 }
 
