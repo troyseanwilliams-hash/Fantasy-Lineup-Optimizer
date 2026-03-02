@@ -104,7 +104,7 @@ app.use((req, res, next) => {
       (async () => {
         try {
           const delCount = await storage.deleteExpiredLineups();
-          if (delCount > 0) log(`Cleaned up ${delCount} expired lineup(s) on startup`, "cron");
+          if (delCount > 0) log(`Moved ${delCount} expired lineup(s) to review on startup`, "cron");
           await seedDatabase();
           log("Startup seed check completed", "cron");
         } catch (err) {
@@ -112,11 +112,11 @@ app.use((req, res, next) => {
         }
       })();
 
-      cron.schedule("0 1 * * *", async () => {
+      cron.schedule("30 * * * *", async () => {
         try {
           log("Starting scheduled seed data refresh", "cron");
           const expiredCount = await storage.deleteExpiredLineups();
-          if (expiredCount > 0) log(`Cleaned up ${expiredCount} expired lineup(s)`, "cron");
+          if (expiredCount > 0) log(`Moved ${expiredCount} expired lineup(s) to review`, "cron");
           await seedDatabase(true);
           const today = new Date().toISOString().split("T")[0];
           await generateDailyProps(today);
@@ -127,7 +127,30 @@ app.use((req, res, next) => {
       }, {
         timezone: "America/New_York",
       });
-      log("Scheduled daily seed refresh at 1:00 AM EST", "cron");
+      log("Scheduled hourly seed refresh at :30 past each hour (EST)", "cron");
+
+      cron.schedule("0 2 * * *", async () => {
+        try {
+          log("Starting 2 AM vault reset: moving expired lineups to review", "cron");
+          const now = new Date();
+          const expiredSlateIds = (await storage.getSlates())
+            .filter(s => new Date(s.startTime) < now)
+            .map(s => s.id);
+          if (expiredSlateIds.length > 0) {
+            const moved = await storage.moveLineupsToReview(expiredSlateIds);
+            if (moved > 0) log(`Moved ${moved} expired lineup(s) to review status`, "cron");
+          }
+          const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          const deleted = await storage.deleteOldReviewLineups(cutoff);
+          if (deleted > 0) log(`Deleted ${deleted} review lineup(s) older than 24 hours`, "cron");
+          log("2 AM vault reset completed", "cron");
+        } catch (err) {
+          console.error("2 AM vault reset failed:", err);
+        }
+      }, {
+        timezone: "America/New_York",
+      });
+      log("Scheduled 2 AM ET vault reset cron job", "cron");
     },
   );
 })();

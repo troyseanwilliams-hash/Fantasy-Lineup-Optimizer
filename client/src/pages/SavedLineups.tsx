@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users } from "lucide-react";
+import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import { getPlatformConfig, assignPlayersToSlots, getSlotDisplayName, positionFi
 import type { Player } from "@shared/schema";
 
 type VaultSortKey = "newest" | "oldest" | "projection_high" | "projection_low" | "ownership_high" | "ownership_low" | "salary_high" | "salary_low";
+type VaultTab = "active" | "review";
 
 interface LineupWithPlayers {
   id: number;
@@ -36,6 +37,7 @@ export default function SavedLineups() {
   const [swappingSlot, setSwappingSlot] = useState<{ lineupId: number; slot: string; currentPlayerId: number } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [vaultSort, setVaultSort] = useState<VaultSortKey>("newest");
+  const [activeTab, setActiveTab] = useState<VaultTab>("active");
 
   const { data: lineups, isLoading } = useQuery<any[]>({
     queryKey: ["/api/lineups"],
@@ -65,6 +67,11 @@ export default function SavedLineups() {
   const tier = subscription?.tier || "free";
   const isPro = tier === "pro";
   const isPaid = tier === "pro" || tier === "star";
+
+  const { data: reviewLineups, isLoading: reviewLoading } = useQuery<any[]>({
+    queryKey: ["/api/lineups/review"],
+    enabled: activeTab === "review" && isPaid,
+  });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -388,65 +395,305 @@ export default function SavedLineups() {
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        <a
-          href={AFFILIATE_LINKS.draftkings.dfs.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block mb-8"
-          data-testid="vault-dk-dfs-banner"
-        >
-          <div className="bg-gradient-to-r from-emerald-900/30 to-slate-900/50 border border-emerald-700/20 rounded-xl p-5 transition-all hover-elevate">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                  <span className="text-emerald-400 font-black text-sm">DK</span>
-                </div>
-                <div>
-                  <p className="text-sm font-black text-white">{AFFILIATE_LINKS.draftkings.dfs.label}</p>
-                  <p className="text-xs text-slate-400">{AFFILIATE_LINKS.draftkings.dfs.description}</p>
+        <div className="flex items-center gap-2 mb-6" data-testid="vault-tabs">
+          <Button
+            variant={activeTab === "active" ? "default" : "ghost"}
+            onClick={() => setActiveTab("active")}
+            className={activeTab === "active" ? "" : "text-slate-400"}
+            data-testid="tab-active"
+          >
+            <Shield className="w-4 h-4 mr-2" /> Active Lineups
+          </Button>
+          <Button
+            variant={activeTab === "review" ? "default" : "ghost"}
+            onClick={() => {
+              if (!isPaid) {
+                toast({ title: "Paid Feature", description: "Upgrade to Star or Pro to view review lineups and contest comparisons.", variant: "destructive" });
+                return;
+              }
+              setActiveTab("review");
+            }}
+            className={activeTab === "review" ? "" : "text-slate-400"}
+            data-testid="tab-review"
+          >
+            <History className="w-4 h-4 mr-2" /> Review
+            {!isPaid && <Lock className="w-3 h-3 ml-1" />}
+          </Button>
+        </div>
+
+        {activeTab === "review" && isPaid ? (
+          <ReviewTabContent
+            reviewLineups={reviewLineups || []}
+            isLoading={reviewLoading}
+          />
+        ) : (
+          <>
+            <a
+              href={AFFILIATE_LINKS.draftkings.dfs.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block mb-8"
+              data-testid="vault-dk-dfs-banner"
+            >
+              <div className="bg-gradient-to-r from-emerald-900/30 to-slate-900/50 border border-emerald-700/20 rounded-xl p-5 transition-all hover-elevate">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                      <span className="text-emerald-400 font-black text-sm">DK</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-white">{AFFILIATE_LINKS.draftkings.dfs.label}</p>
+                      <p className="text-xs text-slate-400">{AFFILIATE_LINKS.draftkings.dfs.description}</p>
+                    </div>
+                  </div>
+                  <ExternalLink className="w-4 h-4 text-emerald-500/50" />
                 </div>
               </div>
-              <ExternalLink className="w-4 h-4 text-emerald-500/50" />
-            </div>
-          </div>
-        </a>
+            </a>
 
-        {sortedLineups.length > 0 ? (
-          <div className="flex flex-col gap-5">
-            {sortedLineups.map((lineup: any) => (
-              <LineupCard
-                key={lineup.id}
-                lineup={lineup}
-                isExpanded={expandedId === lineup.id}
-                onToggleExpand={() => setExpandedId(expandedId === lineup.id ? null : lineup.id)}
-                onDelete={() => deleteMutation.mutate(lineup.id)}
-                onExport={handleExportCSV}
-                onSwapPlayer={handleSwapPlayer}
-                swappingSlot={swappingSlot}
-                setSwappingSlot={setSwappingSlot}
-                isPaid={isPaid}
-                isPro={isPro}
-                isUpdating={updateMutation.isPending}
-                isSelected={selectedIds.has(lineup.id)}
-                onToggleSelect={() => toggleSelect(lineup.id)}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="py-24 text-center bg-slate-800/10 rounded-3xl border-2 border-dashed border-slate-700/30">
-            <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-6">
-              <Shield className="w-10 h-10 text-emerald-500/40" />
-            </div>
-            <h5 className="text-xl font-black text-white mb-2" data-testid="no-lineups-message">No Saved Lineups Yet</h5>
-            <p className="text-slate-400 max-w-sm mx-auto mb-6">Optimize a lineup and save it here to track, edit, and export to DraftKings.</p>
-            <Link href="/">
-              <Button className="btn-primary" data-testid="build-first-lineup">
-                <Zap className="w-4 h-4 mr-2" /> Build Your First Lineup
-              </Button>
-            </Link>
-          </div>
+            {sortedLineups.length > 0 ? (
+              <div className="flex flex-col gap-5">
+                {sortedLineups.map((lineup: any) => (
+                  <LineupCard
+                    key={lineup.id}
+                    lineup={lineup}
+                    isExpanded={expandedId === lineup.id}
+                    onToggleExpand={() => setExpandedId(expandedId === lineup.id ? null : lineup.id)}
+                    onDelete={() => deleteMutation.mutate(lineup.id)}
+                    onExport={handleExportCSV}
+                    onSwapPlayer={handleSwapPlayer}
+                    swappingSlot={swappingSlot}
+                    setSwappingSlot={setSwappingSlot}
+                    isPaid={isPaid}
+                    isPro={isPro}
+                    isUpdating={updateMutation.isPending}
+                    isSelected={selectedIds.has(lineup.id)}
+                    onToggleSelect={() => toggleSelect(lineup.id)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="py-24 text-center bg-slate-800/10 rounded-3xl border-2 border-dashed border-slate-700/30">
+                <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-6">
+                  <Shield className="w-10 h-10 text-emerald-500/40" />
+                </div>
+                <h5 className="text-xl font-black text-white mb-2" data-testid="no-lineups-message">No Saved Lineups Yet</h5>
+                <p className="text-slate-400 max-w-sm mx-auto mb-6">Optimize a lineup and save it here to track, edit, and export to DraftKings.</p>
+                <Link href="/">
+                  <Button className="btn-primary" data-testid="build-first-lineup">
+                    <Zap className="w-4 h-4 mr-2" /> Build Your First Lineup
+                  </Button>
+                </Link>
+              </div>
+            )}
+          </>
         )}
       </div>
+    </div>
+  );
+}
+
+function ReviewTabContent({
+  reviewLineups,
+  isLoading,
+}: {
+  reviewLineups: any[];
+  isLoading: boolean;
+}) {
+  const [expandedReviewId, setExpandedReviewId] = useState<number | null>(null);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2].map(i => <Skeleton key={i} className="h-40 bg-slate-800 rounded-2xl" />)}
+      </div>
+    );
+  }
+
+  if (reviewLineups.length === 0) {
+    return (
+      <div className="py-24 text-center bg-slate-800/10 rounded-3xl border-2 border-dashed border-slate-700/30">
+        <div className="w-20 h-20 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-6">
+          <History className="w-10 h-10 text-amber-500/40" />
+        </div>
+        <h5 className="text-xl font-black text-white mb-2" data-testid="no-review-lineups">No Review Lineups</h5>
+        <p className="text-slate-400 max-w-sm mx-auto">
+          Expired lineups are moved here at 2 AM ET for review. They are kept for 24 hours before being removed.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-5" data-testid="review-lineups-list">
+      <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 mb-2">
+        <div className="flex items-center gap-3">
+          <Eye className="w-5 h-5 text-amber-400 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-white">Review Mode</p>
+            <p className="text-xs text-slate-400">These lineups have expired and are read-only. Compare your lineups against contest winners to learn and improve.</p>
+          </div>
+        </div>
+      </div>
+
+      {reviewLineups.map((lineup: any) => {
+        const isExpanded = expandedReviewId === lineup.id;
+        const isFD = lineup.platform === "fanduel";
+        const platformLabel = isFD ? "FD" : "DK";
+        const contestWinner = lineup.contestWinnerData;
+
+        return (
+          <Card
+            key={lineup.id}
+            className="bg-slate-800/20 border-slate-700/40"
+            data-testid={`review-lineup-card-${lineup.id}`}
+          >
+            <div
+              className="flex justify-between items-center p-5 cursor-pointer select-none"
+              onClick={() => setExpandedReviewId(isExpanded ? null : lineup.id)}
+              data-testid={`review-lineup-header-${lineup.id}`}
+            >
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-amber-500/10 border border-amber-500/20`}>
+                  <History className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <h3 className="text-base font-black text-white">{lineup.name || "Optimized Lineup"}</h3>
+                    <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-[10px] font-black uppercase">
+                      Review
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className={`${isFD ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"} text-[10px] font-black uppercase`}>
+                      {lineup.sport} {platformLabel}
+                    </Badge>
+                    {lineup.reviewedAt && (
+                      <span className="text-slate-500 text-[11px] font-medium">
+                        Reviewed {new Date(lineup.reviewedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-5">
+                <div className="hidden sm:flex items-center gap-4">
+                  <div className="text-right">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Proj</p>
+                    <p className="text-lg font-black text-emerald-400 tabular-nums" data-testid={`review-proj-${lineup.id}`}>{Number(lineup.totalProjectedPoints).toFixed(1)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Salary</p>
+                    <p className="text-lg font-black text-white tabular-nums" data-testid={`review-salary-${lineup.id}`}>${lineup.totalSalary.toLocaleString()}</p>
+                  </div>
+                </div>
+                {isExpanded ? <ChevronUp className="w-5 h-5 text-slate-500" /> : <ChevronDown className="w-5 h-5 text-slate-500" />}
+              </div>
+            </div>
+
+            {isExpanded && (
+              <div className="border-t border-slate-700/40 p-5 bg-slate-900/30">
+                {lineup.players && lineup.players.length > 0 ? (
+                  <div className={contestWinner ? "grid grid-cols-1 lg:grid-cols-2 gap-6" : ""}>
+                    <div>
+                      <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                        <Trophy className="w-4 h-4 text-emerald-400" /> Your Lineup
+                      </h4>
+                      <ReviewRosterTable players={lineup.players} sport={lineup.sport} platform={lineup.platform} totalSalary={lineup.totalSalary} totalProjectedPoints={lineup.totalProjectedPoints} />
+                    </div>
+
+                    {contestWinner && (
+                      <div>
+                        <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                          <Trophy className="w-4 h-4 text-amber-400" /> Contest Winner
+                        </h4>
+                        <ReviewRosterTable
+                          players={contestWinner.players || []}
+                          sport={lineup.sport}
+                          platform={lineup.platform}
+                          totalSalary={contestWinner.totalSalary || 0}
+                          totalProjectedPoints={contestWinner.totalProjectedPoints || "0"}
+                          isWinner
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-slate-400 text-sm">Player data no longer available for this lineup.</p>
+                )}
+              </div>
+            )}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+function ReviewRosterTable({
+  players,
+  sport,
+  platform,
+  totalSalary,
+  totalProjectedPoints,
+  isWinner = false,
+}: {
+  players: Player[];
+  sport: string;
+  platform: string;
+  totalSalary: number;
+  totalProjectedPoints: string;
+  isWinner?: boolean;
+}) {
+  const config = getPlatformConfig(sport, platform as any);
+  const slotAssignments = assignPlayersToSlots(players, config.slots, sport);
+  const accentColor = isWinner ? "text-amber-400" : "text-emerald-400";
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full" data-testid={`review-roster-table-${isWinner ? "winner" : "yours"}`}>
+        <thead>
+          <tr className="text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-800">
+            <th className="text-left py-2 pr-4 w-16">Slot</th>
+            <th className="text-left py-2 pr-4">Player</th>
+            <th className="text-left py-2 pr-4 w-16">Pos</th>
+            <th className="text-left py-2 pr-4 w-16">Team</th>
+            <th className="text-right py-2 pr-4 w-24">Salary</th>
+            <th className="text-right py-2 pr-4 w-20">Proj</th>
+          </tr>
+        </thead>
+        <tbody>
+          {config.slots.map(slot => {
+            const player = slotAssignments[slot];
+            return (
+              <tr key={slot} className="border-b border-slate-800/50">
+                <td className="py-2 pr-4">
+                  <span className="text-xs font-bold text-slate-400 bg-slate-800/80 px-2 py-1 rounded">
+                    {getSlotDisplayName(slot)}
+                  </span>
+                </td>
+                <td className="py-2 pr-4 text-sm font-semibold text-white">{player?.name || "—"}</td>
+                <td className="py-2 pr-4 text-xs text-slate-400">{player?.position || "—"}</td>
+                <td className="py-2 pr-4 text-xs text-slate-400">{player?.team || "—"}</td>
+                <td className="py-2 pr-4 text-right text-sm font-medium text-white">
+                  {player ? `$${player.salary.toLocaleString()}` : "—"}
+                </td>
+                <td className={`py-2 pr-4 text-right text-sm font-semibold ${accentColor}`}>
+                  {player ? Number(player.projectedPoints).toFixed(1) : "—"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+        <tfoot>
+          <tr className="border-t border-slate-700">
+            <td colSpan={4} className="py-2 pr-4 text-xs font-bold text-slate-400 uppercase">Total</td>
+            <td className="py-2 pr-4 text-right text-sm font-bold text-white">${totalSalary.toLocaleString()}</td>
+            <td className={`py-2 pr-4 text-right text-sm font-bold ${accentColor}`}>{Number(totalProjectedPoints).toFixed(1)}</td>
+          </tr>
+        </tfoot>
+      </table>
     </div>
   );
 }

@@ -25,7 +25,7 @@ Preferred communication style: Simple, everyday language.
 ### Key Pages
 - **Home** (`/`): Landing page for unauthenticated users, slate dashboard for authenticated users (shows main slates only with platform badges)
 - **Optimizer** (`/optimizer/:id`): Full-screen lineup builder with player table, lock/exclude controls, custom projections, LP optimization, platform-aware slot display. Pro users see Own% column with color-coded ownership projections and Fade toggle (purple ghost icon) to reduce highly-owned player projections during optimization.
-- **Saved Lineups** (`/lineups`): "Vault" with expandable lineup cards, full roster table with slot assignments, inline player swap (position/salary-constrained), CSV export (Pro only), and sort controls (by projection, ownership, salary, date)
+- **Saved Lineups** (`/lineups`): "Vault" with expandable lineup cards, full roster table with slot assignments, inline player swap (position/salary-constrained), CSV export (Pro only), sort controls (by projection, ownership, salary, date), and Review tab (Star/Pro only) showing expired lineups with contest winner comparison
 - **Pricing** (`/pricing`): Subscription tiers (Free vs Pro) with feature comparison
 - **Prop Bets** (`/props`): AI-generated daily prop picks organized per sport, with DraftKings/FanDuel affiliate marketing links (DFS + Sportsbook)
 - **Parlay Builder** (`/parlays`): Pro-exclusive feature to combine multiple player props across any sport into cross-sport parlays with combined odds, potential payout calculator, wager presets, AI confidence insights, and direct DraftKings bet placement links. Free/Star/unauth users see an upgrade prompt. Pro: up to 8 legs with AI insights and DK affiliate links.
@@ -39,6 +39,9 @@ Preferred communication style: Simple, everyday language.
 - **Optimization Engine**: `javascript-lp-solver` for Linear Programming-based lineup optimization on the server
 - **Authentication**: Replit OpenID Connect (OIDC) auth via Passport.js with session-based auth stored in PostgreSQL
 - **Session Store**: `connect-pg-simple` storing sessions in the `sessions` table
+- **Cron Jobs**: (1) Hourly at :30 — auto-refresh DraftKings slates/players and Odds API props via `seedDatabase(true)` + `generateDailyProps`. (2) Daily at 2 AM ET — vault reset moving expired lineups to "review" status and deleting old reviews.
+- **Optimizer Lock**: Both client and server prevent lineup generation after a slate's start time has passed
+- **Player Exposure Limits**: Pro optimizer supports per-player exposure percentage caps during multi-lineup generation (tracked and enforced server-side)
 
 ### Platform Configuration
 - **Shared config**: `shared/platform-config.ts` defines roster slots, salary caps, position constraints, and position filters per sport/platform
@@ -62,7 +65,7 @@ Preferred communication style: Simple, everyday language.
 2. **sessions** - Session storage (sid, sess JSON, expire) - required for Replit Auth
 3. **slates** - Game slates (sport, platform, name, start time, isMain flag)
 4. **players** - Player pool per slate (name, team, position, salary, fppg, projected points, opponent, game info)
-5. **lineups** - Saved optimized lineups per user (player IDs array, total salary, total projected points, platform). Auto-expire when slate startTime passes; cleaned up on startup, daily cron, and filtered on read.
+5. **lineups** - Saved optimized lineups per user (player IDs array, total salary, total projected points, platform, status: active/review, reviewedAt, contestWinnerData). Active lineups filtered by slate startTime; expired lineups move to "review" status at 2 AM ET; review lineups auto-deleted after 24 hours.
 6. **subscriptions** - User subscription tiers (userId, tier: free/pro, status, stripeCustomerId, stripeSubscriptionId)
 7. **props** - Daily AI-generated prop bets (sport, playerName, team, opponent, propType, line, pick, confidence, isLocked, createdDate)
 

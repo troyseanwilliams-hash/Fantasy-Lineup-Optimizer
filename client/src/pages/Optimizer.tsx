@@ -44,6 +44,7 @@ export default function Optimizer() {
   const slate = useMemo(() => slates?.find(s => s.id === slateId), [slates, slateId]);
   const platform = (slate?.platform || "draftkings") as Platform;
   const sport = slate?.sport || "NBA";
+  const slateHasStarted = slate ? new Date(slate.startTime) <= new Date() : false;
 
   const config = useMemo(() => {
     try { return getPlatformConfig(sport, platform); }
@@ -821,10 +822,16 @@ export default function Optimizer() {
             </div>
           </div>
 
+          {slateHasStarted && (
+            <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-md px-3 py-2 mb-2" data-testid="slate-started-warning">
+              <Lock className="w-4 h-4 text-red-400 flex-shrink-0" />
+              <span className="text-xs font-bold text-red-400">Slate has started. Lineups can no longer be generated.</span>
+            </div>
+          )}
           <div className="flex gap-2">
             <Button
               onClick={handleOptimize}
-              disabled={optimizeMutation.isPending}
+              disabled={optimizeMutation.isPending || slateHasStarted}
               className={`flex-1 h-11 text-white font-black text-sm shadow-lg ${
                 platform === "fanduel"
                   ? "bg-blue-500 hover:bg-blue-600 shadow-blue-500/20"
@@ -834,10 +841,12 @@ export default function Optimizer() {
             >
               {optimizeMutation.isPending ? (
                 <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              ) : slateHasStarted ? (
+                <Lock className="w-5 h-5 mr-2" />
               ) : (
                 <Zap className="w-5 h-5 mr-2 fill-current" />
               )}
-              OPTIMIZE
+              {slateHasStarted ? "LOCKED" : "OPTIMIZE"}
             </Button>
             <Button
               onClick={handleReset}
