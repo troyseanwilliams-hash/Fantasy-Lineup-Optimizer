@@ -85,6 +85,7 @@ export default function ProOptimizer() {
   const [useInjuryAdjustments, setUseInjuryAdjustments] = useState(false);
   const [fadedIds, setFadedIds] = useState<number[]>([]);
   const [exposureLimits, setExposureLimits] = useState<Record<string, number>>({});
+  const [globalMaxExposure, setGlobalMaxExposure] = useState<number | null>(null);
 
   const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"], refetchInterval: 300000 });
   const slate = useMemo(() => slates?.find(s => s.id === slateId), [slates, slateId]);
@@ -289,7 +290,8 @@ export default function ProOptimizer() {
       .map(([id, count]) => {
         const player = players.find(p => p.id === Number(id));
         const pct = (count / generatedLineups.length) * 100;
-        const limit = exposureLimits[id];
+        const playerLimit = exposureLimits[id];
+        const effectiveLimit = playerLimit ?? (globalMaxExposure ?? undefined);
         return {
           playerId: Number(id),
           playerName: player?.name || `Player #${id}`,
@@ -297,12 +299,13 @@ export default function ProOptimizer() {
           count,
           total: generatedLineups.length,
           pct,
-          limit,
-          overLimit: limit !== undefined && pct > limit,
+          limit: effectiveLimit,
+          overLimit: effectiveLimit !== undefined && pct > effectiveLimit,
+          isPlayerSpecific: playerLimit !== undefined,
         };
       })
       .sort((a, b) => b.pct - a.pct);
-  }, [generatedLineups, players, exposureLimits]);
+  }, [generatedLineups, players, exposureLimits, globalMaxExposure]);
 
   const handleOptimize = () => {
     const projections: Record<string, number> = { ...customProjections };
@@ -328,6 +331,7 @@ export default function ProOptimizer() {
       useBoosts,
       useInjuryAdjustments,
       exposureLimits: activeExposureLimits,
+      globalMaxExposure: globalMaxExposure ?? undefined,
     });
   };
 
@@ -417,6 +421,7 @@ export default function ProOptimizer() {
     setFadedIds([]);
     setCustomProjections({});
     setExposureLimits({});
+    setGlobalMaxExposure(null);
     setSavedIndices(new Set());
     optimizeMutation.reset();
   };
@@ -530,6 +535,24 @@ export default function ProOptimizer() {
             />
             <span className="text-xs font-black text-amber-400 min-w-[18px] text-center" data-testid="text-lineup-count">{lineupCount}</span>
           </div>
+
+          {isPro && lineupCount > 1 && (
+            <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+              <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Max Exp</span>
+              <Slider
+                value={[globalMaxExposure ?? 100]}
+                onValueChange={(v) => setGlobalMaxExposure(v[0] === 100 ? null : v[0])}
+                min={10}
+                max={100}
+                step={5}
+                className="w-20"
+                data-testid="slider-global-exposure"
+              />
+              <span className={`text-xs font-black min-w-[28px] text-center ${globalMaxExposure ? "text-cyan-400" : "text-slate-500"}`} data-testid="text-global-exposure">
+                {globalMaxExposure ? `${globalMaxExposure}%` : "Off"}
+              </span>
+            </div>
+          )}
 
           <div className="flex items-center gap-2 ml-auto flex-shrink-0">
             <Button
@@ -1340,6 +1363,11 @@ export default function ProOptimizer() {
                 <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-3">
                   <Target className="w-4 h-4 text-cyan-400" />
                   Player Exposure ({generatedLineups.length} lineups)
+                  {globalMaxExposure && (
+                    <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30 text-[9px] font-black ml-1" data-testid="badge-global-exposure">
+                      Max {globalMaxExposure}%
+                    </Badge>
+                  )}
                 </h3>
                 <Card className="bg-slate-800/60 border-slate-700/50 p-3">
                   <div className="space-y-1.5">
@@ -1359,7 +1387,7 @@ export default function ProOptimizer() {
                         </span>
                         {ep.limit !== undefined && (
                           <span className={`text-[10px] font-bold ${ep.overLimit ? "text-red-400" : "text-slate-500"}`} data-testid={`text-exposure-limit-${ep.playerId}`}>
-                            /{ep.limit}%
+                            /{ep.limit}%{ep.isPlayerSpecific ? "" : " g"}
                           </span>
                         )}
                       </div>
