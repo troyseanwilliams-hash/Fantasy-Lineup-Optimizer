@@ -557,7 +557,21 @@ export async function registerRoutes(
       if (projections.length === 0) {
         return res.json({ sport, entries: [] });
       }
-      const entries = buildAIEntries(projections, 5);
+
+      const allSlates = await storage.getSlates();
+      const sportSlates = allSlates.filter(s => s.sport === sport);
+      let dbPlayers: Player[] = [];
+      for (const slate of sportSlates) {
+        const slatePlayers = await storage.getPlayersBySlate(slate.id);
+        dbPlayers.push(...slatePlayers);
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+      const dbProps = await storage.getPropsByDate(today, sport);
+
+      console.log(`[PrizePicks Builder] ${sport}: ${projections.length} PP lines, ${dbPlayers.length} DK players, ${dbProps.length} odds props`);
+
+      const entries = buildAIEntries(projections, dbPlayers, dbProps, 5);
       res.json({ sport, entries });
     } catch (err) {
       console.error(`[PrizePicks Builder] Error for ${req.params.sport}:`, err);
