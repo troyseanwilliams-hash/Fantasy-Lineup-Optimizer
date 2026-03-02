@@ -474,12 +474,6 @@ export default function ProOptimizer() {
           </div>
 
           <div className="flex items-center gap-2 ml-auto flex-shrink-0">
-            {slateHasStarted && (
-              <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px] font-black flex-shrink-0" data-testid="badge-slate-started">
-                <Lock className="w-3 h-3 mr-1" />
-                Slate Has Started
-              </Badge>
-            )}
             <Button
               onClick={handleOptimize}
               disabled={optimizeMutation.isPending || slateHasStarted}
@@ -489,12 +483,10 @@ export default function ProOptimizer() {
             >
               {optimizeMutation.isPending ? (
                 <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-              ) : slateHasStarted ? (
-                <Lock className="w-3.5 h-3.5 mr-1.5" />
               ) : (
                 <Zap className="w-3.5 h-3.5 mr-1.5" />
               )}
-              {slateHasStarted ? "Locked" : `Generate ${lineupCount}`}
+              Generate {lineupCount}
             </Button>
 
             {generatedLineups.length > 0 && (
