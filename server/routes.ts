@@ -1336,11 +1336,24 @@ export async function seedDatabase(forceRefresh = false) {
   });
 
   for (const seed of sportSeeds) {
-    const slateExists = existingSlates.some(
+    const existingSlate = existingSlates.find(
       s => s.sport === seed.sport && s.platform === "draftkings" && s.isMain
     );
 
-    if (!slateExists) {
+    const now = new Date();
+    const isStale = existingSlate && new Date(existingSlate.startTime) < now;
+
+    if (isStale) {
+      try {
+        await storage.deleteSlateAndPlayers(existingSlate.id);
+        console.log(`[DK] Removed stale ${seed.sport} slate (started ${existingSlate.startTime})`);
+      } catch (err) {
+        console.error(`[DK] Failed to remove stale ${seed.sport} slate:`, err);
+        continue;
+      }
+    }
+
+    if (!existingSlate || isStale) {
       const dkSlate = await storage.createSlate({
         sport: seed.sport,
         platform: "draftkings",

@@ -17,6 +17,7 @@ export interface IStorage extends IAuthStorage {
   getSlate(id: number): Promise<Slate | undefined>;
   createSlate(slate: InsertSlate): Promise<Slate>;
   clearAllSlatesAndPlayers(): Promise<void>;
+  deleteSlateAndPlayers(slateId: number): Promise<void>;
 
   getPlayersBySlate(slateId: number): Promise<Player[]>;
   getAllPlayers(): Promise<Player[]>;
@@ -75,6 +76,23 @@ export class DatabaseStorage implements IStorage {
   async clearAllSlatesAndPlayers(): Promise<void> {
     await db.delete(players);
     await db.delete(slates);
+  }
+
+  async deleteSlateAndPlayers(slateId: number): Promise<void> {
+    const slateLineups = await db.select({ id: lineups.id }).from(lineups).where(eq(lineups.slateId, slateId));
+    if (slateLineups.length > 0) {
+      const lineupIds = slateLineups.map(l => l.id);
+      await db.update(alerts).set({ lineupId: null }).where(inArray(alerts.lineupId, lineupIds));
+      await db.delete(lineups).where(eq(lineups.slateId, slateId));
+    }
+    const slatePlayers = await db.select({ id: players.id }).from(players).where(eq(players.slateId, slateId));
+    if (slatePlayers.length > 0) {
+      const playerIds = slatePlayers.map(p => p.id);
+      await db.update(props).set({ playerId: null }).where(inArray(props.playerId, playerIds));
+      await db.update(alerts).set({ playerId: null }).where(inArray(alerts.playerId, playerIds));
+    }
+    await db.delete(players).where(eq(players.slateId, slateId));
+    await db.delete(slates).where(eq(slates.id, slateId));
   }
 
   async getPlayersBySlate(slateId: number): Promise<Player[]> {
