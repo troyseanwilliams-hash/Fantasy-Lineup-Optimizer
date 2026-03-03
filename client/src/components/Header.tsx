@@ -16,6 +16,7 @@ import {
 import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
+import { LogoIcon } from "@/components/Logo";
 
 interface AlertItem {
   id: number;
@@ -90,8 +91,9 @@ export function Header() {
         <div className="flex items-center space-x-10">
           <Link href="/">
             <div className="flex items-center space-x-2 lg:space-x-3 cursor-pointer group">
-              <div className="w-8 h-8 lg:w-10 lg:h-10 bg-[#10B981] rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
-                <Zap className="text-white w-5 h-5 lg:w-6 lg:h-6 fill-current" />
+              <div className="group-hover:scale-110 transition-transform">
+                <LogoIcon size={36} className="lg:hidden" />
+                <LogoIcon size={44} className="hidden lg:block" />
               </div>
               <span className="text-xl lg:text-2xl font-black tracking-tighter uppercase text-white">
                 ELITE<span className="text-[#10B981]">LINEUP</span>
