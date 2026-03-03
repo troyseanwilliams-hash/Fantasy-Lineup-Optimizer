@@ -19,8 +19,8 @@ export function Footer() {
           <div>
             <h4 className="text-white font-semibold mb-4" data-testid="footer-product-heading">Product</h4>
             <ul className="space-y-2">
-              <li><Link href="/" className="text-slate-400 hover:text-white text-sm transition-colors" data-testid="footer-link-lineup-builder">Lineup Builder</Link></li>
-              <li><Link href="/props" className="text-slate-400 hover:text-white text-sm transition-colors" data-testid="footer-link-prop-insights">Prop Insights</Link></li>
+              <li><Link href="/lineup-builder" className="text-slate-400 hover:text-white text-sm transition-colors" data-testid="footer-link-lineup-builder">Lineup Builder</Link></li>
+              <li><Link href="/prop-insights" className="text-slate-400 hover:text-white text-sm transition-colors" data-testid="footer-link-prop-insights">Prop Insights</Link></li>
               <li><Link href="/pricing" className="text-slate-400 hover:text-white text-sm transition-colors" data-testid="footer-link-pricing">Pricing</Link></li>
             </ul>
           </div>
