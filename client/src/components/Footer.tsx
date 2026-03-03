@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { LogoIcon } from "@/components/Logo";
 
 export function Footer() {
   return (
@@ -7,10 +8,10 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div className="col-span-1 md:col-span-2">
             <div className="flex items-center space-x-2 mb-4">
-              <div className="w-8 h-8 bg-[#10B981] rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold">E</span>
-              </div>
-              <span className="text-xl font-bold text-white">EliteLineup AI</span>
+              <LogoIcon size={32} />
+              <span className="text-xl font-black tracking-tighter uppercase text-white">
+                ELITE<span className="text-[#10B981]">LINEUP</span>
+              </span>
             </div>
             <p className="text-slate-400 max-w-sm mb-6">
               Empowering DFS players and sports bettors with AI-driven insights and real-time data analysis for smarter decisions.
