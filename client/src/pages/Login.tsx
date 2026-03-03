@@ -71,7 +71,7 @@ export default function Login() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center mb-3">
-            <LogoBanner height={240} />
+            <LogoBanner height={64} />
           </div>
           <p className="text-slate-400 text-sm font-medium">
             {isRegister ? "Create your account to get started" : "Sign in to your account"}
