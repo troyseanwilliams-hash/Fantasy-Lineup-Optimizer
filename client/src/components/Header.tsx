@@ -91,8 +91,8 @@ export function Header() {
         <div className="flex items-center space-x-10">
           <Link href="/">
             <div className="flex items-center cursor-pointer group-hover:opacity-90 transition-opacity">
-              <LogoBanner height={52} className="lg:hidden" />
-              <LogoBanner height={64} className="hidden lg:block" />
+              <LogoBanner height={56} className="lg:hidden" />
+              <LogoBanner height={76} className="hidden lg:block" />
             </div>
           </Link>
 
