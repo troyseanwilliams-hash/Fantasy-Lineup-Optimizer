@@ -16,7 +16,7 @@ import {
 import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
-import { LogoIcon } from "@/components/Logo";
+import { LogoBanner } from "@/components/Logo";
 
 interface AlertItem {
   id: number;
@@ -90,22 +90,9 @@ export function Header() {
       <div className="container mx-auto px-4 h-16 lg:h-20 flex items-center justify-between">
         <div className="flex items-center space-x-10">
           <Link href="/">
-            <div className="flex items-center space-x-2 lg:space-x-3 cursor-pointer group">
-              <div className="group-hover:scale-110 transition-transform">
-                <LogoIcon size={36} className="lg:hidden" />
-                <LogoIcon size={44} className="hidden lg:block" />
-              </div>
-              <div className="flex items-baseline gap-0.5">
-                <span className="text-xl lg:text-2xl font-black tracking-tight text-white" style={{ fontStyle: 'italic' }}>
-                  Elite
-                </span>
-                <span className="text-xl lg:text-2xl font-black tracking-tight text-[#10B981]" style={{ fontStyle: 'italic' }}>
-                  Lineup
-                </span>
-                <span className="text-[10px] lg:text-xs font-black tracking-widest text-emerald-400/60 uppercase ml-1">
-                  AI
-                </span>
-              </div>
+            <div className="flex items-center cursor-pointer group-hover:opacity-90 transition-opacity">
+              <LogoBanner height={36} className="lg:hidden" />
+              <LogoBanner height={48} className="hidden lg:block" />
             </div>
           </Link>
 
