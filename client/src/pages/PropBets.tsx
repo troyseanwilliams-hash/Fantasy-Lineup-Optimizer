@@ -340,7 +340,7 @@ function LockedPropCard({ index, sport, tier }: { index: number; sport: string; 
         <p className="text-sm font-bold text-slate-300 mb-1">{upgradeLabel}</p>
         <p className="text-[11px] text-slate-400 mb-2">{isGuest ? "Create an account to view picks" : "Higher confidence pick"}</p>
         {isGuest ? (
-          <Button size="sm" className="text-xs" onClick={() => window.location.href = '/api/login'}>
+          <Button size="sm" className="text-xs" onClick={() => window.location.href = '/login'}>
             <Lock className="w-3 h-3 mr-1" /> {upgradeText}
           </Button>
         ) : (
@@ -497,7 +497,7 @@ export default function PropBets() {
               </p>
             </div>
             {isGuest ? (
-              <Button onClick={() => window.location.href = '/api/login'} data-testid="signin-props-btn">
+              <Button onClick={() => window.location.href = '/login'} data-testid="signin-props-btn">
                 <Lock className="w-4 h-4 mr-2" /> Sign In to Unlock
               </Button>
             ) : !isPro && (
@@ -774,7 +774,7 @@ export default function PropBets() {
                 : "Upgrade your plan for more AI-powered prop picks across all sports. Star gets up to 5, Pro gets up to 15."}
           </p>
           {isGuest ? (
-            <Button onClick={() => window.location.href = '/api/login'} data-testid="unlock-all-btn">
+            <Button onClick={() => window.location.href = '/login'} data-testid="unlock-all-btn">
               <Lock className="w-4 h-4 mr-2" /> Sign In
             </Button>
           ) : (

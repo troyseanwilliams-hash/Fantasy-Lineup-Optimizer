@@ -133,7 +133,7 @@ function UnauthenticatedView() {
           <p className="text-xs text-slate-400">The Parlay Builder is available exclusively to Pro members. Upgrade to start building winning parlays.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-          <a href="/api/login" data-testid="parlay-login-btn">
+          <a href="/login" data-testid="parlay-login-btn">
             <Button className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold px-8 h-12">
               <Zap className="w-4 h-4 mr-2" /> Sign In to Get Started
             </Button>

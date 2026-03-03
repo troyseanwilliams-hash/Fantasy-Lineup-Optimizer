@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
@@ -6,6 +6,13 @@ import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import solver from "javascript-lp-solver";
 import { getPlatformConfig, ACTIVE_SPORTS, assignPlayersToSlots, type Platform } from "@shared/platform-config";
+
+function getSessionUserId(req: Request): string | null {
+  return (req.session as any)?.userId || null;
+}
+function isLoggedIn(req: Request): boolean {
+  return !!getSessionUserId(req);
+}
 import { XMLParser } from "fast-xml-parser";
 
 import { type OptimizationConstraints, type ProOptimizationConstraints, type Player, type Slate, type InsertProp, type InsertAlert, proOptimizationConstraintSchema, insertPrizePicksEntrySchema } from "@shared/schema";
@@ -125,8 +132,8 @@ export async function registerRoutes(
 
       const platform = (constraints.platform || slate.platform || "draftkings") as Platform;
 
-      if (req.isAuthenticated()) {
-        const userId = (req.user as any).claims.sub;
+      if (isLoggedIn(req)) {
+        const userId = getSessionUserId(req)!;
         const sub = await storage.getSubscription(userId);
         const tier = sub?.tier || "free";
         if (tier === "free") {
@@ -170,8 +177,8 @@ export async function registerRoutes(
   });
 
   app.get(api.lineups.list.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any).claims.sub;
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
     const lineups = await storage.getLineups(userId);
 
     const slateCache = new Map<number, ReturnType<typeof computeOwnershipProjections>>();
@@ -191,10 +198,10 @@ export async function registerRoutes(
   });
 
   app.post(api.lineups.create.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!isLoggedIn(req)) return res.sendStatus(401);
     try {
       const input = api.lineups.create.input.parse(req.body);
-      const userId = (req.user as any).claims.sub;
+      const userId = getSessionUserId(req)!;
 
       const sub = await storage.getSubscription(userId);
       const tier = sub?.tier || "free";
@@ -225,11 +232,11 @@ export async function registerRoutes(
   });
   
   app.get("/api/lineups/:id", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!isLoggedIn(req)) return res.sendStatus(401);
     const id = Number(req.params.id);
     const lineup = await storage.getLineup(id);
     if (!lineup) return res.sendStatus(404);
-    const userId = (req.user as any).claims.sub;
+    const userId = getSessionUserId(req)!;
     if (lineup.userId !== userId) return res.sendStatus(403);
 
     const allPlayers = await storage.getPlayersBySlate(lineup.slateId);
@@ -238,11 +245,11 @@ export async function registerRoutes(
   });
 
   app.patch("/api/lineups/:id", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!isLoggedIn(req)) return res.sendStatus(401);
     const id = Number(req.params.id);
     const lineup = await storage.getLineup(id);
     if (!lineup) return res.sendStatus(404);
-    const userId = (req.user as any).claims.sub;
+    const userId = getSessionUserId(req)!;
     if (lineup.userId !== userId) return res.sendStatus(403);
 
     const { playerIds } = req.body;
@@ -288,19 +295,19 @@ export async function registerRoutes(
   });
 
   app.delete(api.lineups.delete.path, async (req, res) => {
-      if (!req.isAuthenticated()) return res.sendStatus(401);
+      if (!isLoggedIn(req)) return res.sendStatus(401);
       const id = Number(req.params.id);
       const lineup = await storage.getLineup(id);
       if (!lineup) return res.sendStatus(404);
-      const userId = (req.user as any).claims.sub;
+      const userId = getSessionUserId(req)!;
       if (lineup.userId !== userId) return res.sendStatus(403);
       await storage.deleteLineup(id);
       res.sendStatus(204);
   });
 
   app.get("/api/lineups/review", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any).claims.sub;
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
 
     const sub = await storage.getSubscription(userId);
     const tier = sub?.tier || "free";
@@ -320,8 +327,8 @@ export async function registerRoutes(
   });
 
   app.post("/api/lineups/bulk-delete", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any).claims.sub;
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
     const { ids } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "No lineup IDs provided" });
     let deleted = 0;
@@ -336,8 +343,8 @@ export async function registerRoutes(
   });
 
   app.get("/api/subscription", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any).claims.sub;
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
     const sub = await storage.getSubscription(userId);
     const tier = sub?.tier || "free";
     const lineupCount = await storage.getLineupCount(userId);
@@ -360,8 +367,8 @@ export async function registerRoutes(
   });
 
   app.post("/api/admin/seed", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any).claims.sub;
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
     const dbUser = await storage.getUser(userId);
     if (!dbUser?.isAdmin) return res.status(403).json({ message: "Admin access required" });
     try {
@@ -373,8 +380,8 @@ export async function registerRoutes(
   });
 
   app.post("/api/admin/refresh-data", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any).claims.sub;
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
     const dbUser = await storage.getUser(userId);
     if (!dbUser?.isAdmin) return res.status(403).json({ message: "Admin access required" });
     try {
@@ -546,8 +553,8 @@ export async function registerRoutes(
 
   app.post("/api/prizepicks/analyze", async (req, res) => {
     try {
-      if (!req.isAuthenticated()) return res.sendStatus(401);
-      const userId = (req.user as any).claims.sub;
+      if (!isLoggedIn(req)) return res.sendStatus(401);
+      const userId = getSessionUserId(req)!;
       const sub = await storage.getSubscription(userId);
       if (!sub || sub.tier !== "pro") {
         return res.status(403).json({ error: "Pro subscription required" });
@@ -589,8 +596,8 @@ export async function registerRoutes(
 
   app.get("/api/prizepicks/build/:sport", async (req, res) => {
     try {
-      if (!req.isAuthenticated()) return res.sendStatus(401);
-      const userId = (req.user as any).claims.sub;
+      if (!isLoggedIn(req)) return res.sendStatus(401);
+      const userId = getSessionUserId(req)!;
       const sub = await storage.getSubscription(userId);
       if (!sub || sub.tier !== "pro") {
         return res.status(403).json({ error: "Pro subscription required" });
@@ -628,8 +635,8 @@ export async function registerRoutes(
 
   app.get("/api/prizepicks/vault/entries", async (req, res) => {
     try {
-      if (!req.isAuthenticated()) return res.sendStatus(401);
-      const userId = (req.user as any).claims.sub;
+      if (!isLoggedIn(req)) return res.sendStatus(401);
+      const userId = getSessionUserId(req)!;
       const entries = await storage.getPrizePicksEntries(userId);
       res.json({ entries });
     } catch (err) {
@@ -640,8 +647,8 @@ export async function registerRoutes(
 
   app.post("/api/prizepicks/vault/entries", async (req, res) => {
     try {
-      if (!req.isAuthenticated()) return res.sendStatus(401);
-      const userId = (req.user as any).claims.sub;
+      if (!isLoggedIn(req)) return res.sendStatus(401);
+      const userId = getSessionUserId(req)!;
       const sub = await storage.getSubscription(userId);
       if (!sub || sub.tier !== "pro") {
         return res.status(403).json({ error: "Pro subscription required" });
@@ -683,8 +690,8 @@ export async function registerRoutes(
 
   app.delete("/api/prizepicks/vault/entries/:id", async (req, res) => {
     try {
-      if (!req.isAuthenticated()) return res.sendStatus(401);
-      const userId = (req.user as any).claims.sub;
+      if (!isLoggedIn(req)) return res.sendStatus(401);
+      const userId = getSessionUserId(req)!;
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ error: "Invalid entry ID" });
       await storage.deletePrizePicksEntry(id, userId);
@@ -902,8 +909,8 @@ export async function registerRoutes(
 
   app.post("/api/optimize/pro", async (req, res) => {
     try {
-      if (!req.isAuthenticated()) return res.sendStatus(401);
-      const userId = (req.user as any).claims.sub;
+      if (!isLoggedIn(req)) return res.sendStatus(401);
+      const userId = getSessionUserId(req)!;
       const sub = await storage.getSubscription(userId);
       const tier = sub?.tier || "free";
       if (tier !== "pro" && tier !== "star") {
@@ -1062,23 +1069,23 @@ export async function registerRoutes(
   });
 
   app.get("/api/alerts", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any).claims.sub;
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
     const allAlerts = await storage.getAlerts(userId);
     const unreadCount = await storage.getUnreadAlertCount(userId);
     res.json({ alerts: allAlerts, unreadCount });
   });
 
   app.post("/api/alerts/:id/read", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any).claims.sub;
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
     await storage.markAlertRead(Number(req.params.id), userId);
     res.sendStatus(204);
   });
 
   app.post("/api/alerts/read-all", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const userId = (req.user as any).claims.sub;
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
     await storage.markAllAlertsRead(userId);
     res.sendStatus(204);
   });
@@ -1094,9 +1101,9 @@ export async function registerRoutes(
 
     let tier = "free";
     let isAuthenticated = false;
-    if (req.isAuthenticated()) {
+    if (isLoggedIn(req)) {
       isAuthenticated = true;
-      const userId = (req.user as any).claims.sub;
+      const userId = getSessionUserId(req)!;
       const sub = await storage.getSubscription(userId);
       tier = sub?.tier || "free";
     }
@@ -1185,6 +1192,13 @@ const PROP_TYPES_BY_SPORT: Record<string, { type: string; baseMultiplier: number
     { type: "Top 10 Finish", baseMultiplier: 0.12, unit: "T10" },
     { type: "Eagles", baseMultiplier: 0.04, unit: "eagles" },
     { type: "Under Par Holes", baseMultiplier: 0.35, unit: "holes" },
+  ],
+  SOCCER: [
+    { type: "Shots", baseMultiplier: 0.6, unit: "shots" },
+    { type: "Shots on Target", baseMultiplier: 0.3, unit: "SOT" },
+    { type: "Tackles", baseMultiplier: 0.45, unit: "tackles" },
+    { type: "Passes", baseMultiplier: 3.5, unit: "passes" },
+    { type: "Goals+Assists", baseMultiplier: 0.15, unit: "G+A" },
   ],
 };
 

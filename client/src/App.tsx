@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
 
 import Home from "@/pages/Home";
+import Login from "@/pages/Login";
 import Optimizer from "@/pages/Optimizer";
 import ProOptimizer from "@/pages/ProOptimizer";
 import SavedLineups from "@/pages/SavedLineups";
@@ -27,6 +28,7 @@ function Router() {
   const [location] = useLocation();
   const isOptimizer = location.startsWith("/optimizer") || location.startsWith("/optimizer-pro");
   const isOnboarding = location === "/onboarding";
+  const isLoginPage = location === "/login";
 
   if (isLoading) {
     return (
@@ -40,12 +42,17 @@ function Router() {
     return <Redirect to="/" />;
   }
 
+  if (user && isLoginPage) {
+    return <Redirect to="/" />;
+  }
+
   return (
-    <div className={`flex flex-col ${isOptimizer ? "h-screen overflow-hidden" : isOnboarding ? "" : "min-h-screen"} bg-[#0F172A]`}>
-      {!isOnboarding && <Header />}
+    <div className={`flex flex-col ${isOptimizer ? "h-screen overflow-hidden" : isOnboarding || isLoginPage ? "" : "min-h-screen"} bg-[#0F172A]`}>
+      {!isOnboarding && !isLoginPage && <Header />}
       <main className={isOptimizer ? "flex-1 overflow-hidden" : "flex-grow"}>
         <Switch>
           <Route path="/" component={Home} />
+          <Route path="/login" component={Login} />
           <Route path="/onboarding" component={Onboarding} />
           <Route path="/optimizer/:id" component={Optimizer} />
           <Route path="/optimizer-pro/:id" component={ProOptimizer} />
@@ -60,7 +67,7 @@ function Router() {
           <Route component={NotFound} />
         </Switch>
       </main>
-      {!isOptimizer && !isOnboarding && <Footer />}
+      {!isOptimizer && !isOnboarding && !isLoginPage && <Footer />}
     </div>
   );
 }
