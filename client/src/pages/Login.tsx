@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Zap, Eye, EyeOff, Loader2, UserPlus, LogIn, Phone } from "lucide-react";
+import { Eye, EyeOff, Loader2, UserPlus, LogIn, Phone } from "lucide-react";
+import { LogoBanner } from "@/components/Logo";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -69,13 +70,8 @@ export default function Login() {
     <div className="min-h-screen bg-[#0F172A] flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
-              <Zap className="w-6 h-6 text-white fill-current" />
-            </div>
-            <span className="text-2xl font-black text-white tracking-tight">
-              EliteLineup <span className="text-emerald-400">AI</span>
-            </span>
+          <div className="flex items-center justify-center mb-3">
+            <LogoBanner height={120} />
           </div>
           <p className="text-slate-400 text-sm">
             {isRegister ? "Create your account to get started" : "Sign in to your account"}
