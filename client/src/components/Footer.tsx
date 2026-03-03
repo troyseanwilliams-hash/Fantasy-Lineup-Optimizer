@@ -8,7 +8,7 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div className="col-span-1 md:col-span-2">
             <div className="mb-4">
-              <LogoBanner height={44} />
+              <LogoBanner height={35} />
             </div>
             <p className="text-slate-400 max-w-sm mb-6">
               Empowering DFS players and sports bettors with AI-driven insights and real-time data analysis for smarter decisions.
