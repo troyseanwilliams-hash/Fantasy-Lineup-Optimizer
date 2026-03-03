@@ -16,9 +16,14 @@ const onboardingSchema = z.object({
 export function registerAuthRoutes(app: Express): void {
   app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const user = await authStorage.getUser(userId);
-      res.json(user);
+      if (user) {
+        const { password: _, ...safeUser } = user;
+        res.json(safeUser);
+      } else {
+        res.status(401).json({ message: "Unauthorized" });
+      }
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
@@ -27,7 +32,7 @@ export function registerAuthRoutes(app: Express): void {
 
   app.post("/api/onboarding", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id;
       const parsed = onboardingSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ error: "Invalid data", details: parsed.error.flatten() });

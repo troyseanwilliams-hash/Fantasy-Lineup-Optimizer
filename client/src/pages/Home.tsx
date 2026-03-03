@@ -1142,7 +1142,7 @@ export default function Home() {
               </div>
             </div>
             <Button
-              onClick={() => (window.location.href = "/api/login")}
+              onClick={() => (window.location.href = "/login")}
               className="h-16 px-12 text-xl font-black bg-emerald-500 hover:bg-emerald-600 text-white shadow-2xl shadow-emerald-500/30"
               data-testid="login-btn"
             >

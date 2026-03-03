@@ -380,13 +380,14 @@ export function Header() {
               </DropdownMenu>
             </div>
           ) : (
-            <Button 
-              onClick={() => window.location.href = '/api/login'} 
-              className="hidden lg:flex bg-[#10B981] text-white px-8 font-bold rounded-lg h-11"
-              data-testid="sign-in-btn"
-            >
-              Sign In
-            </Button>
+            <Link href="/login">
+              <Button 
+                className="hidden lg:flex bg-[#10B981] text-white px-8 font-bold rounded-lg h-11"
+                data-testid="sign-in-btn"
+              >
+                Sign In
+              </Button>
+            </Link>
           )}
 
           <button
@@ -427,14 +428,16 @@ export function Header() {
             )}
 
             {!user && (
-              <button
-                onClick={() => { window.location.href = '/api/login'; setMobileMenuOpen(false); }}
-                className="w-full flex items-center gap-3 px-3 py-3 rounded-lg bg-[#10B981] text-white font-bold text-sm mb-3"
-                data-testid="mobile-sign-in-btn"
-              >
-                <Zap className="w-5 h-5 fill-current" />
-                <span>Sign In with Replit</span>
-              </button>
+              <Link href="/login">
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full flex items-center gap-3 px-3 py-3 rounded-lg bg-[#10B981] text-white font-bold text-sm mb-3"
+                  data-testid="mobile-sign-in-btn"
+                >
+                  <Zap className="w-5 h-5 fill-current" />
+                  <span>Sign In</span>
+                </button>
+              </Link>
             )}
 
             <button

@@ -5,6 +5,43 @@ import { createServer } from "http";
 import cron from "node-cron";
 import { storage } from "./storage";
 import { fetchPrizePicksProjections, getSupportedPPSports } from "./prizepicks";
+import bcrypt from "bcryptjs";
+import { db } from "./db";
+import { users } from "@shared/models/auth";
+import { subscriptions } from "@shared/schema";
+import { eq } from "drizzle-orm";
+
+async function seedDefaultUser() {
+  const email = "troy.sean.williams@gmail.com";
+  const hashedPassword = await bcrypt.hash("Bubba@666", 10);
+  const [existing] = await db.select().from(users).where(eq(users.email, email));
+  if (existing) {
+    if (!existing.password) {
+      await db.update(users).set({
+        password: hashedPassword,
+        onboardingComplete: true,
+        isAdmin: true,
+        updatedAt: new Date(),
+      }).where(eq(users.id, existing.id));
+      console.log(`[seed] Updated password for existing user: ${email}`);
+    }
+  } else {
+    const [user] = await db.insert(users).values({
+      email,
+      password: hashedPassword,
+      firstName: "Troy",
+      lastName: "Williams",
+      onboardingComplete: true,
+      isAdmin: true,
+    }).returning();
+    await db.insert(subscriptions).values({
+      userId: user.id,
+      tier: "pro",
+      status: "active",
+    }).onConflictDoNothing();
+    console.log(`[seed] Created default user: ${email}`);
+  }
+}
 
 const app = express();
 const httpServer = createServer(app);
@@ -104,6 +141,7 @@ app.use((req, res, next) => {
 
       (async () => {
         try {
+          await seedDefaultUser();
           const delCount = await storage.deleteExpiredLineups();
           if (delCount > 0) log(`Moved ${delCount} expired lineup(s) to review on startup`, "cron");
           await seedDatabase();

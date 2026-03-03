@@ -41,7 +41,7 @@ class AuthStorage implements IAuthStorage {
 
     await db.insert(subscriptions).values({
       userId: user.id,
-      tier: "pro",
+      tier: "free",
       status: "active",
     }).onConflictDoNothing();
 
