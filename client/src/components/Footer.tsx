@@ -9,9 +9,17 @@ export function Footer() {
           <div className="col-span-1 md:col-span-2">
             <div className="flex items-center space-x-2 mb-4">
               <LogoIcon size={32} />
-              <span className="text-xl font-black tracking-tighter uppercase text-white">
-                ELITE<span className="text-[#10B981]">LINEUP</span>
-              </span>
+              <div className="flex items-baseline gap-0.5">
+                <span className="text-xl font-black tracking-tight text-white" style={{ fontStyle: 'italic' }}>
+                  Elite
+                </span>
+                <span className="text-xl font-black tracking-tight text-[#10B981]" style={{ fontStyle: 'italic' }}>
+                  Lineup
+                </span>
+                <span className="text-[10px] font-black tracking-widest text-emerald-400/60 uppercase ml-1">
+                  AI
+                </span>
+              </div>
             </div>
             <p className="text-slate-400 max-w-sm mb-6">
               Empowering DFS players and sports bettors with AI-driven insights and real-time data analysis for smarter decisions.

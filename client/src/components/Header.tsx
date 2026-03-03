@@ -95,9 +95,17 @@ export function Header() {
                 <LogoIcon size={36} className="lg:hidden" />
                 <LogoIcon size={44} className="hidden lg:block" />
               </div>
-              <span className="text-xl lg:text-2xl font-black tracking-tighter uppercase text-white">
-                ELITE<span className="text-[#10B981]">LINEUP</span>
-              </span>
+              <div className="flex items-baseline gap-0.5">
+                <span className="text-xl lg:text-2xl font-black tracking-tight text-white" style={{ fontStyle: 'italic' }}>
+                  Elite
+                </span>
+                <span className="text-xl lg:text-2xl font-black tracking-tight text-[#10B981]" style={{ fontStyle: 'italic' }}>
+                  Lineup
+                </span>
+                <span className="text-[10px] lg:text-xs font-black tracking-widest text-emerald-400/60 uppercase ml-1">
+                  AI
+                </span>
+              </div>
             </div>
           </Link>
 
