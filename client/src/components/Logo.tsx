@@ -1,5 +1,5 @@
 import logoPath from "@assets/elitelineup-logo.png";
-import bannerPath from "@assets/elitelineup-banner-v3.png";
+import bannerPath from "@assets/elitelineup-banner-v5.png";
 
 interface LogoProps {
   size?: number;
