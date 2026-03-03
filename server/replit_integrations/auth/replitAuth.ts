@@ -33,7 +33,7 @@ export async function setupAuth(app: Express) {
 
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { email, password, firstName, lastName } = req.body;
+      const { email, password, firstName, lastName, phone, smsConsent, emailConsent } = req.body;
       if (!email || !password) {
         return res.status(400).json({ message: "Email and password are required." });
       }
@@ -52,6 +52,9 @@ export async function setupAuth(app: Express) {
         password: hashedPassword,
         firstName: firstName || "",
         lastName: lastName || "",
+        phone: phone || "",
+        smsConsent: smsConsent ?? false,
+        emailConsent: emailConsent ?? false,
       });
 
       (req.session as any).userId = user.id;

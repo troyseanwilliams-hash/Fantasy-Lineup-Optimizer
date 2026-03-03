@@ -4,8 +4,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Zap, Eye, EyeOff, Loader2, UserPlus, LogIn } from "lucide-react";
+import { Zap, Eye, EyeOff, Loader2, UserPlus, LogIn, Phone } from "lucide-react";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -17,6 +18,9 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [smsConsent, setSmsConsent] = useState(false);
+  const [emailConsent, setEmailConsent] = useState(false);
 
   const loginMutation = useMutation({
     mutationFn: async () => {
@@ -25,6 +29,9 @@ export default function Login() {
       if (isRegister) {
         body.firstName = firstName.trim();
         body.lastName = lastName.trim();
+        body.phone = phone.trim();
+        body.smsConsent = smsConsent;
+        body.emailConsent = emailConsent;
       }
       const res = await fetch(endpoint, {
         method: "POST",
@@ -144,6 +151,54 @@ export default function Login() {
               </div>
             </div>
 
+            {isRegister && (
+              <>
+                <div>
+                  <Label htmlFor="phone" className="text-slate-300 text-sm font-medium">Mobile Number</Label>
+                  <div className="relative mt-1">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="(555) 123-4567"
+                      autoComplete="tel"
+                      className="bg-slate-800/60 border-slate-700 text-white placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500/20 pl-10"
+                      data-testid="input-phone"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-1">
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      id="smsConsent"
+                      checked={smsConsent}
+                      onCheckedChange={(checked) => setSmsConsent(checked === true)}
+                      className="mt-0.5 border-slate-600 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                      data-testid="checkbox-sms-consent"
+                    />
+                    <Label htmlFor="smsConsent" className="text-slate-400 text-xs leading-relaxed cursor-pointer">
+                      I agree to receive SMS notifications about lineup alerts, injury updates, and promotions.
+                    </Label>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      id="emailConsent"
+                      checked={emailConsent}
+                      onCheckedChange={(checked) => setEmailConsent(checked === true)}
+                      className="mt-0.5 border-slate-600 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                      data-testid="checkbox-email-consent"
+                    />
+                    <Label htmlFor="emailConsent" className="text-slate-400 text-xs leading-relaxed cursor-pointer">
+                      I agree to receive email updates about new features, daily picks, and special offers.
+                    </Label>
+                  </div>
+                </div>
+              </>
+            )}
+
             <Button
               type="submit"
               disabled={loginMutation.isPending}
@@ -168,7 +223,7 @@ export default function Login() {
               {isRegister ? "Already have an account?" : "Don't have an account?"}{" "}
               <button
                 type="button"
-                onClick={() => { setIsRegister(!isRegister); setEmail(""); setPassword(""); setFirstName(""); setLastName(""); }}
+                onClick={() => { setIsRegister(!isRegister); setEmail(""); setPassword(""); setFirstName(""); setLastName(""); setPhone(""); setSmsConsent(false); setEmailConsent(false); }}
                 className="text-emerald-400 hover:text-emerald-300 font-semibold"
                 data-testid="btn-toggle-auth-mode"
               >
