@@ -69,8 +69,10 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-[#0F172A] flex items-center justify-center px-4">
       <div className="w-full max-w-md">
-        <div className="flex items-center justify-center gap-4 mb-8">
-          <LogoBanner height={240} />
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center mb-3">
+            <LogoBanner height={240} />
+          </div>
           <p className="text-slate-400 text-sm font-medium">
             {isRegister ? "Create your account to get started" : "Sign in to your account"}
           </p>
