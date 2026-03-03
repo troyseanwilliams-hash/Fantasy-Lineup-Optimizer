@@ -1125,30 +1125,38 @@ export default function Home() {
                 );
               })}
             </div>
-            <div className="flex items-center justify-center gap-3 flex-wrap mb-8">
-              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold text-sm px-3 py-1 backdrop-blur-sm" data-testid="unauth-badge-dk">DraftKings</Badge>
-            </div>
-            <div className="flex justify-center mb-12">
-              <div className="bg-white/5 border border-amber-500/20 rounded-xl p-5 backdrop-blur-sm text-left max-w-xs" data-testid="unauth-category-props">
-                <div className="flex items-center gap-2.5 mb-2">
-                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
-                    <TrendingUp className="w-4 h-4 text-amber-400" />
-                  </div>
-                  <h3 className="text-base font-black text-white">Prop Picks</h3>
-                </div>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Daily AI-generated prop bet picks across all sports with confidence ratings and line analysis for DraftKings Sportsbook.
-                </p>
-              </div>
-            </div>
             <Button
               onClick={() => (window.location.href = "/login")}
-              className="h-16 px-12 text-xl font-black bg-emerald-500 hover:bg-emerald-600 text-white shadow-2xl shadow-emerald-500/30"
+              className="h-16 px-12 text-xl font-black bg-emerald-500 hover:bg-emerald-600 text-white shadow-2xl shadow-emerald-500/30 mb-10"
               data-testid="login-btn"
             >
               Get Started
             </Button>
-            <p className="text-sm text-slate-400 mt-4">1 optimized lineup included. Upgrade for more.</p>
+            <div className="flex items-center justify-center gap-4 flex-wrap mb-12">
+              <div className="bg-white/5 border border-emerald-500/20 rounded-xl p-5 backdrop-blur-sm text-left w-72" data-testid="unauth-card-dk">
+                <div className="flex items-center gap-2.5 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                    <Zap className="w-4 h-4 text-emerald-400 fill-current" />
+                  </div>
+                  <h3 className="text-base font-black text-white">DraftKings</h3>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Optimized DFS lineups with real player salaries, LP-based optimization, and instant lineup building across all sports.
+                </p>
+              </div>
+              <div className="bg-white/5 border border-purple-500/20 rounded-xl p-5 backdrop-blur-sm text-left w-72" data-testid="unauth-card-pp">
+                <div className="flex items-center gap-2.5 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                    <TrendingUp className="w-4 h-4 text-purple-400" />
+                  </div>
+                  <h3 className="text-base font-black text-white">PrizePicks</h3>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  AI-powered entry builder with live projections, confidence ratings, and smart pick combinations for max payouts.
+                </p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-400">1 optimized lineup included. Upgrade for more.</p>
           </div>
         </div>
       </div>
