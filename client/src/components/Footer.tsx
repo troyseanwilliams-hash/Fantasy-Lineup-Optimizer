@@ -1,3 +1,5 @@
+import { Link } from "wouter";
+
 export function Footer() {
   return (
     <footer className="bg-[#0F172A] border-t border-border py-12">
@@ -15,28 +17,28 @@ export function Footer() {
             </p>
           </div>
           <div>
-            <h4 className="text-white font-semibold mb-4">Product</h4>
+            <h4 className="text-white font-semibold mb-4" data-testid="footer-product-heading">Product</h4>
             <ul className="space-y-2">
-              <li><a href="#" className="nav-link text-sm">Lineup Builder</a></li>
-              <li><a href="#" className="nav-link text-sm">Prop Insights</a></li>
-              <li><a href="#" className="nav-link text-sm">Pricing</a></li>
+              <li><Link href="/" className="text-slate-400 hover:text-white text-sm transition-colors" data-testid="footer-link-lineup-builder">Lineup Builder</Link></li>
+              <li><Link href="/props" className="text-slate-400 hover:text-white text-sm transition-colors" data-testid="footer-link-prop-insights">Prop Insights</Link></li>
+              <li><Link href="/pricing" className="text-slate-400 hover:text-white text-sm transition-colors" data-testid="footer-link-pricing">Pricing</Link></li>
             </ul>
           </div>
           <div>
-            <h4 className="text-white font-semibold mb-4">Company</h4>
+            <h4 className="text-white font-semibold mb-4" data-testid="footer-company-heading">Company</h4>
             <ul className="space-y-2">
-              <li><a href="#" className="nav-link text-sm">About Us</a></li>
-              <li><a href="#" className="nav-link text-sm">Terms of Service</a></li>
-              <li><a href="#" className="nav-link text-sm">Privacy Policy</a></li>
+              <li><Link href="/about" className="text-slate-400 hover:text-white text-sm transition-colors" data-testid="footer-link-about">About Us</Link></li>
+              <li><Link href="/terms" className="text-slate-400 hover:text-white text-sm transition-colors" data-testid="footer-link-terms">Terms of Service</Link></li>
+              <li><Link href="/privacy" className="text-slate-400 hover:text-white text-sm transition-colors" data-testid="footer-link-privacy">Privacy Policy</Link></li>
             </ul>
           </div>
         </div>
         <div className="border-t border-border pt-8 flex flex-col md:flex-row justify-between items-center text-slate-400 text-sm">
-          <p>© 2024 EliteLineup AI. All rights reserved.</p>
+          <p data-testid="footer-copyright">&copy; 2026 EliteLineup AI. All rights reserved.</p>
           <div className="flex space-x-6 mt-4 md:mt-0">
-            <a href="#" className="hover:text-white">Twitter</a>
-            <a href="#" className="hover:text-white">Discord</a>
-            <a href="#" className="hover:text-white">Support</a>
+            <a href="#" className="hover:text-white" data-testid="footer-link-twitter">Twitter</a>
+            <a href="#" className="hover:text-white" data-testid="footer-link-discord">Discord</a>
+            <a href="mailto:support@elitelineupai.com" className="hover:text-white" data-testid="footer-link-support">Support</a>
           </div>
         </div>
       </div>

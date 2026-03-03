@@ -18,6 +18,9 @@ import News from "@/pages/News";
 import ParlayBuilder from "@/pages/ParlayBuilder";
 import PrizePicksBuilder from "@/pages/PrizePicksBuilder";
 import Onboarding from "@/pages/Onboarding";
+import Terms from "@/pages/Terms";
+import Privacy from "@/pages/Privacy";
+import About from "@/pages/About";
 
 import NotFound from "@/pages/not-found";
 import { Header } from "@/components/Header";
@@ -63,6 +66,9 @@ function Router() {
 
           <Route path="/news/:sport" component={News} />
           <Route path="/pricing" component={Pricing} />
+          <Route path="/terms" component={Terms} />
+          <Route path="/privacy" component={Privacy} />
+          <Route path="/about" component={About} />
           <Route path="/admin" component={Admin} />
           <Route component={NotFound} />
         </Switch>
