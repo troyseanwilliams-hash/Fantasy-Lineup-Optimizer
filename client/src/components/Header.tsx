@@ -87,12 +87,12 @@ export function Header() {
 
   return (
     <header className="border-b sticky top-0 z-50 bg-[#0F172A] border-[#1E293B]">
-      <div className="container mx-auto px-4 h-16 lg:h-20 flex items-center justify-between">
+      <div className="container mx-auto px-4 h-20 lg:h-24 flex items-center justify-between">
         <div className="flex items-center space-x-10">
           <Link href="/">
             <div className="flex items-center cursor-pointer group-hover:opacity-90 transition-opacity">
-              <LogoBanner height={56} className="lg:hidden" />
-              <LogoBanner height={76} className="hidden lg:block" />
+              <LogoBanner height={112} className="lg:hidden" />
+              <LogoBanner height={152} className="hidden lg:block" />
             </div>
           </Link>
 
