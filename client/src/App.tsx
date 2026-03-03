@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Switch, Route, Link, useLocation, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -34,6 +35,10 @@ function Router() {
   const isOptimizer = location.startsWith("/optimizer") || location.startsWith("/optimizer-pro");
   const isOnboarding = location === "/onboarding";
   const isLoginPage = location === "/login";
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location]);
 
   if (isLoading) {
     return (
