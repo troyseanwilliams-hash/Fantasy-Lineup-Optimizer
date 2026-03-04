@@ -52,14 +52,28 @@
 }
 
 [class*="replit"],
-#replit-feedback,
-iframe[src*="replit"] {
+[id*="replit"],
+[data-replit],
+[class*="feedback"],
+[id*="feedback"],
+iframe[src*="replit"],
+div[style*="z-index: 999"],
+div[style*="z-index:999"],
+div[style*="z-index: 9999"],
+div[style*="z-index:9999"],
+div[style*="z-index: 99999"],
+div[style*="z-index:99999"],
+button[class*="feedback"],
+div[class*="widget"] {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
   pointer-events: none !important;
   width: 0 !important;
   height: 0 !important;
+  max-width: 0 !important;
+  max-height: 0 !important;
   position: absolute !important;
   overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
 }

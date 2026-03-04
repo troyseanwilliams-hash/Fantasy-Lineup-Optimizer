@@ -11,5 +11,21 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      (function hideReplitWidget() {
+        function removeWidget() {
+          document.querySelectorAll(
+            '[class*="replit"],[id*="replit"],[data-replit],[class*="feedback"],[id*="feedback"],iframe[src*="replit"]'
+          ).forEach(function(el) {
+            if (el.id !== 'root') el.remove();
+          });
+        }
+        removeWidget();
+        var obs = new MutationObserver(function() { removeWidget(); });
+        obs.observe(document.body, { childList: true, subtree: true });
+        window.addEventListener('load', removeWidget);
+        setInterval(removeWidget, 1000);
+      })();
+    </script>
   </body>
 </html>
