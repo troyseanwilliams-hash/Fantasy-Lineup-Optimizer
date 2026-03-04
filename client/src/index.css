@@ -50,3 +50,16 @@
     @apply text-slate-400 hover:text-[#10B981] transition-colors duration-200 font-medium;
   }
 }
+
+[class*="replit"],
+#replit-feedback,
+iframe[src*="replit"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  position: absolute !important;
+  overflow: hidden !important;
+}
