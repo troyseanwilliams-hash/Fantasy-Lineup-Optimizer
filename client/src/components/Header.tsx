@@ -253,7 +253,7 @@ export function Header() {
           </nav>
         </div>
 
-        <div className="flex items-center space-x-3 lg:space-x-6">
+        <div className="flex items-center space-x-4 lg:space-x-6 ml-4 lg:ml-0">
           {user ? (
             <div className="hidden lg:flex items-center space-x-4">
               <DropdownMenu>
