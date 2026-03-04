@@ -88,9 +88,9 @@ export function Header() {
   return (
     <header className="border-b sticky top-0 z-50 bg-[#0F172A] border-[#1E293B]">
       <div className="container mx-auto px-4 h-20 lg:h-24 flex items-center justify-between">
-        <div className="flex items-center space-x-10">
+        <div className="flex items-center space-x-10 min-w-0">
           <Link href="/">
-            <div className="flex items-center cursor-pointer group-hover:opacity-90 transition-opacity">
+            <div className="flex items-center cursor-pointer group-hover:opacity-90 transition-opacity shrink-0">
               <LogoBanner height={29} className="lg:hidden" />
               <LogoBanner height={38} className="hidden lg:block" />
             </div>
@@ -253,7 +253,7 @@ export function Header() {
           </nav>
         </div>
 
-        <div className="flex items-center space-x-4 lg:space-x-6 ml-4 lg:ml-0">
+        <div className="flex items-center space-x-3 lg:space-x-6 shrink-0">
           {user ? (
             <div className="hidden lg:flex items-center space-x-4">
               <DropdownMenu>
