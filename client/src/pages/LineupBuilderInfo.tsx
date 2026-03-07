@@ -48,8 +48,8 @@ const TIERS = [
       { text: "CSV export for DraftKings upload", included: true },
       { text: "Lock & exclude player controls", included: true },
       { text: "5 AI prop picks per sport", included: true },
+      { text: "Ownership projections", included: true },
       { text: "Advanced exposure settings", included: false },
-      { text: "Ownership projections", included: false },
     ],
   },
   {
