@@ -1748,6 +1748,12 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
     return { error: `Roster size mismatch: got ${selectedPlayers.length}, need ${config.rosterSize}`, lineup: [], totalSalary: 0, totalProjectedPoints: 0 };
   }
 
+  const slotAssignment = assignPlayersToSlots(selectedPlayers, config.slots, sport);
+  const assignedCount = Object.values(slotAssignment).filter(Boolean).length;
+  if (assignedCount < config.rosterSize) {
+    return { error: "Could not assign all players to valid roster positions. Try adjusting your player pool.", lineup: [], totalSalary: 0, totalProjectedPoints: 0 };
+  }
+
   const totalSalary = selectedPlayers.reduce((sum, p) => sum + p.salary, 0);
   const totalPoints = selectedPlayers.reduce((sum, p) => sum + Number(p.projectedPoints), 0);
 
