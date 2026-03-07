@@ -73,7 +73,7 @@ export async function createSubscriptionWithIntent(
   email: string,
   tier: string,
   billing: "monthly" | "annual"
-): Promise<{ subscriptionId: string; clientSecret: string }> {
+): Promise<{ subscriptionId: string; clientSecret: string; isTrial: boolean }> {
   if (!stripe) throw new Error("Stripe not configured");
 
   const priceId = await getOrCreatePrice(tier, billing);
@@ -95,22 +95,44 @@ export async function createSubscriptionWithIntent(
     });
   }
 
-  const subscription = await stripe.subscriptions.create({
+  const hasHadTrial = !!(sub?.stripeSubscriptionId && (sub.status === "active" || sub.status === "trialing" || sub.status === "past_due"));
+
+  const subscriptionParams: Stripe.SubscriptionCreateParams = {
     customer: customerId,
     items: [{ price: priceId }],
     payment_behavior: "default_incomplete",
     payment_settings: { save_default_payment_method: "on_subscription" },
-    expand: ["latest_invoice.payment_intent"],
     metadata: { userId, tier },
-  });
+  };
+
+  if (!hasHadTrial) {
+    subscriptionParams.trial_period_days = 7;
+    subscriptionParams.expand = ["pending_setup_intent"];
+  } else {
+    subscriptionParams.expand = ["latest_invoice.payment_intent"];
+  }
+
+  const subscription = await stripe.subscriptions.create(subscriptionParams);
 
   await storage.upsertSubscription({
     userId,
     stripeCustomerId: customerId,
     stripeSubscriptionId: subscription.id,
     tier: sub?.tier || "free",
-    status: "incomplete",
+    status: subscription.status,
   });
+
+  if (!hasHadTrial && subscription.pending_setup_intent) {
+    const setupIntent = subscription.pending_setup_intent as Stripe.SetupIntent;
+    if (!setupIntent.client_secret) {
+      throw new Error("Unable to create setup intent for trial. Please try again.");
+    }
+    return {
+      subscriptionId: subscription.id,
+      clientSecret: setupIntent.client_secret,
+      isTrial: true,
+    };
+  }
 
   const invoice = subscription.latest_invoice as Stripe.Invoice;
   const paymentIntent = invoice.payment_intent as Stripe.PaymentIntent | null;
@@ -122,6 +144,7 @@ export async function createSubscriptionWithIntent(
   return {
     subscriptionId: subscription.id,
     clientSecret: paymentIntent.client_secret,
+    isTrial: false,
   };
 }
 
@@ -239,11 +262,11 @@ export async function handleWebhookEvent(event: Stripe.Event): Promise<void> {
           stripeSubscriptionId: subscription.id,
           stripeCustomerId: subscription.customer as string,
           tier,
-          status: "active",
+          status: subscription.status,
           currentPeriodEnd: periodEnd,
           graceEndsAt: null,
         });
-        console.log(`[stripe] Subscription active: user ${userId}, tier=${tier}`);
+        console.log(`[stripe] Subscription ${subscription.status}: user ${userId}, tier=${tier}`);
       } else if (subscription.status === "past_due" || subscription.status === "unpaid") {
         await storage.upsertSubscription({
           userId,

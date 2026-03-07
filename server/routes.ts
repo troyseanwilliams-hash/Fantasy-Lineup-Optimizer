@@ -365,6 +365,7 @@ export async function registerRoutes(
       sportCounts,
       graceEndsAt: sub?.graceEndsAt?.toISOString() || null,
       stripeSubscriptionId: sub?.stripeSubscriptionId || null,
+      currentPeriodEnd: sub?.currentPeriodEnd?.toISOString() || null,
     });
   });
 
