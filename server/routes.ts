@@ -247,7 +247,9 @@ export async function registerRoutes(
       const autoExcluded = allPlayers
         .filter(p => p.injuryStatus === "OUT" && !constraints.excludedPlayerIds.includes(p.id))
         .map(p => p.id);
-      const mergedExclusions = [...constraints.excludedPlayerIds, ...autoExcluded];
+      const inactiveExcluded = getInactivePlayerIds(allPlayers, slate.sport)
+        .filter(id => !constraints.lockedPlayerIds.includes(id));
+      const mergedExclusions = [...new Set([...constraints.excludedPlayerIds, ...autoExcluded, ...inactiveExcluded])];
 
       const pool = allPlayers.map(p => {
         const customProj = constraints.playerProjections?.[p.id.toString()];
@@ -577,6 +579,9 @@ export async function registerRoutes(
         }
 
         const baseExcluded = allPlayers.filter(p => p.injuryStatus === "OUT").map(p => p.id);
+        const inactiveExcluded = getInactivePlayerIds(allPlayers, slate.sport)
+          .filter(id => !baseExcluded.includes(id));
+        baseExcluded.push(...inactiveExcluded);
 
         const MAX_POOL_SIZE = 150;
         const excludedSet = new Set(baseExcluded);
@@ -1551,6 +1556,9 @@ export async function registerRoutes(
           baseExcluded.push(p.id);
         }
       });
+      const inactiveExcluded = getInactivePlayerIds(allPlayers, slate.sport)
+        .filter(id => !constraints.lockedPlayerIds.includes(id) && !baseExcluded.includes(id));
+      baseExcluded.push(...inactiveExcluded);
 
       const MAX_POOL_SIZE = 150;
       const excludedSet = new Set(baseExcluded);
@@ -1945,6 +1953,52 @@ function buildPositionVariables(position: string, sport: string): Record<string,
   return vars;
 }
 
+const SPORT_MIN_SALARY: Record<string, number> = {
+  NBA: 3000, NHL: 2500, MLB: 2000, NFL: 3000, GOLF: 5000, SOCCER: 2000,
+};
+
+const INACTIVE_VALUE_THRESHOLD = 6.0;
+
+function getInactivePlayerIds(players: Player[], sport: string): number[] {
+  const minSalary = SPORT_MIN_SALARY[sport] || 3000;
+  const inactiveIds: number[] = [];
+
+  const outPlayersByTeamPos = new Map<string, string[]>();
+  for (const p of players) {
+    if (p.injuryStatus === "OUT") {
+      const positions = p.position.split("/");
+      for (const pos of positions) {
+        const key = `${p.team}_${pos}`;
+        if (!outPlayersByTeamPos.has(key)) outPlayersByTeamPos.set(key, []);
+        outPlayersByTeamPos.get(key)!.push(p.name);
+      }
+    }
+  }
+
+  for (const p of players) {
+    if (p.injuryStatus === "OUT") continue;
+    if (p.salary > minSalary * 1.1) continue;
+
+    const fppg = Number(p.fppg) || 0;
+    const valuePer1K = (fppg * 1000) / p.salary;
+
+    if (valuePer1K >= INACTIVE_VALUE_THRESHOLD) {
+      const positions = p.position.split("/");
+      const hasOutTeammate = positions.some(pos => {
+        const key = `${p.team}_${pos}`;
+        return outPlayersByTeamPos.has(key);
+      });
+
+      if (!hasOutTeammate) {
+        inactiveIds.push(p.id);
+        console.log(`[Inactive Filter] Excluding ${p.name} (${p.team}) - $${p.salary} salary with ${fppg} FPPG (${valuePer1K.toFixed(1)} pts/$K) — likely not in rotation`);
+      }
+    }
+  }
+
+  return inactiveIds;
+}
+
 function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport: string, platform: Platform) {
   const config = getPlatformConfig(sport, platform);
   
@@ -2061,16 +2115,24 @@ export async function seedDatabase(forceRefresh = false) {
     const isStale = existingSlate && new Date(existingSlate.startTime) < now;
 
     if (isStale) {
-      try {
-        await storage.deleteSlateAndPlayers(existingSlate.id);
-        console.log(`[DK] Removed stale ${seed.sport} slate (started ${existingSlate.startTime})`);
-      } catch (err) {
-        console.error(`[DK] Failed to remove stale ${seed.sport} slate:`, err);
-        continue;
-      }
+      await storage.deleteSlateAndPlayers(existingSlate.id);
+      console.log(`[DK] Removed stale ${seed.sport} slate (started ${existingSlate.startTime})`);
     }
 
-    if (!existingSlate || isStale) {
+    const staleSlateStillExists = isStale && (await storage.getSlate(existingSlate?.id as number)) !== undefined;
+
+    if (staleSlateStillExists) {
+      await storage.deletePlayersBySlate(existingSlate!.id);
+      const updatedSlate = await storage.updateSlateData(existingSlate!.id, {
+        name: seed.dkSlate.name!,
+        startTime: seed.dkSlate.startTime!,
+        draftGroupId: seed.draftGroupId || null,
+      });
+      const createdPlayers = await storage.bulkCreatePlayers(
+        seed.dkPlayers.map((p: any) => ({ ...p, slateId: existingSlate!.id })) as any
+      );
+      console.log(`[DK] Repopulated stale ${seed.sport} slate ${existingSlate!.id} with ${createdPlayers.length} players`);
+    } else if (!existingSlate || isStale) {
       const dkSlate = await storage.createSlate({
         sport: seed.sport,
         platform: "draftkings",

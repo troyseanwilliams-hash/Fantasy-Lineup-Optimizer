@@ -130,7 +130,12 @@ export class DatabaseStorage implements IStorage {
       await db.update(alerts).set({ playerId: null }).where(inArray(alerts.playerId, playerIds));
     }
     await db.delete(players).where(eq(players.slateId, slateId));
-    await db.delete(slates).where(eq(slates.id, slateId));
+    const remainingLineups = await db.select({ id: lineups.id }).from(lineups).where(eq(lineups.slateId, slateId));
+    if (remainingLineups.length === 0) {
+      await db.delete(slates).where(eq(slates.id, slateId));
+    } else {
+      console.log(`[Storage] Keeping slate ${slateId} — ${remainingLineups.length} review lineups still reference it`);
+    }
   }
 
   async deletePlayersBySlate(slateId: number): Promise<void> {
@@ -145,6 +150,14 @@ export class DatabaseStorage implements IStorage {
 
   async updateSlateDraftGroupId(slateId: number, draftGroupId: number): Promise<void> {
     await db.update(slates).set({ draftGroupId }).where(eq(slates.id, slateId));
+  }
+
+  async updateSlateData(slateId: number, data: { name?: string; startTime?: Date; draftGroupId?: number | null }): Promise<void> {
+    const update: any = {};
+    if (data.name !== undefined) update.name = data.name;
+    if (data.startTime !== undefined) update.startTime = data.startTime;
+    if (data.draftGroupId !== undefined) update.draftGroupId = data.draftGroupId;
+    await db.update(slates).set(update).where(eq(slates.id, slateId));
   }
 
   async updatePlayerDraftKingsId(playerId: number, draftKingsPlayerId: number): Promise<void> {
