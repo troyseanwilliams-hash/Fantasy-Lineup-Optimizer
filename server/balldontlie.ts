@@ -4,6 +4,22 @@ import { PLATFORM_CONFIGS } from "@shared/platform-config";
 const DK_API_BASE = "https://api.draftkings.com";
 const DK_LOBBY = "https://www.draftkings.com/lobby";
 
+function parseEasternTime(dateStr: string): Date {
+  const cleaned = dateStr.replace(/\.?0+$/, "");
+  const asUtc = new Date(cleaned + "Z");
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(asUtc);
+  const g = (t: string) => parts.find(p => p.type === t)?.value || "00";
+  const etAtUtc = new Date(`${g("year")}-${g("month")}-${g("day")}T${g("hour")}:${g("minute")}:${g("second")}Z`);
+  const offsetMs = asUtc.getTime() - etAtUtc.getTime();
+  return new Date(asUtc.getTime() + offsetMs);
+}
+
 const SPORT_MAP: Record<string, string> = {
   NBA: "NBA",
   NHL: "NHL",
@@ -182,7 +198,7 @@ export async function fetchLiveDKData(sport: string): Promise<LiveSlateData | nu
     }
   }
 
-  const slateDate = new Date(mainSlate.StartDateEst);
+  const slateDate = parseEasternTime(mainSlate.StartDateEst);
 
   const dkPlayers: Omit<InsertPlayer, "slateId">[] = [];
 
