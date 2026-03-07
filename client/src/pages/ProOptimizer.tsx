@@ -536,11 +536,14 @@ export default function ProOptimizer() {
               onChange={e => handleSlateChange(e.target.value)}
               data-testid="pro-slate-selector"
             >
-              {mainSlates.map(s => (
-                <option key={s.id} value={s.id}>
-                  {s.platform === "fanduel" ? "FD" : "DK"} - {s.name}
-                </option>
-              ))}
+              {mainSlates.map(s => {
+                const locked = new Date(s.startTime) <= new Date();
+                return (
+                  <option key={s.id} value={s.id}>
+                    {locked ? "🔒 " : ""}{s.platform === "fanduel" ? "FD" : "DK"} - {s.name}{locked ? " (Locked)" : ""}
+                  </option>
+                );
+              })}
             </select>
 
             {isPro && (
@@ -683,6 +686,12 @@ export default function ProOptimizer() {
             </div>
           )}
 
+          {slateHasStarted && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-2.5 text-center" data-testid="slate-locked-msg">
+              <p className="text-red-400 text-xs font-bold">This slate has locked — games have already started.</p>
+              <p className="text-slate-400 text-[10px] mt-0.5">Switch to another sport with upcoming games to build lineups.</p>
+            </div>
+          )}
           {/* Action Buttons Row */}
           <div className="flex flex-wrap items-center gap-2 pt-1 md:pt-0">
             <Button
@@ -697,7 +706,7 @@ export default function ProOptimizer() {
               ) : (
                 <Zap className="w-3.5 h-3.5 mr-1.5" />
               )}
-              Generate {lineupCount}
+              {slateHasStarted ? "SLATE LOCKED" : `Generate ${lineupCount}`}
             </Button>
 
             {generatedLineups.length > 0 && (
