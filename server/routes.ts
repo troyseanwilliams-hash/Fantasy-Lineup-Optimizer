@@ -550,9 +550,13 @@ export async function registerRoutes(
           continue;
         }
 
+        const useBoosts = req.body.useBoosts !== false;
+        const useCeilingMode = req.body.ceilingMode === true;
+        const useLeverageMode = req.body.leverageMode === true;
+
         let pool = allPlayers.map(p => {
           let pts = Number(p.projectedPoints);
-          if (p.boostScore) pts += Number(p.boostScore);
+          if (useBoosts && p.boostScore) pts += Number(p.boostScore);
           if (p.injuryStatus) {
             if (p.injuryStatus === "OUT") pts = 0;
             else if (p.injuryStatus === "Doubtful") pts *= 0.3;
@@ -562,13 +566,27 @@ export async function registerRoutes(
           return { ...p, projectedPoints: pts.toString() };
         });
 
-        pool = applyCeilingMode(pool, slate.sport);
+        if (useCeilingMode) {
+          pool = applyCeilingMode(pool, slate.sport);
+        }
 
         const bdlStats = await fetchBDLStats(slate.sport);
         const playersWithOwnership = computeOwnershipProjections(pool, bdlStats);
-        pool = applyLeverageMode(playersWithOwnership);
+        if (useLeverageMode) {
+          pool = applyLeverageMode(playersWithOwnership);
+        }
 
         const baseExcluded = allPlayers.filter(p => p.injuryStatus === "OUT").map(p => p.id);
+
+        const MAX_POOL_SIZE = 150;
+        const excludedSet = new Set(baseExcluded);
+        const eligiblePool = pool.filter(p => !excludedSet.has(p.id));
+        if (eligiblePool.length > MAX_POOL_SIZE) {
+          const sorted = [...eligiblePool].sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
+          const trimmed = sorted.slice(0, MAX_POOL_SIZE);
+          console.log(`[BulkGenerate] Trimmed eligible pool from ${eligiblePool.length} to ${trimmed.length} for ${slate.sport}`);
+          pool = [...trimmed, ...pool.filter(p => excludedSet.has(p.id))];
+        }
 
         cached = { slate, pool, allPlayers, baseExcluded, platform };
         slateCache.set(lineup.slateId, cached);
@@ -589,12 +607,14 @@ export async function registerRoutes(
         });
 
         const iterationExcluded = [...baseExcluded];
-        for (const p of pool) {
-          if (iterationExcluded.includes(p.id)) continue;
-          const appearances = playerAppearances[p.id] || 0;
-          const currentExposure = totalCount > 0 ? (appearances / totalCount) * 100 : 0;
-          if (currentExposure >= 60) {
-            iterationExcluded.push(p.id);
+        if (totalCount > 3) {
+          for (const p of pool) {
+            if (iterationExcluded.includes(p.id)) continue;
+            const appearances = playerAppearances[p.id] || 0;
+            const currentExposure = totalCount > 0 ? (appearances / totalCount) * 100 : 0;
+            if (currentExposure >= 80) {
+              iterationExcluded.push(p.id);
+            }
           }
         }
 
@@ -611,21 +631,27 @@ export async function registerRoutes(
         if (usedLineupKeys.has(lineupKey)) continue;
         usedLineupKeys.add(lineupKey);
 
-        const correlationScore = computeCorrelationBonus(solveResult.lineup as Player[], slate.sport);
-        const adjustedPoints = solveResult.totalProjectedPoints + correlationScore;
-
         for (const p of solveResult.lineup as Player[]) {
           playerAppearances[p.id] = (playerAppearances[p.id] || 0) + 1;
         }
 
         const playerIds = solveResult.lineup.map((p: any) => p.id);
-        const playerSnapshot = solveResult.lineup.map((p: any) => ({
-          id: p.id, name: p.name, team: p.team, position: p.position,
-          salary: p.salary, fppg: p.fppg, projectedPoints: p.projectedPoints,
-          opponent: p.opponent, gameInfo: p.gameInfo,
-          draftKingsPlayerId: p.draftKingsPlayerId,
-          boostScore: p.boostScore, boostReason: p.boostReason,
-        }));
+        const { allPlayers: origPlayers } = cached;
+        const origMap = new Map(origPlayers.map((op: any) => [op.id, op]));
+        const playerSnapshot = solveResult.lineup.map((p: any) => {
+          const orig = origMap.get(p.id) || p;
+          return {
+            id: p.id, name: orig.name, team: orig.team, position: orig.position,
+            salary: orig.salary, fppg: orig.fppg, projectedPoints: orig.projectedPoints,
+            opponent: orig.opponent, gameInfo: orig.gameInfo,
+            draftKingsPlayerId: orig.draftKingsPlayerId,
+            boostScore: orig.boostScore, boostReason: orig.boostReason,
+          };
+        });
+
+        const origTotalPts = playerSnapshot.reduce((sum: number, p: any) => sum + Number(p.projectedPoints), 0);
+        const correlationScore = computeCorrelationBonus(solveResult.lineup as Player[], slate.sport);
+        const adjustedPoints = origTotalPts + correlationScore;
 
         await storage.updateLineup(Number(id), {
           playerIds,
