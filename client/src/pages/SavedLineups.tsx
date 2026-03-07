@@ -114,31 +114,36 @@ export default function SavedLineups() {
     }
   });
 
-  function buildLineupCSV(lineup: LineupWithPlayers) {
-    const config = getPlatformConfig(lineup.sport, lineup.platform as any);
-    const slotAssignments = assignPlayersToSlots(lineup.players, config.slots, lineup.sport);
+  function buildDraftKingsCSV(lineups: LineupWithPlayers[]): string {
+    if (lineups.length === 0) return "";
+    const firstLineup = lineups[0];
+    const config = getPlatformConfig(firstLineup.sport, firstLineup.platform as any);
+    const headers = config.slots.map(slot => getSlotDisplayName(slot));
 
-    const headers = ["Slot", "Name", "Position", "Team", "Salary", "FPPG", "Projected"];
-    const rows = config.slots.map(slot => {
-      const p = slotAssignments[slot];
-      if (!p) return [getSlotDisplayName(slot), "", "", "", "", "", ""];
-      return [
-        getSlotDisplayName(slot),
-        p.name,
-        p.position,
-        p.team,
-        p.salary.toString(),
-        Number(p.fppg).toFixed(1),
-        Number(p.projectedPoints).toFixed(1),
-      ];
+    const rows = lineups.map(lineup => {
+      const slotAssignments = assignPlayersToSlots(lineup.players, config.slots, lineup.sport);
+      return config.slots.map(slot => {
+        const p = slotAssignments[slot];
+        if (!p) return "";
+        const dkId = (p as any).draftKingsPlayerId;
+        return dkId ? `${p.name} (${dkId})` : p.name;
+      });
     });
-    rows.push(["", "", "", "TOTAL", lineup.totalSalary.toString(), "", Number(lineup.totalProjectedPoints).toFixed(1)]);
-    return [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+
+    return [headers.join(","), ...rows.map(r => r.map(cell => `"${cell}"`).join(","))].join("\n");
+  }
+
+  function buildLineupCSV(lineup: LineupWithPlayers) {
+    return buildDraftKingsCSV([lineup]);
   }
 
   function handleExportCSV(lineup: LineupWithPlayers) {
     if (!isPaid) {
       toast({ title: "Paid Feature", description: "Upgrade to Sharpshooter or Champion to export lineups.", variant: "destructive" });
+      return;
+    }
+    if (lineup.platform !== "draftkings") {
+      toast({ title: "Export Unavailable", description: "CSV export is only available for DraftKings lineups.", variant: "destructive" });
       return;
     }
     const csv = buildLineupCSV(lineup);
@@ -176,21 +181,31 @@ export default function SavedLineups() {
       return;
     }
 
-    const sections = details.map((lineup, i) => {
-      const label = `Lineup ${i + 1}: ${lineup.sport} ${lineup.platform === "fanduel" ? "FD" : "DK"} - ${lineup.name || "Optimized"}`;
-      return `${label}\n${buildLineupCSV(lineup)}`;
-    });
+    const dkLineups = details.filter(d => d.platform === "draftkings");
+    if (dkLineups.length === 0) {
+      toast({ title: "No DraftKings Lineups", description: "CSV export is only available for DraftKings lineups. None of the selected lineups are from DraftKings.", variant: "destructive" });
+      return;
+    }
+    if (dkLineups.length < details.length) {
+      toast({ title: "Note", description: `${details.length - dkLineups.length} non-DraftKings lineup(s) excluded from export.` });
+    }
 
-    const csv = sections.join("\n\n");
+    const sameSport = dkLineups.every(l => l.sport === dkLineups[0].sport);
+    if (!sameSport) {
+      toast({ title: "Mixed Sports", description: "All selected DraftKings lineups must be the same sport for CSV export.", variant: "destructive" });
+      return;
+    }
+
+    const csv = buildDraftKingsCSV(dkLineups);
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `elitelineup_bulk_export_${details.length}_lineups.csv`;
+    a.download = `elitelineup_bulk_export_${dkLineups.length}_lineups.csv`;
     a.click();
     URL.revokeObjectURL(url);
     setSelectedIds(new Set());
-    toast({ title: "Bulk Export Complete", description: `${details.length} lineup${details.length > 1 ? "s" : ""} exported.` });
+    toast({ title: "Bulk Export Complete", description: `${dkLineups.length} lineup${dkLineups.length > 1 ? "s" : ""} exported for DraftKings upload.` });
   }
 
   function toggleSelect(id: number) {

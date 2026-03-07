@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import {
-  Lock, Unlock, X, Zap, Save, Search,
+  Lock, Unlock, X, Zap, Save, Search, Download,
   ChevronDown, ChevronUp, ArrowUpDown, Loader2,
   Crown, TrendingUp, TrendingDown, AlertTriangle,
   ShieldAlert, Activity, SaveAll, Star, Flag, MapPin,
@@ -410,6 +410,41 @@ export default function ProOptimizer() {
     }
   };
 
+  const handleExportCSV = () => {
+    if (generatedLineups.length === 0) return;
+    if (platform !== "draftkings") {
+      toast({ title: "Export Unavailable", description: "CSV export is only available for DraftKings lineups.", variant: "destructive" });
+      return;
+    }
+    const config = getPlatformConfig(sport, platform);
+    const headers = config.slots.map(slot => getSlotDisplayName(slot));
+    let missingIdCount = 0;
+    const rows = generatedLineups.map(lineupData => {
+      const lineupPlayers = lineupData.lineup || [];
+      const slotAssignments = assignPlayersToSlots(lineupPlayers, config.slots, sport);
+      return config.slots.map(slot => {
+        const p = slotAssignments[slot];
+        if (!p) return "";
+        const dkId = (p as any).draftKingsPlayerId;
+        if (!dkId) missingIdCount++;
+        return dkId ? `${p.name} (${dkId})` : p.name;
+      });
+    });
+    const csv = [headers.join(","), ...rows.map(r => r.map(cell => `"${cell}"`).join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `elitelineup_${sport}_${generatedLineups.length}_lineups.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    if (missingIdCount > 0) {
+      toast({ title: "CSV Exported (Partial IDs)", description: `${missingIdCount} player(s) missing DraftKings IDs. These entries may need manual editing before upload.`, variant: "destructive" });
+    } else {
+      toast({ title: "CSV Exported", description: `${generatedLineups.length} lineup${generatedLineups.length > 1 ? "s" : ""} exported for DraftKings upload.` });
+    }
+  };
+
   const handleSlateChange = (newSlateId: string) => {
     setLocation(`/optimizer-pro/${newSlateId}`);
     handleReset();
@@ -571,6 +606,7 @@ export default function ProOptimizer() {
             </Button>
 
             {generatedLineups.length > 0 && (
+              <>
               <Button
                 onClick={handleSaveAll}
                 disabled={isSavingAll || saveLineupMutation.isPending || savedIndices.size === generatedLineups.length}
@@ -594,6 +630,17 @@ export default function ProOptimizer() {
                       ? `Save Remaining (${generatedLineups.length - savedIndices.size})`
                       : `Save All (${generatedLineups.length})`}
               </Button>
+              <Button
+                onClick={handleExportCSV}
+                variant="outline"
+                size="sm"
+                className="font-black h-8 text-xs border-cyan-500/30 text-cyan-400"
+                data-testid="button-export-csv"
+              >
+                <Download className="w-3.5 h-3.5 mr-1.5" />
+                Export CSV
+              </Button>
+              </>
             )}
 
             <Button variant="ghost" size="sm" onClick={handleReset} className="text-slate-400 font-bold h-8 text-xs" data-testid="button-reset">

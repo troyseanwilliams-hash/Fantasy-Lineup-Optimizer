@@ -218,6 +218,7 @@ export async function fetchLiveDKData(sport: string): Promise<LiveSlateData | nu
       projectedPoints,
       opponent,
       gameInfo,
+      draftKingsPlayerId: p.draftableId,
     });
   }
 
