@@ -513,26 +513,22 @@ export async function registerRoutes(
 
     const sub = await storage.getSubscription(userId);
     const tier = sub?.tier || "free";
-    const maxPerSport = tier === "pro" ? 150 : tier === "star" ? 20 : 1;
+    if (tier !== "pro" && tier !== "star") {
+      return res.status(403).json({ message: "Sharpshooter or Champion subscription required.", requiresUpgrade: true });
+    }
+    const maxPerSport = tier === "pro" ? 150 : 20;
 
     const results: { originalId: number; status: string; newLineupId?: number; error?: string }[] = [];
+
+    const slateCache = new Map<number, { slate: any; pool: Player[]; allPlayers: Player[]; baseExcluded: number[]; platform: Platform }>();
     const usedLineupKeys = new Set<string>();
+    const playerAppearances: Record<number, number> = {};
+    const totalToGenerate = ids.length;
 
     for (const id of ids) {
       const lineup = await storage.getLineup(Number(id));
       if (!lineup || lineup.userId !== userId) {
         results.push({ originalId: id, status: "skipped", error: "Not found or not yours" });
-        continue;
-      }
-
-      const slate = await storage.getSlate(lineup.slateId);
-      if (!slate) {
-        results.push({ originalId: id, status: "skipped", error: "Slate no longer available" });
-        continue;
-      }
-
-      if (new Date(slate.startTime) <= new Date()) {
-        results.push({ originalId: id, status: "skipped", error: "Slate already started" });
         continue;
       }
 
@@ -542,42 +538,76 @@ export async function registerRoutes(
         continue;
       }
 
-      const platform = (lineup.platform || "draftkings") as Platform;
-      const allPlayers = await storage.getPlayersBySlate(lineup.slateId);
-      if (allPlayers.length === 0) {
-        results.push({ originalId: id, status: "skipped", error: "No players in slate" });
-        continue;
+      let cached = slateCache.get(lineup.slateId);
+      if (!cached) {
+        const slate = await storage.getSlate(lineup.slateId);
+        if (!slate) {
+          results.push({ originalId: id, status: "skipped", error: "Slate no longer available" });
+          continue;
+        }
+        if (new Date(slate.startTime) <= new Date()) {
+          results.push({ originalId: id, status: "skipped", error: "Slate already started" });
+          continue;
+        }
+
+        const platform = (lineup.platform || "draftkings") as Platform;
+        const allPlayers = await storage.getPlayersBySlate(lineup.slateId);
+        if (allPlayers.length === 0) {
+          results.push({ originalId: id, status: "skipped", error: "No players in slate" });
+          continue;
+        }
+
+        let pool = allPlayers.map(p => {
+          let pts = Number(p.projectedPoints);
+          if (p.boostScore) pts += Number(p.boostScore);
+          if (p.injuryStatus) {
+            if (p.injuryStatus === "OUT") pts = 0;
+            else if (p.injuryStatus === "Doubtful") pts *= 0.3;
+            else if (p.injuryStatus === "Questionable") pts *= 0.7;
+            else if (p.injuryStatus === "Probable") pts *= 0.9;
+          }
+          return { ...p, projectedPoints: pts.toString() };
+        });
+
+        pool = applyCeilingMode(pool, slate.sport);
+
+        const bdlStats = await fetchBDLStats(slate.sport);
+        const playersWithOwnership = computeOwnershipProjections(pool, bdlStats);
+        pool = applyLeverageMode(playersWithOwnership);
+
+        const baseExcluded = allPlayers.filter(p => p.injuryStatus === "OUT").map(p => p.id);
+
+        cached = { slate, pool, allPlayers, baseExcluded, platform };
+        slateCache.set(lineup.slateId, cached);
       }
 
-      const pool = allPlayers.map(p => {
-        let pts = Number(p.projectedPoints);
-        if (p.injuryStatus) {
-          if (p.injuryStatus === "OUT") pts = 0;
-          else if (p.injuryStatus === "Doubtful") pts *= 0.3;
-          else if (p.injuryStatus === "Questionable") pts *= 0.7;
-          else if (p.injuryStatus === "Probable") pts *= 0.9;
-        }
-        if (p.boostScore) pts += Number(p.boostScore);
-        return { ...p, projectedPoints: pts.toString() };
-      });
-
-      const excludedPlayerIds = allPlayers.filter(p => p.injuryStatus === "OUT").map(p => p.id);
-
+      const { slate, pool, baseExcluded, platform } = cached;
+      const iteration = results.filter(r => r.status === "created").length;
       const maxAttempts = 10;
       let generated = false;
 
       for (let attempt = 0; attempt < maxAttempts && !generated; attempt++) {
-        const noiseScale = attempt === 0 ? 0 : Math.min(0.10 + attempt * 0.04, 0.40);
+        const noiseScale = (iteration + attempt) === 0 ? 0 : Math.min(0.10 + (iteration + attempt) * 0.04, 0.40);
         const perturbedPool = pool.map(p => {
-          if (excludedPlayerIds.includes(p.id)) return p;
+          if (baseExcluded.includes(p.id)) return p;
           const base = Number(p.projectedPoints);
-          const noise = attempt === 0 ? 0 : (Math.random() - 0.5) * base * noiseScale;
+          const noise = (iteration + attempt) === 0 ? 0 : (Math.random() - 0.5) * base * noiseScale;
           return { ...p, projectedPoints: Math.max(0, base + noise).toString() };
         });
 
+        const iterationExcluded = [...baseExcluded];
+        for (const p of pool) {
+          if (iterationExcluded.includes(p.id)) continue;
+          const appearances = playerAppearances[p.id] || 0;
+          const currentExposure = totalToGenerate > 0 ? (appearances / totalToGenerate) * 100 : 0;
+          if (currentExposure >= 60) {
+            iterationExcluded.push(p.id);
+          }
+        }
+
         const solveResult = solveLineup(
           perturbedPool,
-          { slateId: lineup.slateId, platform, lockedPlayerIds: [], excludedPlayerIds, maxSalary: undefined, minSalary: undefined, playerProjections: {} },
+          { slateId: lineup.slateId, platform, lockedPlayerIds: [], excludedPlayerIds: iterationExcluded, maxSalary: undefined, minSalary: undefined, playerProjections: {} },
           slate.sport,
           platform
         );
@@ -587,6 +617,13 @@ export async function registerRoutes(
         const lineupKey = solveResult.lineup.map((p: any) => p.id).sort((a: number, b: number) => a - b).join(",");
         if (usedLineupKeys.has(lineupKey)) continue;
         usedLineupKeys.add(lineupKey);
+
+        const correlationScore = computeCorrelationBonus(solveResult.lineup as Player[], slate.sport);
+        const adjustedPoints = solveResult.totalProjectedPoints + correlationScore;
+
+        for (const p of solveResult.lineup as Player[]) {
+          playerAppearances[p.id] = (playerAppearances[p.id] || 0) + 1;
+        }
 
         const playerIds = solveResult.lineup.map((p: any) => p.id);
         const playerSnapshot = solveResult.lineup.map((p: any) => ({
@@ -604,7 +641,7 @@ export async function registerRoutes(
           name: `Generated · ${lineup.sport}`,
           playerIds,
           totalSalary: solveResult.totalSalary,
-          totalProjectedPoints: solveResult.totalProjectedPoints.toString(),
+          totalProjectedPoints: adjustedPoints.toString(),
           slateId: lineup.slateId,
           playerSnapshot,
         });
