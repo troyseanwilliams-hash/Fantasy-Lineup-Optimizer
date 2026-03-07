@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X } from "lucide-react";
+import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Users } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 import { LogoBanner } from "@/components/Logo";
@@ -230,6 +230,25 @@ export function Header() {
                 <span>Vault</span>
               </div>
             </Link>
+            {isPro ? (
+              <Link href="/ownership">
+                <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
+                  location === "/ownership" ? "text-amber-400" : "text-slate-400 hover:text-white"
+                }`} data-testid="nav-ownership">
+                  <Users className="w-4 h-4" />
+                  <span>Ownership</span>
+                  <Crown className="w-3 h-3 text-amber-400" />
+                </div>
+              </Link>
+            ) : user ? (
+              <Link href="/ownership">
+                <div className="flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer text-slate-500 hover:text-slate-400" data-testid="nav-ownership-locked">
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Ownership</span>
+                  <Badge className="bg-amber-500/10 text-amber-500/60 border-amber-500/20 text-[9px] font-bold px-1 py-0">CHAMPION</Badge>
+                </div>
+              </Link>
+            ) : null}
             {!user && (
               <Link href="/pricing">
                 <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
@@ -480,6 +499,18 @@ export function Header() {
             >
               <Archive className="w-5 h-5 shrink-0" />
               <span>Saved Lineups</span>
+            </button>
+
+            <button
+              onClick={() => mobileNav("/ownership")}
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                location === "/ownership" ? "bg-amber-500/10 text-amber-400" : isPro ? "text-white hover:bg-slate-800" : "text-slate-500 hover:bg-slate-800"
+              }`}
+              data-testid="mobile-nav-ownership"
+            >
+              {isPro ? <Users className="w-5 h-5 shrink-0" /> : <Lock className="w-5 h-5 shrink-0" />}
+              <span>Ownership</span>
+              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[9px] font-bold px-1.5 py-0 ml-auto">CHAMPION</Badge>
             </button>
 
             <button
