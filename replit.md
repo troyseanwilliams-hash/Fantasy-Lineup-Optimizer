@@ -23,8 +23,14 @@ Preferred communication style: Simple, everyday language.
 - **Optimization Engine**: `javascript-lp-solver` for Linear Programming
 - **Authentication**: bcryptjs password hashing with session-based authentication stored in PostgreSQL
 - **Payments**: Stripe Elements embedded payment form for subscription payments with webhook event handling
-- **Cron Jobs**: Hourly tasks for data refresh (DraftKings slates/players, Odds API props, PrizePicks projections), daily vault maintenance, and daily grace period expiration check (3 AM ET).
+- **Cron Jobs**: Hourly tasks for data refresh (DraftKings slates/players, Odds API props, PrizePicks projections), daily vault maintenance, daily grace period expiration check (3 AM ET), and daily player history cleanup (4 AM ET, 90-day retention).
 - **Live Scores**: ESPN public scoreboard API with server-side caching.
+- **Boost Engine** (`server/boost-engine.ts`): Data-driven scoring for DFS optimization:
+  - `computeBoostScores()` — value scoring, historical trend analysis, price movement detection, volatility assessment
+  - `computeCorrelationBonus()` — NFL QB-WR stacking, MLB team stacking, NBA/NHL game stacks (post-LP re-ranking)
+  - `applyCeilingMode()` — deterministic upside boost for GPP/tournament lineups
+  - `applyLeverageMode()` — contrarian ownership adjustments to differentiate from the field
+- **Player History**: `playerHistory` table tracks player projection snapshots per slate; populated on each data refresh; used by boost engine for trend/volatility analysis
 
 ### Platform Configuration
 - Shared configuration in `shared/platform-config.ts` defines roster slots, salary caps, and position constraints per sport/platform.
@@ -33,7 +39,7 @@ Preferred communication style: Simple, everyday language.
 ### Data Storage
 - **Database**: PostgreSQL
 - **ORM**: Drizzle ORM with `drizzle-zod` for schema validation.
-- **Key Tables**: `users`, `sessions`, `slates`, `players`, `lineups`, `subscriptions`, `props`, `prizepicks_entries`.
+- **Key Tables**: `users`, `sessions`, `slates`, `players`, `lineups`, `subscriptions`, `props`, `prizepicks_entries`, `playerHistory`.
 
 ### Subscription System
 - **Tiers**: Basic (free), Star ($19.99/mo), and Pro ($49.99/mo) — both with 7-day free trial for first-time subscribers

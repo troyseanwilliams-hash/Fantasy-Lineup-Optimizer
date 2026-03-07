@@ -258,6 +258,18 @@ app.use((req, res, next) => {
         timezone: "America/New_York",
       });
       log("Scheduled 2 AM ET vault reset cron job", "cron");
+
+      cron.schedule("0 4 * * *", async () => {
+        try {
+          const cleaned = await storage.cleanOldPlayerHistory(90);
+          if (cleaned > 0) log(`Cleaned ${cleaned} player history records older than 90 days`, "cron");
+        } catch (err) {
+          console.error("Player history cleanup failed:", err);
+        }
+      }, {
+        timezone: "America/New_York",
+      });
+      log("Scheduled 4 AM ET player history cleanup cron job", "cron");
     },
   );
 })();
