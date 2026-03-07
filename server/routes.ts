@@ -1837,6 +1837,36 @@ export async function seedDatabase(forceRefresh = false) {
 
       const source = seed.isLive ? "LIVE DK" : "static";
       console.log(`Seeded database with DK ${seed.sport} main slate (${source})`);
+    } else if (existingSlate && seed.isLive && seed.dkPlayers.length > 0) {
+      const existingPlayers = await storage.getPlayersBySlate(existingSlate.id);
+      const needsDraftGroupId = !existingSlate.draftGroupId && seed.draftGroupId;
+
+      if (needsDraftGroupId) {
+        await storage.updateSlateDraftGroupId(existingSlate.id, seed.draftGroupId);
+        console.log(`[DK] Updated ${seed.sport} slate draftGroupId to ${seed.draftGroupId}`);
+      }
+
+      if (existingPlayers.length === 0) {
+        const createdPlayers = await storage.bulkCreatePlayers(
+          seed.dkPlayers.map((p: any) => ({ ...p, slateId: existingSlate.id })) as any
+        );
+        console.log(`[DK] Inserted ${createdPlayers.length} ${seed.sport} players with DK IDs (slate had 0 players)`);
+      } else {
+        const missingDkIds = existingPlayers.filter(p => !p.draftKingsPlayerId);
+        if (missingDkIds.length > 0) {
+          let updatedCount = 0;
+          for (const existing of missingDkIds) {
+            const match = seed.dkPlayers.find((p: any) =>
+              p.name === existing.name && p.team === existing.team
+            );
+            if (match?.draftKingsPlayerId) {
+              await storage.updatePlayerDraftKingsId(existing.id, match.draftKingsPlayerId);
+              updatedCount++;
+            }
+          }
+          console.log(`[DK] Updated ${updatedCount}/${missingDkIds.length} ${seed.sport} players with DK IDs`);
+        }
+      }
     }
   }
 
