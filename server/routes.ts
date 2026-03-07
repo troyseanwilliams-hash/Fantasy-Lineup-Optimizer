@@ -24,7 +24,7 @@ import {
   NFL_SLATE_FEB_20_DK, NFL_PLAYERS_FEB_20_DK,
   GOLF_SLATE_DK, GOLF_PLAYERS_DK,
 } from "@shared/seed_data";
-import { fetchAllSportsLiveData, getRollingSlateDate } from "./balldontlie";
+import { fetchAllSportsLiveData, getRollingSlateDate, fetchPlayerStatusUpdates } from "./balldontlie";
 import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
 import { getLiveScores, getAllLiveScores } from "./espn-scores";
 import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analyzeManualPicks } from "./prizepicks";
@@ -1664,6 +1664,7 @@ export async function seedDatabase(forceRefresh = false) {
         sport,
         dkSlate: { name: sport === "SOCCER" ? "Soccer Main Slate" : `${sport} Main Slate`, startTime: live.slateDate, isMain: true },
         dkPlayers: live.dkPlayers,
+        draftGroupId: live.draftGroupId,
         isLive: true,
       };
     }
@@ -1702,6 +1703,7 @@ export async function seedDatabase(forceRefresh = false) {
         name: seed.dkSlate.name!,
         startTime: seed.dkSlate.startTime!,
         isMain: true,
+        draftGroupId: seed.draftGroupId || null,
       });
       const createdPlayers = await storage.bulkCreatePlayers(
         seed.dkPlayers.map((p: any) => ({ ...p, slateId: dkSlate.id })) as any
@@ -1853,6 +1855,84 @@ export async function generatePlayerBoostsAndInjuries() {
     if (injuryUpdates.length > 0) await storage.updatePlayerInjuries(injuryUpdates);
     console.log(`Generated boosts/injuries for ${sport} ${slate.platform} slate`);
   }
+}
+
+const DK_STATUS_MAP: Record<string, string> = {
+  "O": "OUT",
+  "Out": "OUT",
+  "Q": "Questionable",
+  "Questionable": "Questionable",
+  "D": "Doubtful",
+  "Doubtful": "Doubtful",
+  "P": "Probable",
+  "Probable": "Probable",
+  "GTD": "Questionable",
+  "IR": "OUT",
+  "Injured Reserve": "OUT",
+  "Suspended": "OUT",
+  "": "Healthy",
+  "None": "Healthy",
+};
+
+function mapDKStatus(status: string, newsStatus: string): { injuryStatus: string; injuryDetail: string } {
+  const mapped = DK_STATUS_MAP[status] || DK_STATUS_MAP[newsStatus] || "";
+  const detail = newsStatus && newsStatus !== "None" && newsStatus !== "" ? newsStatus : (status && status !== "None" ? status : "");
+  if (!mapped || mapped === "Healthy") {
+    if (detail) {
+      return { injuryStatus: "Questionable", injuryDetail: detail };
+    }
+    return { injuryStatus: "Healthy", injuryDetail: "" };
+  }
+  return { injuryStatus: mapped, injuryDetail: detail || mapped };
+}
+
+export async function refreshPlayerStatuses() {
+  const allSlates = await storage.getSlates();
+  const activeSlates = allSlates.filter(s => s.isMain && s.draftGroupId && new Date(s.startTime) > new Date());
+
+  if (activeSlates.length === 0) {
+    console.log("[Status] No active slates with draft groups to refresh");
+    return;
+  }
+
+  let totalUpdated = 0;
+  for (const slate of activeSlates) {
+    try {
+      const statusMap = await fetchPlayerStatusUpdates(slate.draftGroupId!);
+      if (statusMap.size === 0) continue;
+
+      const players = await storage.getPlayersBySlate(slate.id);
+      const updates: { playerId: number; injuryStatus: string; injuryDetail: string }[] = [];
+
+      for (const player of players) {
+        if (!player.draftKingsPlayerId) continue;
+        const dkStatus = statusMap.get(player.draftKingsPlayerId);
+        if (!dkStatus) continue;
+
+        const { injuryStatus, injuryDetail } = mapDKStatus(dkStatus.status, dkStatus.newsStatus);
+
+        const currentStatus = player.injuryStatus || "Healthy";
+        const currentDetail = player.injuryDetail || "";
+        if (injuryStatus !== currentStatus || injuryDetail !== currentDetail) {
+          updates.push({ playerId: player.id, injuryStatus, injuryDetail });
+        }
+      }
+
+      if (updates.length > 0) {
+        await storage.updatePlayerInjuries(updates);
+        totalUpdated += updates.length;
+        console.log(`[Status] ${slate.sport}: Updated ${updates.length} player statuses from DK`);
+      }
+    } catch (err) {
+      console.error(`[Status] Failed to refresh ${slate.sport} statuses:`, err);
+    }
+  }
+
+  if (totalUpdated > 0) {
+    await checkInjuryAlerts();
+  }
+
+  return totalUpdated;
 }
 
 export async function checkInjuryAlerts() {

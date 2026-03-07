@@ -252,6 +252,24 @@ export async function fetchAllSportsLiveData(): Promise<Map<string, LiveSlateDat
   return results;
 }
 
+export async function fetchPlayerStatusUpdates(draftGroupId: number): Promise<Map<number, { status: string; newsStatus: string }>> {
+  const results = new Map<number, { status: string; newsStatus: string }>();
+  try {
+    const draftables = await fetchDraftables(draftGroupId);
+    for (const p of draftables) {
+      if (p.draftableId) {
+        results.set(p.draftableId, {
+          status: p.status || "",
+          newsStatus: p.newsStatus || "",
+        });
+      }
+    }
+  } catch (err) {
+    console.error(`[DK] Error fetching status updates for draft group ${draftGroupId}:`, err);
+  }
+  return results;
+}
+
 function generateRollingDate(daysAhead: number): Date {
   const d = new Date();
   d.setDate(d.getDate() + daysAhead);
