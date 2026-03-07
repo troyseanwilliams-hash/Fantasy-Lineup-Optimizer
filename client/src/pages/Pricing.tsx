@@ -101,7 +101,7 @@ export default function Pricing() {
               Free trial — {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} remaining
             </p>
             <p className="text-xs text-emerald-400/70 mt-1">
-              Your {currentTier === "pro" ? "Pro" : "Star"} trial ends on {trialEndsAt.toLocaleDateString()}. You'll be charged automatically after the trial unless you cancel.
+              Your {currentTier === "pro" ? "Champion" : "Sharpshooter"} trial ends on {trialEndsAt.toLocaleDateString()}. You'll be charged automatically after the trial unless you cancel.
             </p>
           </div>
         </div>
@@ -115,7 +115,7 @@ export default function Pricing() {
               Your access expires in {daysLeft} day{daysLeft !== 1 ? "s" : ""}
             </p>
             <p className="text-xs text-amber-400/70 mt-1">
-              Subscribe before {graceEndsAt.toLocaleDateString()} to keep your {currentTier === "pro" ? "Pro" : "Star"} features. After that, your account will revert to the Basic plan.
+              Subscribe before {graceEndsAt.toLocaleDateString()} to keep your {currentTier === "pro" ? "Champion" : "Sharpshooter"} features. After that, your account will revert to the Contender plan.
             </p>
           </div>
         </div>
@@ -129,7 +129,7 @@ export default function Pricing() {
           Choose Your Edge
         </h1>
         <p className="text-lg text-slate-400 max-w-xl mx-auto mb-8">
-          Start with the Basic plan, then level up your DFS strategy with more lineups and powerful tools.
+          Start with the Contender plan, then level up your DFS strategy with more lineups and powerful tools.
         </p>
 
         <div className="inline-flex items-center bg-slate-800/60 rounded-xl p-1 border border-border/50" data-testid="billing-toggle">
@@ -165,12 +165,12 @@ export default function Pricing() {
             <Badge className="absolute -top-3 left-6 bg-slate-700 text-slate-300 text-[11px] font-black">CURRENT PLAN</Badge>
           )}
           <div className="mb-6">
-            <h3 className="text-2xl font-black text-white mb-2">Basic</h3>
+            <h3 className="text-2xl font-black text-white mb-2">Contender</h3>
             <div className="flex items-baseline gap-1">
               <span className="text-4xl font-black text-white">$0</span>
               <span className="text-slate-400 font-bold">/month</span>
             </div>
-            <p className="text-xs text-slate-500 mt-2">Get started with the basics</p>
+            <p className="text-xs text-slate-500 mt-2">Get started as a contender</p>
           </div>
           <ul className="space-y-3 mb-8">
             <li className="flex items-center gap-3 text-sm text-slate-300">
@@ -211,7 +211,7 @@ export default function Pricing() {
             </li>
           </ul>
           <Button variant="outline" className="w-full h-12 border-slate-700 text-slate-400 font-bold" disabled data-testid="basic-plan-btn">
-            {currentTier === "free" ? "Current Plan" : "Basic Plan"}
+            {currentTier === "free" ? "Current Plan" : "Contender Plan"}
           </Button>
         </Card>
 
@@ -223,7 +223,7 @@ export default function Pricing() {
           ) : null}
           <div className="mb-6">
             <h3 className="text-2xl font-black text-white mb-2 flex items-center gap-2">
-              Star <Trophy className="w-5 h-5 text-emerald-400" />
+              Sharpshooter <Trophy className="w-5 h-5 text-emerald-400" />
             </h3>
             <div className="flex items-baseline gap-1">
               <span className="text-4xl font-black text-white" data-testid="star-price">{starPrice}</span>
@@ -235,7 +235,7 @@ export default function Pricing() {
                 <span className="text-xs font-bold text-emerald-400" data-testid="star-savings">{starSavings}</span>
               </div>
             )}
-            <p className="text-xs text-emerald-400/70 mt-2">For serious DFS players</p>
+            <p className="text-xs text-emerald-400/70 mt-2">For serious DFS sharpshooters</p>
             {currentTier === "free" && trialEligible && (
               <div className="flex items-center gap-1.5 mt-2">
                 <Gift className="w-3 h-3 text-emerald-400" />
@@ -308,7 +308,7 @@ export default function Pricing() {
             </Button>
           ) : currentTier === "pro" ? (
             <Button variant="outline" className="w-full h-12 border-slate-700 text-slate-400 font-bold" disabled>
-              Included in Pro
+              Included in Champion
             </Button>
           ) : (
             <Button
@@ -319,7 +319,7 @@ export default function Pricing() {
               {trialEligible ? (
                 <><Gift className="w-4 h-4 mr-2" />Start Free Trial</>
               ) : (
-                <><Trophy className="w-4 h-4 mr-2" />Upgrade to Star</>
+                <><Trophy className="w-4 h-4 mr-2" />Upgrade to Sharpshooter</>
               )}
             </Button>
           )}
@@ -333,7 +333,7 @@ export default function Pricing() {
           )}
           <div className="mb-6">
             <h3 className="text-2xl font-black text-white mb-2 flex items-center gap-2">
-              Pro <Sparkles className="w-5 h-5 text-amber-400" />
+              Champion <Sparkles className="w-5 h-5 text-amber-400" />
             </h3>
             <div className="flex items-baseline gap-1">
               <span className="text-4xl font-black text-white" data-testid="pro-price">{proPrice}</span>
@@ -345,7 +345,7 @@ export default function Pricing() {
                 <span className="text-xs font-bold text-amber-400" data-testid="pro-savings">{proSavings}</span>
               </div>
             )}
-            <p className="text-xs text-amber-400/70 mt-2">Dominate every slate</p>
+            <p className="text-xs text-amber-400/70 mt-2">Dominate every slate like a champion</p>
             {currentTier !== "pro" && trialEligible && (
               <div className="flex items-center gap-1.5 mt-2">
                 <Gift className="w-3 h-3 text-amber-400" />
@@ -429,7 +429,7 @@ export default function Pricing() {
               {trialEligible ? (
                 <><Gift className="w-4 h-4 mr-2" />Start Free Trial</>
               ) : (
-                <><Crown className="w-4 h-4 mr-2" />Upgrade to Pro</>
+                <><Crown className="w-4 h-4 mr-2" />Upgrade to Champion</>
               )}
             </Button>
           )}

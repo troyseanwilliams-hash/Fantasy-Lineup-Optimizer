@@ -155,7 +155,7 @@ export function Header() {
                               <div className="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center mr-2 shrink-0">
                                 <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
                               </div>
-                              <span className="text-sm font-bold text-emerald-300">{sport} Star DK</span>
+                              <span className="text-sm font-bold text-emerald-300">{sport} Advanced DK</span>
                               <Trophy className="w-3.5 h-3.5 text-emerald-400 ml-auto" />
                             </DropdownMenuItem>
                           </Link>
@@ -165,7 +165,7 @@ export function Header() {
                               <div className="w-6 h-6 rounded bg-emerald-500/10 flex items-center justify-center mr-2 shrink-0">
                                 <Lock className="w-3 h-3 text-emerald-500/50" />
                               </div>
-                              <span className="text-sm font-bold text-slate-500">{sport} Star DK</span>
+                              <span className="text-sm font-bold text-slate-500">{sport} Advanced DK</span>
                               <Trophy className="w-3.5 h-3.5 text-emerald-500/40 ml-auto" />
                             </DropdownMenuItem>
                           </Link>
@@ -177,7 +177,7 @@ export function Header() {
                               <div className="w-6 h-6 rounded bg-amber-500/20 flex items-center justify-center mr-2 shrink-0">
                                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                               </div>
-                              <span className="text-sm font-bold text-amber-300">{sport} Pro DK</span>
+                              <span className="text-sm font-bold text-amber-300">{sport} Advanced DK</span>
                               <Crown className="w-3.5 h-3.5 text-amber-400 ml-auto" />
                             </DropdownMenuItem>
                           </Link>
@@ -187,7 +187,7 @@ export function Header() {
                               <div className="w-6 h-6 rounded bg-amber-500/10 flex items-center justify-center mr-2 shrink-0">
                                 <Lock className="w-3 h-3 text-amber-500/50" />
                               </div>
-                              <span className="text-sm font-bold text-slate-500">{sport} Pro DK</span>
+                              <span className="text-sm font-bold text-slate-500">{sport} Advanced DK</span>
                               <Crown className="w-3.5 h-3.5 text-amber-500/40 ml-auto" />
                             </DropdownMenuItem>
                           </Link>
@@ -320,14 +320,14 @@ export function Header() {
                       <span className="text-sm font-bold text-white">{user.firstName || user.email?.split('@')[0]}</span>
                       {isPro ? (
                         <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[11px] font-black px-1.5 py-0">
-                          <Crown className="w-3 h-3 mr-0.5" /> PRO
+                          <Crown className="w-3 h-3 mr-0.5" /> CHAMPION
                         </Badge>
                       ) : subData?.tier === "star" ? (
                         <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[11px] font-black px-1.5 py-0">
-                          <Trophy className="w-3 h-3 mr-0.5" /> STAR
+                          <Trophy className="w-3 h-3 mr-0.5" /> SHARPSHOOTER
                         </Badge>
                       ) : (
-                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Basic Plan</span>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Contender</span>
                       )}
                     </div>
                     <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
@@ -348,14 +348,14 @@ export function Header() {
                     <Link href="/pricing">
                       <DropdownMenuItem className="cursor-pointer" data-testid="menu-upgrade">
                         <Crown className="w-4 h-4 mr-2 text-amber-400" />
-                        <span className="text-sm font-bold text-amber-300">Upgrade to Pro</span>
+                        <span className="text-sm font-bold text-amber-300">Upgrade to Champion</span>
                       </DropdownMenuItem>
                     </Link>
                   )}
                   {isPro && (
                     <DropdownMenuItem disabled className="opacity-60">
                       <Crown className="w-4 h-4 mr-2 text-amber-400" />
-                      <span className="text-sm font-bold text-amber-300">Pro Member</span>
+                      <span className="text-sm font-bold text-amber-300">Champion Member</span>
                     </DropdownMenuItem>
                   )}
                   <Link href="/pricing">
@@ -412,14 +412,14 @@ export function Header() {
                 </div>
                 {isPro ? (
                   <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[11px] font-black px-1.5 py-0 shrink-0">
-                    <Crown className="w-3 h-3 mr-0.5" /> PRO
+                    <Crown className="w-3 h-3 mr-0.5" /> CHAMPION
                   </Badge>
                 ) : isStar ? (
                   <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[11px] font-black px-1.5 py-0 shrink-0">
-                    <Trophy className="w-3 h-3 mr-0.5" /> STAR
+                    <Trophy className="w-3 h-3 mr-0.5" /> SHARPSHOOTER
                   </Badge>
                 ) : (
-                  <Badge className="bg-slate-700/50 text-slate-400 border-slate-600 text-[11px] font-black px-1.5 py-0 shrink-0">FREE</Badge>
+                  <Badge className="bg-slate-700/50 text-slate-400 border-slate-600 text-[11px] font-black px-1.5 py-0 shrink-0">CONTENDER</Badge>
                 )}
               </div>
             )}
@@ -468,7 +468,7 @@ export function Header() {
             >
               <Zap className="w-5 h-5 shrink-0" />
               <span>PrizePicks Builder</span>
-              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[9px] font-bold px-1.5 py-0 ml-auto">PRO</Badge>
+              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[9px] font-bold px-1.5 py-0 ml-auto">CHAMPION</Badge>
             </button>
 
             <button
@@ -549,7 +549,7 @@ export function Header() {
                             data-testid={`mobile-sport-${sport.toLowerCase()}-pro`}
                           >
                             <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-                            <span>Pro DK</span>
+                            <span>Advanced DK</span>
                             <Crown className="w-3.5 h-3.5 text-amber-400 ml-auto" />
                           </button>
                         ) : isStar && dkSlate ? (
@@ -559,7 +559,7 @@ export function Header() {
                             data-testid={`mobile-sport-${sport.toLowerCase()}-star`}
                           >
                             <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-                            <span>Star DK</span>
+                            <span>Advanced DK</span>
                             <Trophy className="w-3.5 h-3.5 text-emerald-400 ml-auto" />
                           </button>
                         ) : (
@@ -568,7 +568,7 @@ export function Header() {
                             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-slate-600 hover:bg-slate-800 transition-colors"
                           >
                             <Lock className="w-4 h-4 shrink-0" />
-                            <span>Pro DK</span>
+                            <span>Advanced DK</span>
                           </button>
                         )}
                       </div>

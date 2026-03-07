@@ -454,7 +454,7 @@ export default function ProOptimizer() {
           </div>
           <h2 className="text-2xl font-black text-white mb-3" data-testid="text-pro-locked-title">Advanced Optimizer</h2>
           <p className="text-slate-400 mb-6 text-sm" data-testid="text-pro-locked-desc">
-            Unlock the advanced optimizer to generate multiple unique lineups at once. Star gets up to 5 lineups, Pro gets up to 20 with AI boosts and injury adjustments.
+            Unlock the advanced optimizer to generate multiple unique lineups at once. Sharpshooter gets up to 5 lineups, Champion gets up to 20 with AI boosts and injury adjustments.
           </p>
           <Link href="/pricing">
             <Button className="bg-amber-500 text-black font-black w-full" data-testid="button-upgrade-pro">
@@ -895,7 +895,7 @@ export default function ProOptimizer() {
                         </td>
                       ) : (
                         <td className="px-3 py-2 text-center">
-                          <div className="p-1.5 text-slate-700 cursor-not-allowed" title="Upgrade to Pro to fade players">
+                          <div className="p-1.5 text-slate-700 cursor-not-allowed" title="Upgrade to Champion to fade players">
                             <Lock className="w-3.5 h-3.5" />
                           </div>
                         </td>
@@ -926,7 +926,7 @@ export default function ProOptimizer() {
                         </td>
                       ) : (
                         <td className="px-3 py-2 text-center">
-                          <div className="p-1.5 text-slate-700 cursor-not-allowed" title="Upgrade to Pro for exposure limits">
+                          <div className="p-1.5 text-slate-700 cursor-not-allowed" title="Upgrade to Champion for exposure limits">
                             <Lock className="w-3.5 h-3.5" />
                           </div>
                         </td>
@@ -969,7 +969,7 @@ export default function ProOptimizer() {
                       <Crown className="w-4 h-4 text-amber-400" />
                     </div>
                     <div>
-                      <p className="text-xs font-black text-amber-400 uppercase tracking-wider">Unlock Pro Features</p>
+                      <p className="text-xs font-black text-amber-400 uppercase tracking-wider">Unlock Champion Features</p>
                       <p className="text-[11px] text-slate-400 mt-0.5">Ownership projections, player fading, and contrarian lineup building</p>
                     </div>
                   </div>

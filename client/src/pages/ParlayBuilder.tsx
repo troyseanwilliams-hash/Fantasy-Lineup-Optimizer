@@ -128,9 +128,9 @@ function UnauthenticatedView() {
         <div className="bg-gradient-to-r from-purple-500/10 via-slate-800/50 to-purple-500/10 border border-purple-500/20 rounded-xl p-4">
           <div className="flex items-center gap-2 justify-center mb-2">
             <Crown className="w-4 h-4 text-amber-400" />
-            <span className="text-sm font-bold text-white">Pro Feature</span>
+            <span className="text-sm font-bold text-white">Champion Feature</span>
           </div>
-          <p className="text-xs text-slate-400">The Parlay Builder is available exclusively to Pro members. Upgrade to start building winning parlays.</p>
+          <p className="text-xs text-slate-400">The Parlay Builder is available exclusively to Champion members. Upgrade to start building winning parlays.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
           <a href="/login" data-testid="parlay-login-btn">
@@ -171,15 +171,15 @@ function NonProView() {
         <div className="max-w-2xl mx-auto text-center space-y-8">
           <div className="bg-gradient-to-b from-purple-500/5 to-transparent border border-purple-500/20 rounded-2xl p-8">
             <Lock className="w-12 h-12 text-purple-400/60 mx-auto mb-4" />
-            <h2 className="text-2xl font-black text-white mb-3">Upgrade to Pro for Parlay Builder</h2>
+            <h2 className="text-2xl font-black text-white mb-3">Upgrade to Champion for Parlay Builder</h2>
             <p className="text-slate-400 mb-6">
-              The Parlay Builder is an exclusive Pro feature ($49.99/mo). Combine multiple player props across any sport into a single parlay with combined odds and a direct link to place your bet on DraftKings.
+              The Parlay Builder is an exclusive Champion feature ($49.99/mo). Combine multiple player props across any sport into a single parlay with combined odds and a direct link to place your bet on DraftKings.
             </p>
 
             <div className="bg-slate-800/40 border border-amber-500/20 rounded-xl p-5 text-left max-w-sm mx-auto mb-6">
               <div className="flex items-center gap-2 mb-3">
                 <Crown className="w-5 h-5 text-amber-400" />
-                <span className="text-sm font-bold text-amber-400">Pro Plan Includes</span>
+                <span className="text-sm font-bold text-amber-400">Champion Plan Includes</span>
               </div>
               <ul className="space-y-2 text-xs text-slate-400">
                 <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-amber-400/60" /> Up to 8-leg parlays</li>
@@ -192,7 +192,7 @@ function NonProView() {
 
             <Link href="/pricing">
               <Button className="bg-amber-500 hover:bg-amber-600 text-black font-bold px-8 h-12 shadow-lg shadow-amber-500/20" data-testid="parlay-upgrade-btn">
-                <Crown className="w-4 h-4 mr-2" /> Upgrade to Pro
+                <Crown className="w-4 h-4 mr-2" /> Upgrade to Champion
               </Button>
             </Link>
           </div>

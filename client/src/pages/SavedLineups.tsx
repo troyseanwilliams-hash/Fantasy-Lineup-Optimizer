@@ -138,7 +138,7 @@ export default function SavedLineups() {
 
   function handleExportCSV(lineup: LineupWithPlayers) {
     if (!isPaid) {
-      toast({ title: "Paid Feature", description: "Upgrade to Star or Pro to export lineups.", variant: "destructive" });
+      toast({ title: "Paid Feature", description: "Upgrade to Sharpshooter or Champion to export lineups.", variant: "destructive" });
       return;
     }
     const csv = buildLineupCSV(lineup);
@@ -154,7 +154,7 @@ export default function SavedLineups() {
 
   async function handleBulkExport() {
     if (!isPaid) {
-      toast({ title: "Paid Feature", description: "Upgrade to Star or Pro to export lineups.", variant: "destructive" });
+      toast({ title: "Paid Feature", description: "Upgrade to Sharpshooter or Champion to export lineups.", variant: "destructive" });
       return;
     }
     if (selectedIds.size === 0) {
@@ -311,7 +311,7 @@ export default function SavedLineups() {
                           <option value="ownership_low">Ownership: Low → High</option>
                         </>
                       ) : (
-                        <option value="newest" disabled>🔒 Ownership Sort (Pro)</option>
+                        <option value="newest" disabled>🔒 Ownership Sort (Champion)</option>
                       )}
                       <option value="salary_high">Salary: High → Low</option>
                       <option value="salary_low">Salary: Low → High</option>
@@ -408,7 +408,7 @@ export default function SavedLineups() {
             variant={activeTab === "review" ? "default" : "ghost"}
             onClick={() => {
               if (!isPaid) {
-                toast({ title: "Paid Feature", description: "Upgrade to Star or Pro to view review lineups and contest comparisons.", variant: "destructive" });
+                toast({ title: "Paid Feature", description: "Upgrade to Sharpshooter or Champion to review lineups and contest comparisons.", variant: "destructive" });
                 return;
               }
               setActiveTab("review");

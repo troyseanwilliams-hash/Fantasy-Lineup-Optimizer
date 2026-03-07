@@ -104,14 +104,14 @@ function CheckoutForm({ tier, isTrial, onSuccess, onCancel }: { tier: "star" | "
         </h3>
         <p className="text-sm text-slate-400 text-center">
           {isTrial
-            ? `Your 7-day free trial of ${tier === "pro" ? "Pro" : "Star"} has started. Enjoy!`
-            : `Your ${tier === "pro" ? "Pro" : "Star"} subscription is now active.`}
+            ? `Your 7-day free trial of ${tier === "pro" ? "Champion" : "Sharpshooter"} has started. Enjoy!`
+            : `Your ${tier === "pro" ? "Champion" : "Sharpshooter"} subscription is now active.`}
         </p>
       </div>
     );
   }
 
-  const tierName = tier === "pro" ? "Pro" : "Star";
+  const tierName = tier === "pro" ? "Champion" : "Sharpshooter";
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -234,7 +234,7 @@ export function PaymentModal({ tier, billing, onSuccess, onCancel }: PaymentForm
     }
   }, [tier, billing]);
 
-  const tierName = tier === "pro" ? "Pro" : "Star";
+  const tierName = tier === "pro" ? "Champion" : "Sharpshooter";
   const price = tier === "pro"
     ? (billing === "annual" ? "$500/year" : "$49.99/month")
     : (billing === "annual" ? "$200/year" : "$19.99/month");

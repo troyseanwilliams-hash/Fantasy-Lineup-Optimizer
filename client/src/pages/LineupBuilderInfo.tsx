@@ -19,7 +19,7 @@ const SPORTS = [
 
 const TIERS = [
   {
-    name: "Basic",
+    name: "Contender",
     price: "Free",
     badge: null,
     badgeIcon: null,
@@ -36,13 +36,13 @@ const TIERS = [
     ],
   },
   {
-    name: "Star",
+    name: "Sharpshooter",
     price: "$19.99/mo",
     badge: "Popular",
     badgeIcon: Trophy,
     ring: "ring-emerald-500/50",
     features: [
-      { text: "Everything in Basic", included: true },
+      { text: "Everything in Contender", included: true },
       { text: "Generate up to 20 lineups at once", included: true },
       { text: "Save up to 50 lineups", included: true },
       { text: "CSV export for DraftKings upload", included: true },
@@ -53,20 +53,20 @@ const TIERS = [
     ],
   },
   {
-    name: "Pro",
+    name: "Champion",
     price: "$49.99/mo",
     badge: "Best Value",
     badgeIcon: Crown,
     ring: "ring-amber-500/50",
     features: [
-      { text: "Everything in Star", included: true },
+      { text: "Everything in Sharpshooter", included: true },
       { text: "Generate up to 150 lineups at once", included: true },
       { text: "Unlimited saved lineups", included: true },
       { text: "Advanced exposure controls", included: true },
       { text: "AI-powered lineup analysis", included: true },
       { text: "Ownership projection data", included: true },
       { text: "Priority data refresh rates", included: true },
-      { text: "Pro Optimizer with advanced tools", included: true },
+      { text: "Advanced Optimizer with pro tools", included: true },
     ],
   },
 ];
