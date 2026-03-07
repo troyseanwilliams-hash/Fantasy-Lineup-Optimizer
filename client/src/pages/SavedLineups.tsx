@@ -105,11 +105,11 @@ export default function SavedLineups() {
       return res.json();
     },
     onSuccess: (data) => {
-      const created = data.created || 0;
-      const failed = (data.results || []).filter((r: any) => r.status !== "created").length;
-      let desc = `${created} new lineup${created !== 1 ? "s" : ""} generated.`;
+      const updated = data.updated || 0;
+      const failed = (data.results || []).filter((r: any) => r.status !== "updated").length;
+      let desc = `${updated} lineup${updated !== 1 ? "s" : ""} optimized with fresh rosters.`;
       if (failed > 0) desc += ` ${failed} skipped.`;
-      toast({ title: "Generation Complete", description: desc });
+      toast({ title: "Lineups Regenerated", description: desc });
       setSelectedIds(new Set());
       queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
     },
@@ -522,7 +522,7 @@ export default function SavedLineups() {
                           className="bg-blue-600 hover:bg-blue-700 text-white"
                           data-testid="bulk-generate-btn"
                         >
-                          <Zap className="w-4 h-4 mr-2" /> {bulkGenerateMutation.isPending ? "Generating..." : `Generate ${selectedIds.size}`}
+                          <Zap className="w-4 h-4 mr-2" /> {bulkGenerateMutation.isPending ? "Regenerating..." : `Regenerate ${selectedIds.size}`}
                         </Button>
                       )}
                       {isPaid && (
@@ -559,11 +559,6 @@ export default function SavedLineups() {
                   </Button>
                 </>
               )}
-              <Link href="/">
-                <Button className="btn-primary" data-testid="build-new-lineup">
-                  <Zap className="w-4 h-4 mr-2" /> Build New Lineup
-                </Button>
-              </Link>
             </div>
           </div>
 
