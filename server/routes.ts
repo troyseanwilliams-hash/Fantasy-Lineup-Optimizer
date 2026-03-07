@@ -17,14 +17,7 @@ function isLoggedIn(req: Request): boolean {
 import { XMLParser } from "fast-xml-parser";
 
 import { type OptimizationConstraints, type ProOptimizationConstraints, type Player, type Slate, type InsertProp, type InsertAlert, proOptimizationConstraintSchema, insertPrizePicksEntrySchema } from "@shared/schema";
-import {
-  NBA_SLATE_FEB_19_DK, NBA_PLAYERS_FEB_19_DK,
-  NHL_SLATE_FEB_20_DK, NHL_PLAYERS_FEB_20_DK,
-  MLB_SLATE_FEB_20_DK, MLB_PLAYERS_FEB_20_DK,
-  NFL_SLATE_FEB_20_DK, NFL_PLAYERS_FEB_20_DK,
-  GOLF_SLATE_DK, GOLF_PLAYERS_DK,
-} from "@shared/seed_data";
-import { fetchAllSportsLiveData, getRollingSlateDate, fetchPlayerStatusUpdates } from "./balldontlie";
+import { fetchAllSportsLiveData, fetchPlayerStatusUpdates } from "./balldontlie";
 import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
 import { getLiveScores, getAllLiveScores } from "./espn-scores";
 import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analyzeManualPicks } from "./prizepicks";
@@ -1569,14 +1562,10 @@ export async function generateDailyProps(date: string) {
 
     const sportsWithoutData = ACTIVE_SPORTS.filter(s => !sportsFetched.includes(s));
     if (sportsWithoutData.length > 0) {
-      console.log(`[Props] Generating synthetic props for: ${sportsWithoutData.join(", ")}`);
-      const syntheticProps = await generateSyntheticProps(date, sportsWithoutData);
-      allProps.push(...syntheticProps);
+      console.log(`[Props] No API data for: ${sportsWithoutData.join(", ")} — skipping (DK is system of record)`);
     }
   } else {
-    console.log("[Props] No ODDS_API_KEY found, generating synthetic props for all sports");
-    const syntheticProps = await generateSyntheticProps(date, [...ACTIVE_SPORTS]);
-    allProps.push(...syntheticProps);
+    console.log("[Props] No ODDS_API_KEY found, no props generated");
   }
 
   allProps.sort((a, b) => Number(b.confidence) - Number(a.confidence));
@@ -1590,73 +1579,6 @@ export async function generateDailyProps(date: string) {
     await storage.bulkCreateProps(allProps);
     console.log(`[Props] Saved ${allProps.length} props for ${date}`);
   }
-}
-
-async function generateSyntheticProps(date: string, sports: readonly string[]): Promise<InsertProp[]> {
-  const slates = await storage.getSlates();
-  const mainSlates = slates.filter(s => s.isMain);
-  const allProps: InsertProp[] = [];
-  const dateSeed = date.split("-").join("").slice(0, 8);
-
-  for (const sport of sports) {
-    const sportSlates = mainSlates.filter(s => s.sport === sport);
-    if (sportSlates.length === 0) continue;
-
-    const slate = sportSlates[0];
-    const players = await storage.getPlayersBySlate(slate.id);
-    if (players.length === 0) continue;
-
-    const propTypes = PROP_TYPES_BY_SPORT[sport] || [];
-    const sortedPlayers = [...players].sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
-    const topPlayers = sortedPlayers.slice(0, Math.min(15, sortedPlayers.length));
-    const rand = seededRandom(Number(dateSeed) + sport.charCodeAt(0));
-
-    for (const player of topPlayers) {
-      const propType = propTypes[Math.floor(rand() * propTypes.length)];
-      const fppg = Number(player.projectedPoints) || 0;
-      const playerFppg = Number(player.fppg) || 0;
-      if (fppg <= 0 || playerFppg <= 0) continue;
-
-      const rawLine = fppg * propType.baseMultiplier;
-      const line = Math.round(rawLine * 2) / 2;
-      if (line <= 0) continue;
-
-      const edge = (fppg - playerFppg) / Math.max(playerFppg, 1);
-      const varianceBonus = rand() * 0.15;
-      const confidence = Math.min(95, Math.max(52, 65 + edge * 100 + varianceBonus * 100));
-      const pick = rand() > 0.45 ? "Over" : "Under";
-
-      let enrichedGameInfo = player.gameInfo || "";
-      if (enrichedGameInfo && !enrichedGameInfo.includes("·")) {
-        const slateDate = new Date(slate.startTime);
-        const dateStr = slateDate.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
-        const timeMatch = enrichedGameInfo.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)\s*ET)/i);
-        if (timeMatch) {
-          const teams = enrichedGameInfo.replace(timeMatch[0], "").trim();
-          enrichedGameInfo = `${teams} · ${dateStr}, ${timeMatch[1]}`;
-        } else {
-          const slateTimeStr = slateDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" }) + " ET";
-          enrichedGameInfo = `${enrichedGameInfo} · ${dateStr}, ${slateTimeStr}`;
-        }
-      }
-
-      allProps.push({
-        sport,
-        playerName: player.name,
-        team: player.team,
-        opponent: player.opponent || "",
-        propType: propType.type,
-        line: line.toString(),
-        pick,
-        confidence: confidence.toFixed(1),
-        gameInfo: enrichedGameInfo,
-        isLocked: false,
-        createdDate: date,
-      });
-    }
-  }
-
-  return allProps;
 }
 
 function buildPositionVariables(position: string, sport: string): Record<string, number> {
@@ -1802,54 +1724,21 @@ export async function seedDatabase(forceRefresh = false) {
       console.log(`[DK] Live ${sport}: ${data.dkPlayers.length} DK players, ${data.games.length} games`);
     }
   } catch (err) {
-    console.error("[DK] Error fetching live data, falling back to static:", err);
+    console.error("[DK] Error fetching live data:", err);
   }
-
-  const staticFallbacks: Record<string, {
-    dkSlate: any;
-    dkPlayers: any;
-  }> = {
-    NBA: {
-      dkSlate: { ...NBA_SLATE_FEB_19_DK, startTime: getRollingSlateDate("NBA") },
-      dkPlayers: NBA_PLAYERS_FEB_19_DK,
-    },
-    NHL: {
-      dkSlate: { ...NHL_SLATE_FEB_20_DK, startTime: getRollingSlateDate("NHL") },
-      dkPlayers: NHL_PLAYERS_FEB_20_DK,
-    },
-    MLB: {
-      dkSlate: { ...MLB_SLATE_FEB_20_DK, startTime: getRollingSlateDate("MLB") },
-      dkPlayers: MLB_PLAYERS_FEB_20_DK,
-    },
-    NFL: {
-      dkSlate: { ...NFL_SLATE_FEB_20_DK, startTime: getRollingSlateDate("NFL") },
-      dkPlayers: NFL_PLAYERS_FEB_20_DK,
-    },
-    GOLF: {
-      dkSlate: { ...GOLF_SLATE_DK, startTime: getRollingSlateDate("GOLF") },
-      dkPlayers: GOLF_PLAYERS_DK,
-    },
-  };
 
   const sportSeeds = ["NBA", "NHL", "MLB", "NFL", "GOLF", "SOCCER"].map(sport => {
     const live = liveData.get(sport);
-    if (live) {
+    if (live && live.dkPlayers.length > 0) {
       return {
         sport,
         dkSlate: { name: sport === "SOCCER" ? "Soccer Main Slate" : `${sport} Main Slate`, startTime: live.slateDate, isMain: true },
         dkPlayers: live.dkPlayers,
         draftGroupId: live.draftGroupId,
-        isLive: true,
       };
     }
-    const fallback = staticFallbacks[sport];
-    if (!fallback) return null;
-    return {
-      sport,
-      dkSlate: fallback.dkSlate,
-      dkPlayers: fallback.dkPlayers,
-      isLive: false,
-    };
+    console.log(`[DK] ${sport}: No live DK data available, skipping`);
+    return null;
   }).filter(Boolean) as any[];
 
   for (const seed of sportSeeds) {
@@ -1902,9 +1791,8 @@ export async function seedDatabase(forceRefresh = false) {
         console.error(`[History] Failed to save ${seed.sport} snapshots:`, err);
       }
 
-      const source = seed.isLive ? "LIVE DK" : "static";
-      console.log(`Seeded database with DK ${seed.sport} main slate (${source})`);
-    } else if (existingSlate && seed.isLive && seed.dkPlayers.length > 0) {
+      console.log(`Seeded database with DK ${seed.sport} main slate (LIVE DK)`);
+    } else if (existingSlate && seed.dkPlayers.length > 0) {
       const existingPlayers = await storage.getPlayersBySlate(existingSlate.id);
       const needsDraftGroupId = !existingSlate.draftGroupId && seed.draftGroupId;
 
@@ -1947,70 +1835,6 @@ export async function seedDatabase(forceRefresh = false) {
   await generatePlayerBoostsAndInjuries();
 }
 
-const BOOST_REASONS: Record<string, string[]> = {
-  NBA: [
-    "Hot streak: 5+ games above season avg",
-    "Favorable matchup vs weak defense",
-    "Increased usage with teammate out",
-    "Recent breakout performance trend",
-    "Strong home court advantage",
-    "Back-to-back rest advantage",
-    "Historical pattern: excels in prime time",
-    "Positive injury recovery trajectory",
-  ],
-  NHL: [
-    "Power play specialist trending up",
-    "Favorable goalie matchup",
-    "Recent line promotion",
-    "Hot scoring streak",
-    "Strong home ice performance",
-    "Increased ice time trend",
-  ],
-  MLB: [
-    "Strong platoon advantage",
-    "Hot bat: hitting streak",
-    "Favorable park factor",
-    "Lineup position upgrade",
-    "Strong recent velocity data",
-    "Historical success vs opposing pitcher",
-  ],
-  NFL: [
-    "Favorable defensive matchup",
-    "Increased target share",
-    "Red zone usage trending up",
-    "Weather conditions favor passing/rushing",
-    "Key defensive player out for opponent",
-  ],
-  GOLF: [
-    "Strong course history at this venue",
-    "Hot putting streak on recent tour",
-    "Favorable tee time draw",
-    "Thriving in current weather conditions",
-    "Trending up in strokes gained approach",
-    "Recent top-5 finish momentum",
-  ],
-  SOCCER: [
-    "Goal-scoring form: multiple goals in recent matches",
-    "Favorable matchup vs weak defensive side",
-    "Set piece specialist: corner and free kick duties",
-    "Increased minutes with teammate suspension",
-    "Strong home pitch advantage",
-    "Key creative role: high expected assists",
-    "Penalty taker with upcoming high-foul opponent",
-    "Recent position change: pushed further forward",
-  ],
-};
-
-const INJURY_STATUSES = ["Questionable", "Probable", "Doubtful", "OUT", "Day-to-Day"];
-const INJURY_DETAILS: Record<string, string[]> = {
-  NBA: ["Right ankle sprain", "Left knee soreness", "Back tightness", "Hamstring strain", "Illness", "Rest - load management"],
-  NHL: ["Upper body injury", "Lower body injury", "Undisclosed", "Concussion protocol", "Groin strain"],
-  MLB: ["Right shoulder inflammation", "Left oblique strain", "Back spasms", "Knee discomfort", "Wrist soreness"],
-  NFL: ["Hamstring injury", "Ankle sprain", "Concussion protocol", "Knee injury", "Shoulder strain", "Illness"],
-  GOLF: ["Back stiffness", "Wrist inflammation", "Knee soreness", "Shoulder discomfort", "Neck strain"],
-  SOCCER: ["Hamstring strain", "Ankle injury", "Groin tightness", "Knee ligament concern", "Calf strain", "Muscle fatigue"],
-};
-
 export async function generatePlayerBoostsAndInjuries() {
   const allSlates = await storage.getSlates();
   const mainSlates = allSlates.filter(s => s.isMain);
@@ -2027,21 +1851,7 @@ export async function generatePlayerBoostsAndInjuries() {
       if (boosts.length > 0) await storage.updatePlayerBoosts(slate.id, boosts);
       console.log(`[Boost Engine] ${sport}: computed data-driven boosts for ${boosts.filter(b => Number(b.boostScore) !== 0).length}/${boosts.length} players`);
     } catch (err) {
-      console.error(`[Boost Engine] ${sport} error, falling back to seeded boosts:`, err);
-      const rand = seededRandom(slate.id * 31 + sport.charCodeAt(0));
-      const reasons = BOOST_REASONS[sport] || BOOST_REASONS.NBA;
-      const boosts: { playerId: number; boostScore: string; boostReason: string }[] = [];
-      for (const player of allPlayers) {
-        const r = rand();
-        if (r < 0.35) {
-          boosts.push({ playerId: player.id, boostScore: (rand() * 4 + 0.5).toFixed(1), boostReason: reasons[Math.floor(rand() * reasons.length)] });
-        } else if (r < 0.45) {
-          boosts.push({ playerId: player.id, boostScore: (-(rand() * 2 + 0.5)).toFixed(1), boostReason: "Negative trend: recent decline in performance" });
-        } else {
-          boosts.push({ playerId: player.id, boostScore: "0", boostReason: "" });
-        }
-      }
-      if (boosts.length > 0) await storage.updatePlayerBoosts(slate.id, boosts);
+      console.error(`[Boost Engine] ${sport} error, no boosts applied:`, err);
     }
 
     console.log(`Generated boosts for ${sport} ${slate.platform} slate`);
