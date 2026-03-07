@@ -155,9 +155,9 @@ function UnauthenticatedView() {
         <div className="bg-gradient-to-r from-violet-500/10 via-slate-800/50 to-violet-500/10 border border-violet-500/20 rounded-xl p-4">
           <div className="flex items-center gap-2 justify-center mb-2">
             <Crown className="w-4 h-4 text-amber-400" />
-            <span className="text-sm font-bold text-white">Pro Feature</span>
+            <span className="text-sm font-bold text-white">Champion Feature</span>
           </div>
-          <p className="text-xs text-slate-400">The PrizePicks Builder is available exclusively to Pro members. Upgrade to start building entries.</p>
+          <p className="text-xs text-slate-400">The PrizePicks Builder is available exclusively to Champion members. Upgrade to start building entries.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
           <a href="/login" data-testid="pp-builder-login-btn">
@@ -198,15 +198,15 @@ function NonProView() {
         <div className="max-w-2xl mx-auto text-center space-y-8">
           <div className="bg-gradient-to-b from-violet-500/5 to-transparent border border-violet-500/20 rounded-2xl p-8">
             <Lock className="w-12 h-12 text-violet-400/60 mx-auto mb-4" />
-            <h2 className="text-2xl font-black text-white mb-3">Upgrade to Pro for PrizePicks Builder</h2>
+            <h2 className="text-2xl font-black text-white mb-3">Upgrade to Champion for PrizePicks Builder</h2>
             <p className="text-slate-400 mb-6">
-              The PrizePicks Builder is an exclusive Pro feature ($49.99/mo). Build multi-pick entries using real-time PrizePicks lines with potential payout calculations.
+              The PrizePicks Builder is an exclusive Champion feature ($49.99/mo). Build multi-pick entries using real-time PrizePicks lines with potential payout calculations.
             </p>
 
             <div className="bg-slate-800/40 border border-amber-500/20 rounded-xl p-5 text-left max-w-sm mx-auto mb-6">
               <div className="flex items-center gap-2 mb-3">
                 <Crown className="w-5 h-5 text-amber-400" />
-                <span className="text-sm font-bold text-amber-400">Pro Plan Includes</span>
+                <span className="text-sm font-bold text-amber-400">Champion Plan Includes</span>
               </div>
               <ul className="space-y-2 text-xs text-slate-400">
                 <li className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-amber-400/60" /> Up to 6-pick PrizePicks entries</li>
@@ -219,7 +219,7 @@ function NonProView() {
 
             <Link href="/pricing">
               <Button className="bg-amber-500 text-black font-bold px-8 shadow-lg shadow-amber-500/20" data-testid="pp-builder-upgrade-btn">
-                <Crown className="w-4 h-4 mr-2" /> Upgrade to Pro
+                <Crown className="w-4 h-4 mr-2" /> Upgrade to Champion
               </Button>
             </Link>
           </div>
@@ -429,7 +429,7 @@ export default function PrizePicksBuilder() {
         return;
       }
       if (res.status === 403) {
-        setAiError("AI Builder requires a Pro subscription.");
+        setAiError("AI Builder requires a Champion subscription.");
         setAiEntries([]);
         return;
       }
@@ -493,7 +493,7 @@ export default function PrizePicksBuilder() {
         return;
       }
       if (res.status === 403) {
-        toast({ title: "Pro feature", description: "Pick analysis requires a Pro subscription.", variant: "destructive" });
+        toast({ title: "Champion feature", description: "Pick analysis requires a Champion subscription.", variant: "destructive" });
         return;
       }
       if (!res.ok) throw new Error("Analysis failed");
@@ -787,10 +787,10 @@ export default function PrizePicksBuilder() {
             ) : aiError ? (
               <div className="py-8 text-center space-y-3">
                 <p className="text-sm text-red-400">{aiError}</p>
-                {aiError.includes("Pro") && (
+                {aiError.includes("Champion") && (
                   <Link href="/pricing">
                     <Button size="sm" className="bg-amber-500 text-black font-bold" data-testid="pp-builder-ai-upgrade">
-                      <Crown className="w-3.5 h-3.5 mr-1.5" /> Upgrade to Pro
+                      <Crown className="w-3.5 h-3.5 mr-1.5" /> Upgrade to Champion
                     </Button>
                   </Link>
                 )}

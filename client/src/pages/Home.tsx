@@ -211,11 +211,11 @@ function HeroBanner({ firstName, tier }: { firstName: string; tier: string }) {
           <div className="flex items-center gap-3">
             {tier === "pro" ? (
               <Badge className="bg-amber-500/30 text-amber-300 border-amber-500/40 text-sm font-black px-4 py-1.5 gap-1.5 backdrop-blur-sm">
-                <Crown className="w-4 h-4" /> Pro Member
+                <Crown className="w-4 h-4" /> Champion Member
               </Badge>
             ) : tier === "star" ? (
               <Badge className="bg-emerald-500/30 text-emerald-300 border-emerald-500/40 text-sm font-black px-4 py-1.5 gap-1.5 backdrop-blur-sm">
-                <Trophy className="w-4 h-4" /> Star Member
+                <Trophy className="w-4 h-4" /> Sharpshooter Member
               </Badge>
             ) : (
               <Link href="/pricing">
@@ -990,14 +990,14 @@ function QuickActions({ slateId, tier }: { slateId: number | null; tier: string 
           {tier === "star" && (
             <Link href={`/optimizer-pro/${slateId}`}>
               <Button variant="outline" className="border-amber-700/50 text-amber-400 hover:bg-amber-900/20 font-bold gap-2" data-testid="quick-action-star-builder">
-                <Trophy className="w-4 h-4" /> Star Builder
+                <Trophy className="w-4 h-4" /> Sharpshooter Builder
               </Button>
             </Link>
           )}
           {tier === "pro" && (
             <Link href={`/optimizer-pro/${slateId}`}>
               <Button variant="outline" className="border-emerald-700/50 text-emerald-400 hover:bg-emerald-900/20 font-bold gap-2" data-testid="quick-action-pro-builder">
-                <Crown className="w-4 h-4" /> Pro Builder
+                <Crown className="w-4 h-4" /> Champion Builder
               </Button>
             </Link>
           )}

@@ -978,9 +978,9 @@ export default function Optimizer() {
                       </div>
                       <p className="text-xs text-slate-300 leading-relaxed">
                         {subData?.tier === "free" ? (
-                          <>Basic accounts can save 1 team per sport. Upgrade to <span className="font-black text-emerald-400">Star ($9.99/mo)</span> for 20 teams or <span className="font-black text-amber-400">Pro ($19.99/mo)</span> for 150 teams per sport, plus CSV export to DraftKings.</>
+                          <>Contender accounts can save 1 team per sport. Upgrade to <span className="font-black text-emerald-400">Sharpshooter ($19.99/mo)</span> for 20 teams or <span className="font-black text-amber-400">Champion ($49.99/mo)</span> for 150 teams per sport, plus CSV export to DraftKings.</>
                         ) : subData?.tier === "star" ? (
-                          <>Star accounts can save 20 teams per sport. Upgrade to <span className="font-black text-amber-400">Pro ($19.99/mo)</span> for 150 teams per sport with AI boost analysis.</>
+                          <>Sharpshooter accounts can save 20 teams per sport. Upgrade to <span className="font-black text-amber-400">Champion ($49.99/mo)</span> for 150 teams per sport with AI boost analysis.</>
                         ) : (
                           <>You've reached the maximum of 150 saved teams for {sport}.</>
                         )}

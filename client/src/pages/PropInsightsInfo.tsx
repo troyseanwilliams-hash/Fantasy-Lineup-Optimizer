@@ -10,7 +10,7 @@ import {
 
 const TIERS = [
   {
-    name: "Basic",
+    name: "Contender",
     price: "Free",
     badge: null,
     badgeIcon: null,
@@ -27,13 +27,13 @@ const TIERS = [
     ],
   },
   {
-    name: "Star",
+    name: "Sharpshooter",
     price: "$19.99/mo",
     badge: "Popular",
     badgeIcon: Trophy,
     ring: "ring-1 ring-emerald-500/50",
     features: [
-      { text: "Everything in Basic", included: true },
+      { text: "Everything in Contender", included: true },
       { text: "Up to 5 picks per sport", included: true },
       { text: "Gold & Hot Pick access", included: true },
       { text: "Parlay Builder tool", included: true },
@@ -44,13 +44,13 @@ const TIERS = [
     ],
   },
   {
-    name: "Pro",
+    name: "Champion",
     price: "$49.99/mo",
     badge: "Best Value",
     badgeIcon: Crown,
     ring: "ring-1 ring-amber-500/50",
     features: [
-      { text: "Everything in Star", included: true },
+      { text: "Everything in Sharpshooter", included: true },
       { text: "Up to 15 picks per sport", included: true },
       { text: "Full access to all confidence tiers", included: true },
       { text: "Advanced Parlay Builder", included: true },

@@ -328,8 +328,8 @@ function PropCard({ prop, index }: { prop: PropBet; index: number }) {
 
 function LockedPropCard({ index, sport, tier }: { index: number; sport: string; tier: string }) {
   const isGuest = tier === "guest";
-  const upgradeLabel = isGuest ? "Locked Pick" : tier === "star" ? "Pro Pick" : "Premium Pick";
-  const upgradeText = isGuest ? "Sign In to Unlock" : tier === "star" ? "Upgrade to Pro" : "Upgrade Plan";
+  const upgradeLabel = isGuest ? "Locked Pick" : tier === "star" ? "Champion Pick" : "Premium Pick";
+  const upgradeText = isGuest ? "Sign In to Unlock" : tier === "star" ? "Upgrade to Champion" : "Upgrade Plan";
   return (
     <Card
       className="bg-slate-800/20 border-slate-800/50 p-5 relative overflow-hidden"
@@ -503,7 +503,7 @@ export default function PropBets() {
             ) : !isPro && (
               <Link href="/pricing">
                 <Button data-testid="upgrade-props-btn">
-                  <Crown className="w-4 h-4 mr-2" /> {tier === "star" ? "Upgrade to Pro" : "Unlock More Picks"}
+                  <Crown className="w-4 h-4 mr-2" /> {tier === "star" ? "Upgrade to Champion" : "Unlock More Picks"}
                 </Button>
               </Link>
             )}
@@ -544,13 +544,13 @@ export default function PropBets() {
             </div>
             <div className="flex flex-wrap items-center justify-center gap-4 mt-6">
               <Badge className="bg-slate-800/80 border-slate-700 text-slate-300 text-xs font-bold px-3 py-1">
-                Basic: 1 pick/sport
+                Contender: 1 pick/sport
               </Badge>
               <Badge className="bg-emerald-500/10 border-emerald-500/20 text-emerald-400 text-xs font-bold px-3 py-1">
-                Star: 5 picks/sport
+                Sharpshooter: 5 picks/sport
               </Badge>
               <Badge className="bg-amber-500/10 border-amber-500/20 text-amber-400 text-xs font-bold px-3 py-1">
-                Pro: 15 picks/sport
+                Champion: 15 picks/sport
               </Badge>
             </div>
           </div>
@@ -770,8 +770,8 @@ export default function PropBets() {
             {isGuest
               ? "Create an account to start seeing AI-powered prop picks. Upgrade for even more picks across all sports."
               : tier === "star"
-                ? "Upgrade to Pro ($19.99/mo) for up to 15 AI-powered prop picks per sport with higher confidence ratings."
-                : "Upgrade your plan for more AI-powered prop picks across all sports. Star gets up to 5, Pro gets up to 15."}
+                ? "Upgrade to Champion ($49.99/mo) for up to 15 AI-powered prop picks per sport with higher confidence ratings."
+                : "Upgrade your plan for more AI-powered prop picks across all sports. Sharpshooter gets up to 5, Champion gets up to 15."}
           </p>
           {isGuest ? (
             <Button onClick={() => window.location.href = '/login'} data-testid="unlock-all-btn">
@@ -780,7 +780,7 @@ export default function PropBets() {
           ) : (
             <Link href="/pricing">
               <Button data-testid="unlock-all-btn">
-                <Crown className="w-4 h-4 mr-2" /> {tier === "star" ? "Upgrade to Pro" : "View Plans"}
+                <Crown className="w-4 h-4 mr-2" /> {tier === "star" ? "Upgrade to Champion" : "View Plans"}
               </Button>
             </Link>
           )}
