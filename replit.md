@@ -23,7 +23,7 @@ Preferred communication style: Simple, everyday language.
 - **Optimization Engine**: `javascript-lp-solver` for Linear Programming
 - **Authentication**: bcryptjs password hashing with session-based authentication stored in PostgreSQL
 - **Payments**: Stripe Elements embedded payment form for subscription payments with webhook event handling
-- **Cron Jobs**: Hourly tasks for data refresh (DraftKings slates/players, Odds API props, PrizePicks projections), daily vault maintenance, daily grace period expiration check (3 AM ET), and daily player history cleanup (4 AM ET, 90-day retention).
+- **Cron Jobs**: Hourly tasks for data refresh (DraftKings slates/players, Odds API props, PrizePicks projections), hourly player status/injury refresh from DK API (:00), pre-contest accelerated status refresh (every 5 min within 1 hour of lock), daily vault maintenance, daily grace period expiration check (3 AM ET), and daily player history cleanup (4 AM ET, 90-day retention).
 - **Live Scores**: ESPN public scoreboard API with server-side caching.
 - **Boost Engine** (`server/boost-engine.ts`): Data-driven scoring for DFS optimization:
   - `computeBoostScores()` — value scoring, historical trend analysis, price movement detection, volatility assessment

@@ -1,5 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes, seedDatabase, generateDailyProps } from "./routes";
+import { registerRoutes, seedDatabase, generateDailyProps, refreshPlayerStatuses } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import cron from "node-cron";
@@ -213,6 +213,44 @@ app.use((req, res, next) => {
         timezone: "America/New_York",
       });
       log("Scheduled hourly seed refresh at :30 past each hour (EST)", "cron");
+
+      cron.schedule("0 * * * *", async () => {
+        try {
+          const updated = await refreshPlayerStatuses();
+          if (updated && updated > 0) log(`Hourly status refresh: updated ${updated} player(s)`, "cron");
+        } catch (err) {
+          console.error("Hourly status refresh failed:", err);
+        }
+      }, {
+        timezone: "America/New_York",
+      });
+      log("Scheduled hourly player status/injury refresh at :00 past each hour (EST)", "cron");
+
+      cron.schedule("*/5 * * * *", async () => {
+        try {
+          const now = new Date();
+          const allSlates = await storage.getSlates();
+          const upcoming = allSlates.filter(s => {
+            if (!s.isMain || !s.draftGroupId) return false;
+            const start = new Date(s.startTime);
+            const msUntil = start.getTime() - now.getTime();
+            return msUntil > 0 && msUntil <= 60 * 60 * 1000;
+          });
+
+          if (upcoming.length > 0) {
+            const sports = upcoming.map(s => s.sport).join(", ");
+            const updated = await refreshPlayerStatuses();
+            if (updated && updated > 0) {
+              log(`Pre-contest status refresh (${sports}): updated ${updated} player(s)`, "cron");
+            }
+          }
+        } catch (err) {
+          console.error("Pre-contest status refresh failed:", err);
+        }
+      }, {
+        timezone: "America/New_York",
+      });
+      log("Scheduled pre-contest status refresh (every 5 min within 1 hour of lock)", "cron");
 
       cron.schedule("0 3 * * *", async () => {
         try {
