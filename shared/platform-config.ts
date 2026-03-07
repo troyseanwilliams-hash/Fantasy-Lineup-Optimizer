@@ -387,7 +387,7 @@ export function assignPlayersToSlots(
 
   const unassigned = players.filter(p => !used.has(p.id));
   for (const p of unassigned) {
-    const emptySlot = slots.find(s => greedyResult[s] === null);
+    const emptySlot = slots.find(s => greedyResult[s] === null && positionFitsSlot(p.position, s, sport));
     if (emptySlot) {
       greedyResult[emptySlot] = p;
       used.add(p.id);
