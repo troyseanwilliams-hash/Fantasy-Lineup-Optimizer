@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Link, useLocation } from "wouter";
-import { Crown, Lock, TrendingUp, TrendingDown, Users, Flame, Loader2, ChevronDown } from "lucide-react";
+import { Crown, Lock, TrendingUp, TrendingDown, Users, Flame, Loader2, ChevronDown, ArrowDownUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -69,6 +69,7 @@ export default function OwnershipHeatmap() {
   const mainSlates = slates?.filter(s => s.isMain && s.platform === "draftkings") || [];
   const availableSports = ACTIVE_SPORTS.filter(s => mainSlates.some(sl => sl.sport === s));
   const [selectedSport, setSelectedSport] = useState<string>("");
+  const [sortDirection, setSortDirection] = useState<"high" | "low">("high");
 
   const activeSport = selectedSport || availableSports[0] || "NBA";
   const activeSlate = mainSlates.find(s => s.sport === activeSport);
@@ -116,7 +117,14 @@ export default function OwnershipHeatmap() {
   }
 
   const sportColors = SPORT_COLORS[activeSport] || SPORT_COLORS.NBA;
-  const positionEntries = ownershipData ? Object.entries(ownershipData.positions).sort(([a], [b]) => a.localeCompare(b)) : [];
+  const positionEntries = ownershipData
+    ? Object.entries(ownershipData.positions)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([pos, players]) => [pos, sortDirection === "high"
+          ? [...players].sort((a, b) => b.ownershipProjection - a.ownershipProjection)
+          : [...players].sort((a, b) => a.ownershipProjection - b.ownershipProjection)
+        ] as [string, OwnershipPlayer[]])
+    : [];
 
   return (
     <div className="min-h-screen bg-[#0F172A]">
@@ -131,18 +139,33 @@ export default function OwnershipHeatmap() {
             <p className="text-sm text-slate-400">Top-owned players by position — find chalk and contrarian plays</p>
           </div>
 
-          <div className="relative">
-            <select
-              value={activeSport}
-              onChange={(e) => setSelectedSport(e.target.value)}
-              className="appearance-none bg-[#1E293B] border border-slate-700 text-white text-sm font-bold rounded-lg px-4 py-2.5 pr-10 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500/50"
-              data-testid="ownership-sport-select"
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSortDirection(d => d === "high" ? "low" : "high")}
+              className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-bold transition-colors cursor-pointer ${
+                sortDirection === "high"
+                  ? "bg-[#1E293B] border-slate-700 text-white hover:border-slate-600"
+                  : "bg-purple-500/10 border-purple-500/30 text-purple-400 hover:border-purple-500/50"
+              }`}
+              data-testid="ownership-sort-toggle"
             >
-              {availableSports.map(sport => (
-                <option key={sport} value={sport}>{sport}</option>
-              ))}
-            </select>
-            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <ArrowDownUp className="w-4 h-4" />
+              <span>{sortDirection === "high" ? "High → Low" : "Low → High"}</span>
+            </button>
+
+            <div className="relative">
+              <select
+                value={activeSport}
+                onChange={(e) => setSelectedSport(e.target.value)}
+                className="appearance-none bg-[#1E293B] border border-slate-700 text-white text-sm font-bold rounded-lg px-4 py-2.5 pr-10 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                data-testid="ownership-sport-select"
+              >
+                {availableSports.map(sport => (
+                  <option key={sport} value={sport}>{sport}</option>
+                ))}
+              </select>
+              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
           </div>
         </div>
 
