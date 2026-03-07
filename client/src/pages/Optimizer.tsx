@@ -20,6 +20,14 @@ import {
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "fppg" | "value";
 type SortDir = "asc" | "desc";
 
+const INJURY_COLORS: Record<string, string> = {
+  OUT: "bg-red-500/20 text-red-400 border-red-500/30",
+  Doubtful: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  Questionable: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  Probable: "bg-green-500/20 text-green-400 border-green-500/30",
+  "Day-to-Day": "bg-blue-500/20 text-blue-400 border-blue-500/30",
+};
+
 export default function Optimizer() {
   const [, params] = useRoute("/optimizer/:id");
   const [, setLocation] = useLocation();
@@ -702,6 +710,11 @@ export default function Optimizer() {
                     <td className="px-3 py-2">
                       <div className={`font-bold text-sm text-white transition-colors ${platform === "fanduel" ? "group-hover:text-blue-400" : "group-hover:text-emerald-400"}`}>
                         {player.name}
+                        {player.injuryStatus && player.injuryStatus !== "Healthy" && (
+                          <Badge variant="outline" className={`ml-2 text-[9px] font-bold py-0 px-1.5 ${INJURY_COLORS[player.injuryStatus] || INJURY_COLORS["Day-to-Day"]}`} data-testid={`injury-badge-${player.id}`}>
+                            {player.injuryStatus}
+                          </Badge>
+                        )}
                         {isInLineup && <span className={`ml-2 text-[11px] font-black ${platform === "fanduel" ? "text-blue-500" : "text-emerald-500"}`}>IN LINEUP</span>}
                       </div>
                       <div className="text-[11px] text-slate-400 font-medium">{player.gameInfo}</div>
