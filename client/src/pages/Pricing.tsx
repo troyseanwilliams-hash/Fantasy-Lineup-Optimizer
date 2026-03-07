@@ -205,10 +205,7 @@ export default function Pricing() {
               <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
               <span>No AI boost analysis</span>
             </li>
-            <li className="flex items-center gap-3 text-sm text-slate-400">
-              <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
-              <span>No ownership projections</span>
-            </li>
+            
           </ul>
           <Button variant="outline" className="w-full h-12 border-slate-700 text-slate-400 font-bold" disabled data-testid="basic-plan-btn">
             {currentTier === "free" ? "Current Plan" : "Contender Plan"}
@@ -279,10 +276,7 @@ export default function Pricing() {
               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
               <span className="font-bold">Multi-lineup generation (up to 5)</span>
             </li>
-            <li className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <span className="font-bold">Ownership projections</span>
-            </li>
+            
             <li className="flex items-center gap-3 text-sm text-slate-400">
               <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
               <span>No AI boost analysis</span>
@@ -393,10 +387,7 @@ export default function Pricing() {
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
               <span className="font-bold text-amber-300">AI boost analysis & injury tracking</span>
             </li>
-            <li className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
-              <span className="font-bold text-amber-300">Ownership projections & player fading</span>
-            </li>
+            
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
               <span className="font-bold text-amber-300">PrizePicks Builder with live lines</span>

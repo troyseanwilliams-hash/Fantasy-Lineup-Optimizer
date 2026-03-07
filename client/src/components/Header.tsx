@@ -230,7 +230,7 @@ export function Header() {
                 <span>Vault</span>
               </div>
             </Link>
-            {isPro ? (
+            {user?.isAdmin && (
               <Link href="/ownership">
                 <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
                   location === "/ownership" ? "text-amber-400" : "text-slate-400 hover:text-white"
@@ -240,15 +240,7 @@ export function Header() {
                   <Crown className="w-3 h-3 text-amber-400" />
                 </div>
               </Link>
-            ) : user ? (
-              <Link href="/ownership">
-                <div className="flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer text-slate-500 hover:text-slate-400" data-testid="nav-ownership-locked">
-                  <Lock className="w-3.5 h-3.5" />
-                  <span>Ownership</span>
-                  <Badge className="bg-amber-500/10 text-amber-500/60 border-amber-500/20 text-[9px] font-bold px-1 py-0">CHAMPION</Badge>
-                </div>
-              </Link>
-            ) : null}
+            )}
             {!user && (
               <Link href="/pricing">
                 <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
@@ -501,17 +493,19 @@ export function Header() {
               <span>Saved Lineups</span>
             </button>
 
-            <button
-              onClick={() => mobileNav("/ownership")}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                location === "/ownership" ? "bg-amber-500/10 text-amber-400" : isPro ? "text-white hover:bg-slate-800" : "text-slate-500 hover:bg-slate-800"
-              }`}
-              data-testid="mobile-nav-ownership"
-            >
-              {isPro ? <Users className="w-5 h-5 shrink-0" /> : <Lock className="w-5 h-5 shrink-0" />}
-              <span>Ownership</span>
-              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[9px] font-bold px-1.5 py-0 ml-auto">CHAMPION</Badge>
-            </button>
+            {user?.isAdmin && (
+              <button
+                onClick={() => mobileNav("/ownership")}
+                className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                  location === "/ownership" ? "bg-amber-500/10 text-amber-400" : "text-white hover:bg-slate-800"
+                }`}
+                data-testid="mobile-nav-ownership"
+              >
+                <Users className="w-5 h-5 shrink-0" />
+                <span>Ownership</span>
+                <Crown className="w-3 h-3 text-amber-400 ml-auto" />
+              </button>
+            )}
 
             <button
               onClick={() => mobileNav("/pricing")}

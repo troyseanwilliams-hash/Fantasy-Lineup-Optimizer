@@ -41,10 +41,10 @@ Preferred communication style: Simple, everyday language.
 - **ORM**: Drizzle ORM with `drizzle-zod` for schema validation.
 - **Key Tables**: `users`, `sessions`, `slates`, `players`, `lineups`, `subscriptions`, `props`, `prizepicks_entries`, `playerHistory`.
 
-### Ownership Heatmap (Champion-only)
+### Ownership Heatmap (Admin-only)
 - **Route**: `/ownership` — shows top-owned players by position for a selected sport/slate
 - **API**: `GET /api/ownership/:slateId` — returns players grouped by position with ownership projections, chalk player, and contrarian value pick
-- **Gating**: Champion (pro) tier required; other tiers see upgrade prompt
+- **Gating**: Admin-only (`user.isAdmin`); hidden from nav and pricing pages for non-admin users
 - **Ownership Model**: Multi-factor scoring (projected points, salary, value score, position scarcity) with tiered distribution bands (top 3% → 25-35%, mid-tier → 5-18%, bottom → <2.5%). BallDontLie API integration (`server/balldontlie-stats.ts`) enhances projections with real season stats when available (requires paid BDL tier for stats endpoints). Results cached 4 hours.
 - **Key Files**: `client/src/pages/OwnershipHeatmap.tsx`, `server/balldontlie-stats.ts`
 
