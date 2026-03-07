@@ -112,13 +112,16 @@ export class DatabaseStorage implements IStorage {
               draftKingsPlayerId: p.draftKingsPlayerId,
               boostScore: p.boostScore, boostReason: p.boostReason,
             }));
-            await db.update(lineups).set({ playerSnapshot: snapshot }).where(eq(lineups.id, lineup.id));
+            await db.update(lineups).set({ playerSnapshot: snapshot, status: "review", reviewedAt: new Date() }).where(eq(lineups.id, lineup.id));
+          } else {
+            await db.update(lineups).set({ status: "review", reviewedAt: new Date() }).where(eq(lineups.id, lineup.id));
           }
+        } else {
+          await db.update(lineups).set({ status: "review", reviewedAt: new Date() }).where(eq(lineups.id, lineup.id));
         }
       }
       const lineupIds = slateLineups.map(l => l.id);
       await db.update(alerts).set({ lineupId: null }).where(inArray(alerts.lineupId, lineupIds));
-      await db.delete(lineups).where(eq(lineups.slateId, slateId));
     }
     const slatePlayers = await db.select({ id: players.id }).from(players).where(eq(players.slateId, slateId));
     if (slatePlayers.length > 0) {

@@ -378,6 +378,30 @@ export async function registerRoutes(
     }
   });
   
+  app.get("/api/lineups/review", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+
+    const sub = await storage.getSubscription(userId);
+    const tier = sub?.tier || "free";
+    if (tier !== "star" && tier !== "pro") {
+      return res.status(403).json({ message: "Review lineups require a Star or Pro subscription." });
+    }
+
+    const reviewLineups = await storage.getReviewLineups(userId);
+
+    const enriched = await Promise.all(reviewLineups.map(async (lineup: any) => {
+      if (lineup.playerSnapshot && Array.isArray(lineup.playerSnapshot) && lineup.playerSnapshot.length > 0) {
+        return { ...lineup, players: lineup.playerSnapshot };
+      }
+      const allPlayers = await storage.getPlayersBySlate(lineup.slateId);
+      const rosterPlayers = allPlayers.filter((p: any) => lineup.playerIds.includes(p.id));
+      return { ...lineup, players: rosterPlayers };
+    }));
+
+    res.json(enriched);
+  });
+
   app.get("/api/lineups/:id", async (req, res) => {
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const id = Number(req.params.id);
@@ -463,30 +487,6 @@ export async function registerRoutes(
       if (lineup.userId !== userId) return res.sendStatus(403);
       await storage.deleteLineup(id);
       res.sendStatus(204);
-  });
-
-  app.get("/api/lineups/review", async (req, res) => {
-    if (!isLoggedIn(req)) return res.sendStatus(401);
-    const userId = getSessionUserId(req)!;
-
-    const sub = await storage.getSubscription(userId);
-    const tier = sub?.tier || "free";
-    if (tier !== "star" && tier !== "pro") {
-      return res.status(403).json({ message: "Review lineups require a Star or Pro subscription." });
-    }
-
-    const reviewLineups = await storage.getReviewLineups(userId);
-
-    const enriched = await Promise.all(reviewLineups.map(async (lineup: any) => {
-      if (lineup.playerSnapshot && Array.isArray(lineup.playerSnapshot) && lineup.playerSnapshot.length > 0) {
-        return { ...lineup, players: lineup.playerSnapshot };
-      }
-      const allPlayers = await storage.getPlayersBySlate(lineup.slateId);
-      const rosterPlayers = allPlayers.filter((p: any) => lineup.playerIds.includes(p.id));
-      return { ...lineup, players: rosterPlayers };
-    }));
-
-    res.json(enriched);
   });
 
   app.post("/api/lineups/bulk-delete", async (req, res) => {
@@ -1505,7 +1505,11 @@ export async function registerRoutes(
         pool = applyCeilingMode(pool, slate.sport);
       }
 
+      console.log(`[ProOptimizer] Starting for ${slate.sport}, ${pool.length} players, ${constraints.lineupCount} lineups requested`);
+      const proStartTime = Date.now();
+
       const bdlStats = await fetchBDLStats(slate.sport);
+      console.log(`[ProOptimizer] BDL fetch completed in ${Date.now() - proStartTime}ms`);
       const playersWithOwnership = computeOwnershipProjections(pool, bdlStats);
 
       if (constraints.leverageMode) {
@@ -1522,13 +1526,31 @@ export async function registerRoutes(
         }
       });
 
+      const MAX_POOL_SIZE = 150;
+      const excludedSet = new Set(baseExcluded);
+      const eligiblePool = pool.filter(p => !excludedSet.has(p.id));
+      if (eligiblePool.length > MAX_POOL_SIZE) {
+        const lockedSet = new Set(constraints.lockedPlayerIds);
+        const locked = eligiblePool.filter(p => lockedSet.has(p.id));
+        const unlocked = eligiblePool.filter(p => !lockedSet.has(p.id));
+        unlocked.sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
+        const trimmed = [...locked, ...unlocked.slice(0, MAX_POOL_SIZE - locked.length)];
+        console.log(`[ProOptimizer] Trimmed eligible pool from ${eligiblePool.length} to ${trimmed.length} players`);
+        pool = [...trimmed, ...pool.filter(p => excludedSet.has(p.id))];
+      }
+
       const maxAttempts = constraints.lineupCount * 10;
       let attempts = 0;
+      const SOLVER_TIMEOUT = 45000;
 
       const playerAppearances: Record<number, number> = {};
       const candidateLineups: { result: any; correlationScore: number }[] = [];
 
       while (lineupResults.length < constraints.lineupCount && attempts < maxAttempts) {
+        if (Date.now() - proStartTime > SOLVER_TIMEOUT) {
+          console.log(`[ProOptimizer] Timeout after ${attempts} attempts, ${lineupResults.length} lineups found`);
+          break;
+        }
         attempts++;
         const iteration = lineupResults.length;
         const noiseScale = iteration === 0 ? 0 : Math.min(0.10 + iteration * 0.04, 0.40);
@@ -1577,7 +1599,9 @@ export async function registerRoutes(
         }
 
         const modConstraints = { ...constraints, excludedPlayerIds: iterationExcluded };
+        const solveStart = Date.now();
         const result = solveLineup(perturbedPool, modConstraints, slate.sport, platform);
+        console.log(`[ProOptimizer] Solve attempt ${attempts} took ${Date.now() - solveStart}ms, feasible: ${!result.error}`);
 
         if (!result.error && result.lineup.length > 0) {
           const key = result.lineup.map((p: Player) => p.id).sort().join(",");
