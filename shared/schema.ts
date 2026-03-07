@@ -58,6 +58,10 @@ export const lineups = pgTable("lineups", {
   reviewedAt: timestamp("reviewed_at"),
   playerSnapshot: jsonb("player_snapshot"),
   contestWinnerData: jsonb("contest_winner_data"),
+  dkEntryId: text("dk_entry_id"),
+  dkContestName: text("dk_contest_name"),
+  dkContestId: text("dk_contest_id"),
+  dkEntryFee: text("dk_entry_fee"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

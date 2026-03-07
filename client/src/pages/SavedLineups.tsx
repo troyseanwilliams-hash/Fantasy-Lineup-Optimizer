@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye, AlertTriangle } from "lucide-react";
+import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye, AlertTriangle, Upload } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -38,6 +38,7 @@ export default function SavedLineups() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [vaultSort, setVaultSort] = useState<VaultSortKey>("newest");
   const [activeTab, setActiveTab] = useState<VaultTab>("active");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: lineups, isLoading } = useQuery<any[]>({
     queryKey: ["/api/lineups"],
@@ -114,20 +115,160 @@ export default function SavedLineups() {
     }
   });
 
+  const { data: slates } = useQuery<any[]>({
+    queryKey: ["/api/slates"],
+  });
+
+  const importMutation = useMutation({
+    mutationFn: async (data: { entries: any[]; sport: string; slateId: number }) => {
+      const res = await apiRequest("POST", "/api/lineups/import-dk", data);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
+      const failed = data.results?.filter((r: any) => r.status === "failed").length || 0;
+      if (failed > 0) {
+        toast({ title: "Import Complete", description: `${data.imported} of ${data.total} entries imported. ${failed} failed (player mismatch).` });
+      } else {
+        toast({ title: "Import Successful", description: `${data.imported} DraftKings entries imported.` });
+      }
+    },
+    onError: (err: any) => {
+      toast({ title: "Import Failed", description: err.message || "Could not import entries.", variant: "destructive" });
+    }
+  });
+
+  function parseCSVRow(row: string): string[] {
+    const fields: string[] = [];
+    let current = "";
+    let inQuotes = false;
+    for (let i = 0; i < row.length; i++) {
+      const ch = row[i];
+      if (inQuotes) {
+        if (ch === '"' && row[i + 1] === '"') { current += '"'; i++; }
+        else if (ch === '"') { inQuotes = false; }
+        else { current += ch; }
+      } else {
+        if (ch === '"') { inQuotes = true; }
+        else if (ch === ',') { fields.push(current.trim()); current = ""; }
+        else { current += ch; }
+      }
+    }
+    fields.push(current.trim());
+    return fields;
+  }
+
+  function parseDKEntryCSV(csvText: string): { entries: any[]; detectedSport: string | null } {
+    const lines = csvText.split(/\r?\n/).filter(l => l.trim().length > 0);
+    if (lines.length < 2) return { entries: [], detectedSport: null };
+
+    const headers = parseCSVRow(lines[0]);
+
+    const entryIdIdx = headers.indexOf("Entry ID");
+    const contestNameIdx = headers.indexOf("Contest Name");
+    const contestIdIdx = headers.indexOf("Contest ID");
+    const entryFeeIdx = headers.indexOf("Entry Fee");
+
+    if (entryIdIdx < 0 || entryFeeIdx < 0) return { entries: [], detectedSport: null };
+
+    const slotStartIdx = entryFeeIdx + 1;
+    const slotHeaders = headers.slice(slotStartIdx).filter(h => h && h !== "Instructions");
+
+    let detectedSport: string | null = null;
+    const entries: any[] = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseCSVRow(lines[i]);
+      const entryId = cols[entryIdIdx];
+      if (!entryId || entryId === "") continue;
+
+      const contestName = contestNameIdx >= 0 ? (cols[contestNameIdx] || "") : "";
+      const contestId = contestIdIdx >= 0 ? (cols[contestIdIdx] || "") : "";
+      const entryFee = cols[entryFeeIdx] || "";
+
+      if (!detectedSport && contestName) {
+        const cn = contestName.toUpperCase();
+        if (cn.includes("NBA")) detectedSport = "NBA";
+        else if (cn.includes("NHL")) detectedSport = "NHL";
+        else if (cn.includes("NFL")) detectedSport = "NFL";
+        else if (cn.includes("MLB")) detectedSport = "MLB";
+        else if (cn.includes("GOLF") || cn.includes("PGA")) detectedSport = "GOLF";
+        else if (cn.includes("SOCCER") || cn.includes("EPL") || cn.includes("MLS")) detectedSport = "SOCCER";
+      }
+
+      const dkPlayerIds: number[] = [];
+      for (let s = 0; s < slotHeaders.length; s++) {
+        const cell = cols[slotStartIdx + s] || "";
+        const match = cell.match(/\((\d+)\)\s*$/);
+        if (match) dkPlayerIds.push(parseInt(match[1]));
+      }
+
+      if (dkPlayerIds.length > 0) {
+        entries.push({ entryId, contestName, contestId, entryFee, dkPlayerIds });
+      }
+    }
+
+    return { entries, detectedSport };
+  }
+
+  function handleDKImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (fileInputRef.current) fileInputRef.current.value = "";
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const { entries, detectedSport } = parseDKEntryCSV(text);
+
+      if (entries.length === 0) {
+        toast({ title: "No Entries Found", description: "Could not parse any valid DK entries from the CSV file.", variant: "destructive" });
+        return;
+      }
+
+      const sport = detectedSport;
+      if (!sport) {
+        toast({ title: "Sport Not Detected", description: "Could not detect sport from contest name. Ensure this is a valid DK entries CSV.", variant: "destructive" });
+        return;
+      }
+
+      const matchingSlate = slates?.find((s: any) => s.sport === sport);
+      if (!matchingSlate) {
+        toast({ title: "No Active Slate", description: `No active ${sport} slate found. Can only import entries for sports with live DK data.`, variant: "destructive" });
+        return;
+      }
+
+      importMutation.mutate({ entries, sport, slateId: matchingSlate.id });
+    };
+    reader.readAsText(file);
+  }
+
   function buildDraftKingsCSV(lineups: LineupWithPlayers[]): string {
     if (lineups.length === 0) return "";
     const firstLineup = lineups[0];
     const config = getPlatformConfig(firstLineup.sport, firstLineup.platform as any);
-    const headers = config.slots.map(slot => getSlotDisplayName(slot));
+    const slotHeaders = config.slots.map(slot => getSlotDisplayName(slot));
+
+    const hasDkEntries = lineups.some((l: any) => l.dkEntryId);
+
+    const headers = hasDkEntries
+      ? ["Entry ID", "Contest Name", "Contest ID", "Entry Fee", ...slotHeaders]
+      : slotHeaders;
 
     const rows = lineups.map(lineup => {
       const slotAssignments = assignPlayersToSlots(lineup.players, config.slots, lineup.sport);
-      return config.slots.map(slot => {
+      const playerCells = config.slots.map(slot => {
         const p = slotAssignments[slot];
         if (!p) return "";
         const dkId = (p as any).draftKingsPlayerId;
         return dkId ? `${p.name} (${dkId})` : p.name;
       });
+
+      if (hasDkEntries) {
+        const l = lineup as any;
+        return [l.dkEntryId || "", l.dkContestName || "", l.dkContestId || "", l.dkEntryFee || "", ...playerCells];
+      }
+      return playerCells;
     });
 
     return [headers.join(","), ...rows.map(r => r.map(cell => `"${cell}"`).join(","))].join("\n");
@@ -366,6 +507,27 @@ export default function SavedLineups() {
                       )}
                     </>
                   )}
+                </>
+              )}
+              {isPro && (
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv"
+                    className="hidden"
+                    onChange={handleDKImport}
+                    data-testid="dk-import-file-input"
+                  />
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={importMutation.isPending}
+                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                    data-testid="dk-import-btn"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    {importMutation.isPending ? "Importing..." : "Import DK Entries"}
+                  </Button>
                 </>
               )}
               <Link href="/">
@@ -786,6 +948,11 @@ function LineupCard({
               <Badge className={`${isFD ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"} text-[10px] font-black uppercase`}>
                 {lineup.sport} {platformLabel}
               </Badge>
+              {lineup.dkEntryId && (
+                <Badge className="bg-purple-500/10 text-purple-400 border-purple-500/20 text-[10px] font-black uppercase" data-testid={`dk-import-badge-${lineup.id}`}>
+                  DK Entry {lineup.dkEntryFee ? `· ${lineup.dkEntryFee}` : ""}
+                </Badge>
+              )}
               {lineup.isOrphaned && (
                 <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-[10px] font-black uppercase" data-testid={`orphaned-badge-${lineup.id}`}>
                   <AlertTriangle className="w-3 h-3 mr-1" />Outdated

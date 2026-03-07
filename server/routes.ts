@@ -505,6 +505,125 @@ export async function registerRoutes(
     res.json({ deleted });
   });
 
+  app.post("/api/lineups/import-dk", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+
+    const sub = await storage.getSubscription(userId);
+    const tier = sub?.tier || "free";
+    if (tier !== "pro") {
+      return res.status(403).json({ message: "DK Entries import is a Champion-only feature." });
+    }
+
+    const { entries, sport, slateId } = req.body;
+    if (!Array.isArray(entries) || entries.length === 0) {
+      return res.status(400).json({ message: "No entries provided." });
+    }
+    if (!sport || !slateId) {
+      return res.status(400).json({ message: "Sport and slateId are required." });
+    }
+
+    const slate = await storage.getSlate(slateId);
+    if (!slate) return res.status(400).json({ message: "Slate not found." });
+    if (slate.sport !== sport) {
+      return res.status(400).json({ message: `Slate sport (${slate.sport}) does not match provided sport (${sport}).` });
+    }
+    if (slate.platform !== "draftkings") {
+      return res.status(400).json({ message: "Only DraftKings slates are supported for import." });
+    }
+
+    const allPlayers = await storage.getPlayersBySlate(slateId);
+    const dkIdMap = new Map<number, typeof allPlayers[0]>();
+    for (const p of allPlayers) {
+      if (p.draftKingsPlayerId) dkIdMap.set(p.draftKingsPlayerId, p);
+    }
+
+    const config = getPlatformConfig(sport, "draftkings" as Platform);
+    const maxPerSport = 150;
+    const currentCount = await storage.getLineupCountBySport(userId, sport);
+    const availableSlots = maxPerSport - currentCount;
+    if (availableSlots <= 0) {
+      return res.status(403).json({ message: "You've reached the maximum of 150 saved teams per sport." });
+    }
+
+    const results: { entryId: string; status: string; lineupId?: number; error?: string }[] = [];
+    let imported = 0;
+
+    for (const entry of entries) {
+      if (imported >= availableSlots) {
+        results.push({ entryId: entry.entryId, status: "skipped", error: "Lineup limit reached." });
+        continue;
+      }
+
+      const dkPlayerIds: number[] = [...new Set(entry.dkPlayerIds || [])];
+      const matchedPlayers: typeof allPlayers = [];
+      const missingIds: number[] = [];
+
+      for (const dkId of dkPlayerIds) {
+        const p = dkIdMap.get(dkId);
+        if (p) matchedPlayers.push(p);
+        else missingIds.push(dkId);
+      }
+
+      if (matchedPlayers.length !== config.rosterSize) {
+        results.push({
+          entryId: entry.entryId,
+          status: "failed",
+          error: `Matched ${matchedPlayers.length}/${config.rosterSize} players. Missing DK IDs: ${missingIds.join(", ")}`,
+        });
+        continue;
+      }
+
+      const totalSalary = matchedPlayers.reduce((s, p) => s + p.salary, 0);
+      if (totalSalary > config.salaryCap) {
+        results.push({ entryId: entry.entryId, status: "failed", error: `Salary $${totalSalary.toLocaleString()} exceeds cap.` });
+        continue;
+      }
+
+      const slotResult = assignPlayersToSlots(matchedPlayers, config.slots, sport);
+      const unfilledSlots = config.slots.filter(s => !slotResult[s]);
+      if (unfilledSlots.length > 0) {
+        results.push({ entryId: entry.entryId, status: "failed", error: `Cannot fill slots: ${unfilledSlots.join(", ")}` });
+        continue;
+      }
+
+      const playerSnapshot = matchedPlayers.map(p => ({
+        id: p.id, name: p.name, team: p.team, position: p.position,
+        salary: p.salary, fppg: p.fppg, projectedPoints: p.projectedPoints,
+        opponent: p.opponent, gameInfo: p.gameInfo,
+        draftKingsPlayerId: p.draftKingsPlayerId,
+        boostScore: p.boostScore, boostReason: p.boostReason,
+      }));
+
+      const totalProjectedPoints = matchedPlayers.reduce((s, p) => s + Number(p.projectedPoints || 0), 0).toFixed(1);
+      const contestLabel = entry.contestName ? entry.contestName.substring(0, 50) : null;
+
+      try {
+        const lineup = await storage.createLineup({
+          userId,
+          slateId,
+          sport,
+          platform: "draftkings",
+          totalSalary,
+          totalProjectedPoints,
+          playerIds: matchedPlayers.map(p => p.id),
+          name: contestLabel ? `DK: ${contestLabel}` : `DK Import #${entry.entryId}`,
+          playerSnapshot,
+          dkEntryId: entry.entryId || null,
+          dkContestName: entry.contestName || null,
+          dkContestId: entry.contestId || null,
+          dkEntryFee: entry.entryFee || null,
+        });
+        results.push({ entryId: entry.entryId, status: "imported", lineupId: lineup.id });
+        imported++;
+      } catch (err: any) {
+        results.push({ entryId: entry.entryId, status: "failed", error: err.message || "Database error" });
+      }
+    }
+
+    res.json({ imported, total: entries.length, results });
+  });
+
   app.get("/api/subscription", async (req, res) => {
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const userId = getSessionUserId(req)!;
