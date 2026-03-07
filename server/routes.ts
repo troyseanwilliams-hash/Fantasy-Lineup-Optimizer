@@ -283,6 +283,7 @@ export async function registerRoutes(
     const lineups = await storage.getLineups(userId);
 
     const slateCache = new Map<number, ReturnType<typeof computeOwnershipProjections>>();
+    const slatePlayerIdCache = new Map<number, Set<number>>();
     const bdlCache = new Map<string, PlayerStatsMap>();
     const enriched = await Promise.all(lineups.map(async (lineup: any) => {
       if (!slateCache.has(lineup.slateId)) {
@@ -293,12 +294,16 @@ export async function registerRoutes(
           bdlCache.set(sport, await fetchBDLStats(sport));
         }
         slateCache.set(lineup.slateId, computeOwnershipProjections(slatePlayers, bdlCache.get(sport)));
+        slatePlayerIdCache.set(lineup.slateId, new Set(slatePlayers.map(p => p.id)));
       }
       const allWithOwn = slateCache.get(lineup.slateId)!;
+      const playerIdSet = slatePlayerIdCache.get(lineup.slateId)!;
       const rosterOwn = allWithOwn
         .filter(p => lineup.playerIds.includes(p.id))
         .reduce((sum, p) => sum + p.ownershipProjection, 0);
-      return { ...lineup, totalOwnership: Math.round(rosterOwn * 10) / 10 };
+      const resolvedCount = lineup.playerIds.filter((id: number) => playerIdSet.has(id)).length;
+      const isOrphaned = resolvedCount < lineup.playerIds.length;
+      return { ...lineup, totalOwnership: Math.round(rosterOwn * 10) / 10, isOrphaned };
     }));
 
     res.json(enriched);
@@ -327,7 +332,24 @@ export async function registerRoutes(
         });
       }
 
-      const lineup = await storage.createLineup({ ...input, userId });
+      const allPlayers = await storage.getPlayersBySlate(input.slateId);
+      const rosterPlayers = allPlayers.filter(p => input.playerIds.includes(p.id));
+      const playerSnapshot = rosterPlayers.map(p => ({
+        id: p.id,
+        name: p.name,
+        team: p.team,
+        position: p.position,
+        salary: p.salary,
+        fppg: p.fppg,
+        projectedPoints: p.projectedPoints,
+        opponent: p.opponent,
+        gameInfo: p.gameInfo,
+        draftKingsPlayerId: p.draftKingsPlayerId,
+        boostScore: p.boostScore,
+        boostReason: p.boostReason,
+      }));
+
+      const lineup = await storage.createLineup({ ...input, userId, playerSnapshot });
       res.status(201).json(lineup);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -347,8 +369,12 @@ export async function registerRoutes(
     if (lineup.userId !== userId) return res.sendStatus(403);
 
     const allPlayers = await storage.getPlayersBySlate(lineup.slateId);
-    const rosterPlayers = allPlayers.filter(p => lineup.playerIds.includes(p.id));
-    res.json({ ...lineup, players: rosterPlayers, allPlayers });
+    let rosterPlayers = allPlayers.filter(p => lineup.playerIds.includes(p.id));
+    const isOrphaned = rosterPlayers.length < lineup.playerIds.length;
+    if (isOrphaned && lineup.playerSnapshot && Array.isArray(lineup.playerSnapshot) && (lineup.playerSnapshot as any[]).length > 0) {
+      rosterPlayers = lineup.playerSnapshot as any;
+    }
+    res.json({ ...lineup, players: rosterPlayers, allPlayers, isOrphaned });
   });
 
   app.patch("/api/lineups/:id", async (req, res) => {
@@ -392,10 +418,19 @@ export async function registerRoutes(
 
     const totalProjectedPoints = rosterPlayers.reduce((s, p) => s + Number(p.projectedPoints), 0);
 
+    const playerSnapshot = rosterPlayers.map(p => ({
+      id: p.id, name: p.name, team: p.team, position: p.position,
+      salary: p.salary, fppg: p.fppg, projectedPoints: p.projectedPoints,
+      opponent: p.opponent, gameInfo: p.gameInfo,
+      draftKingsPlayerId: p.draftKingsPlayerId,
+      boostScore: p.boostScore, boostReason: p.boostReason,
+    }));
+
     const updated = await storage.updateLineup(id, {
       playerIds,
       totalSalary,
       totalProjectedPoints: totalProjectedPoints.toFixed(1),
+      playerSnapshot,
     });
 
     res.json({ ...updated, players: rosterPlayers });
@@ -425,6 +460,9 @@ export async function registerRoutes(
     const reviewLineups = await storage.getReviewLineups(userId);
 
     const enriched = await Promise.all(reviewLineups.map(async (lineup: any) => {
+      if (lineup.playerSnapshot && Array.isArray(lineup.playerSnapshot) && lineup.playerSnapshot.length > 0) {
+        return { ...lineup, players: lineup.playerSnapshot };
+      }
       const allPlayers = await storage.getPlayersBySlate(lineup.slateId);
       const rosterPlayers = allPlayers.filter((p: any) => lineup.playerIds.includes(p.id));
       return { ...lineup, players: rosterPlayers };

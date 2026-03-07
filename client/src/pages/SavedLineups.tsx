@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye } from "lucide-react";
+import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -635,7 +635,13 @@ function ReviewTabContent({
                     )}
                   </div>
                 ) : (
-                  <p className="text-slate-400 text-sm">Player data no longer available for this lineup.</p>
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
+                    <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-amber-400">Player data unavailable</p>
+                      <p className="text-xs text-slate-400 mt-0.5">This lineup's player data was refreshed and can no longer be displayed.</p>
+                    </div>
+                  </div>
                 )}
               </div>
             )}
@@ -780,6 +786,11 @@ function LineupCard({
               <Badge className={`${isFD ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"} text-[10px] font-black uppercase`}>
                 {lineup.sport} {platformLabel}
               </Badge>
+              {lineup.isOrphaned && (
+                <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-[10px] font-black uppercase" data-testid={`orphaned-badge-${lineup.id}`}>
+                  <AlertTriangle className="w-3 h-3 mr-1" />Outdated
+                </Badge>
+              )}
               <span className="text-slate-500 text-[11px] font-medium">
                 {new Date(lineup.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
               </span>
@@ -856,13 +867,34 @@ function LineupCard({
               {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-10 bg-slate-800" />)}
             </div>
           ) : lineupDetail ? (
-            <ExpandedRoster
-              lineup={lineupDetail}
-              onSwapPlayer={onSwapPlayer}
-              swappingSlot={swappingSlot}
-              setSwappingSlot={setSwappingSlot}
-              isUpdating={isUpdating}
-            />
+            <>
+              {(lineupDetail as any).isOrphaned && (
+                <div className="flex items-center gap-3 mb-4 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20" data-testid={`orphaned-notice-${lineup.id}`}>
+                  <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-amber-400">Player data has been refreshed</p>
+                    <p className="text-xs text-slate-400 mt-0.5">This lineup references players from a previous slate. Showing saved snapshot data. Swapping players is not available.</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                    className="text-red-400 hover:bg-red-500/10 text-xs"
+                    data-testid={`delete-orphaned-${lineup.id}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1" /> Remove
+                  </Button>
+                </div>
+              )}
+              <ExpandedRoster
+                lineup={lineupDetail}
+                onSwapPlayer={onSwapPlayer}
+                swappingSlot={swappingSlot}
+                setSwappingSlot={setSwappingSlot}
+                isUpdating={isUpdating}
+                isOrphaned={(lineupDetail as any).isOrphaned}
+              />
+            </>
           ) : (
             <p className="text-slate-400">Failed to load lineup details.</p>
           )}
@@ -878,12 +910,14 @@ function ExpandedRoster({
   swappingSlot,
   setSwappingSlot,
   isUpdating,
+  isOrphaned = false,
 }: {
   lineup: LineupWithPlayers;
   onSwapPlayer: (lineupId: number, lineup: LineupWithPlayers, oldId: number, newId: number) => void;
   swappingSlot: { lineupId: number; slot: string; currentPlayerId: number } | null;
   setSwappingSlot: (s: { lineupId: number; slot: string; currentPlayerId: number } | null) => void;
   isUpdating: boolean;
+  isOrphaned?: boolean;
 }) {
   const config = getPlatformConfig(lineup.sport, lineup.platform as any);
   const slotAssignments = assignPlayersToSlots(lineup.players, config.slots, lineup.sport);
@@ -939,13 +973,13 @@ function ExpandedRoster({
                     {player ? `$${player.salary.toLocaleString()}` : "—"}
                   </td>
                   <td className="py-3 pr-4 text-right text-sm text-slate-400">
-                    {player ? Number(player.fppg).toFixed(1) : "—"}
+                    {player ? Number(player.fppg || player.projectedPoints).toFixed(1) : "—"}
                   </td>
                   <td className="py-3 pr-4 text-right text-sm font-semibold text-emerald-400">
                     {player ? Number(player.projectedPoints).toFixed(1) : "—"}
                   </td>
                   <td className="py-3 text-center">
-                    {player && (
+                    {player && !isOrphaned && (
                       isThisSlotSwapping ? (
                         <Button
                           variant="ghost"

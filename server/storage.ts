@@ -53,6 +53,7 @@ export interface IStorage extends IAuthStorage {
 
   getReviewLineups(userId: string): Promise<Lineup[]>;
   moveLineupsToReview(slateIds: number[]): Promise<number>;
+  backfillPlayerSnapshots(): Promise<number>;
   deleteOldReviewLineups(cutoffDate: Date): Promise<number>;
 
   getAlerts(userId: string): Promise<Alert[]>;
@@ -97,8 +98,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteSlateAndPlayers(slateId: number): Promise<void> {
-    const slateLineups = await db.select({ id: lineups.id }).from(lineups).where(eq(lineups.slateId, slateId));
+    const slateLineups = await db.select().from(lineups).where(eq(lineups.slateId, slateId));
     if (slateLineups.length > 0) {
+      const slatePlayers = await db.select().from(players).where(eq(players.slateId, slateId));
+      for (const lineup of slateLineups) {
+        if (!lineup.playerSnapshot || (Array.isArray(lineup.playerSnapshot) && (lineup.playerSnapshot as any[]).length === 0)) {
+          const rosterPlayers = slatePlayers.filter(p => lineup.playerIds.includes(p.id));
+          if (rosterPlayers.length > 0) {
+            const snapshot = rosterPlayers.map(p => ({
+              id: p.id, name: p.name, team: p.team, position: p.position,
+              salary: p.salary, fppg: p.fppg, projectedPoints: p.projectedPoints,
+              opponent: p.opponent, gameInfo: p.gameInfo,
+              draftKingsPlayerId: p.draftKingsPlayerId,
+              boostScore: p.boostScore, boostReason: p.boostReason,
+            }));
+            await db.update(lineups).set({ playerSnapshot: snapshot }).where(eq(lineups.id, lineup.id));
+          }
+        }
+      }
       const lineupIds = slateLineups.map(l => l.id);
       await db.update(alerts).set({ lineupId: null }).where(inArray(alerts.lineupId, lineupIds));
       await db.delete(lineups).where(eq(lineups.slateId, slateId));
@@ -179,9 +196,11 @@ export class DatabaseStorage implements IStorage {
     return lineup;
   }
 
-  async updateLineup(id: number, data: { playerIds: number[]; totalSalary: number; totalProjectedPoints: string }): Promise<Lineup> {
+  async updateLineup(id: number, data: { playerIds: number[]; totalSalary: number; totalProjectedPoints: string; playerSnapshot?: any }): Promise<Lineup> {
+    const setData: any = { playerIds: data.playerIds, totalSalary: data.totalSalary, totalProjectedPoints: data.totalProjectedPoints };
+    if (data.playerSnapshot) setData.playerSnapshot = data.playerSnapshot;
     const [updated] = await db.update(lineups)
-      .set({ playerIds: data.playerIds, totalSalary: data.totalSalary, totalProjectedPoints: data.totalProjectedPoints })
+      .set(setData)
       .where(eq(lineups.id, id))
       .returning();
     return updated;
@@ -223,11 +242,31 @@ export class DatabaseStorage implements IStorage {
     const expiredSlateIds = await db.select({ id: slates.id }).from(slates).where(lt(slates.startTime, now));
     if (expiredSlateIds.length === 0) return 0;
     const ids = expiredSlateIds.map(s => s.id);
-    const moved = await db.update(lineups)
-      .set({ status: "review", reviewedAt: now })
-      .where(and(inArray(lineups.slateId, ids), eq(lineups.status, "active")))
-      .returning();
-    return moved.length;
+    const activeLineups = await db.select().from(lineups)
+      .where(and(inArray(lineups.slateId, ids), eq(lineups.status, "active")));
+    if (activeLineups.length === 0) return 0;
+
+    for (const lineup of activeLineups) {
+      const allPlayers = await db.select().from(players).where(eq(players.slateId, lineup.slateId));
+      const rosterPlayers = allPlayers.filter(p => lineup.playerIds.includes(p.id));
+      if (rosterPlayers.length > 0) {
+        const snapshot = rosterPlayers.map(p => ({
+          id: p.id, name: p.name, team: p.team, position: p.position,
+          salary: p.salary, fppg: p.fppg, projectedPoints: p.projectedPoints,
+          opponent: p.opponent, gameInfo: p.gameInfo,
+          draftKingsPlayerId: p.draftKingsPlayerId,
+          boostScore: p.boostScore, boostReason: p.boostReason,
+        }));
+        await db.update(lineups)
+          .set({ status: "review", reviewedAt: now, playerSnapshot: snapshot })
+          .where(eq(lineups.id, lineup.id));
+      } else {
+        await db.update(lineups)
+          .set({ status: "review", reviewedAt: now })
+          .where(eq(lineups.id, lineup.id));
+      }
+    }
+    return activeLineups.length;
   }
 
   async getAllActiveLineups(): Promise<Lineup[]> {
@@ -246,11 +285,56 @@ export class DatabaseStorage implements IStorage {
 
   async moveLineupsToReview(slateIds: number[]): Promise<number> {
     if (slateIds.length === 0) return 0;
-    const updated = await db.update(lineups)
-      .set({ status: "review", reviewedAt: new Date() })
-      .where(and(inArray(lineups.slateId, slateIds), eq(lineups.status, "active")))
-      .returning();
-    return updated.length;
+    const now = new Date();
+    const activeLineups = await db.select().from(lineups)
+      .where(and(inArray(lineups.slateId, slateIds), eq(lineups.status, "active")));
+    if (activeLineups.length === 0) return 0;
+
+    for (const lineup of activeLineups) {
+      const allPlayers = await db.select().from(players).where(eq(players.slateId, lineup.slateId));
+      const rosterPlayers = allPlayers.filter(p => lineup.playerIds.includes(p.id));
+      if (rosterPlayers.length > 0) {
+        const snapshot = rosterPlayers.map(p => ({
+          id: p.id, name: p.name, team: p.team, position: p.position,
+          salary: p.salary, fppg: p.fppg, projectedPoints: p.projectedPoints,
+          opponent: p.opponent, gameInfo: p.gameInfo,
+          draftKingsPlayerId: p.draftKingsPlayerId,
+          boostScore: p.boostScore, boostReason: p.boostReason,
+        }));
+        await db.update(lineups)
+          .set({ status: "review", reviewedAt: now, playerSnapshot: snapshot })
+          .where(eq(lineups.id, lineup.id));
+      } else {
+        await db.update(lineups)
+          .set({ status: "review", reviewedAt: now })
+          .where(eq(lineups.id, lineup.id));
+      }
+    }
+    return activeLineups.length;
+  }
+
+  async backfillPlayerSnapshots(): Promise<number> {
+    const lineupsWithoutSnapshot = await db.select().from(lineups)
+      .where(sql`${lineups.playerSnapshot} IS NULL`);
+    if (lineupsWithoutSnapshot.length === 0) return 0;
+
+    let count = 0;
+    for (const lineup of lineupsWithoutSnapshot) {
+      const allPlayers = await db.select().from(players).where(eq(players.slateId, lineup.slateId));
+      const rosterPlayers = allPlayers.filter(p => lineup.playerIds.includes(p.id));
+      if (rosterPlayers.length > 0) {
+        const snapshot = rosterPlayers.map(p => ({
+          id: p.id, name: p.name, team: p.team, position: p.position,
+          salary: p.salary, fppg: p.fppg, projectedPoints: p.projectedPoints,
+          opponent: p.opponent, gameInfo: p.gameInfo,
+          draftKingsPlayerId: p.draftKingsPlayerId,
+          boostScore: p.boostScore, boostReason: p.boostReason,
+        }));
+        await db.update(lineups).set({ playerSnapshot: snapshot }).where(eq(lineups.id, lineup.id));
+        count++;
+      }
+    }
+    return count;
   }
 
   async deleteOldReviewLineups(cutoffDate: Date): Promise<number> {

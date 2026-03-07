@@ -177,6 +177,9 @@ app.use((req, res, next) => {
           if (delCount > 0) log(`Moved ${delCount} expired lineup(s) to review on startup`, "cron");
           await seedDatabase();
           log("Startup seed check completed", "cron");
+
+          const snapshotted = await storage.backfillPlayerSnapshots();
+          if (snapshotted > 0) log(`Backfilled player snapshots for ${snapshotted} lineup(s)`, "cron");
           const ppSports = getSupportedPPSports();
           for (const sport of ppSports) {
             try {

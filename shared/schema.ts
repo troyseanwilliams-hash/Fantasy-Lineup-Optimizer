@@ -56,6 +56,7 @@ export const lineups = pgTable("lineups", {
   name: text("name"),
   status: text("status").notNull().default("active"),
   reviewedAt: timestamp("reviewed_at"),
+  playerSnapshot: jsonb("player_snapshot"),
   contestWinnerData: jsonb("contest_winner_data"),
   createdAt: timestamp("created_at").defaultNow(),
 });
