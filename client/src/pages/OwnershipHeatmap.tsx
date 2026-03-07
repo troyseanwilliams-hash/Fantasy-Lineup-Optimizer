@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { Crown, Lock, TrendingUp, TrendingDown, Users, Flame, Loader2, ChevronDown, ArrowDownUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -53,19 +53,13 @@ function getOwnershipBarColor(own: number): string {
 
 export default function OwnershipHeatmap() {
   const { user } = useAuth();
-  const [, navigate] = useLocation();
-
-  const { data: subData } = useQuery<{ tier: string }>({
-    queryKey: ["/api/subscription"],
-    enabled: !!user,
-  });
 
   const { data: slates } = useQuery<Slate[]>({
     queryKey: ["/api/slates"],
     enabled: !!user,
   });
 
-  const isPro = subData?.tier === "pro";
+  const isAdmin = user?.isAdmin === true;
   const mainSlates = slates?.filter(s => s.isMain && s.platform === "draftkings") || [];
   const availableSports = ACTIVE_SPORTS.filter(s => mainSlates.some(sl => sl.sport === s));
   const [selectedSport, setSelectedSport] = useState<string>("");
@@ -76,40 +70,18 @@ export default function OwnershipHeatmap() {
 
   const { data: ownershipData, isLoading } = useQuery<OwnershipData>({
     queryKey: ["/api/ownership", activeSlate?.id],
-    enabled: !!activeSlate && isPro,
+    enabled: !!activeSlate && isAdmin,
   });
 
-  if (!user) {
+  if (!user || !isAdmin) {
     return (
       <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-6">
-        <Card className="bg-[#1E293B] border-slate-700 p-8 max-w-md text-center" data-testid="ownership-login-prompt">
+        <Card className="bg-[#1E293B] border-slate-700 p-8 max-w-md text-center" data-testid="ownership-unavailable">
           <Lock className="w-12 h-12 text-slate-500 mx-auto mb-4" />
-          <h2 className="text-xl font-black text-white mb-2">Sign In Required</h2>
-          <p className="text-sm text-slate-400 mb-6">Sign in to access ownership heatmaps.</p>
-          <Link href="/login">
-            <Button className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold" data-testid="ownership-sign-in">Sign In</Button>
-          </Link>
-        </Card>
-      </div>
-    );
-  }
-
-  if (!isPro) {
-    return (
-      <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-6">
-        <Card className="bg-[#1E293B] border-amber-500/30 p-8 max-w-md text-center" data-testid="ownership-upgrade-prompt">
-          <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
-            <Crown className="w-8 h-8 text-amber-400" />
-          </div>
-          <h2 className="text-xl font-black text-white mb-2">Champion Feature</h2>
-          <p className="text-sm text-slate-400 mb-6">
-            Ownership Heatmaps show the highest-owned players at each position, helping you build contrarian lineups that differentiate from the field.
-          </p>
-          <Link href="/pricing">
-            <Button className="bg-amber-500 hover:bg-amber-600 text-black font-bold px-8" data-testid="ownership-upgrade-btn">
-              <Crown className="w-4 h-4 mr-2" />
-              Upgrade to Champion
-            </Button>
+          <h2 className="text-xl font-black text-white mb-2">Coming Soon</h2>
+          <p className="text-sm text-slate-400 mb-6">This feature is currently under development. Check back soon!</p>
+          <Link href="/">
+            <Button className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold" data-testid="ownership-go-home">Go to Dashboard</Button>
           </Link>
         </Card>
       </div>
@@ -134,7 +106,7 @@ export default function OwnershipHeatmap() {
             <div className="flex items-center gap-3 mb-1">
               <Users className="w-6 h-6 text-amber-400" />
               <h1 className="text-2xl font-black text-white" data-testid="ownership-title">Ownership Heatmap</h1>
-              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[10px] font-black">CHAMPION</Badge>
+              <Badge className="bg-slate-500/20 text-slate-400 border-slate-500/30 text-[10px] font-black">ADMIN</Badge>
             </div>
             <p className="text-sm text-slate-400">Top-owned players by position — find chalk and contrarian plays</p>
           </div>

@@ -148,10 +148,9 @@ export async function registerRoutes(
       const userId = getSessionUserId(req);
       if (!userId) return res.status(401).json({ message: "Not authenticated" });
 
-      const sub = await storage.getSubscription(userId);
-      const tier = sub?.tier || "free";
-      if (tier !== "pro") {
-        return res.status(403).json({ message: "Champion subscription required" });
+      const dbUser = await storage.getUser(userId);
+      if (!dbUser?.isAdmin) {
+        return res.status(403).json({ message: "This feature is currently unavailable" });
       }
 
       const slateId = Number(req.params.slateId);
