@@ -505,6 +505,123 @@ export async function registerRoutes(
     res.json({ deleted });
   });
 
+  app.post("/api/lineups/bulk-generate", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "No lineup IDs provided" });
+
+    const sub = await storage.getSubscription(userId);
+    const tier = sub?.tier || "free";
+    const maxPerSport = tier === "pro" ? 150 : tier === "star" ? 20 : 1;
+
+    const results: { originalId: number; status: string; newLineupId?: number; error?: string }[] = [];
+    const usedLineupKeys = new Set<string>();
+
+    for (const id of ids) {
+      const lineup = await storage.getLineup(Number(id));
+      if (!lineup || lineup.userId !== userId) {
+        results.push({ originalId: id, status: "skipped", error: "Not found or not yours" });
+        continue;
+      }
+
+      const slate = await storage.getSlate(lineup.slateId);
+      if (!slate) {
+        results.push({ originalId: id, status: "skipped", error: "Slate no longer available" });
+        continue;
+      }
+
+      if (new Date(slate.startTime) <= new Date()) {
+        results.push({ originalId: id, status: "skipped", error: "Slate already started" });
+        continue;
+      }
+
+      const sportCount = await storage.getLineupCountBySport(userId, lineup.sport);
+      if (sportCount >= maxPerSport) {
+        results.push({ originalId: id, status: "skipped", error: "Lineup limit reached for this sport" });
+        continue;
+      }
+
+      const platform = (lineup.platform || "draftkings") as Platform;
+      const allPlayers = await storage.getPlayersBySlate(lineup.slateId);
+      if (allPlayers.length === 0) {
+        results.push({ originalId: id, status: "skipped", error: "No players in slate" });
+        continue;
+      }
+
+      const pool = allPlayers.map(p => {
+        let pts = Number(p.projectedPoints);
+        if (p.injuryStatus) {
+          if (p.injuryStatus === "OUT") pts = 0;
+          else if (p.injuryStatus === "Doubtful") pts *= 0.3;
+          else if (p.injuryStatus === "Questionable") pts *= 0.7;
+          else if (p.injuryStatus === "Probable") pts *= 0.9;
+        }
+        if (p.boostScore) pts += Number(p.boostScore);
+        return { ...p, projectedPoints: pts.toString() };
+      });
+
+      const excludedPlayerIds = allPlayers.filter(p => p.injuryStatus === "OUT").map(p => p.id);
+
+      const maxAttempts = 10;
+      let generated = false;
+
+      for (let attempt = 0; attempt < maxAttempts && !generated; attempt++) {
+        const noiseScale = attempt === 0 ? 0 : Math.min(0.10 + attempt * 0.04, 0.40);
+        const perturbedPool = pool.map(p => {
+          if (excludedPlayerIds.includes(p.id)) return p;
+          const base = Number(p.projectedPoints);
+          const noise = attempt === 0 ? 0 : (Math.random() - 0.5) * base * noiseScale;
+          return { ...p, projectedPoints: Math.max(0, base + noise).toString() };
+        });
+
+        const solveResult = solveLineup(
+          perturbedPool,
+          { slateId: lineup.slateId, platform, lockedPlayerIds: [], excludedPlayerIds, maxSalary: undefined, minSalary: undefined, playerProjections: {} },
+          slate.sport,
+          platform
+        );
+
+        if (solveResult.error || !solveResult.lineup || solveResult.lineup.length === 0) continue;
+
+        const lineupKey = solveResult.lineup.map((p: any) => p.id).sort((a: number, b: number) => a - b).join(",");
+        if (usedLineupKeys.has(lineupKey)) continue;
+        usedLineupKeys.add(lineupKey);
+
+        const playerIds = solveResult.lineup.map((p: any) => p.id);
+        const playerSnapshot = solveResult.lineup.map((p: any) => ({
+          id: p.id, name: p.name, team: p.team, position: p.position,
+          salary: p.salary, fppg: p.fppg, projectedPoints: p.projectedPoints,
+          opponent: p.opponent, gameInfo: p.gameInfo,
+          draftKingsPlayerId: p.draftKingsPlayerId,
+          boostScore: p.boostScore, boostReason: p.boostReason,
+        }));
+
+        const newLineup = await storage.createLineup({
+          userId,
+          sport: lineup.sport,
+          platform: lineup.platform,
+          name: `Generated · ${lineup.sport}`,
+          playerIds,
+          totalSalary: solveResult.totalSalary,
+          totalProjectedPoints: solveResult.totalProjectedPoints.toString(),
+          slateId: lineup.slateId,
+          playerSnapshot,
+        });
+
+        results.push({ originalId: id, status: "created", newLineupId: newLineup.id });
+        generated = true;
+      }
+
+      if (!generated) {
+        results.push({ originalId: id, status: "failed", error: "Could not generate a unique lineup" });
+      }
+    }
+
+    const created = results.filter(r => r.status === "created").length;
+    res.json({ results, created, total: ids.length });
+  });
+
   app.post("/api/lineups/import-dk", async (req, res) => {
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const userId = getSessionUserId(req)!;
