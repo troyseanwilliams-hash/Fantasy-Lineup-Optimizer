@@ -41,6 +41,12 @@ Preferred communication style: Simple, everyday language.
 - **ORM**: Drizzle ORM with `drizzle-zod` for schema validation.
 - **Key Tables**: `users`, `sessions`, `slates`, `players`, `lineups`, `subscriptions`, `props`, `prizepicks_entries`, `playerHistory`.
 
+### Ownership Heatmap (Champion-only)
+- **Route**: `/ownership` — shows top-owned players by position for a selected sport/slate
+- **API**: `GET /api/ownership/:slateId` — returns players grouped by position with ownership projections, chalk player, and contrarian value pick
+- **Gating**: Champion (pro) tier required; other tiers see upgrade prompt
+- **Key File**: `client/src/pages/OwnershipHeatmap.tsx`
+
 ### Subscription System
 - **Tiers**: Basic (free), Star ($19.99/mo), and Pro ($49.99/mo) — both with 7-day free trial for first-time subscribers
 - **Payment**: Stripe Elements embedded payment form (in-app modal) for upgrades; Stripe Customer Portal for managing/canceling subscriptions

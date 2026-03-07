@@ -24,6 +24,7 @@ import Privacy from "@/pages/Privacy";
 import About from "@/pages/About";
 import LineupBuilderInfo from "@/pages/LineupBuilderInfo";
 import PropInsightsInfo from "@/pages/PropInsightsInfo";
+import OwnershipHeatmap from "@/pages/OwnershipHeatmap";
 
 import NotFound from "@/pages/not-found";
 import { Header } from "@/components/Header";
@@ -78,6 +79,7 @@ function Router() {
           <Route path="/about" component={About} />
           <Route path="/lineup-builder" component={LineupBuilderInfo} />
           <Route path="/prop-insights" component={PropInsightsInfo} />
+          <Route path="/ownership" component={OwnershipHeatmap} />
           <Route path="/admin" component={Admin} />
           <Route component={NotFound} />
         </Switch>

@@ -95,6 +95,56 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/ownership/:slateId", async (req, res) => {
+    try {
+      const userId = getSessionUserId(req);
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const sub = await storage.getSubscription(userId);
+      const tier = sub?.tier || "free";
+      if (tier !== "pro") {
+        return res.status(403).json({ message: "Champion subscription required" });
+      }
+
+      const slateId = Number(req.params.slateId);
+      const slate = await storage.getSlate(slateId);
+      if (!slate) return res.status(404).json({ message: "Slate not found" });
+
+      const players = await storage.getPlayersBySlate(slateId);
+      if (!players || players.length === 0) {
+        return res.json({ slate: { id: slate.id, sport: slate.sport, platform: slate.platform, startTime: slate.startTime }, positions: {}, chalkPlayer: null, contrarianPlayer: null });
+      }
+
+      const playersWithOwnership = computeOwnershipProjections(players);
+
+      const positionGroups: Record<string, typeof playersWithOwnership> = {};
+      for (const p of playersWithOwnership) {
+        const primaryPos = p.position.split("/")[0];
+        if (!positionGroups[primaryPos]) positionGroups[primaryPos] = [];
+        positionGroups[primaryPos].push(p);
+      }
+
+      for (const pos of Object.keys(positionGroups)) {
+        positionGroups[pos].sort((a, b) => b.ownershipProjection - a.ownershipProjection);
+        positionGroups[pos] = positionGroups[pos].slice(0, 5);
+      }
+
+      const allSorted = [...playersWithOwnership].sort((a, b) => b.ownershipProjection - a.ownershipProjection);
+      const chalkPlayer = allSorted[0] || null;
+      const contrarian = allSorted.filter(p => Number(p.projectedPoints) >= (Number(allSorted[0]?.projectedPoints || 0) * 0.5)).pop() || null;
+
+      res.json({
+        slate: { id: slate.id, sport: slate.sport, platform: slate.platform, startTime: slate.startTime },
+        positions: positionGroups,
+        chalkPlayer,
+        contrarianPlayer: contrarian,
+      });
+    } catch (err) {
+      console.error("[Ownership] Error:", err);
+      res.status(500).json({ message: "Failed to fetch ownership data" });
+    }
+  });
+
   app.get(api.slates.getPlayers.path, async (req, res) => {
     const slateId = Number(req.params.id);
     const players = await storage.getPlayersBySlate(slateId);
