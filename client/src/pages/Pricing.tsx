@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Crown, Lock, Trophy, Sparkles, Calendar, Tag, Loader2, AlertTriangle, CreditCard } from "lucide-react";
+import { Check, Crown, Lock, Trophy, Sparkles, Calendar, Tag, Loader2, AlertTriangle, CreditCard, Gift } from "lucide-react";
 import { PaymentModal } from "@/components/PaymentForm";
 
 type BillingCycle = "monthly" | "annual";
@@ -19,19 +19,26 @@ export default function Pricing() {
 
   const { data: subData } = useQuery<{
     tier: string;
+    status: string;
     lineupCount: number;
     maxLineups: number;
     graceEndsAt: string | null;
     stripeSubscriptionId: string | null;
+    currentPeriodEnd: string | null;
   }>({
     queryKey: ["/api/subscription"],
     enabled: !!user,
   });
 
   const currentTier = subData?.tier || "free";
-  const hasStripeSubscription = !!subData?.stripeSubscriptionId;
+  const subStatus = subData?.status || "active";
+  const hasActiveStripeSubscription = !!subData?.stripeSubscriptionId && subStatus !== "incomplete" && subStatus !== "canceled";
+  const isTrialing = subStatus === "trialing";
+  const trialEligible = !hasActiveStripeSubscription;
   const graceEndsAt = subData?.graceEndsAt ? new Date(subData.graceEndsAt) : null;
   const daysLeft = graceEndsAt ? Math.max(0, Math.ceil((graceEndsAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : null;
+  const trialEndsAt = isTrialing && subData?.currentPeriodEnd ? new Date(subData.currentPeriodEnd) : null;
+  const trialDaysLeft = trialEndsAt ? Math.max(0, Math.ceil((trialEndsAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : null;
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -86,12 +93,26 @@ export default function Pricing() {
 
   return (
     <div className="container mx-auto px-4 py-16 max-w-6xl">
-      {graceEndsAt && !hasStripeSubscription && currentTier !== "free" && (
+      {isTrialing && trialEndsAt && (
+        <div className="mb-8 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-3 max-w-3xl mx-auto" data-testid="trial-banner">
+          <Gift className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-bold text-emerald-300">
+              Free trial — {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} remaining
+            </p>
+            <p className="text-xs text-emerald-400/70 mt-1">
+              Your {currentTier === "pro" ? "Pro" : "Star"} trial ends on {trialEndsAt.toLocaleDateString()}. You'll be charged automatically after the trial unless you cancel.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {graceEndsAt && !hasActiveStripeSubscription && currentTier !== "free" && !isTrialing && (
         <div className="mb-8 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 max-w-3xl mx-auto" data-testid="grace-period-banner">
           <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-bold text-amber-300">
-              Your trial access expires in {daysLeft} day{daysLeft !== 1 ? "s" : ""}
+              Your access expires in {daysLeft} day{daysLeft !== 1 ? "s" : ""}
             </p>
             <p className="text-xs text-amber-400/70 mt-1">
               Subscribe before {graceEndsAt.toLocaleDateString()} to keep your {currentTier === "pro" ? "Pro" : "Star"} features. After that, your account will revert to the Basic plan.
@@ -215,6 +236,18 @@ export default function Pricing() {
               </div>
             )}
             <p className="text-xs text-emerald-400/70 mt-2">For serious DFS players</p>
+            {currentTier === "free" && trialEligible && (
+              <div className="flex items-center gap-1.5 mt-2">
+                <Gift className="w-3 h-3 text-emerald-400" />
+                <span className="text-xs font-bold text-emerald-300">7-day free trial</span>
+              </div>
+            )}
+            {isTrialing && currentTier === "star" && trialDaysLeft !== null && (
+              <div className="flex items-center gap-1.5 mt-2">
+                <Gift className="w-3 h-3 text-emerald-400" />
+                <span className="text-xs font-bold text-emerald-300">Trial — {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} left</span>
+              </div>
+            )}
           </div>
           <ul className="space-y-3 mb-8">
             <li className="flex items-center gap-3 text-sm text-slate-300">
@@ -254,7 +287,7 @@ export default function Pricing() {
               <span>No ownership projections</span>
             </li>
           </ul>
-          {currentTier === "star" && hasStripeSubscription ? (
+          {currentTier === "star" && hasActiveStripeSubscription ? (
             <Button
               className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-black font-black"
               onClick={() => portalMutation.mutate()}
@@ -264,7 +297,7 @@ export default function Pricing() {
               {portalMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CreditCard className="w-4 h-4 mr-2" />}
               Manage Subscription
             </Button>
-          ) : currentTier === "star" && !hasStripeSubscription ? (
+          ) : currentTier === "star" && !hasActiveStripeSubscription ? (
             <Button
               className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-black font-black"
               onClick={() => openPaymentForm("star")}
@@ -283,8 +316,11 @@ export default function Pricing() {
               data-testid="upgrade-star-btn"
               onClick={() => openPaymentForm("star")}
             >
-              <Trophy className="w-4 h-4 mr-2" />
-              Upgrade to Star
+              {trialEligible ? (
+                <><Gift className="w-4 h-4 mr-2" />Start Free Trial</>
+              ) : (
+                <><Trophy className="w-4 h-4 mr-2" />Upgrade to Star</>
+              )}
             </Button>
           )}
         </Card>
@@ -310,6 +346,18 @@ export default function Pricing() {
               </div>
             )}
             <p className="text-xs text-amber-400/70 mt-2">Dominate every slate</p>
+            {currentTier !== "pro" && trialEligible && (
+              <div className="flex items-center gap-1.5 mt-2">
+                <Gift className="w-3 h-3 text-amber-400" />
+                <span className="text-xs font-bold text-amber-300">7-day free trial</span>
+              </div>
+            )}
+            {isTrialing && currentTier === "pro" && trialDaysLeft !== null && (
+              <div className="flex items-center gap-1.5 mt-2">
+                <Gift className="w-3 h-3 text-amber-400" />
+                <span className="text-xs font-bold text-amber-300">Trial — {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} left</span>
+              </div>
+            )}
           </div>
           <ul className="space-y-3 mb-8">
             <li className="flex items-center gap-3 text-sm text-slate-300">
@@ -353,7 +401,7 @@ export default function Pricing() {
               <span className="font-bold text-amber-300">PrizePicks Builder with live lines</span>
             </li>
           </ul>
-          {currentTier === "pro" && hasStripeSubscription ? (
+          {currentTier === "pro" && hasActiveStripeSubscription ? (
             <Button
               className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-black font-black"
               onClick={() => portalMutation.mutate()}
@@ -363,7 +411,7 @@ export default function Pricing() {
               {portalMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CreditCard className="w-4 h-4 mr-2" />}
               Manage Subscription
             </Button>
-          ) : currentTier === "pro" && !hasStripeSubscription ? (
+          ) : currentTier === "pro" && !hasActiveStripeSubscription ? (
             <Button
               className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-black font-black"
               onClick={() => openPaymentForm("pro")}
@@ -378,8 +426,11 @@ export default function Pricing() {
               data-testid="upgrade-pro-btn"
               onClick={() => openPaymentForm("pro")}
             >
-              <Crown className="w-4 h-4 mr-2" />
-              Upgrade to Pro
+              {trialEligible ? (
+                <><Gift className="w-4 h-4 mr-2" />Start Free Trial</>
+              ) : (
+                <><Crown className="w-4 h-4 mr-2" />Upgrade to Pro</>
+              )}
             </Button>
           )}
         </Card>

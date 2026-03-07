@@ -10,7 +10,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Shield, Lock, Crown, Trophy, X, Check, CheckCircle2 } from "lucide-react";
+import { Loader2, Shield, Lock, Crown, Trophy, X, Check, CheckCircle2, Gift } from "lucide-react";
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "");
 
@@ -21,7 +21,7 @@ interface PaymentFormProps {
   onCancel: () => void;
 }
 
-function CheckoutForm({ tier, onSuccess, onCancel }: { tier: "star" | "pro"; onSuccess: () => void; onCancel: () => void }) {
+function CheckoutForm({ tier, isTrial, onSuccess, onCancel }: { tier: "star" | "pro"; isTrial: boolean; onSuccess: () => void; onCancel: () => void }) {
   const stripe = useStripe();
   const elements = useElements();
   const { toast } = useToast();
@@ -34,31 +34,60 @@ function CheckoutForm({ tier, onSuccess, onCancel }: { tier: "star" | "pro"; onS
 
     setIsProcessing(true);
 
-    const { error, paymentIntent } = await stripe.confirmPayment({
-      elements,
-      redirect: "if_required",
-    });
+    if (isTrial) {
+      const { error, setupIntent } = await stripe.confirmSetup({
+        elements,
+        redirect: "if_required",
+      });
 
-    if (error) {
-      toast({
-        title: "Payment Failed",
-        description: error.message || "Something went wrong with your payment.",
-        variant: "destructive",
-      });
-      setIsProcessing(false);
-    } else if (paymentIntent && (paymentIntent.status === "succeeded" || paymentIntent.status === "processing")) {
-      setPaymentComplete(true);
-      queryClient.invalidateQueries({ queryKey: ["/api/subscription"] });
-      setTimeout(() => {
-        onSuccess();
-      }, 2000);
+      if (error) {
+        toast({
+          title: "Setup Failed",
+          description: error.message || "Something went wrong saving your payment method.",
+          variant: "destructive",
+        });
+        setIsProcessing(false);
+      } else if (setupIntent && (setupIntent.status === "succeeded" || setupIntent.status === "processing")) {
+        setPaymentComplete(true);
+        queryClient.invalidateQueries({ queryKey: ["/api/subscription"] });
+        setTimeout(() => {
+          onSuccess();
+        }, 2000);
+      } else {
+        toast({
+          title: "Setup Incomplete",
+          description: "Your payment setup requires additional action.",
+          variant: "destructive",
+        });
+        setIsProcessing(false);
+      }
     } else {
-      toast({
-        title: "Payment Incomplete",
-        description: "Your payment requires additional action. Please follow the instructions.",
-        variant: "destructive",
+      const { error, paymentIntent } = await stripe.confirmPayment({
+        elements,
+        redirect: "if_required",
       });
-      setIsProcessing(false);
+
+      if (error) {
+        toast({
+          title: "Payment Failed",
+          description: error.message || "Something went wrong with your payment.",
+          variant: "destructive",
+        });
+        setIsProcessing(false);
+      } else if (paymentIntent && (paymentIntent.status === "succeeded" || paymentIntent.status === "processing")) {
+        setPaymentComplete(true);
+        queryClient.invalidateQueries({ queryKey: ["/api/subscription"] });
+        setTimeout(() => {
+          onSuccess();
+        }, 2000);
+      } else {
+        toast({
+          title: "Payment Incomplete",
+          description: "Your payment requires additional action. Please follow the instructions.",
+          variant: "destructive",
+        });
+        setIsProcessing(false);
+      }
     }
   };
 
@@ -70,9 +99,13 @@ function CheckoutForm({ tier, onSuccess, onCancel }: { tier: "star" | "pro"; onS
         }`}>
           <CheckCircle2 className={`w-8 h-8 ${tier === "pro" ? "text-amber-400" : "text-emerald-400"}`} />
         </div>
-        <h3 className="text-xl font-black text-white">Payment Successful!</h3>
+        <h3 className="text-xl font-black text-white">
+          {isTrial ? "Trial Activated!" : "Payment Successful!"}
+        </h3>
         <p className="text-sm text-slate-400 text-center">
-          Your {tier === "pro" ? "Pro" : "Star"} subscription is now active.
+          {isTrial
+            ? `Your 7-day free trial of ${tier === "pro" ? "Pro" : "Star"} has started. Enjoy!`
+            : `Your ${tier === "pro" ? "Pro" : "Star"} subscription is now active.`}
         </p>
       </div>
     );
@@ -93,10 +126,32 @@ function CheckoutForm({ tier, onSuccess, onCancel }: { tier: "star" | "pro"; onS
           )}
         </div>
         <div>
-          <h3 className="text-lg font-black text-white">Subscribe to {tierName}</h3>
-          <p className="text-xs text-slate-400">Enter your payment details below</p>
+          <h3 className="text-lg font-black text-white">
+            {isTrial ? `Start Free Trial` : `Subscribe to ${tierName}`}
+          </h3>
+          <p className="text-xs text-slate-400">
+            {isTrial ? "Add a payment method to start your 7-day free trial" : "Enter your payment details below"}
+          </p>
         </div>
       </div>
+
+      {isTrial && (
+        <div className={`flex items-center gap-3 p-3 rounded-xl border ${
+          tier === "pro"
+            ? "bg-amber-500/10 border-amber-500/20"
+            : "bg-emerald-500/10 border-emerald-500/20"
+        }`}>
+          <Gift className={`w-5 h-5 flex-shrink-0 ${tier === "pro" ? "text-amber-400" : "text-emerald-400"}`} />
+          <div>
+            <p className={`text-xs font-bold ${tier === "pro" ? "text-amber-300" : "text-emerald-300"}`}>
+              7-Day Free Trial
+            </p>
+            <p className="text-[11px] text-slate-400">
+              You won't be charged until your trial ends. Cancel anytime.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
         <PaymentElement
@@ -136,6 +191,11 @@ function CheckoutForm({ tier, onSuccess, onCancel }: { tier: "star" | "pro"; onS
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               Processing...
+            </>
+          ) : isTrial ? (
+            <>
+              <Gift className="w-4 h-4 mr-2" />
+              Start Free Trial
             </>
           ) : (
             <>
@@ -178,6 +238,7 @@ export function PaymentModal({ tier, billing, onSuccess, onCancel }: PaymentForm
   const price = tier === "pro"
     ? (billing === "annual" ? "$500/year" : "$49.99/month")
     : (billing === "annual" ? "$200/year" : "$19.99/month");
+  const isTrial = createIntentMutation.data?.isTrial ?? false;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center px-4" data-testid="payment-modal">
@@ -208,7 +269,9 @@ export function PaymentModal({ tier, billing, onSuccess, onCancel }: PaymentForm
             </div>
             <div>
               <h2 className="text-xl font-black text-white">EliteLineup {tierName}</h2>
-              <p className={`text-sm font-bold ${tier === "pro" ? "text-amber-400" : "text-emerald-400"}`}>{price}</p>
+              <p className={`text-sm font-bold ${tier === "pro" ? "text-amber-400" : "text-emerald-400"}`}>
+                {isTrial ? `7 days free, then ${price}` : price}
+              </p>
             </div>
           </div>
 
@@ -310,7 +373,7 @@ export function PaymentModal({ tier, billing, onSuccess, onCancel }: PaymentForm
                 },
               }}
             >
-              <CheckoutForm tier={tier} onSuccess={onSuccess} onCancel={onCancel} />
+              <CheckoutForm tier={tier} isTrial={isTrial} onSuccess={onSuccess} onCancel={onCancel} />
             </Elements>
           ) : null}
         </div>

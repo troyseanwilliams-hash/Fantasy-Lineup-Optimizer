@@ -36,7 +36,7 @@ Preferred communication style: Simple, everyday language.
 - **Key Tables**: `users`, `sessions`, `slates`, `players`, `lineups`, `subscriptions`, `props`, `prizepicks_entries`.
 
 ### Subscription System
-- **Tiers**: Basic (free), Star ($19.99/mo), and Pro ($49.99/mo)
+- **Tiers**: Basic (free), Star ($19.99/mo), and Pro ($49.99/mo) — both with 7-day free trial for first-time subscribers
 - **Payment**: Stripe Elements embedded payment form (in-app modal) for upgrades; Stripe Customer Portal for managing/canceling subscriptions
 - **Grace Period**: Existing premium users without a Stripe subscription get 30 days to subscribe before reverting to Basic. Admin users are exempt.
 - **Stripe Routes**:
