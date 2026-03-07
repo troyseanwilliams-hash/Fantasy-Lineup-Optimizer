@@ -68,6 +68,63 @@ function tierFromPrice(priceAmount: number | null): string | null {
   return AMOUNT_TO_TIER[priceAmount] || null;
 }
 
+export async function createSubscriptionWithIntent(
+  userId: string,
+  email: string,
+  tier: string,
+  billing: "monthly" | "annual"
+): Promise<{ subscriptionId: string; clientSecret: string }> {
+  if (!stripe) throw new Error("Stripe not configured");
+
+  const priceId = await getOrCreatePrice(tier, billing);
+
+  const sub = await storage.getSubscription(userId);
+  let customerId = sub?.stripeCustomerId;
+
+  if (!customerId) {
+    const customer = await stripe.customers.create({
+      email,
+      metadata: { userId },
+    });
+    customerId = customer.id;
+    await storage.upsertSubscription({
+      userId,
+      stripeCustomerId: customerId,
+      tier: sub?.tier || "free",
+      status: sub?.status || "active",
+    });
+  }
+
+  const subscription = await stripe.subscriptions.create({
+    customer: customerId,
+    items: [{ price: priceId }],
+    payment_behavior: "default_incomplete",
+    payment_settings: { save_default_payment_method: "on_subscription" },
+    expand: ["latest_invoice.payment_intent"],
+    metadata: { userId, tier },
+  });
+
+  await storage.upsertSubscription({
+    userId,
+    stripeCustomerId: customerId,
+    stripeSubscriptionId: subscription.id,
+    tier: sub?.tier || "free",
+    status: "incomplete",
+  });
+
+  const invoice = subscription.latest_invoice as Stripe.Invoice;
+  const paymentIntent = invoice.payment_intent as Stripe.PaymentIntent | null;
+
+  if (!paymentIntent || !paymentIntent.client_secret) {
+    throw new Error("Unable to create payment intent for this subscription. Please try again.");
+  }
+
+  return {
+    subscriptionId: subscription.id,
+    clientSecret: paymentIntent.client_secret,
+  };
+}
+
 export async function createCheckoutSession(
   userId: string,
   email: string,

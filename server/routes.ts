@@ -401,6 +401,33 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/subscription/create-intent", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    const user = await storage.getUser(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const { tier, billing } = req.body;
+    if (!tier || !["star", "pro"].includes(tier)) {
+      return res.status(400).json({ message: "Invalid tier" });
+    }
+    const billingCycle = billing === "annual" ? "annual" : "monthly";
+
+    try {
+      const { createSubscriptionWithIntent } = await import("./stripe");
+      const result = await createSubscriptionWithIntent(
+        userId,
+        user.email || "",
+        tier,
+        billingCycle
+      );
+      res.json(result);
+    } catch (err: any) {
+      console.error("[stripe] Create intent error:", err);
+      res.status(500).json({ message: err.message || "Failed to create subscription" });
+    }
+  });
+
   app.post("/api/subscription/portal", async (req, res) => {
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const userId = getSessionUserId(req)!;

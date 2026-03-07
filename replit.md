@@ -22,7 +22,7 @@ Preferred communication style: Simple, everyday language.
 - **API Pattern**: RESTful JSON API with Zod schema validation
 - **Optimization Engine**: `javascript-lp-solver` for Linear Programming
 - **Authentication**: bcryptjs password hashing with session-based authentication stored in PostgreSQL
-- **Payments**: Stripe Checkout for subscription payments with webhook event handling
+- **Payments**: Stripe Elements embedded payment form for subscription payments with webhook event handling
 - **Cron Jobs**: Hourly tasks for data refresh (DraftKings slates/players, Odds API props, PrizePicks projections), daily vault maintenance, and daily grace period expiration check (3 AM ET).
 - **Live Scores**: ESPN public scoreboard API with server-side caching.
 
@@ -37,13 +37,14 @@ Preferred communication style: Simple, everyday language.
 
 ### Subscription System
 - **Tiers**: Basic (free), Star ($19.99/mo), and Pro ($49.99/mo)
-- **Payment**: Stripe Checkout Sessions for upgrades; Stripe Customer Portal for managing/canceling subscriptions
+- **Payment**: Stripe Elements embedded payment form (in-app modal) for upgrades; Stripe Customer Portal for managing/canceling subscriptions
 - **Grace Period**: Existing premium users without a Stripe subscription get 30 days to subscribe before reverting to Basic. Admin users are exempt.
 - **Stripe Routes**:
-  - `POST /api/subscription/checkout` — creates a Stripe Checkout Session
+  - `POST /api/subscription/create-intent` — creates a Stripe subscription with PaymentIntent for embedded payment form
+  - `POST /api/subscription/checkout` — creates a Stripe Checkout Session (fallback)
   - `POST /api/subscription/portal` — creates a Stripe Customer Portal session
   - `POST /api/stripe/webhook` — handles Stripe webhook events (checkout.session.completed, customer.subscription.updated, customer.subscription.deleted)
-- **Key Files**: `server/stripe.ts` (Stripe client, checkout/portal/webhook logic), `client/src/pages/Pricing.tsx`
+- **Key Files**: `server/stripe.ts` (Stripe client, checkout/portal/webhook logic), `client/src/components/PaymentForm.tsx` (embedded Stripe Elements modal), `client/src/pages/Pricing.tsx`
 - **Environment Variables**:
   - `STRIPE_SECRET_KEY` (secret) — Stripe API secret key
   - `VITE_STRIPE_PUBLISHABLE_KEY` (env var) — Stripe publishable key for frontend
