@@ -37,7 +37,10 @@ Preferred communication style: Simple, everyday language.
 - **Player Snapshots**: `lineups.playerSnapshot` (JSONB) stores full player data (id, name, team, position, salary, fppg, projectedPoints, opponent, gameInfo, draftKingsPlayerId, boostScore, boostReason) at lineup save/update time. Used as fallback when live players are deleted (slate refresh, stale cleanup). All snapshot creation paths (save, update, moveToReview, deleteExpired, deleteSlateAndPlayers, backfill) include fppg. Orphaned lineups (where playerIds don't resolve to live players) are flagged with `isOrphaned` in API responses and shown with "Outdated" badge in the vault UI.
 - **DK Entries Import** (Champion only): Upload DraftKings entries CSV to import lineups into the vault. CSV parsed client-side to extract Entry ID, Contest Name, Contest ID, Entry Fee, and player DK IDs (from `Name (ID)` format). Players matched by `draftKingsPlayerId` against active slate. Imported lineups store DK metadata in `dkEntryId`, `dkContestName`, `dkContestId`, `dkEntryFee` columns. Export preserves DK format with Entry ID/Contest columns for re-upload. Existing swap/regenerate/save features work on imported entries.
   - **Route**: `POST /api/lineups/import-dk` — accepts `{entries, sport, slateId}`, matches players by DK ID, validates roster, creates lineups
-  - **Key Files**: `client/src/pages/SavedLineups.tsx` (parseDKEntryCSV, handleDKImport, buildDraftKingsCSV with DK entry columns)
+  - **Key Files**: `client/src/pages/SavedLineups.tsx` (parseCSVRow, parseDKEntryCSV, handleDKImport, buildDraftKingsCSV with DK entry columns)
+- **Bulk Generate**: Select 1+ lineups in the vault and click "Generate" to create a new optimized lineup for each selected one. Uses LP optimizer with noise perturbation to produce unique lineups on the same slate. Respects tier lineup limits and injury handling. Generated lineups named "Generated · {sport}".
+  - **Route**: `POST /api/lineups/bulk-generate` — accepts `{ids: number[]}`, runs optimizer per lineup, saves new lineups
+  - **Key Files**: `client/src/pages/SavedLineups.tsx` (bulkGenerateMutation), `server/routes.ts`
 
 ### Platform Configuration
 - Shared configuration in `shared/platform-config.ts` defines roster slots, salary caps, and position constraints per sport/platform.

@@ -99,6 +99,25 @@ export default function SavedLineups() {
     }
   });
 
+  const bulkGenerateMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const res = await apiRequest("POST", "/api/lineups/bulk-generate", { ids });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      const created = data.created || 0;
+      const failed = (data.results || []).filter((r: any) => r.status !== "created").length;
+      let desc = `${created} new lineup${created !== 1 ? "s" : ""} generated.`;
+      if (failed > 0) desc += ` ${failed} skipped.`;
+      toast({ title: "Generation Complete", description: desc });
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Generation Failed", description: err.message || "Could not generate lineups.", variant: "destructive" });
+    }
+  });
+
   const updateMutation = useMutation({
     mutationFn: async ({ id, playerIds }: { id: number; playerIds: number[] }) => {
       const res = await apiRequest("PATCH", `/api/lineups/${id}`, { playerIds });
@@ -495,6 +514,14 @@ export default function SavedLineups() {
                         data-testid="bulk-delete-btn"
                       >
                         <Trash2 className="w-4 h-4 mr-2" /> Delete {selectedIds.size}
+                      </Button>
+                      <Button
+                        onClick={() => bulkGenerateMutation.mutate(Array.from(selectedIds))}
+                        disabled={bulkGenerateMutation.isPending}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        data-testid="bulk-generate-btn"
+                      >
+                        <Zap className="w-4 h-4 mr-2" /> {bulkGenerateMutation.isPending ? "Generating..." : `Generate ${selectedIds.size}`}
                       </Button>
                       {isPaid && (
                         <Button
