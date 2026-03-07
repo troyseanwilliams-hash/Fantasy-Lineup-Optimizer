@@ -45,7 +45,8 @@ Preferred communication style: Simple, everyday language.
 - **Route**: `/ownership` — shows top-owned players by position for a selected sport/slate
 - **API**: `GET /api/ownership/:slateId` — returns players grouped by position with ownership projections, chalk player, and contrarian value pick
 - **Gating**: Champion (pro) tier required; other tiers see upgrade prompt
-- **Key File**: `client/src/pages/OwnershipHeatmap.tsx`
+- **Ownership Model**: Multi-factor scoring (projected points, salary, value score, position scarcity) with tiered distribution bands (top 3% → 25-35%, mid-tier → 5-18%, bottom → <2.5%). BallDontLie API integration (`server/balldontlie-stats.ts`) enhances projections with real season stats when available (requires paid BDL tier for stats endpoints). Results cached 4 hours.
+- **Key Files**: `client/src/pages/OwnershipHeatmap.tsx`, `server/balldontlie-stats.ts`
 
 ### Subscription System
 - **Tiers**: Basic (free), Star ($19.99/mo), and Pro ($49.99/mo) — both with 7-day free trial for first-time subscribers
