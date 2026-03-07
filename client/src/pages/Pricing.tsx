@@ -1,36 +1,114 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, Crown, Zap, Lock, Trophy, Sparkles, Layers, Calendar, Tag } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Check, Crown, Lock, Trophy, Sparkles, Calendar, Tag, Loader2, AlertTriangle, CreditCard } from "lucide-react";
 
 type BillingCycle = "monthly" | "annual";
 
 export default function Pricing() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [billing, setBilling] = useState<BillingCycle>("monthly");
 
-  const { data: subData } = useQuery<{ tier: string; lineupCount: number; maxLineups: number }>({
+  const { data: subData } = useQuery<{
+    tier: string;
+    lineupCount: number;
+    maxLineups: number;
+    graceEndsAt: string | null;
+    stripeSubscriptionId: string | null;
+  }>({
     queryKey: ["/api/subscription"],
     enabled: !!user,
   });
 
   const currentTier = subData?.tier || "free";
+  const hasStripeSubscription = !!subData?.stripeSubscriptionId;
+  const graceEndsAt = subData?.graceEndsAt ? new Date(subData.graceEndsAt) : null;
+  const daysLeft = graceEndsAt ? Math.max(0, Math.ceil((graceEndsAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : null;
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("success") === "true") {
+      toast({
+        title: "Subscription Activated",
+        description: "Your plan has been upgraded successfully. Enjoy your new features!",
+      });
+      window.history.replaceState({}, "", "/pricing");
+    } else if (params.get("canceled") === "true") {
+      toast({
+        title: "Checkout Canceled",
+        description: "No charges were made. You can upgrade anytime.",
+        variant: "destructive",
+      });
+      window.history.replaceState({}, "", "/pricing");
+    }
+  }, []);
+
+  const checkoutMutation = useMutation({
+    mutationFn: async ({ tier }: { tier: string }) => {
+      const res = await apiRequest("POST", "/api/subscription/checkout", { tier, billing });
+      return res.json();
+    },
+    onSuccess: (data: { url: string }) => {
+      window.location.href = data.url;
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Checkout Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const portalMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/subscription/portal");
+      return res.json();
+    },
+    onSuccess: (data: { url: string }) => {
+      window.location.href = data.url;
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Portal Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const starPrice = billing === "monthly" ? "$19.99" : "$200";
   const starPeriod = billing === "monthly" ? "/month" : "/year";
-  const starFirstMonth = billing === "monthly" ? "$9.99" : null;
   const starSavings = billing === "annual" ? "Save $39.88/yr" : null;
 
-  const proPrice = billing === "monthly" ? "$49.99" : "$499";
+  const proPrice = billing === "monthly" ? "$49.99" : "$500";
   const proPeriod = billing === "monthly" ? "/month" : "/year";
-  const proFirstMonth = billing === "monthly" ? "$29.99" : null;
-  const proSavings = billing === "annual" ? "Save $100.88/yr" : null;
+  const proSavings = billing === "annual" ? "Save $99.88/yr" : null;
+
+  const isCheckingOut = checkoutMutation.isPending;
 
   return (
     <div className="container mx-auto px-4 py-16 max-w-6xl">
+      {graceEndsAt && !hasStripeSubscription && currentTier !== "free" && (
+        <div className="mb-8 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 max-w-3xl mx-auto" data-testid="grace-period-banner">
+          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-bold text-amber-300">
+              Your trial access expires in {daysLeft} day{daysLeft !== 1 ? "s" : ""}
+            </p>
+            <p className="text-xs text-amber-400/70 mt-1">
+              Subscribe before {graceEndsAt.toLocaleDateString()} to keep your {currentTier === "pro" ? "Pro" : "Star"} features. After that, your account will revert to the Basic plan.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="text-center mb-12">
         <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 font-bold text-sm px-3 py-1 mb-6">
           <Crown className="w-4 h-4 mr-1" /> Pricing
@@ -120,7 +198,7 @@ export default function Pricing() {
               <span>No ownership projections</span>
             </li>
           </ul>
-          <Button variant="outline" className="w-full h-12 border-slate-700 text-slate-400 font-bold" disabled>
+          <Button variant="outline" className="w-full h-12 border-slate-700 text-slate-400 font-bold" disabled data-testid="basic-plan-btn">
             {currentTier === "free" ? "Current Plan" : "Basic Plan"}
           </Button>
         </Card>
@@ -139,12 +217,6 @@ export default function Pricing() {
               <span className="text-4xl font-black text-white" data-testid="star-price">{starPrice}</span>
               <span className="text-slate-400 font-bold">{starPeriod}</span>
             </div>
-            {starFirstMonth && (
-              <div className="flex items-center gap-2 mt-2">
-                <Tag className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-xs font-bold text-emerald-400" data-testid="star-first-month">First month only {starFirstMonth}</span>
-              </div>
-            )}
             {starSavings && (
               <div className="flex items-center gap-2 mt-2">
                 <Calendar className="w-3.5 h-3.5 text-emerald-400" />
@@ -191,25 +263,46 @@ export default function Pricing() {
               <span>No ownership projections</span>
             </li>
           </ul>
-          {currentTier === "star" ? (
-            <Button className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-black font-black" disabled>
-              <Trophy className="w-4 h-4 mr-2" /> Active
+          {currentTier === "star" && hasStripeSubscription ? (
+            <Button
+              className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-black font-black"
+              onClick={() => portalMutation.mutate()}
+              disabled={portalMutation.isPending}
+              data-testid="manage-star-btn"
+            >
+              {portalMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CreditCard className="w-4 h-4 mr-2" />}
+              Manage Subscription
+            </Button>
+          ) : currentTier === "star" && !hasStripeSubscription ? (
+            <Button
+              className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-black font-black"
+              onClick={() => checkoutMutation.mutate({ tier: "star" })}
+              disabled={isCheckingOut}
+              data-testid="subscribe-star-btn"
+            >
+              {isCheckingOut ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trophy className="w-4 h-4 mr-2" />}
+              Subscribe Now
             </Button>
           ) : currentTier === "pro" ? (
             <Button variant="outline" className="w-full h-12 border-slate-700 text-slate-400 font-bold" disabled>
               Included in Pro
             </Button>
           ) : (
-            <>
-              <Button
-                className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-black font-black shadow-lg shadow-emerald-500/20"
-                data-testid="upgrade-star-btn"
-                disabled
-              >
-                <Trophy className="w-4 h-4 mr-2" /> Coming Soon
-              </Button>
-              <p className="text-[11px] text-slate-400 text-center mt-2">Payment integration coming soon</p>
-            </>
+            <Button
+              className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-black font-black shadow-lg shadow-emerald-500/20"
+              data-testid="upgrade-star-btn"
+              onClick={() => {
+                if (!user) {
+                  window.location.href = "/login";
+                  return;
+                }
+                checkoutMutation.mutate({ tier: "star" });
+              }}
+              disabled={isCheckingOut}
+            >
+              {isCheckingOut ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trophy className="w-4 h-4 mr-2" />}
+              Upgrade to Star
+            </Button>
           )}
         </Card>
 
@@ -227,12 +320,6 @@ export default function Pricing() {
               <span className="text-4xl font-black text-white" data-testid="pro-price">{proPrice}</span>
               <span className="text-slate-400 font-bold">{proPeriod}</span>
             </div>
-            {proFirstMonth && (
-              <div className="flex items-center gap-2 mt-2">
-                <Tag className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-xs font-bold text-amber-400" data-testid="pro-first-month">First month only {proFirstMonth}</span>
-              </div>
-            )}
             {proSavings && (
               <div className="flex items-center gap-2 mt-2">
                 <Calendar className="w-3.5 h-3.5 text-amber-400" />
@@ -283,21 +370,42 @@ export default function Pricing() {
               <span className="font-bold text-amber-300">PrizePicks Builder with live lines</span>
             </li>
           </ul>
-          {currentTier === "pro" ? (
-            <Button className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-black font-black" disabled>
-              <Crown className="w-4 h-4 mr-2" /> Active
+          {currentTier === "pro" && hasStripeSubscription ? (
+            <Button
+              className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-black font-black"
+              onClick={() => portalMutation.mutate()}
+              disabled={portalMutation.isPending}
+              data-testid="manage-pro-btn"
+            >
+              {portalMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CreditCard className="w-4 h-4 mr-2" />}
+              Manage Subscription
+            </Button>
+          ) : currentTier === "pro" && !hasStripeSubscription ? (
+            <Button
+              className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-black font-black"
+              onClick={() => checkoutMutation.mutate({ tier: "pro" })}
+              disabled={isCheckingOut}
+              data-testid="subscribe-pro-btn"
+            >
+              {isCheckingOut ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Crown className="w-4 h-4 mr-2" />}
+              Subscribe Now
             </Button>
           ) : (
-            <>
-              <Button
-                className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-black font-black shadow-lg shadow-amber-500/20"
-                data-testid="upgrade-pro-btn"
-                disabled
-              >
-                <Crown className="w-4 h-4 mr-2" /> Coming Soon
-              </Button>
-              <p className="text-[11px] text-slate-400 text-center mt-2">Payment integration coming soon</p>
-            </>
+            <Button
+              className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-black font-black shadow-lg shadow-amber-500/20"
+              data-testid="upgrade-pro-btn"
+              onClick={() => {
+                if (!user) {
+                  window.location.href = "/login";
+                  return;
+                }
+                checkoutMutation.mutate({ tier: "pro" });
+              }}
+              disabled={isCheckingOut}
+            >
+              {isCheckingOut ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Crown className="w-4 h-4 mr-2" />}
+              Upgrade to Pro
+            </Button>
           )}
         </Card>
       </div>

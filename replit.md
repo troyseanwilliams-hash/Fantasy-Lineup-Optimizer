@@ -21,8 +21,9 @@ Preferred communication style: Simple, everyday language.
 - **Runtime**: Node.js with Express and TypeScript
 - **API Pattern**: RESTful JSON API with Zod schema validation
 - **Optimization Engine**: `javascript-lp-solver` for Linear Programming
-- **Authentication**: Replit OpenID Connect (OIDC) auth via Passport.js with session-based authentication stored in PostgreSQL
-- **Cron Jobs**: Hourly tasks for data refresh (DraftKings slates/players, Odds API props, PrizePicks projections) and daily vault maintenance.
+- **Authentication**: bcryptjs password hashing with session-based authentication stored in PostgreSQL
+- **Payments**: Stripe Checkout for subscription payments with webhook event handling
+- **Cron Jobs**: Hourly tasks for data refresh (DraftKings slates/players, Odds API props, PrizePicks projections), daily vault maintenance, and daily grace period expiration check (3 AM ET).
 - **Live Scores**: ESPN public scoreboard API with server-side caching.
 
 ### Platform Configuration
@@ -35,7 +36,19 @@ Preferred communication style: Simple, everyday language.
 - **Key Tables**: `users`, `sessions`, `slates`, `players`, `lineups`, `subscriptions`, `props`, `prizepicks_entries`.
 
 ### Subscription System
-- **Tiers**: Basic, Star, and Pro, offering varying levels of saved lineups, multi-lineup generation, CSV export, and access to advanced features like Parlay Builder, PrizePicks Builder, and AI insights.
+- **Tiers**: Basic (free), Star ($19.99/mo), and Pro ($49.99/mo)
+- **Payment**: Stripe Checkout Sessions for upgrades; Stripe Customer Portal for managing/canceling subscriptions
+- **Grace Period**: Existing premium users without a Stripe subscription get 30 days to subscribe before reverting to Basic. Admin users are exempt.
+- **Stripe Routes**:
+  - `POST /api/subscription/checkout` — creates a Stripe Checkout Session
+  - `POST /api/subscription/portal` — creates a Stripe Customer Portal session
+  - `POST /api/stripe/webhook` — handles Stripe webhook events (checkout.session.completed, customer.subscription.updated, customer.subscription.deleted)
+- **Key Files**: `server/stripe.ts` (Stripe client, checkout/portal/webhook logic), `client/src/pages/Pricing.tsx`
+- **Environment Variables**:
+  - `STRIPE_SECRET_KEY` (secret) — Stripe API secret key
+  - `VITE_STRIPE_PUBLISHABLE_KEY` (env var) — Stripe publishable key for frontend
+  - `STRIPE_WEBHOOK_SECRET` (secret, optional) — Stripe webhook signing secret for signature verification
+- **Webhook Setup**: Configure in Stripe Dashboard → Developers → Webhooks → Add endpoint pointing to `https://<domain>/api/stripe/webhook`. Events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`
 
 ### Shared Code
 - The `shared/` directory centralizes common code for both client and server, including database schemas, platform configurations, API routes, and affiliate marketing details.
@@ -43,7 +56,8 @@ Preferred communication style: Simple, everyday language.
 ## External Dependencies
 
 - **PostgreSQL Database**: Primary data store for all application data and user sessions.
+- **Stripe**: Payment processing for subscription upgrades (Star & Pro tiers).
 - **DraftKings Public API**: Used for fetching DFS player pools, salaries, and game information without requiring an API key.
 - **ESPN Public API**: Provides live sport-specific news articles.
 - **PrizePicks Public API**: Fetches live player prop projections for various sports, with server-side caching to manage rate limits.
-- **NPM Packages**: Key packages include `drizzle-orm`, `javascript-lp-solver`, `express`, `bcryptjs`, `@tanstack/react-query`, `zod`, `wouter`, and shadcn/ui ecosystem components.
+- **NPM Packages**: Key packages include `drizzle-orm`, `javascript-lp-solver`, `express`, `bcryptjs`, `stripe`, `@tanstack/react-query`, `zod`, `wouter`, and shadcn/ui ecosystem components.

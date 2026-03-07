@@ -71,6 +71,7 @@ export const subscriptions = pgTable("subscriptions", {
   tier: text("tier").notNull().default("free"),
   status: text("status").notNull().default("active"),
   currentPeriodEnd: timestamp("current_period_end"),
+  graceEndsAt: timestamp("grace_ends_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

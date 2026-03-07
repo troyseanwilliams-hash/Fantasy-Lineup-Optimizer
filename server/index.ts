@@ -9,7 +9,7 @@ import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { users } from "@shared/models/auth";
 import { subscriptions } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, ne, isNull, isNotNull } from "drizzle-orm";
 
 async function seedDefaultUser() {
   const email = "troy.sean.williams@gmail.com";
@@ -142,6 +142,37 @@ app.use((req, res, next) => {
       (async () => {
         try {
           await seedDefaultUser();
+
+          const unpaidSubs = await storage.getUnpaidPremiumSubscriptions();
+          if (unpaidSubs.length > 0) {
+            const graceDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+            for (const sub of unpaidSubs) {
+              const user = await storage.getUser(sub.userId);
+              if (user?.isAdmin) continue;
+              await db.update(subscriptions)
+                .set({ graceEndsAt: graceDate, updatedAt: new Date() })
+                .where(eq(subscriptions.userId, sub.userId));
+            }
+            if (unpaidSubs.length > 0) {
+              log(`Set 30-day grace period for ${unpaidSubs.length} existing premium user(s)`, "stripe");
+            }
+          }
+
+          const expiredGrace = await storage.getExpiredGraceSubscriptions();
+          for (const sub of expiredGrace) {
+            const user = await storage.getUser(sub.userId);
+            if (user?.isAdmin) continue;
+            await storage.upsertSubscription({
+              userId: sub.userId,
+              tier: "free",
+              status: "active",
+              graceEndsAt: null,
+            });
+          }
+          if (expiredGrace.length > 0) {
+            log(`Reverted ${expiredGrace.length} expired grace period user(s) to free`, "stripe");
+          }
+
           const delCount = await storage.deleteExpiredLineups();
           if (delCount > 0) log(`Moved ${delCount} expired lineup(s) to review on startup`, "cron");
           await seedDatabase();
@@ -182,6 +213,28 @@ app.use((req, res, next) => {
         timezone: "America/New_York",
       });
       log("Scheduled hourly seed refresh at :30 past each hour (EST)", "cron");
+
+      cron.schedule("0 3 * * *", async () => {
+        try {
+          const expired = await storage.getExpiredGraceSubscriptions();
+          for (const sub of expired) {
+            const user = await storage.getUser(sub.userId);
+            if (user?.isAdmin) continue;
+            await storage.upsertSubscription({
+              userId: sub.userId,
+              tier: "free",
+              status: "active",
+              graceEndsAt: null,
+            });
+          }
+          if (expired.length > 0) {
+            log(`Grace period cron: reverted ${expired.length} user(s) to free`, "stripe");
+          }
+        } catch (err) {
+          console.error("Grace period cron failed:", err);
+        }
+      }, { timezone: "America/New_York" });
+      log("Scheduled 3 AM ET grace period expiration cron job", "cron");
 
       cron.schedule("0 2 * * *", async () => {
         try {

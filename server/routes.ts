@@ -363,7 +363,99 @@ export async function registerRoutes(
       maxLineups: maxLineupsPerSport,
       maxLineupsPerSport,
       sportCounts,
+      graceEndsAt: sub?.graceEndsAt?.toISOString() || null,
+      stripeSubscriptionId: sub?.stripeSubscriptionId || null,
     });
+  });
+
+  app.post("/api/subscription/checkout", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    const user = await storage.getUser(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const { tier, billing } = req.body;
+    if (!tier || !["star", "pro"].includes(tier)) {
+      return res.status(400).json({ message: "Invalid tier" });
+    }
+    const billingCycle = billing === "annual" ? "annual" : "monthly";
+
+    try {
+      const { createCheckoutSession } = await import("./stripe");
+      const protocol = req.headers["x-forwarded-proto"] || "https";
+      const host = req.headers.host;
+      const baseUrl = `${protocol}://${host}`;
+
+      const url = await createCheckoutSession(
+        userId,
+        user.email || "",
+        tier,
+        billingCycle,
+        `${baseUrl}/pricing?success=true`,
+        `${baseUrl}/pricing?canceled=true`
+      );
+      res.json({ url });
+    } catch (err: any) {
+      console.error("[stripe] Checkout error:", err);
+      res.status(500).json({ message: err.message || "Failed to create checkout session" });
+    }
+  });
+
+  app.post("/api/subscription/portal", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+
+    try {
+      const { createPortalSession } = await import("./stripe");
+      const protocol = req.headers["x-forwarded-proto"] || "https";
+      const host = req.headers.host;
+      const returnUrl = `${protocol}://${host}/pricing`;
+
+      const url = await createPortalSession(userId, returnUrl);
+      res.json({ url });
+    } catch (err: any) {
+      console.error("[stripe] Portal error:", err);
+      res.status(500).json({ message: err.message || "Failed to create portal session" });
+    }
+  });
+
+  app.post("/api/stripe/webhook", async (req, res) => {
+    try {
+      const { stripe, handleWebhookEvent } = await import("./stripe");
+      if (!stripe) return res.status(500).json({ message: "Stripe not configured" });
+
+      const sig = req.headers["stripe-signature"] as string;
+      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+      let event;
+      if (webhookSecret) {
+        if (!sig) {
+          return res.status(400).json({ message: "Missing stripe-signature header" });
+        }
+        try {
+          event = stripe.webhooks.constructEvent(
+            (req as any).rawBody,
+            sig,
+            webhookSecret
+          );
+        } catch (err: any) {
+          console.error("[stripe] Webhook signature verification failed:", err.message);
+          return res.status(400).json({ message: "Webhook signature verification failed" });
+        }
+      } else if (process.env.NODE_ENV === "production") {
+        console.error("[stripe] STRIPE_WEBHOOK_SECRET not set in production — rejecting webhook");
+        return res.status(500).json({ message: "Webhook secret not configured" });
+      } else {
+        console.warn("[stripe] No webhook secret set — accepting unverified event in development");
+        event = req.body;
+      }
+
+      await handleWebhookEvent(event);
+      res.json({ received: true });
+    } catch (err: any) {
+      console.error("[stripe] Webhook error:", err);
+      res.status(500).json({ message: "Webhook processing failed" });
+    }
   });
 
   app.post("/api/admin/seed", async (req, res) => {
