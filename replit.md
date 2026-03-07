@@ -28,8 +28,8 @@ Preferred communication style: Simple, everyday language.
 - **DK as System of Record**: All player/slate data comes exclusively from the DraftKings public API. No static seed data fallbacks — if DK doesn't have a live slate for a sport, that sport is simply unavailable until DK publishes data. No synthetic/fake injury statuses, boosts, or props. Boosts use the data-driven engine only; if it fails, no boosts are applied rather than generating fake ones. Props come from the Odds API only; no synthetic fallback.
 - **DK ID Auto-Repair**: On startup/refresh, if existing slates have players missing `draftKingsPlayerId` and live DK data is available, the system updates players in-place (matching by name+team) without deleting/recreating, preserving lineup references. Empty slates get populated with fresh live data. Slates also get `draftGroupId` backfilled if missing.
 - **Live Scores**: ESPN public scoreboard API with server-side caching.
-- **Boost Engine** (`server/boost-engine.ts`): Data-driven scoring for DFS optimization:
-  - `computeBoostScores()` — value scoring, historical trend analysis, price movement detection, volatility assessment
+- **Boost Engine** (`server/boost-engine.ts`): Data-driven scoring for DFS optimization using stored player history:
+  - `computeBoostScores()` — multi-factor analysis producing detailed, data-backed reasons: value scoring with position rankings (#X of Y), historical trend detection with streak analysis, salary movement tracking with dollar amounts, floor/ceiling projections from historical variance (CV%), momentum analysis (recent 3 vs prior 3 slates), lowest/highest salary detection across tracked slates, team environment scoring, and sport-specific stack potential (NFL QB-WR, MLB team, NBA/NHL game stacks). History sorted by date descending; all division-by-zero edge cases guarded.
   - `computeCorrelationBonus()` — NFL QB-WR stacking, MLB team stacking, NBA/NHL game stacks (post-LP re-ranking)
   - `applyCeilingMode()` — deterministic upside boost for GPP/tournament lineups
   - `applyLeverageMode()` — contrarian ownership adjustments to differentiate from the field
