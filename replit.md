@@ -32,6 +32,8 @@ Preferred communication style: Simple, everyday language.
   - `applyCeilingMode()` — deterministic upside boost for GPP/tournament lineups
   - `applyLeverageMode()` — contrarian ownership adjustments to differentiate from the field
 - **Player History**: `playerHistory` table tracks player projection snapshots per slate; populated on each data refresh; used by boost engine for trend/volatility analysis
+- **Player Snapshots**: `lineups.playerSnapshot` (JSONB) stores full player data (id, name, team, position, salary, fppg, projectedPoints, opponent, gameInfo, draftKingsPlayerId, boostScore, boostReason) at lineup save/update time. Used as fallback when live players are deleted (slate refresh, stale cleanup). All snapshot creation paths (save, update, moveToReview, deleteExpired, deleteSlateAndPlayers, backfill) include fppg. Orphaned lineups (where playerIds don't resolve to live players) are flagged with `isOrphaned` in API responses and shown with "Outdated" badge in the vault UI.
+- **DK ID Auto-Repair**: On startup/refresh, if existing slates have players missing `draftKingsPlayerId` and live DK data is available, the system updates players in-place (matching by name+team) without deleting/recreating, preserving lineup references. Empty slates get populated with fresh live data. Slates also get `draftGroupId` backfilled if missing.
 
 ### Platform Configuration
 - Shared configuration in `shared/platform-config.ts` defines roster slots, salary caps, and position constraints per sport/platform.
