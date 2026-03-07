@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Crown, Lock, Trophy, Sparkles, Calendar, Tag, Loader2, AlertTriangle, CreditCard } from "lucide-react";
+import { PaymentModal } from "@/components/PaymentForm";
 
 type BillingCycle = "monthly" | "annual";
 
@@ -14,6 +15,7 @@ export default function Pricing() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [billing, setBilling] = useState<BillingCycle>("monthly");
+  const [paymentTier, setPaymentTier] = useState<"star" | "pro" | null>(null);
 
   const { data: subData } = useQuery<{
     tier: string;
@@ -49,22 +51,13 @@ export default function Pricing() {
     }
   }, []);
 
-  const checkoutMutation = useMutation({
-    mutationFn: async ({ tier }: { tier: string }) => {
-      const res = await apiRequest("POST", "/api/subscription/checkout", { tier, billing });
-      return res.json();
-    },
-    onSuccess: (data: { url: string }) => {
-      window.location.href = data.url;
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Checkout Failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+  const openPaymentForm = (tier: "star" | "pro") => {
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+    setPaymentTier(tier);
+  };
 
   const portalMutation = useMutation({
     mutationFn: async () => {
@@ -90,8 +83,6 @@ export default function Pricing() {
   const proPrice = billing === "monthly" ? "$49.99" : "$500";
   const proPeriod = billing === "monthly" ? "/month" : "/year";
   const proSavings = billing === "annual" ? "Save $99.88/yr" : null;
-
-  const isCheckingOut = checkoutMutation.isPending;
 
   return (
     <div className="container mx-auto px-4 py-16 max-w-6xl">
@@ -276,11 +267,10 @@ export default function Pricing() {
           ) : currentTier === "star" && !hasStripeSubscription ? (
             <Button
               className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-black font-black"
-              onClick={() => checkoutMutation.mutate({ tier: "star" })}
-              disabled={isCheckingOut}
+              onClick={() => openPaymentForm("star")}
               data-testid="subscribe-star-btn"
             >
-              {isCheckingOut ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trophy className="w-4 h-4 mr-2" />}
+              <Trophy className="w-4 h-4 mr-2" />
               Subscribe Now
             </Button>
           ) : currentTier === "pro" ? (
@@ -291,16 +281,9 @@ export default function Pricing() {
             <Button
               className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-black font-black shadow-lg shadow-emerald-500/20"
               data-testid="upgrade-star-btn"
-              onClick={() => {
-                if (!user) {
-                  window.location.href = "/login";
-                  return;
-                }
-                checkoutMutation.mutate({ tier: "star" });
-              }}
-              disabled={isCheckingOut}
+              onClick={() => openPaymentForm("star")}
             >
-              {isCheckingOut ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trophy className="w-4 h-4 mr-2" />}
+              <Trophy className="w-4 h-4 mr-2" />
               Upgrade to Star
             </Button>
           )}
@@ -383,32 +366,39 @@ export default function Pricing() {
           ) : currentTier === "pro" && !hasStripeSubscription ? (
             <Button
               className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-black font-black"
-              onClick={() => checkoutMutation.mutate({ tier: "pro" })}
-              disabled={isCheckingOut}
+              onClick={() => openPaymentForm("pro")}
               data-testid="subscribe-pro-btn"
             >
-              {isCheckingOut ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Crown className="w-4 h-4 mr-2" />}
+              <Crown className="w-4 h-4 mr-2" />
               Subscribe Now
             </Button>
           ) : (
             <Button
               className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-black font-black shadow-lg shadow-amber-500/20"
               data-testid="upgrade-pro-btn"
-              onClick={() => {
-                if (!user) {
-                  window.location.href = "/login";
-                  return;
-                }
-                checkoutMutation.mutate({ tier: "pro" });
-              }}
-              disabled={isCheckingOut}
+              onClick={() => openPaymentForm("pro")}
             >
-              {isCheckingOut ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Crown className="w-4 h-4 mr-2" />}
+              <Crown className="w-4 h-4 mr-2" />
               Upgrade to Pro
             </Button>
           )}
         </Card>
       </div>
+
+      {paymentTier && (
+        <PaymentModal
+          tier={paymentTier}
+          billing={billing}
+          onSuccess={() => {
+            setPaymentTier(null);
+            toast({
+              title: "Subscription Activated",
+              description: "Your plan has been upgraded successfully. Enjoy your new features!",
+            });
+          }}
+          onCancel={() => setPaymentTier(null)}
+        />
+      )}
     </div>
   );
 }
