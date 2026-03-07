@@ -151,6 +151,27 @@ export const insertAlertSchema = createInsertSchema(alerts).omit({ id: true, cre
 export type Alert = typeof alerts.$inferSelect;
 export type InsertAlert = z.infer<typeof insertAlertSchema>;
 
+// --- PLAYER HISTORY (for algorithm learning) ---
+export const playerHistory = pgTable("player_history", {
+  id: serial("id").primaryKey(),
+  playerName: text("player_name").notNull(),
+  team: text("team").notNull(),
+  sport: text("sport").notNull(),
+  position: text("position").notNull(),
+  salary: integer("salary").notNull(),
+  projectedPoints: numeric("projected_points").notNull(),
+  actualPoints: numeric("actual_points"),
+  slateDate: date("slate_date").notNull(),
+  slateId: integer("slate_id"),
+  draftKingsPlayerId: integer("draftkings_player_id"),
+  ownership: numeric("ownership"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertPlayerHistorySchema = createInsertSchema(playerHistory).omit({ id: true, createdAt: true });
+export type PlayerHistory = typeof playerHistory.$inferSelect;
+export type InsertPlayerHistory = z.infer<typeof insertPlayerHistorySchema>;
+
 // --- OPTIMIZATION TYPES ---
 export const optimizationConstraintSchema = z.object({
   slateId: z.number(),
@@ -180,6 +201,8 @@ export const proOptimizationConstraintSchema = optimizationConstraintSchema.exte
   useInjuryAdjustments: z.boolean().default(true),
   exposureLimits: z.record(z.string(), z.number()).optional(),
   globalMaxExposure: z.number().min(10).max(100).optional(),
+  leverageMode: z.boolean().default(false),
+  projectionMode: z.enum(["balanced", "ceiling"]).default("balanced"),
 });
 
 export type ProOptimizationConstraints = z.infer<typeof proOptimizationConstraintSchema>;

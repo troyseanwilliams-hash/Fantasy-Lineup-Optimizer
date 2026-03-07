@@ -1,7 +1,7 @@
 import { db } from "./db";
-import { eq, and, inArray, lt, gte, desc, isNull, isNotNull, ne } from "drizzle-orm";
+import { eq, and, inArray, lt, gte, desc, isNull, isNotNull, ne, sql } from "drizzle-orm";
 import {
-  slates, players, lineups, subscriptions, props, alerts, prizePicksEntries,
+  slates, players, lineups, subscriptions, props, alerts, prizePicksEntries, playerHistory,
   type Slate, type InsertSlate,
   type Player, type InsertPlayer,
   type Lineup, type InsertLineup,
@@ -9,6 +9,7 @@ import {
   type Prop, type InsertProp,
   type Alert, type InsertAlert,
   type PrizePicksEntry, type InsertPrizePicksEntry,
+  type PlayerHistory, type InsertPlayerHistory,
 } from "@shared/schema";
 
 import { authStorage, type IAuthStorage } from "./replit_integrations/auth/storage";
@@ -62,6 +63,11 @@ export interface IStorage extends IAuthStorage {
   createPrizePicksEntry(entry: InsertPrizePicksEntry): Promise<PrizePicksEntry>;
   deletePrizePicksEntry(id: number, userId: string): Promise<void>;
   getPrizePicksEntryCount(userId: string): Promise<number>;
+
+  bulkInsertPlayerHistory(records: InsertPlayerHistory[]): Promise<void>;
+  getPlayerHistoryByName(playerName: string, sport: string, limit?: number): Promise<PlayerHistory[]>;
+  getPlayerHistoryBySport(sport: string, limit?: number): Promise<PlayerHistory[]>;
+  cleanOldPlayerHistory(daysToKeep: number): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -348,6 +354,39 @@ export class DatabaseStorage implements IStorage {
     const rows = await db.select().from(prizePicksEntries)
       .where(eq(prizePicksEntries.userId, userId));
     return rows.length;
+  }
+
+  async bulkInsertPlayerHistory(records: InsertPlayerHistory[]): Promise<void> {
+    if (records.length === 0) return;
+    const batchSize = 500;
+    for (let i = 0; i < records.length; i += batchSize) {
+      const batch = records.slice(i, i + batchSize);
+      await db.insert(playerHistory).values(batch);
+    }
+  }
+
+  async getPlayerHistoryByName(playerName: string, sport: string, limit = 30): Promise<PlayerHistory[]> {
+    return await db.select().from(playerHistory)
+      .where(and(eq(playerHistory.playerName, playerName), eq(playerHistory.sport, sport)))
+      .orderBy(desc(playerHistory.slateDate))
+      .limit(limit);
+  }
+
+  async getPlayerHistoryBySport(sport: string, limit = 500): Promise<PlayerHistory[]> {
+    return await db.select().from(playerHistory)
+      .where(eq(playerHistory.sport, sport))
+      .orderBy(desc(playerHistory.slateDate))
+      .limit(limit);
+  }
+
+  async cleanOldPlayerHistory(daysToKeep: number): Promise<number> {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - daysToKeep);
+    const cutoffStr = cutoff.toISOString().split("T")[0];
+    const deleted = await db.delete(playerHistory)
+      .where(lt(playerHistory.slateDate, cutoffStr))
+      .returning();
+    return deleted.length;
   }
 }
 

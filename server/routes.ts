@@ -6,6 +6,7 @@ import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import solver from "javascript-lp-solver";
 import { getPlatformConfig, ACTIVE_SPORTS, assignPlayersToSlots, type Platform } from "@shared/platform-config";
+import { computeBoostScores, computeCorrelationBonus, applyCeilingMode, applyLeverageMode } from "./boost-engine";
 
 function getSessionUserId(req: Request): string | null {
   return (req.session as any)?.userId || null;
@@ -1054,7 +1055,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No players found for this slate" });
       }
 
-      const pool = allPlayers.map(p => {
+      let pool = allPlayers.map(p => {
         const customProj = constraints.playerProjections?.[p.id.toString()];
         let boostedPoints = customProj !== undefined ? customProj : Number(p.projectedPoints);
 
@@ -1077,6 +1078,16 @@ export async function registerRoutes(
         return { ...p, projectedPoints: boostedPoints.toString() };
       });
 
+      if (constraints.projectionMode === "ceiling") {
+        pool = applyCeilingMode(pool, slate.sport);
+      }
+
+      const playersWithOwnership = computeOwnershipProjections(pool);
+
+      if (constraints.leverageMode) {
+        pool = applyLeverageMode(playersWithOwnership);
+      }
+
       const lineupResults: any[] = [];
       const usedLineupKeys = new Set<string>();
 
@@ -1089,10 +1100,11 @@ export async function registerRoutes(
         });
       }
 
-      const maxAttempts = constraints.lineupCount * 8;
+      const maxAttempts = constraints.lineupCount * 10;
       let attempts = 0;
 
       const playerAppearances: Record<number, number> = {};
+      const candidateLineups: { result: any; correlationScore: number }[] = [];
 
       while (lineupResults.length < constraints.lineupCount && attempts < maxAttempts) {
         attempts++;
@@ -1148,7 +1160,9 @@ export async function registerRoutes(
         if (!result.error && result.lineup.length > 0) {
           const key = result.lineup.map((p: Player) => p.id).sort().join(",");
           if (!usedLineupKeys.has(key)) {
-            lineupResults.push({ ...result, platform });
+            const correlationScore = computeCorrelationBonus(result.lineup as Player[], slate.sport);
+            const adjustedPoints = result.totalProjectedPoints + correlationScore;
+            lineupResults.push({ ...result, platform, correlationScore, totalProjectedPoints: adjustedPoints });
             usedLineupKeys.add(key);
             for (const p of result.lineup as Player[]) {
               playerAppearances[p.id] = (playerAppearances[p.id] || 0) + 1;
@@ -1156,6 +1170,8 @@ export async function registerRoutes(
           }
         }
       }
+
+      lineupResults.sort((a, b) => b.totalProjectedPoints - a.totalProjectedPoints);
 
       const boostsSummary = allPlayers
         .filter(p => p.boostScore && Number(p.boostScore) !== 0)
@@ -1687,9 +1703,28 @@ export async function seedDatabase(forceRefresh = false) {
         startTime: seed.dkSlate.startTime!,
         isMain: true,
       });
-      await storage.bulkCreatePlayers(
+      const createdPlayers = await storage.bulkCreatePlayers(
         seed.dkPlayers.map((p: any) => ({ ...p, slateId: dkSlate.id })) as any
       );
+
+      const today = new Date().toISOString().split("T")[0];
+      try {
+        const historyRecords = createdPlayers.map(p => ({
+          playerName: p.name,
+          team: p.team,
+          sport: seed.sport,
+          position: p.position,
+          salary: p.salary,
+          projectedPoints: p.projectedPoints,
+          slateDate: today,
+          slateId: dkSlate.id,
+          draftKingsPlayerId: p.draftKingsPlayerId,
+        }));
+        await storage.bulkInsertPlayerHistory(historyRecords);
+        console.log(`[History] Saved ${historyRecords.length} ${seed.sport} player snapshots`);
+      } catch (err) {
+        console.error(`[History] Failed to save ${seed.sport} snapshots:`, err);
+      }
 
       const source = seed.isLive ? "LIVE DK" : "static";
       console.log(`Seeded database with DK ${seed.sport} main slate (${source})`);
@@ -1780,39 +1815,41 @@ export async function generatePlayerBoostsAndInjuries() {
     if (alreadyBoosted) continue;
 
     const sport = slate.sport;
-    const rand = seededRandom(slate.id * 31 + sport.charCodeAt(0));
-    const reasons = BOOST_REASONS[sport] || BOOST_REASONS.NBA;
-    const injuries = INJURY_DETAILS[sport] || INJURY_DETAILS.NBA;
 
-    const boosts: { playerId: number; boostScore: string; boostReason: string }[] = [];
-    const injuryUpdates: { playerId: number; injuryStatus: string; injuryDetail: string }[] = [];
-
-    const sorted = [...allPlayers].sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
-
-    for (let i = 0; i < sorted.length; i++) {
-      const player = sorted[i];
-      const r = rand();
-
-      if (r < 0.35) {
-        const boostAmount = (rand() * 4 + 0.5).toFixed(1);
-        const reason = reasons[Math.floor(rand() * reasons.length)];
-        boosts.push({ playerId: player.id, boostScore: boostAmount, boostReason: reason });
-      } else if (r < 0.45) {
-        const boostAmount = (-(rand() * 2 + 0.5)).toFixed(1);
-        const reason = "Negative trend: recent decline in performance";
-        boosts.push({ playerId: player.id, boostScore: boostAmount, boostReason: reason });
-      } else {
-        boosts.push({ playerId: player.id, boostScore: "0", boostReason: "" });
+    try {
+      const boosts = await computeBoostScores(allPlayers, sport, slate.id);
+      if (boosts.length > 0) await storage.updatePlayerBoosts(slate.id, boosts);
+      console.log(`[Boost Engine] ${sport}: computed data-driven boosts for ${boosts.filter(b => Number(b.boostScore) !== 0).length}/${boosts.length} players`);
+    } catch (err) {
+      console.error(`[Boost Engine] ${sport} error, falling back to seeded boosts:`, err);
+      const rand = seededRandom(slate.id * 31 + sport.charCodeAt(0));
+      const reasons = BOOST_REASONS[sport] || BOOST_REASONS.NBA;
+      const boosts: { playerId: number; boostScore: string; boostReason: string }[] = [];
+      for (const player of allPlayers) {
+        const r = rand();
+        if (r < 0.35) {
+          boosts.push({ playerId: player.id, boostScore: (rand() * 4 + 0.5).toFixed(1), boostReason: reasons[Math.floor(rand() * reasons.length)] });
+        } else if (r < 0.45) {
+          boosts.push({ playerId: player.id, boostScore: (-(rand() * 2 + 0.5)).toFixed(1), boostReason: "Negative trend: recent decline in performance" });
+        } else {
+          boosts.push({ playerId: player.id, boostScore: "0", boostReason: "" });
+        }
       }
+      if (boosts.length > 0) await storage.updatePlayerBoosts(slate.id, boosts);
+    }
 
+    const rand = seededRandom(slate.id * 31 + sport.charCodeAt(0));
+    const injuries = INJURY_DETAILS[sport] || INJURY_DETAILS.NBA;
+    const injuryUpdates: { playerId: number; injuryStatus: string; injuryDetail: string }[] = [];
+    for (const player of allPlayers) {
       if (rand() < 0.12) {
         const status = INJURY_STATUSES[Math.floor(rand() * INJURY_STATUSES.length)];
         const detail = injuries[Math.floor(rand() * injuries.length)];
         injuryUpdates.push({ playerId: player.id, injuryStatus: status, injuryDetail: detail });
+      } else {
+        rand();
       }
     }
-
-    if (boosts.length > 0) await storage.updatePlayerBoosts(slate.id, boosts);
     if (injuryUpdates.length > 0) await storage.updatePlayerInjuries(injuryUpdates);
     console.log(`Generated boosts/injuries for ${sport} ${slate.platform} slate`);
   }

@@ -86,6 +86,8 @@ export default function ProOptimizer() {
   const [fadedIds, setFadedIds] = useState<number[]>([]);
   const [exposureLimits, setExposureLimits] = useState<Record<string, number>>({});
   const [globalMaxExposure, setGlobalMaxExposure] = useState<number | null>(null);
+  const [leverageMode, setLeverageMode] = useState(false);
+  const [projectionMode, setProjectionMode] = useState<"balanced" | "ceiling">("balanced");
 
   const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"], refetchInterval: 300000 });
   const slate = useMemo(() => slates?.find(s => s.id === slateId), [slates, slateId]);
@@ -332,6 +334,8 @@ export default function ProOptimizer() {
       useInjuryAdjustments,
       exposureLimits: activeExposureLimits,
       globalMaxExposure: globalMaxExposure ?? undefined,
+      leverageMode,
+      projectionMode,
     });
   };
 
@@ -551,6 +555,24 @@ export default function ProOptimizer() {
               <div className="flex items-center gap-1.5 flex-shrink-0">
                 <label className="text-[10px] font-black text-slate-400 uppercase">Injuries</label>
                 <Switch checked={useInjuryAdjustments} onCheckedChange={setUseInjuryAdjustments} data-testid="toggle-injuries" className="scale-90" />
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <label className="text-[10px] font-black text-amber-400 uppercase">Leverage</label>
+                <Switch checked={leverageMode} onCheckedChange={setLeverageMode} data-testid="toggle-leverage" className="scale-90" />
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <label className="text-[10px] font-black text-purple-400 uppercase">Mode</label>
+                <button
+                  onClick={() => setProjectionMode(projectionMode === "balanced" ? "ceiling" : "balanced")}
+                  className={`text-[10px] font-black px-2 py-0.5 rounded ${
+                    projectionMode === "ceiling"
+                      ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                      : "bg-slate-700/50 text-slate-400 border border-slate-600/30"
+                  }`}
+                  data-testid="button-projection-mode"
+                >
+                  {projectionMode === "ceiling" ? "CEILING" : "BALANCED"}
+                </button>
               </div>
             </>
           )}
