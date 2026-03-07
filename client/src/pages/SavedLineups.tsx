@@ -100,8 +100,8 @@ export default function SavedLineups() {
   });
 
   const bulkGenerateMutation = useMutation({
-    mutationFn: async (ids: number[]) => {
-      const res = await apiRequest("POST", "/api/lineups/bulk-generate", { ids });
+    mutationFn: async ({ ids, useBoosts, ceilingMode, leverageMode }: { ids: number[]; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean }) => {
+      const res = await apiRequest("POST", "/api/lineups/bulk-generate", { ids, useBoosts: useBoosts !== false, ceilingMode: ceilingMode || false, leverageMode: leverageMode || false });
       return res.json();
     },
     onSuccess: (data) => {
@@ -517,7 +517,7 @@ export default function SavedLineups() {
                       </Button>
                       {isPaid && (
                         <Button
-                          onClick={() => bulkGenerateMutation.mutate(Array.from(selectedIds))}
+                          onClick={() => bulkGenerateMutation.mutate({ ids: Array.from(selectedIds), useBoosts: true })}
                           disabled={bulkGenerateMutation.isPending}
                           className="bg-blue-600 hover:bg-blue-700 text-white"
                           data-testid="bulk-generate-btn"
