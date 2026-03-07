@@ -1232,7 +1232,7 @@ export async function registerRoutes(
           boostedPoints += Number(p.boostScore);
         }
 
-        if (constraints.useInjuryAdjustments && p.injuryStatus) {
+        if (p.injuryStatus) {
           if (p.injuryStatus === "OUT") {
             boostedPoints = 0;
           } else if (p.injuryStatus === "Doubtful") {
@@ -2044,20 +2044,7 @@ export async function generatePlayerBoostsAndInjuries() {
       if (boosts.length > 0) await storage.updatePlayerBoosts(slate.id, boosts);
     }
 
-    const rand = seededRandom(slate.id * 31 + sport.charCodeAt(0));
-    const injuries = INJURY_DETAILS[sport] || INJURY_DETAILS.NBA;
-    const injuryUpdates: { playerId: number; injuryStatus: string; injuryDetail: string }[] = [];
-    for (const player of allPlayers) {
-      if (rand() < 0.12) {
-        const status = INJURY_STATUSES[Math.floor(rand() * INJURY_STATUSES.length)];
-        const detail = injuries[Math.floor(rand() * injuries.length)];
-        injuryUpdates.push({ playerId: player.id, injuryStatus: status, injuryDetail: detail });
-      } else {
-        rand();
-      }
-    }
-    if (injuryUpdates.length > 0) await storage.updatePlayerInjuries(injuryUpdates);
-    console.log(`Generated boosts/injuries for ${sport} ${slate.platform} slate`);
+    console.log(`Generated boosts for ${sport} ${slate.platform} slate`);
   }
 }
 
@@ -2082,20 +2069,23 @@ const DK_STATUS_MAP: Record<string, string> = {
 const DK_NEWS_ONLY_STATUSES = new Set(["Breaking", "Recent", "Normal", "Latest"]);
 
 function mapDKStatus(status: string, newsStatus: string): { injuryStatus: string; injuryDetail: string } {
-  const mapped = DK_STATUS_MAP[status] || DK_STATUS_MAP[newsStatus] || "";
-  const isNewsOnly = DK_NEWS_ONLY_STATUSES.has(newsStatus) || DK_NEWS_ONLY_STATUSES.has(status);
-  if (!mapped || mapped === "Healthy") {
-    if (isNewsOnly) {
-      return { injuryStatus: "Healthy", injuryDetail: "" };
-    }
-    const detail = newsStatus && newsStatus !== "None" && newsStatus !== "" ? newsStatus : (status && status !== "None" ? status : "");
-    if (detail) {
-      return { injuryStatus: "Questionable", injuryDetail: detail };
-    }
+  const statusMapped = DK_STATUS_MAP[status];
+  const newsMapped = DK_STATUS_MAP[newsStatus];
+
+  const realStatus = (statusMapped && statusMapped !== "Healthy") ? statusMapped
+    : (newsMapped && newsMapped !== "Healthy") ? newsMapped
+    : null;
+
+  if (realStatus) {
+    const detail = status && status !== "None" && status !== "" && !DK_NEWS_ONLY_STATUSES.has(status) ? status : realStatus;
+    return { injuryStatus: realStatus, injuryDetail: detail };
+  }
+
+  if (DK_NEWS_ONLY_STATUSES.has(newsStatus) || DK_NEWS_ONLY_STATUSES.has(status)) {
     return { injuryStatus: "Healthy", injuryDetail: "" };
   }
-  const detail = status && status !== "None" && !DK_NEWS_ONLY_STATUSES.has(status) ? status : mapped;
-  return { injuryStatus: mapped, injuryDetail: detail };
+
+  return { injuryStatus: "Healthy", injuryDetail: "" };
 }
 
 export async function refreshPlayerStatuses() {
