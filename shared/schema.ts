@@ -35,6 +35,7 @@ export const players = pgTable("players", {
   injuryDetail: text("injury_detail"),
   boostScore: numeric("boost_score"),
   boostReason: text("boost_reason"),
+  draftKingsPlayerId: integer("draftkings_player_id"),
 });
 
 export const insertPlayerSchema = createInsertSchema(players).omit({ id: true });
