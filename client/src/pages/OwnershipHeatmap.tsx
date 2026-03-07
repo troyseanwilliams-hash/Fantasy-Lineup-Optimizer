@@ -11,7 +11,7 @@ import { ACTIVE_SPORTS } from "@shared/platform-config";
 
 interface OwnershipPlayer {
   id: number;
-  playerName: string;
+  name: string;
   position: string;
   team: string;
   salary: number;
@@ -167,7 +167,7 @@ export default function OwnershipHeatmap() {
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-lg font-black text-white" data-testid="chalk-player-name">{ownershipData.chalkPlayer.playerName}</p>
+                      <p className="text-lg font-black text-white" data-testid="chalk-player-name">{ownershipData.chalkPlayer.name}</p>
                       <p className="text-sm text-slate-400">{ownershipData.chalkPlayer.position} · {ownershipData.chalkPlayer.team} · ${ownershipData.chalkPlayer.salary.toLocaleString()}</p>
                     </div>
                     <div className="text-right">
@@ -184,7 +184,7 @@ export default function OwnershipHeatmap() {
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-lg font-black text-white" data-testid="contrarian-player-name">{ownershipData.contrarianPlayer.playerName}</p>
+                      <p className="text-lg font-black text-white" data-testid="contrarian-player-name">{ownershipData.contrarianPlayer.name}</p>
                       <p className="text-sm text-slate-400">{ownershipData.contrarianPlayer.position} · {ownershipData.contrarianPlayer.team} · ${ownershipData.contrarianPlayer.salary.toLocaleString()}</p>
                     </div>
                     <div className="text-right">
@@ -219,7 +219,7 @@ export default function OwnershipHeatmap() {
                         </span>
 
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-white truncate" data-testid={`ownership-player-name-${player.id}`}>{player.playerName}</p>
+                          <p className="text-sm font-bold text-white truncate" data-testid={`ownership-player-name-${player.id}`}>{player.name}</p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-[11px] text-slate-400 font-bold">{player.team}</span>
                             <span className="text-[11px] text-slate-600">·</span>
