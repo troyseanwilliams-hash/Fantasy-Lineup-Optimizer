@@ -405,11 +405,14 @@ export default function Optimizer() {
                 onChange={e => handleSlateChange(e.target.value)}
                 data-testid="slate-selector"
               >
-                {mainSlates.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.platform === "fanduel" ? "FD" : "DK"} - {s.name} — {new Date(s.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                  </option>
-                ))}
+                {mainSlates.map(s => {
+                  const locked = new Date(s.startTime) <= new Date();
+                  return (
+                    <option key={s.id} value={s.id}>
+                      {locked ? "🔒 " : ""}{s.platform === "fanduel" ? "FD" : "DK"} - {s.name} — {new Date(s.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}{locked ? " (Locked)" : ""}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>
@@ -836,6 +839,12 @@ export default function Optimizer() {
             </div>
           </div>
 
+          {slateHasStarted && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center" data-testid="slate-locked-msg">
+              <p className="text-red-400 text-sm font-bold">This slate has locked — games have already started.</p>
+              <p className="text-slate-400 text-xs mt-1">Switch to another sport with upcoming games to build lineups.</p>
+            </div>
+          )}
           <div className="flex gap-2">
             <Button
               onClick={handleOptimize}
@@ -852,7 +861,7 @@ export default function Optimizer() {
               ) : (
                 <Zap className="w-5 h-5 mr-2 fill-current" />
               )}
-              OPTIMIZE
+              {slateHasStarted ? "SLATE LOCKED" : "OPTIMIZE"}
             </Button>
             <Button
               onClick={handleReset}
