@@ -888,7 +888,7 @@ export default function ProOptimizer() {
                   <SortHeader label="Base Proj" field="projectedPoints" />
                   <SortHeader label="Boosted Proj" field="boostedProj" />
                   {hasPaidAccess ? (
-                    <SortHeader label="Own%" field="ownershipProjection" />
+                    <SortHeader label="Proj. Own%" field="ownershipProjection" />
                   ) : (
                     <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-center">
                       <div className="flex items-center justify-center gap-1 text-amber-500/70">
@@ -1040,7 +1040,7 @@ export default function ProOptimizer() {
                                 ? "bg-purple-500/20 text-purple-400 border border-purple-500/30 shadow-sm"
                                 : "text-slate-500 hover:text-purple-400 hover:bg-purple-500/10"
                             }`}
-                            title={player.isFaded ? "Unfade player (restore projection)" : "Fade player (reduce projection by ownership %)"}
+                            title={player.isFaded ? "Unfade player (restore projection)" : "Fade player (reduce projection by projected ownership %)"}
                           >
                             <Percent className="w-3.5 h-3.5" />
                           </button>
@@ -1121,7 +1121,7 @@ export default function ProOptimizer() {
                     </div>
                     <div>
                       <p className="text-xs font-black text-amber-400 uppercase tracking-wider">Unlock Sharpshooter Features</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">Ownership projections, player fading, and contrarian lineup building</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Projected ownership, player fading, and contrarian lineup building</p>
                     </div>
                   </div>
                   <Badge className="bg-amber-500 text-black font-black text-[10px] px-2 py-1 group-hover:bg-amber-400 transition-colors flex-shrink-0">
@@ -1310,7 +1310,7 @@ export default function ProOptimizer() {
                   <div data-testid="golf-contrarian-picks">
                     <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-3">
                       <Percent className="w-4 h-4 text-purple-400" />
-                      Low Ownership Gems
+                      Low Proj. Ownership Gems
                     </h3>
                     <Card className="bg-gradient-to-br from-purple-500/10 via-slate-900 to-slate-900 border-purple-500/20 p-3">
                       <div className="space-y-2">
