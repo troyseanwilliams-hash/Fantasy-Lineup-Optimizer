@@ -251,15 +251,21 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No players found for this slate" });
       }
 
+      const autoExcluded = allPlayers
+        .filter(p => p.injuryStatus === "OUT" && !constraints.excludedPlayerIds.includes(p.id))
+        .map(p => p.id);
+      const mergedExclusions = [...constraints.excludedPlayerIds, ...autoExcluded];
+
       const pool = allPlayers.map(p => {
         const customProj = constraints.playerProjections?.[p.id.toString()];
-        return {
-          ...p,
-          projectedPoints: customProj !== undefined ? customProj.toString() : p.projectedPoints
-        };
+        let proj = customProj !== undefined ? customProj.toString() : p.projectedPoints;
+        if (p.injuryStatus === "Doubtful") proj = (Number(proj) * 0.3).toString();
+        else if (p.injuryStatus === "Questionable") proj = (Number(proj) * 0.7).toString();
+        else if (p.injuryStatus === "Probable") proj = (Number(proj) * 0.9).toString();
+        return { ...p, projectedPoints: proj };
       });
 
-      const result = solveLineup(pool, constraints, slate.sport, platform);
+      const result = solveLineup(pool, { ...constraints, excludedPlayerIds: mergedExclusions }, slate.sport, platform);
 
       if (result.error) {
         return res.status(400).json(result);
@@ -1256,13 +1262,11 @@ export async function registerRoutes(
       const usedLineupKeys = new Set<string>();
 
       const baseExcluded = [...constraints.excludedPlayerIds];
-      if (constraints.useInjuryAdjustments) {
-        allPlayers.forEach(p => {
-          if (p.injuryStatus === "OUT" && !baseExcluded.includes(p.id)) {
-            baseExcluded.push(p.id);
-          }
-        });
-      }
+      allPlayers.forEach(p => {
+        if (p.injuryStatus === "OUT" && !baseExcluded.includes(p.id)) {
+          baseExcluded.push(p.id);
+        }
+      });
 
       const maxAttempts = constraints.lineupCount * 10;
       let attempts = 0;
@@ -2060,6 +2064,7 @@ export async function generatePlayerBoostsAndInjuries() {
 const DK_STATUS_MAP: Record<string, string> = {
   "O": "OUT",
   "Out": "OUT",
+  "OUT": "OUT",
   "Q": "Questionable",
   "Questionable": "Questionable",
   "D": "Doubtful",
@@ -2074,16 +2079,23 @@ const DK_STATUS_MAP: Record<string, string> = {
   "None": "Healthy",
 };
 
+const DK_NEWS_ONLY_STATUSES = new Set(["Breaking", "Recent", "Normal", "Latest"]);
+
 function mapDKStatus(status: string, newsStatus: string): { injuryStatus: string; injuryDetail: string } {
   const mapped = DK_STATUS_MAP[status] || DK_STATUS_MAP[newsStatus] || "";
-  const detail = newsStatus && newsStatus !== "None" && newsStatus !== "" ? newsStatus : (status && status !== "None" ? status : "");
+  const isNewsOnly = DK_NEWS_ONLY_STATUSES.has(newsStatus) || DK_NEWS_ONLY_STATUSES.has(status);
   if (!mapped || mapped === "Healthy") {
+    if (isNewsOnly) {
+      return { injuryStatus: "Healthy", injuryDetail: "" };
+    }
+    const detail = newsStatus && newsStatus !== "None" && newsStatus !== "" ? newsStatus : (status && status !== "None" ? status : "");
     if (detail) {
       return { injuryStatus: "Questionable", injuryDetail: detail };
     }
     return { injuryStatus: "Healthy", injuryDetail: "" };
   }
-  return { injuryStatus: mapped, injuryDetail: detail || mapped };
+  const detail = status && status !== "None" && !DK_NEWS_ONLY_STATUSES.has(status) ? status : mapped;
+  return { injuryStatus: mapped, injuryDetail: detail };
 }
 
 export async function refreshPlayerStatuses() {
