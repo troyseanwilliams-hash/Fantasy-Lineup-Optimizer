@@ -516,49 +516,117 @@ export default function ProOptimizer() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-80px)] overflow-hidden" data-testid="pro-optimizer-page">
-      {/* Top Controls Bar - Single Clean Line */}
+      {/* Top Controls Bar */}
       <div className="border-b border-slate-800 bg-slate-900/60 px-4 py-2">
-        <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide">
-          <Badge className={`text-[11px] font-black flex-shrink-0 ${platform === "fanduel" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"}`} data-testid="badge-platform">
-            {config.shortLabel} {sport}
-          </Badge>
+        <div className="flex flex-col gap-2 md:gap-0">
+          {/* Row 1: Slate info + selector */}
+          <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide">
+            <Badge className={`text-[11px] font-black flex-shrink-0 ${platform === "fanduel" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"}`} data-testid="badge-platform">
+              {config.shortLabel} {sport}
+            </Badge>
 
-          {slate && (
-            <span className="text-xs font-black text-amber-400/70 flex-shrink-0" data-testid="pro-slate-date">
-              {new Date(slate.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-            </span>
-          )}
+            {slate && (
+              <span className="text-xs font-black text-amber-400/70 flex-shrink-0" data-testid="pro-slate-date">
+                {new Date(slate.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+              </span>
+            )}
 
-          <div className="h-4 w-px bg-slate-700 flex-shrink-0" />
+            <div className="h-4 w-px bg-slate-700 flex-shrink-0" />
 
-          <select
-            className="bg-slate-800 border border-slate-700 text-white text-xs rounded-lg px-2 py-1 font-bold flex-shrink-0"
-            value={slateId}
-            onChange={e => handleSlateChange(e.target.value)}
-            data-testid="pro-slate-selector"
-          >
-            {mainSlates.map(s => (
-              <option key={s.id} value={s.id}>
-                {s.platform === "fanduel" ? "FD" : "DK"} - {s.name}
-              </option>
-            ))}
-          </select>
+            <select
+              className="bg-slate-800 border border-slate-700 text-white text-xs rounded-lg px-2 py-1 font-bold flex-shrink-0"
+              value={slateId}
+              onChange={e => handleSlateChange(e.target.value)}
+              data-testid="pro-slate-selector"
+            >
+              {mainSlates.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.platform === "fanduel" ? "FD" : "DK"} - {s.name}
+                </option>
+              ))}
+            </select>
 
-          <div className="h-4 w-px bg-slate-700 flex-shrink-0" />
+            {isPro && (
+              <>
+                <div className="h-4 w-px bg-slate-700 flex-shrink-0 hidden md:block" />
+                <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
+                  <label className="text-[10px] font-black text-slate-400 uppercase">Boosts</label>
+                  <Switch checked={useBoosts} onCheckedChange={setUseBoosts} data-testid="toggle-boosts" className="scale-90" />
+                </div>
+                <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
+                  <label className="text-[10px] font-black text-slate-400 uppercase">Injuries</label>
+                  <Switch checked={useInjuryAdjustments} onCheckedChange={setUseInjuryAdjustments} data-testid="toggle-injuries" className="scale-90" />
+                </div>
+                <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
+                  <label className="text-[10px] font-black text-amber-400 uppercase">Leverage</label>
+                  <Switch checked={leverageMode} onCheckedChange={setLeverageMode} data-testid="toggle-leverage" className="scale-90" />
+                </div>
+                <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
+                  <label className="text-[10px] font-black text-purple-400 uppercase">Mode</label>
+                  <button
+                    onClick={() => setProjectionMode(projectionMode === "balanced" ? "ceiling" : "balanced")}
+                    className={`text-[10px] font-black px-2 py-0.5 rounded ${
+                      projectionMode === "ceiling"
+                        ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                        : "bg-slate-700/50 text-slate-400 border border-slate-600/30"
+                    }`}
+                    data-testid="button-projection-mode"
+                  >
+                    {projectionMode === "ceiling" ? "CEILING" : "BALANCED"}
+                  </button>
+                </div>
+              </>
+            )}
 
+            <div className="h-4 w-px bg-slate-700 flex-shrink-0 hidden md:block" />
+
+            <div className="hidden md:flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+              <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Qty</span>
+              <Slider
+                value={[lineupCount]}
+                onValueChange={(v) => setLineupCount(Math.min(v[0], maxLineupSlider))}
+                min={1}
+                max={maxLineupSlider}
+                step={1}
+                className="w-20"
+                data-testid="slider-lineup-count"
+              />
+              <span className="text-xs font-black text-amber-400 min-w-[18px] text-center" data-testid="text-lineup-count">{lineupCount}</span>
+            </div>
+
+            {isPro && lineupCount > 1 && (
+              <div className="hidden md:flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+                <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Max Exp</span>
+                <Slider
+                  value={[globalMaxExposure ?? 100]}
+                  onValueChange={(v) => setGlobalMaxExposure(v[0] === 100 ? null : v[0])}
+                  min={10}
+                  max={100}
+                  step={5}
+                  className="w-20"
+                  data-testid="slider-global-exposure"
+                />
+                <span className={`text-xs font-black min-w-[28px] text-center ${globalMaxExposure ? "text-cyan-400" : "text-slate-500"}`} data-testid="text-global-exposure">
+                  {globalMaxExposure ? `${globalMaxExposure}%` : "Off"}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Row 2 (Mobile only): Toggles + settings */}
           {isPro && (
-            <>
+            <div className="flex md:hidden items-center gap-3 overflow-x-auto scrollbar-hide">
               <div className="flex items-center gap-1.5 flex-shrink-0">
                 <label className="text-[10px] font-black text-slate-400 uppercase">Boosts</label>
-                <Switch checked={useBoosts} onCheckedChange={setUseBoosts} data-testid="toggle-boosts" className="scale-90" />
+                <Switch checked={useBoosts} onCheckedChange={setUseBoosts} data-testid="toggle-boosts-mobile" className="scale-90" />
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0">
                 <label className="text-[10px] font-black text-slate-400 uppercase">Injuries</label>
-                <Switch checked={useInjuryAdjustments} onCheckedChange={setUseInjuryAdjustments} data-testid="toggle-injuries" className="scale-90" />
+                <Switch checked={useInjuryAdjustments} onCheckedChange={setUseInjuryAdjustments} data-testid="toggle-injuries-mobile" className="scale-90" />
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0">
                 <label className="text-[10px] font-black text-amber-400 uppercase">Leverage</label>
-                <Switch checked={leverageMode} onCheckedChange={setLeverageMode} data-testid="toggle-leverage" className="scale-90" />
+                <Switch checked={leverageMode} onCheckedChange={setLeverageMode} data-testid="toggle-leverage-mobile" className="scale-90" />
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0">
                 <label className="text-[10px] font-black text-purple-400 uppercase">Mode</label>
@@ -569,54 +637,70 @@ export default function ProOptimizer() {
                       ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
                       : "bg-slate-700/50 text-slate-400 border border-slate-600/30"
                   }`}
-                  data-testid="button-projection-mode"
+                  data-testid="button-projection-mode-mobile"
                 >
                   {projectionMode === "ceiling" ? "CEILING" : "BALANCED"}
                 </button>
               </div>
-            </>
-          )}
-
-          <div className="h-4 w-px bg-slate-700 flex-shrink-0" />
-
-          <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
-            <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Qty</span>
-            <Slider
-              value={[lineupCount]}
-              onValueChange={(v) => setLineupCount(Math.min(v[0], maxLineupSlider))}
-              min={1}
-              max={maxLineupSlider}
-              step={1}
-              className="w-20"
-              data-testid="slider-lineup-count"
-            />
-            <span className="text-xs font-black text-amber-400 min-w-[18px] text-center" data-testid="text-lineup-count">{lineupCount}</span>
-          </div>
-
-          {isPro && lineupCount > 1 && (
-            <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
-              <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Max Exp</span>
-              <Slider
-                value={[globalMaxExposure ?? 100]}
-                onValueChange={(v) => setGlobalMaxExposure(v[0] === 100 ? null : v[0])}
-                min={10}
-                max={100}
-                step={5}
-                className="w-20"
-                data-testid="slider-global-exposure"
-              />
-              <span className={`text-xs font-black min-w-[28px] text-center ${globalMaxExposure ? "text-cyan-400" : "text-slate-500"}`} data-testid="text-global-exposure">
-                {globalMaxExposure ? `${globalMaxExposure}%` : "Off"}
-              </span>
+              <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+                <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Qty</span>
+                <Slider
+                  value={[lineupCount]}
+                  onValueChange={(v) => setLineupCount(Math.min(v[0], maxLineupSlider))}
+                  min={1}
+                  max={maxLineupSlider}
+                  step={1}
+                  className="w-20"
+                  data-testid="slider-lineup-count-mobile"
+                />
+                <span className="text-xs font-black text-amber-400 min-w-[18px] text-center">{lineupCount}</span>
+              </div>
+              {lineupCount > 1 && (
+                <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+                  <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Max Exp</span>
+                  <Slider
+                    value={[globalMaxExposure ?? 100]}
+                    onValueChange={(v) => setGlobalMaxExposure(v[0] === 100 ? null : v[0])}
+                    min={10}
+                    max={100}
+                    step={5}
+                    className="w-20"
+                    data-testid="slider-global-exposure-mobile"
+                  />
+                  <span className={`text-xs font-black min-w-[28px] text-center ${globalMaxExposure ? "text-cyan-400" : "text-slate-500"}`}>
+                    {globalMaxExposure ? `${globalMaxExposure}%` : "Off"}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
-          <div className="flex items-center gap-2 ml-auto flex-shrink-0">
+          {/* Row 3 (Mobile only for non-Pro): Qty slider */}
+          {!isPro && (
+            <div className="flex md:hidden items-center gap-2">
+              <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+                <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Qty</span>
+                <Slider
+                  value={[lineupCount]}
+                  onValueChange={(v) => setLineupCount(Math.min(v[0], maxLineupSlider))}
+                  min={1}
+                  max={maxLineupSlider}
+                  step={1}
+                  className="w-20"
+                  data-testid="slider-lineup-count-basic-mobile"
+                />
+                <span className="text-xs font-black text-amber-400 min-w-[18px] text-center">{lineupCount}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons Row */}
+          <div className="flex flex-wrap items-center gap-2 pt-1 md:pt-0">
             <Button
               onClick={handleOptimize}
               disabled={optimizeMutation.isPending || slateHasStarted}
               size="sm"
-              className="bg-amber-500 text-black font-black shadow-lg shadow-amber-500/20 h-8 text-xs"
+              className="bg-amber-500 text-black font-black shadow-lg shadow-amber-500/20 text-xs flex-1 md:flex-none"
               data-testid="button-generate"
             >
               {optimizeMutation.isPending ? (
@@ -629,43 +713,53 @@ export default function ProOptimizer() {
 
             {generatedLineups.length > 0 && (
               <>
-              <Button
-                onClick={handleSaveAll}
-                disabled={isSavingAll || saveLineupMutation.isPending || savedIndices.size === generatedLineups.length}
-                variant="outline"
-                size="sm"
-                className={`font-black h-8 text-xs ${savedIndices.size === generatedLineups.length ? "border-emerald-500/30 text-emerald-400" : "border-amber-500/30 text-amber-400"}`}
-                data-testid="button-save-all"
-              >
-                {isSavingAll ? (
-                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                ) : savedIndices.size === generatedLineups.length ? (
-                  <Trophy className="w-3.5 h-3.5 mr-1.5" />
-                ) : (
-                  <SaveAll className="w-3.5 h-3.5 mr-1.5" />
-                )}
-                {savedIndices.size === generatedLineups.length
-                  ? "All Saved"
-                  : isSavingAll
-                    ? `Saving ${savedIndices.size}/${generatedLineups.length}...`
-                    : savedIndices.size > 0
-                      ? `Save Remaining (${generatedLineups.length - savedIndices.size})`
-                      : `Save All (${generatedLineups.length})`}
-              </Button>
-              <Button
-                onClick={handleExportCSV}
-                variant="outline"
-                size="sm"
-                className="font-black h-8 text-xs border-cyan-500/30 text-cyan-400"
-                data-testid="button-export-csv"
-              >
-                <Download className="w-3.5 h-3.5 mr-1.5" />
-                Export CSV
-              </Button>
+                <Button
+                  onClick={handleSaveAll}
+                  disabled={isSavingAll || saveLineupMutation.isPending || savedIndices.size === generatedLineups.length}
+                  variant="outline"
+                  size="sm"
+                  className={`font-black text-xs flex-1 md:flex-none ${savedIndices.size === generatedLineups.length ? "border-emerald-500/30 text-emerald-400" : "border-amber-500/30 text-amber-400"}`}
+                  data-testid="button-save-all"
+                >
+                  {isSavingAll ? (
+                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  ) : savedIndices.size === generatedLineups.length ? (
+                    <Trophy className="w-3.5 h-3.5 mr-1.5" />
+                  ) : (
+                    <SaveAll className="w-3.5 h-3.5 mr-1.5" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {savedIndices.size === generatedLineups.length
+                      ? "All Saved"
+                      : isSavingAll
+                        ? `Saving ${savedIndices.size}/${generatedLineups.length}...`
+                        : savedIndices.size > 0
+                          ? `Save (${generatedLineups.length - savedIndices.size})`
+                          : `Save All (${generatedLineups.length})`}
+                  </span>
+                  <span className="sm:hidden">
+                    {savedIndices.size === generatedLineups.length
+                      ? "Saved"
+                      : isSavingAll
+                        ? `${savedIndices.size}/${generatedLineups.length}`
+                        : `Save ${savedIndices.size > 0 ? generatedLineups.length - savedIndices.size : "All"}`}
+                  </span>
+                </Button>
+                <Button
+                  onClick={handleExportCSV}
+                  variant="outline"
+                  size="sm"
+                  className="font-black text-xs border-cyan-500/30 text-cyan-400 flex-1 md:flex-none"
+                  data-testid="button-export-csv"
+                >
+                  <Download className="w-3.5 h-3.5 mr-1.5" />
+                  <span className="hidden sm:inline">Export CSV</span>
+                  <span className="sm:hidden">CSV</span>
+                </Button>
               </>
             )}
 
-            <Button variant="ghost" size="sm" onClick={handleReset} className="text-slate-400 font-bold h-8 text-xs" data-testid="button-reset">
+            <Button variant="ghost" size="sm" onClick={handleReset} className="text-slate-400 font-bold text-xs" data-testid="button-reset">
               Reset
             </Button>
           </div>
