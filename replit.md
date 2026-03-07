@@ -38,8 +38,8 @@ Preferred communication style: Simple, everyday language.
 - **DK Entries Import** (Champion only): Upload DraftKings entries CSV to import lineups into the vault. CSV parsed client-side to extract Entry ID, Contest Name, Contest ID, Entry Fee, and player DK IDs (from `Name (ID)` format). Players matched by `draftKingsPlayerId` against active slate. Imported lineups store DK metadata in `dkEntryId`, `dkContestName`, `dkContestId`, `dkEntryFee` columns. Export preserves DK format with Entry ID/Contest columns for re-upload. Existing swap/regenerate/save features work on imported entries.
   - **Route**: `POST /api/lineups/import-dk` — accepts `{entries, sport, slateId}`, matches players by DK ID, validates roster, creates lineups
   - **Key Files**: `client/src/pages/SavedLineups.tsx` (parseCSVRow, parseDKEntryCSV, handleDKImport, buildDraftKingsCSV with DK entry columns)
-- **Bulk Generate**: Select 1+ lineups in the vault and click "Generate" to create a new optimized lineup for each selected one. Uses LP optimizer with noise perturbation to produce unique lineups on the same slate. Respects tier lineup limits and injury handling. Generated lineups named "Generated · {sport}".
-  - **Route**: `POST /api/lineups/bulk-generate` — accepts `{ids: number[]}`, runs optimizer per lineup, saves new lineups
+- **Bulk Regenerate**: Select 1+ lineups in the vault and click "Regenerate" to replace each selected lineup's roster with a freshly optimized one using the advanced algorithm (boost engine, ceiling mode, leverage mode, correlation scoring, exposure management). Updates lineups in place — no new entries created — so they can be exported directly. Paid tiers only (Sharpshooter/Champion).
+  - **Route**: `POST /api/lineups/bulk-generate` — accepts `{ids: number[]}`, runs advanced optimizer per lineup, updates existing lineups in place
   - **Key Files**: `client/src/pages/SavedLineups.tsx` (bulkGenerateMutation), `server/routes.ts`
 
 ### Platform Configuration
