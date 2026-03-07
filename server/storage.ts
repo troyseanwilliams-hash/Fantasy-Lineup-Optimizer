@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, inArray, lt, gte, desc } from "drizzle-orm";
+import { eq, and, inArray, lt, gte, desc, isNull, isNotNull, ne } from "drizzle-orm";
 import {
   slates, players, lineups, subscriptions, props, alerts, prizePicksEntries,
   type Slate, type InsertSlate,
@@ -38,7 +38,10 @@ export interface IStorage extends IAuthStorage {
   getAllActiveLineups(): Promise<Lineup[]>;
 
   getSubscription(userId: string): Promise<Subscription | undefined>;
+  getSubscriptionByStripeCustomerId(customerId: string): Promise<Subscription | undefined>;
   upsertSubscription(sub: InsertSubscription): Promise<Subscription>;
+  getExpiredGraceSubscriptions(): Promise<Subscription[]>;
+  getUnpaidPremiumSubscriptions(): Promise<Subscription[]>;
 
   getPropsByDate(date: string, sport?: string): Promise<Prop[]>;
   bulkCreateProps(props: InsertProp[]): Promise<Prop[]>;
@@ -246,6 +249,31 @@ export class DatabaseStorage implements IStorage {
     }
     const [created] = await db.insert(subscriptions).values(sub).returning();
     return created;
+  }
+
+  async getSubscriptionByStripeCustomerId(customerId: string): Promise<Subscription | undefined> {
+    const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.stripeCustomerId, customerId));
+    return sub;
+  }
+
+  async getExpiredGraceSubscriptions(): Promise<Subscription[]> {
+    return await db.select().from(subscriptions).where(
+      and(
+        isNotNull(subscriptions.graceEndsAt),
+        lt(subscriptions.graceEndsAt, new Date()),
+        ne(subscriptions.tier, "free")
+      )
+    );
+  }
+
+  async getUnpaidPremiumSubscriptions(): Promise<Subscription[]> {
+    return await db.select().from(subscriptions).where(
+      and(
+        ne(subscriptions.tier, "free"),
+        isNull(subscriptions.stripeSubscriptionId),
+        isNull(subscriptions.graceEndsAt)
+      )
+    );
   }
 
   async getPropsByDate(date: string, sport?: string): Promise<Prop[]> {
