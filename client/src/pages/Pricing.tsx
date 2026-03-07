@@ -216,6 +216,7 @@ export default function Pricing() {
         </Card>
 
         <Card className={`bg-[#1E293B] border-emerald-500/30 p-8 relative ${currentTier === "star" ? "ring-2 ring-emerald-500" : ""}`} data-testid="plan-star">
+
           {currentTier === "star" ? (
             <Badge className="absolute -top-3 left-6 bg-emerald-500 text-black text-[11px] font-black">CURRENT PLAN</Badge>
           ) : currentTier === "free" ? (
@@ -278,13 +279,13 @@ export default function Pricing() {
               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
               <span className="font-bold">Multi-lineup generation (up to 5)</span>
             </li>
-            <li className="flex items-center gap-3 text-sm text-slate-400">
-              <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
-              <span>No AI boost analysis</span>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span className="font-bold">Ownership projections</span>
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-400">
               <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
-              <span>No ownership projections</span>
+              <span>No AI boost analysis</span>
             </li>
           </ul>
           {currentTier === "star" && hasActiveStripeSubscription ? (

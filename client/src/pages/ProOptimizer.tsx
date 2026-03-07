@@ -804,14 +804,14 @@ export default function ProOptimizer() {
                   <SortHeader label="Salary" field="salary" />
                   <SortHeader label="Base Proj" field="projectedPoints" />
                   <SortHeader label="Boosted Proj" field="boostedProj" />
-                  {isPro ? (
+                  {hasPaidAccess ? (
                     <SortHeader label="Own%" field="ownershipProjection" />
                   ) : (
                     <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-center">
                       <div className="flex items-center justify-center gap-1 text-amber-500/70">
                         <Lock className="w-3 h-3" />
                         <span>Own%</span>
-                        <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[8px] px-1 py-0 font-black">PRO</Badge>
+                        <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[8px] px-1 py-0 font-black">STAR+</Badge>
                       </div>
                     </th>
                   )}
@@ -921,7 +921,7 @@ export default function ProOptimizer() {
                           )}
                         </div>
                       </td>
-                      {isPro ? (
+                      {hasPaidAccess ? (
                         <td className="px-3 py-2">
                           <div className="flex items-center gap-1" data-testid={`text-own-${player.id}`}>
                             <Users className="w-3 h-3 text-slate-500" />
@@ -1028,8 +1028,7 @@ export default function ProOptimizer() {
             </div>
           )}
 
-          {/* Pro Upgrade Banner for non-Pro users */}
-          {!isPro && (
+          {!hasPaidAccess && (
             <div className="border-t border-amber-500/20 bg-gradient-to-r from-amber-500/5 via-amber-500/10 to-amber-500/5 px-4 py-3" data-testid="pro-upgrade-banner">
               <Link href="/pricing">
                 <div className="flex items-center justify-between cursor-pointer group">
@@ -1038,7 +1037,7 @@ export default function ProOptimizer() {
                       <Crown className="w-4 h-4 text-amber-400" />
                     </div>
                     <div>
-                      <p className="text-xs font-black text-amber-400 uppercase tracking-wider">Unlock Champion Features</p>
+                      <p className="text-xs font-black text-amber-400 uppercase tracking-wider">Unlock Sharpshooter Features</p>
                       <p className="text-[11px] text-slate-400 mt-0.5">Ownership projections, player fading, and contrarian lineup building</p>
                     </div>
                   </div>
@@ -1239,7 +1238,7 @@ export default function ProOptimizer() {
                               <span className="text-[10px] text-slate-500">{p.team} · ${p.salary.toLocaleString()}</span>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
-                              {isPro && (
+                              {hasPaidAccess && (
                                 <div className="text-right">
                                   <div className="text-[10px] text-slate-500 font-bold">Own%</div>
                                   <div className="text-[11px] font-black text-purple-400">{p.ownershipProjection}%</div>
@@ -1409,7 +1408,7 @@ export default function ProOptimizer() {
                                     <span className={`font-bold flex-1 truncate ${fadedIds.includes(p.id) ? "text-purple-300" : "text-white"}`}>{p.name}</span>
                                     <PlayerStarRating stars={getPlayerStarCount(Number(p.projectedPoints))} />
                                     <span className="text-slate-400 font-mono">${p.salary.toLocaleString()}</span>
-                                    {isPro && <span className="text-purple-400/70 font-mono text-[10px] w-10 text-right">{((p as any).ownershipProjection ?? 0).toFixed(0)}%</span>}
+                                    {hasPaidAccess && <span className="text-purple-400/70 font-mono text-[10px] w-10 text-right">{((p as any).ownershipProjection ?? 0).toFixed(0)}%</span>}
                                     <span className="text-emerald-400 font-mono font-bold">{Number(p.projectedPoints).toFixed(1)}</span>
                                   </>
                                 ) : (
