@@ -515,14 +515,16 @@ export default function SavedLineups() {
                       >
                         <Trash2 className="w-4 h-4 mr-2" /> Delete {selectedIds.size}
                       </Button>
-                      <Button
-                        onClick={() => bulkGenerateMutation.mutate(Array.from(selectedIds))}
-                        disabled={bulkGenerateMutation.isPending}
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                        data-testid="bulk-generate-btn"
-                      >
-                        <Zap className="w-4 h-4 mr-2" /> {bulkGenerateMutation.isPending ? "Generating..." : `Generate ${selectedIds.size}`}
-                      </Button>
+                      {isPaid && (
+                        <Button
+                          onClick={() => bulkGenerateMutation.mutate(Array.from(selectedIds))}
+                          disabled={bulkGenerateMutation.isPending}
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                          data-testid="bulk-generate-btn"
+                        >
+                          <Zap className="w-4 h-4 mr-2" /> {bulkGenerateMutation.isPending ? "Generating..." : `Generate ${selectedIds.size}`}
+                        </Button>
+                      )}
                       {isPaid && (
                         <Button
                           onClick={handleBulkExport}
