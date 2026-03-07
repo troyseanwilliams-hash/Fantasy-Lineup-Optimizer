@@ -334,6 +334,25 @@ export async function registerRoutes(
 
       const allPlayers = await storage.getPlayersBySlate(input.slateId);
       const rosterPlayers = allPlayers.filter(p => input.playerIds.includes(p.id));
+
+      const slate = await storage.getSlate(input.slateId);
+      if (!slate) {
+        return res.status(400).json({ message: "Slate not found" });
+      }
+      const config = getPlatformConfig(slate.sport, input.platform as Platform);
+      if (rosterPlayers.length !== config.rosterSize) {
+        return res.status(400).json({ message: `Roster must have exactly ${config.rosterSize} players` });
+      }
+      const totalSalary = rosterPlayers.reduce((s, p) => s + p.salary, 0);
+      if (totalSalary > config.salaryCap) {
+        return res.status(400).json({ message: `Total salary $${totalSalary.toLocaleString()} exceeds cap of $${config.salaryCap.toLocaleString()}` });
+      }
+      const slotResult = assignPlayersToSlots(rosterPlayers, config.slots, slate.sport);
+      const unfilledSlots = config.slots.filter(s => !slotResult[s]);
+      if (unfilledSlots.length > 0) {
+        return res.status(400).json({ message: `Cannot fill all roster slots. Missing: ${unfilledSlots.map(s => s.replace(/\d+$/, "")).join(", ")}` });
+      }
+
       const playerSnapshot = rosterPlayers.map(p => ({
         id: p.id,
         name: p.name,
