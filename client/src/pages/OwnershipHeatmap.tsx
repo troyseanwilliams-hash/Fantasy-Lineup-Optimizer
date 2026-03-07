@@ -105,10 +105,10 @@ export default function OwnershipHeatmap() {
           <div>
             <div className="flex items-center gap-3 mb-1">
               <Users className="w-6 h-6 text-amber-400" />
-              <h1 className="text-2xl font-black text-white" data-testid="ownership-title">Ownership Heatmap</h1>
+              <h1 className="text-2xl font-black text-white" data-testid="ownership-title">Projected Ownership Heatmap</h1>
               <Badge className="bg-slate-500/20 text-slate-400 border-slate-500/30 text-[10px] font-black">ADMIN</Badge>
             </div>
-            <p className="text-sm text-slate-400">Top-owned players by position — find chalk and contrarian plays</p>
+            <p className="text-sm text-slate-400">Projected ownership by position — find chalk and contrarian plays</p>
           </div>
 
           <div className="flex items-center gap-3">
@@ -158,7 +158,7 @@ export default function OwnershipHeatmap() {
                 <Card className={`${sportColors.bg} ${sportColors.border} border p-5`} data-testid="chalk-player-card">
                   <div className="flex items-center gap-2 mb-3">
                     <Flame className="w-5 h-5 text-red-400" />
-                    <span className="text-xs font-black text-red-400 uppercase tracking-widest">Highest Owned</span>
+                    <span className="text-xs font-black text-red-400 uppercase tracking-widest">Highest Projected Ownership</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
@@ -167,7 +167,7 @@ export default function OwnershipHeatmap() {
                     </div>
                     <div className="text-right">
                       <p className="text-2xl font-black text-red-400" data-testid="chalk-player-own">{ownershipData.chalkPlayer.ownershipProjection}%</p>
-                      <p className="text-[11px] text-slate-400 font-bold">Own%</p>
+                      <p className="text-[11px] text-slate-400 font-bold">Proj. Own%</p>
                     </div>
                   </div>
                 </Card>
@@ -184,7 +184,7 @@ export default function OwnershipHeatmap() {
                     </div>
                     <div className="text-right">
                       <p className="text-2xl font-black text-purple-400" data-testid="contrarian-player-own">{ownershipData.contrarianPlayer.ownershipProjection}%</p>
-                      <p className="text-[11px] text-slate-400 font-bold">Own%</p>
+                      <p className="text-[11px] text-slate-400 font-bold">Proj. Own%</p>
                     </div>
                   </div>
                 </Card>

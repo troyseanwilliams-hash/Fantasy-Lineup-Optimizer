@@ -322,11 +322,11 @@ export default function SavedLineups() {
                       <option value="projection_low">Projection: Low → High</option>
                       {isPaid ? (
                         <>
-                          <option value="ownership_high">Ownership: High → Low</option>
-                          <option value="ownership_low">Ownership: Low → High</option>
+                          <option value="ownership_high">Proj. Ownership: High → Low</option>
+                          <option value="ownership_low">Proj. Ownership: Low → High</option>
                         </>
                       ) : (
-                        <option value="newest" disabled>🔒 Ownership Sort (Sharpshooter+)</option>
+                        <option value="newest" disabled>🔒 Proj. Ownership Sort (Sharpshooter+)</option>
                       )}
                       <option value="salary_high">Salary: High → Low</option>
                       <option value="salary_low">Salary: Low → High</option>
@@ -806,7 +806,7 @@ function LineupCard({
             </div>
             {isPaid ? (
               <div className="text-right">
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Own%</p>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Proj. Own%</p>
                 <p className={`text-lg font-black tabular-nums ${
                   (lineup.totalOwnership ?? 0) >= 150 ? "text-red-400" :
                   (lineup.totalOwnership ?? 0) >= 100 ? "text-amber-400" :

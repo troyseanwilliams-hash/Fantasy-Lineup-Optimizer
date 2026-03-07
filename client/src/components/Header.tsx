@@ -236,7 +236,7 @@ export function Header() {
                   location === "/ownership" ? "text-amber-400" : "text-slate-400 hover:text-white"
                 }`} data-testid="nav-ownership">
                   <Users className="w-4 h-4" />
-                  <span>Ownership</span>
+                  <span>Proj. Ownership</span>
                   <Crown className="w-3 h-3 text-amber-400" />
                 </div>
               </Link>
@@ -502,7 +502,7 @@ export function Header() {
                 data-testid="mobile-nav-ownership"
               >
                 <Users className="w-5 h-5 shrink-0" />
-                <span>Ownership</span>
+                <span>Proj. Ownership</span>
                 <Crown className="w-3 h-3 text-amber-400 ml-auto" />
               </button>
             )}

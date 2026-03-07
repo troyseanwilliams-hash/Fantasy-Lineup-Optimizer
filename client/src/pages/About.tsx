@@ -10,7 +10,7 @@ const FEATURES = [
   {
     icon: BarChart3,
     title: "AI Lineup Optimizer",
-    description: "Generate mathematically optimal DraftKings lineups using advanced algorithms that analyze projections, correlations, and ownership data.",
+    description: "Generate mathematically optimal DraftKings lineups using advanced algorithms that analyze projections, correlations, and projected ownership data.",
     color: "text-emerald-400",
     bg: "from-emerald-500/20 to-emerald-500/5",
   },
