@@ -2448,6 +2448,25 @@ export async function seedDatabase(forceRefresh = false) {
   }
 
   await generatePlayerBoostsAndInjuries();
+
+  // One-time tier upgrade for Cole Seibel
+  try {
+    const [coleUser] = await db.select().from(users).where(eq(users.email, "cbseibel@yahoo.com"));
+    if (coleUser) {
+      await storage.upsertSubscription({
+        userId: coleUser.id,
+        tier: "pro",
+        status: "active",
+        stripeSubscriptionId: null,
+        stripePriceId: null,
+        currentPeriodEnd: null,
+        graceEndsAt: null,
+      });
+      console.log("[Admin] Upgraded cbseibel@yahoo.com to Champion (pro) tier");
+    }
+  } catch (err) {
+    console.error("[Admin] Cole tier upgrade error:", err);
+  }
 }
 
 export async function generatePlayerBoostsAndInjuries() {
