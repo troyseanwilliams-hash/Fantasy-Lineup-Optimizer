@@ -246,7 +246,7 @@ export async function registerRoutes(
       }
 
       const autoExcluded = allPlayers
-        .filter(p => p.injuryStatus === "OUT" && !constraints.excludedPlayerIds.includes(p.id))
+        .filter(p => (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") && !constraints.excludedPlayerIds.includes(p.id))
         .map(p => p.id);
       const inactiveExcluded = getInactivePlayerIds(allPlayers, slate.sport)
         .filter(id => !constraints.lockedPlayerIds.includes(id));
@@ -256,7 +256,6 @@ export async function registerRoutes(
         const customProj = constraints.playerProjections?.[p.id.toString()];
         let proj = customProj !== undefined ? customProj.toString() : p.projectedPoints;
         if (p.injuryStatus === "Doubtful") proj = (Number(proj) * 0.3).toString();
-        else if (p.injuryStatus === "Questionable") proj = (Number(proj) * 0.7).toString();
         else if (p.injuryStatus === "Probable") proj = (Number(proj) * 0.9).toString();
         return { ...p, projectedPoints: proj };
       });
@@ -561,9 +560,8 @@ export async function registerRoutes(
           let pts = Number(p.projectedPoints);
           if (useBoosts && p.boostScore) pts += Number(p.boostScore);
           if (p.injuryStatus) {
-            if (p.injuryStatus === "OUT") pts = 0;
+            if (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") pts = 0;
             else if (p.injuryStatus === "Doubtful") pts *= 0.3;
-            else if (p.injuryStatus === "Questionable") pts *= 0.7;
             else if (p.injuryStatus === "Probable") pts *= 0.9;
           }
           return { ...p, projectedPoints: pts.toString() };
@@ -579,7 +577,7 @@ export async function registerRoutes(
           pool = applyLeverageMode(playersWithOwnership);
         }
 
-        const baseExcluded = allPlayers.filter(p => p.injuryStatus === "OUT").map(p => p.id);
+        const baseExcluded = allPlayers.filter(p => p.injuryStatus === "OUT" || p.injuryStatus === "Questionable").map(p => p.id);
         const inactiveExcluded = getInactivePlayerIds(allPlayers, slate.sport)
           .filter(id => !baseExcluded.includes(id));
         baseExcluded.push(...inactiveExcluded);
@@ -1519,12 +1517,10 @@ export async function registerRoutes(
         }
 
         if (p.injuryStatus) {
-          if (p.injuryStatus === "OUT") {
+          if (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") {
             boostedPoints = 0;
           } else if (p.injuryStatus === "Doubtful") {
             boostedPoints *= 0.3;
-          } else if (p.injuryStatus === "Questionable") {
-            boostedPoints *= 0.7;
           } else if (p.injuryStatus === "Probable") {
             boostedPoints *= 0.9;
           }
@@ -1553,7 +1549,7 @@ export async function registerRoutes(
 
       const baseExcluded = [...constraints.excludedPlayerIds];
       allPlayers.forEach(p => {
-        if (p.injuryStatus === "OUT" && !baseExcluded.includes(p.id)) {
+        if ((p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") && !baseExcluded.includes(p.id)) {
           baseExcluded.push(p.id);
         }
       });
@@ -1978,7 +1974,7 @@ function getInactivePlayerIds(players: Player[], sport: string): number[] {
   }
 
   for (const p of players) {
-    if (p.injuryStatus === "OUT") continue;
+    if (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") continue;
     if (p.salary > minSalary * 1.1) continue;
 
     const fppg = Number(p.fppg) || 0;
