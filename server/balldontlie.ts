@@ -15,6 +15,8 @@ const DK_STATUS_MAP: Record<string, string> = {
   "P": "Probable",
   "Probable": "Probable",
   "GTD": "Questionable",
+  "DTD": "Questionable",
+  "Day-To-Day": "Questionable",
   "IR": "OUT",
   "Injured Reserve": "OUT",
   "Suspended": "OUT",
