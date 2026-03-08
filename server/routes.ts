@@ -58,8 +58,11 @@ export async function registerRoutes(
       if (!userId) return res.status(401).json({ message: "Not authenticated" });
 
       const dbUser = await storage.getUser(userId);
-      if (!dbUser?.isAdmin) {
-        return res.status(403).json({ message: "This feature is currently unavailable" });
+      const isAdmin = dbUser?.isAdmin === true;
+      const sub = await storage.getSubscription(userId);
+      const tier = isAdmin ? "pro" : (sub?.tier || "free");
+      if (tier !== "pro") {
+        return res.status(403).json({ message: "Upgrade to Champion to access ownership projections" });
       }
 
       const slateId = Number(req.params.slateId);

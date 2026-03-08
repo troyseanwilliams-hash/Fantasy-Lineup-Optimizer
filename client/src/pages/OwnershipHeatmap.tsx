@@ -59,7 +59,14 @@ export default function OwnershipHeatmap() {
     enabled: !!user,
   });
 
+  const { data: subscription } = useQuery<any>({
+    queryKey: ["/api/subscription"],
+    enabled: !!user,
+  });
+
   const isAdmin = user?.isAdmin === true;
+  const tier = subscription?.tier || "free";
+  const hasAccess = isAdmin || tier === "pro";
   const mainSlates = slates?.filter(s => s.isMain && s.platform === "draftkings") || [];
   const availableSports = ACTIVE_SPORTS.filter(s => mainSlates.some(sl => sl.sport === s));
   const [selectedSport, setSelectedSport] = useState<string>("");
@@ -76,7 +83,7 @@ export default function OwnershipHeatmap() {
       if (!res.ok) throw new Error("Failed to fetch ownership data");
       return res.json();
     },
-    enabled: !!activeSlate && isAdmin,
+    enabled: !!activeSlate && hasAccess,
     refetchInterval: (query) => {
       const data = query.state.data;
       const hasPositions = data?.positions && Object.keys(data.positions).length > 0;
@@ -85,15 +92,15 @@ export default function OwnershipHeatmap() {
     staleTime: 60000,
   });
 
-  if (!user || !isAdmin) {
+  if (!user || !hasAccess) {
     return (
       <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-6">
         <Card className="bg-[#1E293B] border-slate-700 p-8 max-w-md text-center" data-testid="ownership-unavailable">
           <Lock className="w-12 h-12 text-slate-500 mx-auto mb-4" />
-          <h2 className="text-xl font-black text-white mb-2">Coming Soon</h2>
-          <p className="text-sm text-slate-400 mb-6">This feature is currently under development. Check back soon!</p>
-          <Link href="/">
-            <Button className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold" data-testid="ownership-go-home">Go to Dashboard</Button>
+          <h2 className="text-xl font-black text-white mb-2">Champion Feature</h2>
+          <p className="text-sm text-slate-400 mb-6">Projected ownership heatmaps are available on the Champion plan. Upgrade to unlock.</p>
+          <Link href="/pricing">
+            <Button className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold" data-testid="ownership-go-pricing">Upgrade to Champion</Button>
           </Link>
         </Card>
       </div>
@@ -118,7 +125,7 @@ export default function OwnershipHeatmap() {
             <div className="flex items-center gap-3 mb-1">
               <Users className="w-6 h-6 text-amber-400" />
               <h1 className="text-2xl font-black text-white" data-testid="ownership-title">Projected Ownership Heatmap</h1>
-              <Badge className="bg-slate-500/20 text-slate-400 border-slate-500/30 text-[10px] font-black">ADMIN</Badge>
+              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[10px] font-black">CHAMPION</Badge>
             </div>
             <p className="text-sm text-slate-400">Projected ownership by position — find chalk and contrarian plays</p>
           </div>
