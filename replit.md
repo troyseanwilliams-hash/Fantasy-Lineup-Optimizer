@@ -62,12 +62,12 @@ Preferred communication style: Simple, everyday language.
 - **Pipeline**: `computePopularityScores()` → `softmaxTransform(temperature)` → `normalizeOwnership(ceiling, floor)` → tier assignment (chalk/popular/mid/low/contrarian)
 - **Exported functions**: `calculateOwnership(players, sport, contestType, bdlStats)`, `computeOwnershipForPlayers(players, results)`, `getOwnershipConfig(sport)`, `getSupportedSports()`
 
-### Ownership Heatmap (Admin-only)
+### Ownership Heatmap (Champion-only)
 - **Route**: `/ownership` — shows top-owned players by position for a selected sport/slate with contest type selector (GPP Large, GPP Small, Cash)
 - **APIs**:
-  - `GET /api/ownership/:slateId?contestType=gpp_large` — returns players grouped by position with ownership projections, chalk player, and contrarian value pick
-  - `GET /api/ownership/:slateId/projections?contestType=gpp_large` — returns full player ownership list as JSON (paid tiers + admin)
-- **Gating**: Heatmap is admin-only; projections endpoint requires Sharpshooter/Champion/admin
+  - `GET /api/ownership/:slateId?contestType=gpp_large` — returns players grouped by position with ownership projections, chalk player, and contrarian value pick (Champion + admin)
+  - `GET /api/ownership/:slateId/projections?contestType=gpp_large` — returns full player ownership list as JSON (Sharpshooter/Champion + admin)
+- **Gating**: Heatmap requires Champion tier (`tier === "pro"`) or admin; projections endpoint requires Sharpshooter/Champion/admin
 - **Key Files**: `client/src/pages/OwnershipHeatmap.tsx`, `server/ownership-engine.ts`, `server/balldontlie-stats.ts`
 
 ### Subscription System
