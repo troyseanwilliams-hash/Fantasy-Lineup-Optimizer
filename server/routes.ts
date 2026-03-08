@@ -249,7 +249,8 @@ export async function registerRoutes(
       if (isLoggedIn(req)) {
         const userId = getSessionUserId(req)!;
         const sub = await storage.getSubscription(userId);
-        const tier = sub?.tier || "free";
+        const optUser = await storage.getUser(userId);
+        const tier = optUser?.isAdmin ? "pro" : (sub?.tier || "free");
         if (tier === "free") {
           const lineupCount = await storage.getLineupCount(userId);
           if (lineupCount >= 1) {
@@ -338,7 +339,9 @@ export async function registerRoutes(
       const userId = getSessionUserId(req)!;
 
       const sub = await storage.getSubscription(userId);
-      const tier = sub?.tier || "free";
+      const dbUser = await storage.getUser(userId);
+      const isAdmin = dbUser?.isAdmin === true;
+      const tier = isAdmin ? "pro" : (sub?.tier || "free");
       const maxPerSport = tier === "pro" ? 150 : tier === "star" ? 20 : 1;
 
       const sportCount = await storage.getLineupCountBySport(userId, input.sport);
@@ -406,7 +409,9 @@ export async function registerRoutes(
     const userId = getSessionUserId(req)!;
 
     const sub = await storage.getSubscription(userId);
-    const tier = sub?.tier || "free";
+    const dbUser = await storage.getUser(userId);
+    const isAdmin = dbUser?.isAdmin === true;
+    const tier = isAdmin ? "pro" : (sub?.tier || "free");
     if (tier !== "star" && tier !== "pro") {
       return res.status(403).json({ message: "Review lineups require a Star or Pro subscription." });
     }
@@ -535,7 +540,9 @@ export async function registerRoutes(
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "No lineup IDs provided" });
 
     const sub = await storage.getSubscription(userId);
-    const tier = sub?.tier || "free";
+    const dbUser = await storage.getUser(userId);
+    const isAdmin = dbUser?.isAdmin === true;
+    const tier = isAdmin ? "pro" : (sub?.tier || "free");
     if (tier !== "pro" && tier !== "star") {
       return res.status(403).json({ message: "Sharpshooter or Champion subscription required.", requiresUpgrade: true });
     }
@@ -703,7 +710,9 @@ export async function registerRoutes(
     const userId = getSessionUserId(req)!;
 
     const sub = await storage.getSubscription(userId);
-    const tier = sub?.tier || "free";
+    const dbUser = await storage.getUser(userId);
+    const isAdmin = dbUser?.isAdmin === true;
+    const tier = isAdmin ? "pro" : (sub?.tier || "free");
     if (tier !== "pro") {
       return res.status(403).json({ message: "DK Entries import is a Champion-only feature." });
     }
@@ -821,7 +830,9 @@ export async function registerRoutes(
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const userId = getSessionUserId(req)!;
     const sub = await storage.getSubscription(userId);
-    const tier = sub?.tier || "free";
+    const dbUser = await storage.getUser(userId);
+    const isAdmin = dbUser?.isAdmin === true;
+    const tier = isAdmin ? "pro" : (sub?.tier || "free");
     const lineupCount = await storage.getLineupCount(userId);
 
     const sportCounts: Record<string, number> = {};
@@ -1151,7 +1162,9 @@ export async function registerRoutes(
       if (!isLoggedIn(req)) return res.sendStatus(401);
       const userId = getSessionUserId(req)!;
       const sub = await storage.getSubscription(userId);
-      if (!sub || sub.tier !== "pro") {
+      const ppUser = await storage.getUser(userId);
+      const ppIsAdmin = ppUser?.isAdmin === true;
+      if (!ppIsAdmin && (!sub || sub.tier !== "pro")) {
         return res.status(403).json({ error: "Pro subscription required" });
       }
 
@@ -1194,7 +1207,9 @@ export async function registerRoutes(
       if (!isLoggedIn(req)) return res.sendStatus(401);
       const userId = getSessionUserId(req)!;
       const sub = await storage.getSubscription(userId);
-      if (!sub || sub.tier !== "pro") {
+      const ppUser2 = await storage.getUser(userId);
+      const ppIsAdmin2 = ppUser2?.isAdmin === true;
+      if (!ppIsAdmin2 && (!sub || sub.tier !== "pro")) {
         return res.status(403).json({ error: "Pro subscription required" });
       }
       const sport = req.params.sport.toUpperCase();
@@ -1245,7 +1260,9 @@ export async function registerRoutes(
       if (!isLoggedIn(req)) return res.sendStatus(401);
       const userId = getSessionUserId(req)!;
       const sub = await storage.getSubscription(userId);
-      if (!sub || sub.tier !== "pro") {
+      const ppUser3 = await storage.getUser(userId);
+      const ppIsAdmin3 = ppUser3?.isAdmin === true;
+      if (!ppIsAdmin3 && (!sub || sub.tier !== "pro")) {
         return res.status(403).json({ error: "Pro subscription required" });
       }
 
@@ -1507,7 +1524,9 @@ export async function registerRoutes(
       if (!isLoggedIn(req)) return res.sendStatus(401);
       const userId = getSessionUserId(req)!;
       const sub = await storage.getSubscription(userId);
-      const tier = sub?.tier || "free";
+      const dbUser = await storage.getUser(userId);
+      const isAdmin = dbUser?.isAdmin === true;
+      const tier = isAdmin ? "pro" : (sub?.tier || "free");
       if (tier !== "pro" && tier !== "star") {
         return res.status(403).json({ message: "Star or Pro subscription required for advanced optimizer.", requiresUpgrade: true });
       }
@@ -1739,7 +1758,8 @@ export async function registerRoutes(
       isAuthenticated = true;
       const userId = getSessionUserId(req)!;
       const sub = await storage.getSubscription(userId);
-      tier = sub?.tier || "free";
+      const propsUser = await storage.getUser(userId);
+      tier = propsUser?.isAdmin ? "pro" : (sub?.tier || "free");
     }
 
     const maxPerSport = !isAuthenticated ? 0 : tier === "pro" ? 15 : tier === "star" ? 5 : 2;
