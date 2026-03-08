@@ -60,9 +60,9 @@ export default function Optimizer() {
     catch { return getPlatformConfig("NBA", "draftkings"); }
   }, [sport, platform]);
 
-  const mainSlates = useMemo(() => {
+  const sportSlates = useMemo(() => {
     if (!slates) return [];
-    return slates.filter(s => s.isMain && s.sport === sport);
+    return slates.filter(s => s.sport === sport);
   }, [slates, sport]);
 
   const playerUrl = buildUrl("/api/slates/:id/players", { id: slateId });
@@ -426,14 +426,26 @@ export default function Optimizer() {
               <select
                 className="bg-slate-800 border border-slate-700 text-white text-sm rounded-lg px-3 py-1.5 font-bold"
                 value={slateId}
-                onChange={e => handleSlateChange(e.target.value)}
+                onChange={e => {
+                  const selectedSlate = sportSlates.find(s => String(s.id) === e.target.value);
+                  const userTier = subData?.tier || "free";
+                  const isUserAdmin = (user as any)?.isAdmin === true;
+                  if (selectedSlate && !selectedSlate.isMain && userTier !== "pro" && !isUserAdmin) {
+                    toast({ title: "Champion Feature", description: "Additional slates require a Champion subscription. Visit the Pricing page to upgrade.", variant: "destructive" });
+                    return;
+                  }
+                  handleSlateChange(e.target.value);
+                }}
                 data-testid="slate-selector"
               >
-                {mainSlates.map(s => {
+                {sportSlates.map(s => {
                   const locked = new Date(s.startTime) <= new Date();
+                  const userTier = subData?.tier || "free";
+                  const isUserAdmin = (user as any)?.isAdmin === true;
+                  const isGated = !s.isMain && userTier !== "pro" && !isUserAdmin;
                   return (
-                    <option key={s.id} value={s.id}>
-                      {locked ? "🔒 " : ""}{s.platform === "fanduel" ? "FD" : "DK"} - {s.name} — {new Date(s.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}{locked ? " (Locked)" : ""}
+                    <option key={s.id} value={s.id} disabled={isGated}>
+                      {s.isMain ? "★ " : ""}{locked ? "🔒 " : ""}{s.platform === "fanduel" ? "FD" : "DK"} - {s.name} — {new Date(s.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}{locked ? " (Locked)" : ""}{isGated ? " (CHAMPION)" : ""}
                     </option>
                   );
                 })}

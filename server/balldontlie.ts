@@ -356,3 +356,141 @@ export function getRollingSlateDate(sport: string): Date {
     default: return generateRollingDate(3);
   }
 }
+
+export interface AvailableDKSlate {
+  draftGroupId: number;
+  gameCount: number;
+  startTime: string;
+  label: string;
+  gameTypeId: number;
+}
+
+export async function fetchAvailableDKSlates(sport: string): Promise<AvailableDKSlate[]> {
+  try {
+    const dkSport = SPORT_MAP[sport] || sport;
+    const data = await fetchJSON<{ DraftGroups: DKDraftGroup[] }>(
+      `${DK_LOBBY}/getcontests?sport=${dkSport}`
+    );
+    if (!data.DraftGroups || data.DraftGroups.length === 0) return [];
+
+    const validTypes = CLASSIC_GAME_TYPES[sport] || [70];
+
+    const classics = data.DraftGroups
+      .filter(g => validTypes.includes(g.GameTypeId))
+      .sort((a, b) => b.GameCount - a.GameCount);
+
+    return classics.map((g, idx) => {
+      const startDate = parseEasternTime(g.StartDateEst);
+      const timeStr = formatGameTime(g.StartDateEst);
+      const dateStr = startDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const prefix = idx === 0 ? "Main" : `Slate ${idx + 1}`;
+      const label = `${prefix} (${g.GameCount} game${g.GameCount !== 1 ? "s" : ""}) - ${dateStr} ${timeStr}`;
+
+      return {
+        draftGroupId: g.DraftGroupId,
+        gameCount: g.GameCount,
+        startTime: g.StartDateEst,
+        label,
+        gameTypeId: g.GameTypeId,
+      };
+    });
+  } catch (err) {
+    console.error(`[DK] Error fetching available ${sport} slates:`, err);
+    return [];
+  }
+}
+
+export async function fetchDKSlateByDraftGroup(sport: string, draftGroupId: number): Promise<LiveSlateData | null> {
+  try {
+    console.log(`[DK] Fetching slate data for ${sport} DraftGroup ${draftGroupId}...`);
+
+    const draftables = await fetchDraftables(draftGroupId);
+    if (!draftables || draftables.length === 0) {
+      console.log(`[DK] No draftables found for DraftGroup ${draftGroupId}`);
+      return null;
+    }
+
+    const seen = new Set<number>();
+    const uniquePlayers = draftables.filter(p => {
+      if (seen.has(p.playerId)) return false;
+      seen.add(p.playerId);
+      return true;
+    });
+
+    const validPlayers = uniquePlayers.filter(p => p.salary && p.salary > 0 && p.position);
+    const sortedPlayers = validPlayers.sort((a, b) => b.salary - a.salary);
+    const maxPlayers = sport === "MLB" ? 250 : sport === "NFL" ? 150 : sport === "SOCCER" ? 200 : 250;
+    const trimmedPlayers = sortedPlayers.slice(0, maxPlayers);
+
+    const games = new Map<number, { away: string; home: string; time: string; date: string }>();
+    for (const p of uniquePlayers) {
+      if (p.competition && !games.has(p.competition.competitionId)) {
+        const parts = p.competition.name.split(" @ ");
+        const away = parts[0]?.trim() || "";
+        const home = parts[1]?.trim() || "";
+        const time = formatGameTime(p.competition.startTime);
+        const date = p.competition.startTime.split("T")[0];
+        games.set(p.competition.competitionId, { away, home, time, date });
+      }
+    }
+
+    let slateDate = new Date();
+    if (draftables[0]?.competition?.startTime) {
+      slateDate = new Date(draftables[0].competition.startTime);
+    }
+
+    const dkPlayers: Omit<InsertPlayer, "slateId">[] = [];
+
+    for (const p of trimmedPlayers) {
+      if (!p.position || !p.salary || p.salary <= 0) continue;
+
+      const fppgAttr = p.draftStatAttributes?.find(a => a.id === 219);
+      const rawFppg = fppgAttr?.value;
+      const fppgNum = rawFppg && rawFppg !== "-" && !isNaN(Number(rawFppg)) ? Number(rawFppg) : (p.salary / 250);
+      const fppg = fppgNum.toFixed(1);
+      const projectedPoints = fppg;
+
+      let opponent = "TBD";
+      let gameInfo = `${p.teamAbbreviation} TBD`;
+
+      if (p.competition) {
+        const parts = p.competition.name.split(" @ ");
+        const away = parts[0]?.trim() || "";
+        const home = parts[1]?.trim() || "";
+        const time = formatGameTime(p.competition.startTime);
+        opponent = p.teamAbbreviation === home ? away : home;
+        gameInfo = `${away} @ ${home} ${time}`;
+      }
+
+      const dkPos = mapDKPosition(sport, p.position);
+      const { injuryStatus, injuryDetail } = mapDKStatus(p.status || "", p.newsStatus || "");
+
+      dkPlayers.push({
+        name: p.displayName,
+        team: p.teamAbbreviation,
+        position: dkPos,
+        salary: p.salary,
+        fppg,
+        projectedPoints,
+        opponent,
+        gameInfo,
+        draftKingsPlayerId: p.draftableId,
+        injuryStatus: injuryStatus !== "Healthy" ? injuryStatus : undefined,
+        injuryDetail: injuryDetail || undefined,
+      });
+    }
+
+    console.log(`[DK] DraftGroup ${draftGroupId}: Processed ${dkPlayers.length} players from ${games.size} games`);
+
+    return {
+      sport,
+      slateDate,
+      dkPlayers,
+      games: Array.from(games.values()),
+      draftGroupId,
+    };
+  } catch (err) {
+    console.error(`[DK] Error fetching DraftGroup ${draftGroupId}:`, err);
+    return null;
+  }
+}
