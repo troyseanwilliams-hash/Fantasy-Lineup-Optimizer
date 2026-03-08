@@ -553,6 +553,7 @@ export async function registerRoutes(
     const usedLineupKeys = new Set<string>();
     const playerAppearances: Record<number, number> = {};
     const totalCount = ids.length;
+    const globalMaxExposure = typeof req.body.globalMaxExposure === "number" ? req.body.globalMaxExposure : 80;
 
     for (const id of ids) {
       const lineup = await storage.getLineup(Number(id));
@@ -585,7 +586,6 @@ export async function registerRoutes(
         const useBoosts = req.body.useBoosts !== false;
         const useCeilingMode = req.body.ceilingMode === true;
         const useLeverageMode = req.body.leverageMode === true;
-        const globalMaxExposure = typeof req.body.globalMaxExposure === "number" ? req.body.globalMaxExposure : 80;
 
         let pool = allPlayers.map(p => {
           let pts = Number(p.projectedPoints);
