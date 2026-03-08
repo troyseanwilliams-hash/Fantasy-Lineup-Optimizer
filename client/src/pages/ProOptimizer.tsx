@@ -147,7 +147,8 @@ export default function ProOptimizer() {
   const isPro = subData?.tier === "pro" || subData?.tier === "premium";
   const isStar = subData?.tier === "star";
   const hasPaidAccess = isPro || isStar;
-  const maxLineupSlider = isPro ? 150 : 5;
+  const isAdmin = user?.isAdmin === true;
+  const maxLineupSlider = isAdmin ? 150 : isPro ? 20 : 5;
 
   useEffect(() => {
     if (isPro) {
