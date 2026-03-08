@@ -1531,7 +1531,7 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Star or Pro subscription required for advanced optimizer.", requiresUpgrade: true });
       }
 
-      const maxLineupCount = tier === "pro" ? 150 : 5;
+      const maxLineupCount = isAdmin ? 150 : tier === "pro" ? 20 : 5;
 
       const constraints = proOptimizationConstraintSchema.parse(req.body);
       constraints.lineupCount = Math.min(constraints.lineupCount, maxLineupCount);
