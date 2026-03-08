@@ -4,7 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { buildUrl } from "@shared/routes";
 import type { Player, Slate, ProOptimizeResponse } from "@shared/schema";
-import { getPlatformConfig, assignPlayersToSlots, getSlotDisplayName, type Platform } from "@shared/platform-config";
+import { getPlatformConfig, assignPlayersToSlots, getSlotDisplayName, positionFitsSlot, type Platform } from "@shared/platform-config";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import {
   Crown, TrendingUp, TrendingDown, AlertTriangle,
   ShieldAlert, Activity, SaveAll, Star, Flag, MapPin,
   Cloud, Sun, Wind, CloudRain, Droplets, Target,
-  Trophy, Flame, Award, BarChart3, Users, Percent
+  Trophy, Flame, Award, BarChart3, Users, Percent, ArrowLeftRight, Plus
 } from "lucide-react";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "boostedProj" | "ownershipProjection";
@@ -87,6 +87,8 @@ export default function ProOptimizer() {
   const [globalMaxExposure, setGlobalMaxExposure] = useState<number | null>(null);
   const [leverageMode, setLeverageMode] = useState(false);
   const [projectionMode, setProjectionMode] = useState<"balanced" | "ceiling">("balanced");
+  const [lineupSwaps, setLineupSwaps] = useState<Record<string, Record<string, Player>>>({});
+  const [swappingTarget, setSwappingTarget] = useState<{ lineupIdx: number; slot: string } | null>(null);
 
   const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"], refetchInterval: 300000 });
   const slate = useMemo(() => slates?.find(s => s.id === slateId), [slates, slateId]);
@@ -276,7 +278,65 @@ export default function ProOptimizer() {
     return optimizeMutation.data.injurySummary;
   }, [players, optimizeMutation.data]);
 
-  const generatedLineups = optimizeMutation.data?.lineups || [];
+  const rawGeneratedLineups = optimizeMutation.data?.lineups || [];
+
+  const generatedLineups = useMemo(() => {
+    if (Object.keys(lineupSwaps).length === 0) return rawGeneratedLineups;
+    return rawGeneratedLineups.map((lineupData, idx) => {
+      const swaps = lineupSwaps[idx];
+      if (!swaps || Object.keys(swaps).length === 0) return lineupData;
+      const originalSlots = assignPlayersToSlots(lineupData.lineup, config.slots, sport);
+      const removedIds = new Set<number>();
+      for (const slotKey of Object.keys(swaps)) {
+        const slotPlayer = originalSlots[slotKey];
+        if (slotPlayer) removedIds.add(slotPlayer.id);
+      }
+      const keptPlayers = lineupData.lineup.filter(p => !removedIds.has(p.id));
+      const newPlayers = [...keptPlayers, ...Object.values(swaps)];
+      const newSalary = newPlayers.reduce((s, p) => s + p.salary, 0);
+      const newProj = newPlayers.reduce((s, p) => s + Number(p.projectedPoints), 0);
+      return { ...lineupData, lineup: newPlayers, totalSalary: newSalary, totalProjectedPoints: newProj };
+    });
+  }, [rawGeneratedLineups, lineupSwaps, config.slots, sport]);
+
+  const handleProSwap = useCallback((lineupIdx: number, slot: string) => {
+    if (swappingTarget?.lineupIdx === lineupIdx && swappingTarget?.slot === slot) {
+      setSwappingTarget(null);
+    } else {
+      setSwappingTarget({ lineupIdx, slot });
+    }
+  }, [swappingTarget]);
+
+  const handleProSwapSelect = useCallback((player: Player) => {
+    if (!swappingTarget) return;
+    setLineupSwaps(prev => ({
+      ...prev,
+      [swappingTarget.lineupIdx]: {
+        ...(prev[swappingTarget.lineupIdx] || {}),
+        [swappingTarget.slot]: player,
+      },
+    }));
+    setSwappingTarget(null);
+  }, [swappingTarget]);
+
+  const proSwapEligiblePlayers = useMemo(() => {
+    if (!swappingTarget || !players) return [];
+    const lineupData = generatedLineups[swappingTarget.lineupIdx];
+    if (!lineupData) return [];
+    const lineupPlayers = lineupData.lineup || [];
+    const lineupPlayerIds = new Set(lineupPlayers.map(p => p.id));
+    const slots = assignPlayersToSlots(lineupPlayers, config.slots, sport);
+    const currentPlayer = slots[swappingTarget.slot];
+    const lineupSalary = lineupPlayers.reduce((s, p) => s + p.salary, 0);
+    const availableBudget = config.salaryCap - lineupSalary + (currentPlayer?.salary || 0);
+    return players.filter(p => {
+      if (lineupPlayerIds.has(p.id)) return false;
+      if (excludedIds.includes(p.id)) return false;
+      if (!positionFitsSlot(p.position, swappingTarget.slot, sport)) return false;
+      if (p.salary > availableBudget) return false;
+      return true;
+    });
+  }, [swappingTarget, players, generatedLineups, config, sport, excludedIds]);
 
   const exposureTracking = useMemo(() => {
     if (generatedLineups.length === 0 || !players) return [];
@@ -322,6 +382,8 @@ export default function ProOptimizer() {
     }
     const activeExposureLimits = Object.keys(exposureLimits).length > 0 ? exposureLimits : undefined;
     setSavedIndices(new Set());
+    setLineupSwaps({});
+    setSwappingTarget(null);
     optimizeMutation.mutate({
       slateId,
       platform,
@@ -1461,7 +1523,7 @@ export default function ProOptimizer() {
                     const lineupPlayers = lineupData.lineup || [];
                     const slots = assignPlayersToSlots(lineupPlayers, config.slots, sport);
                     return (
-                      <Card key={idx} className="bg-slate-800/60 border-slate-700/50 p-3" data-testid={`lineup-card-${idx}`}>
+                      <Card key={idx} className={`border-slate-700/50 p-3 ${swappingTarget?.lineupIdx === idx ? "bg-slate-800/80 border-amber-500/30 ring-1 ring-amber-500/10" : "bg-slate-800/60"}`} data-testid={`lineup-card-${idx}`}>
                         <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
                           <div className="flex items-center gap-3">
                             <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[11px] font-black">
@@ -1493,9 +1555,10 @@ export default function ProOptimizer() {
                         <div className="space-y-1">
                           {config.slots.map(slot => {
                             const p = slots[slot];
+                            const isSwapping = swappingTarget?.lineupIdx === idx && swappingTarget?.slot === slot;
                             return (
-                              <div key={slot} className="flex items-center gap-2 text-[11px]" data-testid={`lineup-slot-${idx}-${slot}`}>
-                                <span className="font-black text-amber-400/70 w-8 text-right">{getSlotDisplayName(slot)}</span>
+                              <div key={slot} className={`flex items-center gap-2 text-[11px] rounded px-1 py-0.5 transition-all ${isSwapping ? "bg-amber-500/10 ring-1 ring-amber-500/30" : ""}`} data-testid={`lineup-slot-${idx}-${slot}`}>
+                                <span className={`font-black w-8 text-right ${isSwapping ? "text-amber-400" : "text-amber-400/70"}`}>{getSlotDisplayName(slot)}</span>
                                 {p ? (
                                   <>
                                     <span className={`font-bold flex-1 truncate ${fadedIds.includes(p.id) ? "text-purple-300" : "text-white"}`}>{p.name}</span>
@@ -1503,6 +1566,18 @@ export default function ProOptimizer() {
                                     <span className="text-slate-400 font-mono">${p.salary.toLocaleString()}</span>
                                     {hasPaidAccess && <span className="text-purple-400/70 font-mono text-[10px] w-10 text-right">{((p as any).ownershipProjection ?? 0).toFixed(0)}%</span>}
                                     <span className="text-emerald-400 font-mono font-bold">{Number(p.projectedPoints).toFixed(1)}</span>
+                                    <button
+                                      onClick={() => handleProSwap(idx, slot)}
+                                      className={`p-0.5 rounded transition-all ${
+                                        isSwapping
+                                          ? "bg-amber-500 text-white shadow-md"
+                                          : "text-slate-500 hover:text-amber-400 hover:bg-amber-500/10"
+                                      }`}
+                                      data-testid={`pro-swap-${idx}-${slot}`}
+                                      title="Swap player"
+                                    >
+                                      <ArrowLeftRight className="w-3 h-3" />
+                                    </button>
                                   </>
                                 ) : (
                                   <span className="text-slate-500 italic flex-1">—</span>
@@ -1511,6 +1586,44 @@ export default function ProOptimizer() {
                             );
                           })}
                         </div>
+                        {swappingTarget?.lineupIdx === idx && (
+                          <div className="mt-2 pt-2 border-t border-amber-500/20" data-testid={`swap-panel-${idx}`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <ArrowLeftRight className="w-3.5 h-3.5 text-amber-400" />
+                                <span className="text-[11px] font-black text-amber-400">
+                                  Swap {slots[swappingTarget.slot]?.name} — {proSwapEligiblePlayers.length} eligible
+                                </span>
+                              </div>
+                              <button
+                                onClick={() => setSwappingTarget(null)}
+                                className="text-slate-400 hover:text-white p-0.5 rounded hover:bg-slate-700 transition-all"
+                                data-testid={`cancel-pro-swap-${idx}`}
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            <div className="max-h-40 overflow-auto space-y-0.5">
+                              {proSwapEligiblePlayers.slice(0, 30).map(ep => (
+                                <button
+                                  key={ep.id}
+                                  onClick={() => handleProSwapSelect(ep)}
+                                  className="w-full flex items-center gap-2 text-[11px] px-1.5 py-1 rounded hover:bg-amber-500/10 transition-all group"
+                                  data-testid={`pro-swap-pick-${idx}-${ep.id}`}
+                                >
+                                  <Plus className="w-3 h-3 text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  <span className="font-bold text-white flex-1 truncate text-left">{ep.name}</span>
+                                  <span className="text-slate-500 font-mono">{ep.position}</span>
+                                  <span className="text-slate-400 font-mono">${ep.salary.toLocaleString()}</span>
+                                  <span className="text-emerald-400 font-mono font-bold">{Number(ep.projectedPoints).toFixed(1)}</span>
+                                </button>
+                              ))}
+                              {proSwapEligiblePlayers.length === 0 && (
+                                <div className="text-[11px] text-slate-500 text-center py-2">No eligible replacements within salary cap</div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </Card>
                     );
                   })}
