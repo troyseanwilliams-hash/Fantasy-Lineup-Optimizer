@@ -156,7 +156,7 @@ export async function registerRoutes(
     const slate = await storage.getSlate(slateId);
     players = players.filter(p => {
       const status = (p.injuryStatus || "").toUpperCase();
-      return status !== "OUT" && status !== "IR";
+      return status !== "OUT" && status !== "IR" && status !== "QUESTIONABLE";
     });
     const bdlStats = slate ? await fetchBDLStats(slate.sport) : {};
     const ownershipResults = slate ? await calculateOwnership(players, slate.sport, "gpp_large", bdlStats) : [];
