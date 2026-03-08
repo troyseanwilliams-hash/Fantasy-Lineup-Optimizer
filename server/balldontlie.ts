@@ -24,24 +24,32 @@ const DK_STATUS_MAP: Record<string, string> = {
 
 const DK_NEWS_ONLY_STATUSES = new Set(["Breaking", "Recent", "Normal", "Latest"]);
 
-export function mapDKStatus(status: string, newsStatus: string): { injuryStatus: string; injuryDetail: string } {
+export function mapDKStatus(status: string, _newsStatus: string): { injuryStatus: string; injuryDetail: string } {
   const statusMapped = DK_STATUS_MAP[status];
-  const newsMapped = DK_STATUS_MAP[newsStatus];
 
-  const realStatus = (statusMapped && statusMapped !== "Healthy") ? statusMapped
-    : (newsMapped && newsMapped !== "Healthy") ? newsMapped
-    : null;
-
-  if (realStatus) {
-    const detail = status && status !== "None" && status !== "" && !DK_NEWS_ONLY_STATUSES.has(status) ? status : realStatus;
-    return { injuryStatus: realStatus, injuryDetail: detail };
-  }
-
-  if (DK_NEWS_ONLY_STATUSES.has(newsStatus) || DK_NEWS_ONLY_STATUSES.has(status)) {
-    return { injuryStatus: "Healthy", injuryDetail: "" };
+  if (statusMapped && statusMapped !== "Healthy") {
+    return { injuryStatus: statusMapped, injuryDetail: status };
   }
 
   return { injuryStatus: "Healthy", injuryDetail: "" };
+}
+
+export async function fetchLivePlayerStatuses(draftGroupId: number): Promise<Map<number, string>> {
+  const statusMap = new Map<number, string>();
+  try {
+    const draftables = await fetchDraftables(draftGroupId);
+    for (const p of draftables) {
+      if (!p.draftableId) continue;
+      const mapped = DK_STATUS_MAP[p.status || ""];
+      if (mapped && mapped !== "Healthy") {
+        statusMap.set(p.draftableId, mapped);
+      }
+    }
+    console.log(`[DK] Live status check for DG ${draftGroupId}: ${statusMap.size} players with injury designations`);
+  } catch (err) {
+    console.error(`[DK] Failed to fetch live statuses for DG ${draftGroupId}:`, err);
+  }
+  return statusMap;
 }
 
 function parseEasternTime(dateStr: string): Date {
