@@ -18,6 +18,15 @@ export async function computeBoostScores(
 ): Promise<BoostResult[]> {
   if (players.length === 0) return [];
 
+  const activePlayers = players.filter(p => {
+    const status = (p.injuryStatus || "").toUpperCase();
+    return status !== "OUT" && status !== "IR";
+  });
+  const outPlayers = players.filter(p => {
+    const status = (p.injuryStatus || "").toUpperCase();
+    return status === "OUT" || status === "IR";
+  });
+
   const history = await storage.getPlayerHistoryBySport(sport, 5000);
   history.sort((a, b) => {
     const dateCompare = (b.slateDate || "").localeCompare(a.slateDate || "");
@@ -32,7 +41,7 @@ export async function computeBoostScores(
   }
 
   const positionGroups = new Map<string, Player[]>();
-  for (const p of players) {
+  for (const p of activePlayers) {
     const primary = p.position.split("/")[0];
     const group = positionGroups.get(primary) || [];
     group.push(p);
@@ -48,10 +57,10 @@ export async function computeBoostScores(
     positionAvgProj.set(pos, avgProj);
   }
 
-  const sortedBySalary = [...players].sort((a, b) => b.salary - a.salary);
-  const sortedByProj = [...players].sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
-  const maxSalary = Math.max(...players.map(p => p.salary));
-  const maxProj = Math.max(...players.map(p => Number(p.projectedPoints)));
+  const sortedBySalary = [...activePlayers].sort((a, b) => b.salary - a.salary);
+  const sortedByProj = [...activePlayers].sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
+  const maxSalary = Math.max(...activePlayers.map(p => p.salary));
+  const maxProj = Math.max(...activePlayers.map(p => Number(p.projectedPoints)));
 
   const positionRankByValue = new Map<string, Map<number, number>>();
   const positionRankByProj = new Map<string, Map<number, number>>();
@@ -72,7 +81,7 @@ export async function computeBoostScores(
 
   const teamAvgProj = new Map<string, number>();
   const teamPlayerCounts = new Map<string, number>();
-  for (const p of players) {
+  for (const p of activePlayers) {
     const current = teamAvgProj.get(p.team) || 0;
     teamAvgProj.set(p.team, current + Number(p.projectedPoints));
     teamPlayerCounts.set(p.team, (teamPlayerCounts.get(p.team) || 0) + 1);
@@ -83,7 +92,11 @@ export async function computeBoostScores(
 
   const results: BoostResult[] = [];
 
-  for (const player of players) {
+  for (const op of outPlayers) {
+    results.push({ playerId: op.id, boostScore: "0", boostReason: "" });
+  }
+
+  for (const player of activePlayers) {
     const proj = Number(player.projectedPoints);
     const salary = player.salary;
     if (proj <= 0) {
