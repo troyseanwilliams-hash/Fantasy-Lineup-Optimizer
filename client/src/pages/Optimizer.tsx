@@ -14,7 +14,7 @@ import {
   Lock, Unlock, X, Zap, RefreshCw, Save, Search,
   ChevronDown, ChevronUp, ArrowUpDown, Heart, Loader2,
   DollarSign, Target, TrendingUp, RotateCcw, Crown, Plus, UserPlus, Activity, Flag,
-  Trophy, Star, MapPin, Users, Flame, Award, Rocket
+  Trophy, Star, MapPin, Users, Flame, Award, Rocket, ArrowLeftRight
 } from "lucide-react";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "fppg" | "value";
@@ -46,6 +46,7 @@ export default function Optimizer() {
   const [lineupName, setLineupName] = useState("");
   const [removedSlots, setRemovedSlots] = useState<Set<string>>(new Set());
   const [replacingSlot, setReplacingSlot] = useState<string | null>(null);
+  const [swappingSlot, setSwappingSlot] = useState<string | null>(null);
   const [manualReplacements, setManualReplacements] = useState<Record<string, Player>>({});
 
   const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"], refetchInterval: 300000 });
@@ -248,6 +249,8 @@ export default function Optimizer() {
   }, [players, lockedIds]);
 
   const handleOptimize = () => {
+    setSwappingSlot(null);
+    setReplacingSlot(null);
     const mergedProjections: Record<string, number> = { ...customProjections };
     if (players) {
       for (const p of players) {
@@ -288,6 +291,7 @@ export default function Optimizer() {
     setCustomProjections({});
     setRemovedSlots(new Set());
     setReplacingSlot(null);
+    setSwappingSlot(null);
     setManualReplacements({});
     optimizeMutation.reset();
     setLineupName("");
@@ -300,6 +304,18 @@ export default function Optimizer() {
       delete next[slot];
       return next;
     });
+    setSwappingSlot(null);
+    setReplacingSlot(null);
+  };
+
+  const handleSwapFromSlot = (slot: string) => {
+    if (swappingSlot === slot) {
+      setSwappingSlot(null);
+      setReplacingSlot(null);
+    } else {
+      setSwappingSlot(slot);
+      setReplacingSlot(slot);
+    }
   };
 
   const handleSelectReplacement = (player: Player) => {
@@ -311,23 +327,31 @@ export default function Optimizer() {
       return next;
     });
     setReplacingSlot(null);
+    setSwappingSlot(null);
   };
 
   const remainingSalary = useMemo(() => {
     return config.salaryCap - totalSalary;
   }, [config.salaryCap, totalSalary]);
 
+  const swapBudget = useMemo(() => {
+    if (!swappingSlot || !lineupSlots) return 0;
+    const currentPlayer = lineupSlots[swappingSlot];
+    return currentPlayer ? currentPlayer.salary : 0;
+  }, [swappingSlot, lineupSlots]);
+
   const replacementEligiblePlayers = useMemo(() => {
     if (!replacingSlot || !players) return [];
     const lineupPlayerIds = new Set(activeLineupPlayers.map(p => p.id));
+    const availableSalary = remainingSalary + swapBudget;
     return players.filter(p => {
       if (lineupPlayerIds.has(p.id)) return false;
       if (excludedIds.includes(p.id)) return false;
       if (!positionFitsSlot(p.position, replacingSlot, sport)) return false;
-      if (p.salary > remainingSalary) return false;
+      if (p.salary > availableSalary) return false;
       return true;
     });
-  }, [replacingSlot, players, activeLineupPlayers, excludedIds, sport, remainingSalary]);
+  }, [replacingSlot, players, activeLineupPlayers, excludedIds, sport, remainingSalary, swapBudget]);
 
   const handleSlateChange = (newSlateId: string) => {
     handleReset();
@@ -582,25 +606,39 @@ export default function Optimizer() {
           </div>
         </div>
 
-        {/* Replacement Mode Banner */}
+        {/* Replacement/Swap Mode Banner */}
         {replacingSlot && (
           <div className={`px-4 py-2.5 border-b flex items-center justify-between ${
-            platform === "fanduel" ? "bg-blue-500/10 border-blue-500/30" : "bg-emerald-500/10 border-emerald-500/30"
+            swappingSlot
+              ? "bg-amber-500/10 border-amber-500/30"
+              : platform === "fanduel" ? "bg-blue-500/10 border-blue-500/30" : "bg-emerald-500/10 border-emerald-500/30"
           }`} data-testid="replacement-banner">
             <div className="flex items-center gap-2">
-              <UserPlus className={`w-4 h-4 ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`} />
+              {swappingSlot ? (
+                <ArrowLeftRight className="w-4 h-4 text-amber-400" />
+              ) : (
+                <UserPlus className={`w-4 h-4 ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`} />
+              )}
               <span className="text-sm font-bold text-white">
-                Select a <span className={platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}>{getSlotDisplayName(replacingSlot)}</span> replacement
+                {swappingSlot ? (
+                  <>Swap <span className="text-amber-400">{lineupSlots?.[swappingSlot]?.name}</span> — pick a <span className="text-amber-400">{getSlotDisplayName(replacingSlot)}</span></>
+                ) : (
+                  <>Select a <span className={platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}>{getSlotDisplayName(replacingSlot)}</span> replacement</>
+                )}
               </span>
-              <Badge className={`text-[11px] font-black ${platform === "fanduel" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"}`}>
-                Budget: ${remainingSalary.toLocaleString()}
+              <Badge className={`text-[11px] font-black ${
+                swappingSlot
+                  ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                  : platform === "fanduel" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+              }`}>
+                Budget: ${(remainingSalary + swapBudget).toLocaleString()}
               </Badge>
               <span className="text-[11px] font-bold text-slate-400">
                 {replacementEligiblePlayers.length} eligible
               </span>
             </div>
             <button
-              onClick={() => setReplacingSlot(null)}
+              onClick={() => { setReplacingSlot(null); setSwappingSlot(null); }}
               className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800 transition-all"
               data-testid="cancel-replacement"
             >
@@ -918,14 +956,18 @@ export default function Optimizer() {
                 key={slot}
                 className={`flex items-center rounded-lg border transition-all ${
                   player
-                    ? `bg-slate-800/60 border-slate-700 ${platform === "fanduel" ? "hover:border-blue-500/30" : "hover:border-emerald-500/30"}`
+                    ? swappingSlot === slot
+                      ? `bg-amber-500/10 border-amber-500/40 ring-1 ring-amber-500/20`
+                      : `bg-slate-800/60 border-slate-700 ${platform === "fanduel" ? "hover:border-blue-500/30" : "hover:border-emerald-500/30"}`
                     : "bg-slate-900/40 border-slate-800 border-dashed"
                 }`}
                 data-testid={`slot-${slot}`}
               >
                 <div className={`w-12 h-12 flex items-center justify-center font-black text-xs rounded-l-lg ${
                   player
-                    ? `${platform === "fanduel" ? "bg-blue-500/10 text-blue-400" : "bg-emerald-500/10 text-emerald-400"}`
+                    ? swappingSlot === slot
+                      ? "bg-amber-500/20 text-amber-400"
+                      : `${platform === "fanduel" ? "bg-blue-500/10 text-blue-400" : "bg-emerald-500/10 text-emerald-400"}`
                     : "bg-slate-800/50 text-slate-600"
                 }`}>
                   {displaySlot}
@@ -945,6 +987,18 @@ export default function Optimizer() {
                         <div className={`text-sm font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>{Number(player.projectedPoints).toFixed(1)}</div>
                         <div className="text-[11px] font-mono text-slate-400 font-bold">${player.salary.toLocaleString()}</div>
                       </div>
+                      <button
+                        onClick={() => handleSwapFromSlot(slot)}
+                        className={`p-1 rounded-md transition-all ${
+                          swappingSlot === slot
+                            ? "bg-amber-500 text-white shadow-md"
+                            : "text-slate-400 hover:text-amber-400 hover:bg-amber-500/10"
+                        }`}
+                        data-testid={`swap-slot-${slot}`}
+                        title="Swap player"
+                      >
+                        <ArrowLeftRight className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         onClick={() => handleRemoveFromSlot(slot)}
                         className="p-1 rounded-md text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
@@ -967,6 +1021,7 @@ export default function Optimizer() {
                     }`}
                     onClick={() => {
                       if (currentLineup?.lineup) {
+                        setSwappingSlot(null);
                         setReplacingSlot(replacingSlot === slot ? null : slot);
                       }
                     }}
