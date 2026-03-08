@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye, AlertTriangle, Upload } from "lucide-react";
+import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye, AlertTriangle, Upload, Settings } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -39,6 +40,10 @@ export default function SavedLineups() {
   const [vaultSort, setVaultSort] = useState<VaultSortKey>("newest");
   const [activeTab, setActiveTab] = useState<VaultTab>("active");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [regenUseBoosts, setRegenUseBoosts] = useState(true);
+  const [regenCeilingMode, setRegenCeilingMode] = useState(false);
+  const [regenLeverageMode, setRegenLeverageMode] = useState(false);
+  const [showRegenSettings, setShowRegenSettings] = useState(false);
 
   const { data: lineups, isLoading } = useQuery<any[]>({
     queryKey: ["/api/lineups"],
@@ -516,14 +521,25 @@ export default function SavedLineups() {
                         <Trash2 className="w-4 h-4 mr-2" /> Delete {selectedIds.size}
                       </Button>
                       {isPaid && (
-                        <Button
-                          onClick={() => bulkGenerateMutation.mutate({ ids: Array.from(selectedIds), useBoosts: true })}
-                          disabled={bulkGenerateMutation.isPending}
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
-                          data-testid="bulk-generate-btn"
-                        >
-                          <Zap className="w-4 h-4 mr-2" /> {bulkGenerateMutation.isPending ? "Regenerating..." : `Regenerate ${selectedIds.size}`}
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            onClick={() => bulkGenerateMutation.mutate({ ids: Array.from(selectedIds), useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode })}
+                            disabled={bulkGenerateMutation.isPending}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            data-testid="bulk-generate-btn"
+                          >
+                            <Zap className="w-4 h-4 mr-2" /> {bulkGenerateMutation.isPending ? "Regenerating..." : `Regenerate ${selectedIds.size}`}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setShowRegenSettings(!showRegenSettings)}
+                            className={`h-9 w-9 ${showRegenSettings ? "text-amber-400" : "text-slate-400 hover:text-white"}`}
+                            data-testid="regen-settings-btn"
+                          >
+                            <Settings className="w-4 h-4" />
+                          </Button>
+                        </div>
                       )}
                       {isPaid && (
                         <Button
@@ -561,6 +577,26 @@ export default function SavedLineups() {
               )}
             </div>
           </div>
+
+          {showRegenSettings && selectedIds.size > 0 && isPaid && (
+            <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl px-4 py-3" data-testid="regen-settings-panel">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Regenerate Settings</p>
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Switch checked={regenUseBoosts} onCheckedChange={setRegenUseBoosts} data-testid="regen-toggle-boosts" className="scale-90" />
+                  <span className="text-xs font-bold text-slate-300">Boosts</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch checked={regenCeilingMode} onCheckedChange={setRegenCeilingMode} data-testid="regen-toggle-ceiling" className="scale-90" />
+                  <span className="text-xs font-bold text-slate-300">Ceiling Mode</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch checked={regenLeverageMode} onCheckedChange={setRegenLeverageMode} data-testid="regen-toggle-leverage" className="scale-90" />
+                  <span className="text-xs font-bold text-slate-300">Leverage</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {totalLineups > 0 && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
