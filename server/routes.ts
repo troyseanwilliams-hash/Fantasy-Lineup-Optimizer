@@ -66,12 +66,11 @@ export async function registerRoutes(
       const slate = await storage.getSlate(slateId);
       if (!slate) return res.status(404).json({ message: "Slate not found" });
 
+      const contestType = (req.query.contestType as ContestType) || "gpp_large";
       const players = await storage.getPlayersBySlate(slateId);
       if (!players || players.length === 0) {
-        return res.json({ slate: { id: slate.id, sport: slate.sport, platform: slate.platform, startTime: slate.startTime }, positions: {}, chalkPlayer: null, contrarianPlayer: null });
+        return res.json({ slate: { id: slate.id, sport: slate.sport, platform: slate.platform, startTime: slate.startTime }, positions: {}, chalkPlayer: null, contrarianPlayer: null, contestType, empty: true });
       }
-
-      const contestType = (req.query.contestType as ContestType) || "gpp_large";
       const bdlStats = await fetchBDLStats(slate.sport);
       const ownershipResults = await calculateOwnership(players, slate.sport, contestType, bdlStats);
       const playersWithOwnership = computeOwnershipForPlayers(players, ownershipResults);

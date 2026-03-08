@@ -77,6 +77,12 @@ export default function OwnershipHeatmap() {
       return res.json();
     },
     enabled: !!activeSlate && isAdmin,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      const hasPositions = data?.positions && Object.keys(data.positions).length > 0;
+      return hasPositions ? false : 10000;
+    },
+    staleTime: 60000,
   });
 
   if (!user || !isAdmin) {
@@ -267,9 +273,9 @@ export default function OwnershipHeatmap() {
 
             {positionEntries.length === 0 && !isLoading && (
               <Card className="bg-[#1E293B] border-slate-700 p-12 text-center" data-testid="ownership-empty">
-                <Users className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-                <h3 className="text-lg font-bold text-white mb-2">No Player Data</h3>
-                <p className="text-sm text-slate-400">No players found for this slate yet. Data will populate when DraftKings publishes the player pool.</p>
+                <Loader2 className="w-12 h-12 text-amber-400/50 mx-auto mb-4 animate-spin" />
+                <h3 className="text-lg font-bold text-white mb-2">Loading Player Data</h3>
+                <p className="text-sm text-slate-400">Waiting for player data to populate. This will refresh automatically.</p>
               </Card>
             )}
 
