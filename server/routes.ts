@@ -154,9 +154,12 @@ export async function registerRoutes(
        return res.status(404).json({ message: "Slate not found" });
     }
     const slate = await storage.getSlate(slateId);
-    players = players.filter(p => {
+    players = players.map(p => {
       const status = (p.injuryStatus || "").toUpperCase();
-      return status !== "OUT" && status !== "IR";
+      if (status === "OUT" || status === "IR") {
+        return { ...p, boostScore: null, boostReason: null };
+      }
+      return p;
     });
     const bdlStats = slate ? await fetchBDLStats(slate.sport) : {};
     const ownershipResults = slate ? await calculateOwnership(players, slate.sport, "gpp_large", bdlStats) : [];
