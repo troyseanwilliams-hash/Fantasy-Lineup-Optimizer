@@ -1,6 +1,9 @@
 import type { Express, Request } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
+import { db } from "./db";
+import { users, subscriptions } from "@shared/schema";
+import { eq } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
@@ -930,6 +933,35 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("[stripe] Webhook error:", err);
       res.status(500).json({ message: "Webhook processing failed" });
+    }
+  });
+
+  app.post("/api/admin/set-tier", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    const dbUser = await storage.getUser(userId);
+    if (!dbUser?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+    const { email, tier } = req.body;
+    if (!email || !["free", "star", "pro"].includes(tier)) {
+      return res.status(400).json({ message: "Valid email and tier (free, star, pro) required" });
+    }
+    try {
+      const allUsers = await db.select().from(users).where(eq(users.email, email));
+      if (allUsers.length === 0) return res.status(404).json({ message: "User not found" });
+      const targetUser = allUsers[0];
+      await storage.upsertSubscription({
+        userId: targetUser.id,
+        tier,
+        status: "active",
+        stripeSubscriptionId: null,
+        stripePriceId: null,
+        currentPeriodEnd: null,
+        graceEndsAt: null,
+      });
+      res.json({ message: `Updated ${email} to ${tier} tier`, userId: targetUser.id });
+    } catch (err) {
+      console.error("[Admin] Set tier error:", err);
+      res.status(500).json({ message: "Failed to update tier" });
     }
   });
 
