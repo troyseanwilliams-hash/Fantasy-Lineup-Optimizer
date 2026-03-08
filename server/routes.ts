@@ -17,7 +17,7 @@ function isLoggedIn(req: Request): boolean {
 import { XMLParser } from "fast-xml-parser";
 
 import { type OptimizationConstraints, type ProOptimizationConstraints, type Player, type Slate, type InsertProp, type InsertAlert, proOptimizationConstraintSchema, insertPrizePicksEntrySchema } from "@shared/schema";
-import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus } from "./balldontlie";
+import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus, fetchLivePlayerStatuses } from "./balldontlie";
 import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
 import { getLiveScores, getAllLiveScores } from "./espn-scores";
 import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analyzeManualPicks } from "./prizepicks";
@@ -215,6 +215,25 @@ export async function registerRoutes(
     }
   });
 
+  async function applyLiveDKStatuses(players: Player[], draftGroupId: number | null): Promise<Player[]> {
+    if (!draftGroupId) return players;
+    const liveStatuses = await fetchLivePlayerStatuses(draftGroupId);
+    if (liveStatuses.size === 0) return players;
+    return players.map(p => {
+      if (!p.draftKingsPlayerId) return p;
+      const liveStatus = liveStatuses.get(p.draftKingsPlayerId);
+      if (liveStatus) {
+        return { ...p, injuryStatus: liveStatus, injuryDetail: liveStatus };
+      }
+      if (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable" || p.injuryStatus === "Doubtful" || p.injuryStatus === "Probable") {
+        if (!liveStatuses.has(p.draftKingsPlayerId)) {
+          return { ...p, injuryStatus: null, injuryDetail: null };
+        }
+      }
+      return p;
+    });
+  }
+
   app.post(api.optimizer.optimize.path, async (req, res) => {
     try {
       const constraints = api.optimizer.optimize.input.parse(req.body);
@@ -239,11 +258,13 @@ export async function registerRoutes(
         }
       }
 
-      const allPlayers = await storage.getPlayersBySlate(constraints.slateId);
+      let allPlayers = await storage.getPlayersBySlate(constraints.slateId);
       
       if (allPlayers.length === 0) {
         return res.status(400).json({ message: "No players found for this slate" });
       }
+
+      allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId);
 
       const autoExcluded = allPlayers
         .filter(p => (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") && !constraints.excludedPlayerIds.includes(p.id))
@@ -546,11 +567,13 @@ export async function registerRoutes(
         }
 
         const platform = (lineup.platform || "draftkings") as Platform;
-        const allPlayers = await storage.getPlayersBySlate(lineup.slateId);
+        let allPlayers = await storage.getPlayersBySlate(lineup.slateId);
         if (allPlayers.length === 0) {
           results.push({ id, status: "skipped", error: "No players in slate" });
           continue;
         }
+
+        allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId);
 
         const useBoosts = req.body.useBoosts !== false;
         const useCeilingMode = req.body.ceilingMode === true;
@@ -559,11 +582,9 @@ export async function registerRoutes(
         let pool = allPlayers.map(p => {
           let pts = Number(p.projectedPoints);
           if (useBoosts && p.boostScore) pts += Number(p.boostScore);
-          if (p.injuryStatus) {
-            if (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") pts = 0;
-            else if (p.injuryStatus === "Doubtful") pts *= 0.3;
-            else if (p.injuryStatus === "Probable") pts *= 0.9;
-          }
+          if (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") pts = 0;
+          else if (p.injuryStatus === "Doubtful") pts *= 0.3;
+          else if (p.injuryStatus === "Probable") pts *= 0.9;
           return { ...p, projectedPoints: pts.toString() };
         });
 
@@ -1503,10 +1524,12 @@ export async function registerRoutes(
       }
 
       const platform = (constraints.platform || slate.platform || "draftkings") as Platform;
-      const allPlayers = await storage.getPlayersBySlate(constraints.slateId);
+      let allPlayers = await storage.getPlayersBySlate(constraints.slateId);
       if (allPlayers.length === 0) {
         return res.status(400).json({ message: "No players found for this slate" });
       }
+
+      allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId);
 
       let pool = allPlayers.map(p => {
         const customProj = constraints.playerProjections?.[p.id.toString()];
@@ -1516,14 +1539,12 @@ export async function registerRoutes(
           boostedPoints += Number(p.boostScore);
         }
 
-        if (p.injuryStatus) {
-          if (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") {
-            boostedPoints = 0;
-          } else if (p.injuryStatus === "Doubtful") {
-            boostedPoints *= 0.3;
-          } else if (p.injuryStatus === "Probable") {
-            boostedPoints *= 0.9;
-          }
+        if (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") {
+          boostedPoints = 0;
+        } else if (p.injuryStatus === "Doubtful") {
+          boostedPoints *= 0.3;
+        } else if (p.injuryStatus === "Probable") {
+          boostedPoints *= 0.9;
         }
 
         return { ...p, projectedPoints: boostedPoints.toString() };
@@ -1533,7 +1554,7 @@ export async function registerRoutes(
         pool = applyCeilingMode(pool, slate.sport);
       }
 
-      console.log(`[ProOptimizer] Starting for ${slate.sport}, ${pool.length} players, ${constraints.lineupCount} lineups requested`);
+      console.log(`[ProOptimizer] Starting for ${slate.sport}, ${allPlayers.length} players (${allPlayers.filter(p => p.injuryStatus === "OUT" || p.injuryStatus === "Questionable").length} OUT/Q excluded), ${constraints.lineupCount} lineups requested`);
       const proStartTime = Date.now();
 
       const bdlStats = await fetchBDLStats(slate.sport);
