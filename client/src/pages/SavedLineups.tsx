@@ -2,6 +2,7 @@ import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye, AlertTriangle, Upload, Settings } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -44,6 +45,7 @@ export default function SavedLineups() {
   const [regenCeilingMode, setRegenCeilingMode] = useState(false);
   const [regenLeverageMode, setRegenLeverageMode] = useState(false);
   const [showRegenSettings, setShowRegenSettings] = useState(false);
+  const [regenMaxExposure, setRegenMaxExposure] = useState<number | null>(null);
 
   const { data: lineups, isLoading } = useQuery<any[]>({
     queryKey: ["/api/lineups"],
@@ -105,8 +107,8 @@ export default function SavedLineups() {
   });
 
   const bulkGenerateMutation = useMutation({
-    mutationFn: async ({ ids, useBoosts, ceilingMode, leverageMode }: { ids: number[]; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean }) => {
-      const res = await apiRequest("POST", "/api/lineups/bulk-generate", { ids, useBoosts: useBoosts !== false, ceilingMode: ceilingMode || false, leverageMode: leverageMode || false });
+    mutationFn: async ({ ids, useBoosts, ceilingMode, leverageMode, globalMaxExposure }: { ids: number[]; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; globalMaxExposure?: number }) => {
+      const res = await apiRequest("POST", "/api/lineups/bulk-generate", { ids, useBoosts: useBoosts !== false, ceilingMode: ceilingMode || false, leverageMode: leverageMode || false, globalMaxExposure: globalMaxExposure ?? undefined });
       return res.json();
     },
     onSuccess: (data) => {
@@ -523,7 +525,7 @@ export default function SavedLineups() {
                       {isPaid && (
                         <div className="flex items-center gap-1">
                           <Button
-                            onClick={() => bulkGenerateMutation.mutate({ ids: Array.from(selectedIds), useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode })}
+                            onClick={() => bulkGenerateMutation.mutate({ ids: Array.from(selectedIds), useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, globalMaxExposure: regenMaxExposure ?? undefined })}
                             disabled={bulkGenerateMutation.isPending}
                             className="bg-blue-600 hover:bg-blue-700 text-white"
                             data-testid="bulk-generate-btn"
@@ -593,6 +595,21 @@ export default function SavedLineups() {
                 <div className="flex items-center gap-2">
                   <Switch checked={regenLeverageMode} onCheckedChange={setRegenLeverageMode} data-testid="regen-toggle-leverage" className="scale-90" />
                   <span className="text-xs font-bold text-slate-300">Leverage</span>
+                </div>
+                <div className="flex items-center gap-2 min-w-[180px]">
+                  <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Exposure</span>
+                  <Slider
+                    value={[regenMaxExposure ?? 100]}
+                    onValueChange={(v) => setRegenMaxExposure(v[0] >= 100 ? null : v[0])}
+                    min={10}
+                    max={100}
+                    step={5}
+                    className="flex-1"
+                    data-testid="regen-slider-exposure"
+                  />
+                  <span className={`text-xs font-black min-w-[28px] text-center ${regenMaxExposure ? "text-cyan-400" : "text-slate-500"}`} data-testid="regen-text-exposure">
+                    {regenMaxExposure ? `${regenMaxExposure}%` : "Off"}
+                  </span>
                 </div>
               </div>
             </div>

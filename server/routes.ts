@@ -585,6 +585,7 @@ export async function registerRoutes(
         const useBoosts = req.body.useBoosts !== false;
         const useCeilingMode = req.body.ceilingMode === true;
         const useLeverageMode = req.body.leverageMode === true;
+        const globalMaxExposure = typeof req.body.globalMaxExposure === "number" ? req.body.globalMaxExposure : 80;
 
         let pool = allPlayers.map(p => {
           let pts = Number(p.projectedPoints);
@@ -644,7 +645,7 @@ export async function registerRoutes(
             if (iterationExcluded.includes(p.id)) continue;
             const appearances = playerAppearances[p.id] || 0;
             const currentExposure = totalCount > 0 ? (appearances / totalCount) * 100 : 0;
-            if (currentExposure >= 80) {
+            if (currentExposure >= globalMaxExposure) {
               iterationExcluded.push(p.id);
             }
           }
