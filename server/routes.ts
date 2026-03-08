@@ -154,9 +154,6 @@ export async function registerRoutes(
        return res.status(404).json({ message: "Slate not found" });
     }
     const slate = await storage.getSlate(slateId);
-    if (slate?.draftGroupId) {
-      players = await applyLiveDKStatuses(players, slate.draftGroupId);
-    }
     players = players.filter(p => {
       const status = (p.injuryStatus || "").toUpperCase();
       return status !== "OUT" && status !== "IR";
