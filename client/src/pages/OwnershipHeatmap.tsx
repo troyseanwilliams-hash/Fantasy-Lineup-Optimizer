@@ -64,12 +64,18 @@ export default function OwnershipHeatmap() {
   const availableSports = ACTIVE_SPORTS.filter(s => mainSlates.some(sl => sl.sport === s));
   const [selectedSport, setSelectedSport] = useState<string>("");
   const [sortDirection, setSortDirection] = useState<"high" | "low">("high");
+  const [contestType, setContestType] = useState<"gpp_large" | "gpp_small" | "cash">("gpp_large");
 
   const activeSport = selectedSport || availableSports[0] || "NBA";
   const activeSlate = mainSlates.find(s => s.sport === activeSport);
 
   const { data: ownershipData, isLoading } = useQuery<OwnershipData>({
-    queryKey: ["/api/ownership", activeSlate?.id],
+    queryKey: ["/api/ownership", activeSlate?.id, contestType],
+    queryFn: async () => {
+      const res = await fetch(`/api/ownership/${activeSlate!.id}?contestType=${contestType}`);
+      if (!res.ok) throw new Error("Failed to fetch ownership data");
+      return res.json();
+    },
     enabled: !!activeSlate && isAdmin,
   });
 
@@ -111,7 +117,24 @@ export default function OwnershipHeatmap() {
             <p className="text-sm text-slate-400">Projected ownership by position — find chalk and contrarian plays</p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1 bg-[#1E293B] border border-slate-700 rounded-lg p-1" data-testid="contest-type-selector">
+              {([["gpp_large", "GPP Large"], ["gpp_small", "GPP Small"], ["cash", "Cash"]] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  onClick={() => setContestType(value)}
+                  className={`px-3 py-1.5 rounded-md text-xs font-black transition-colors cursor-pointer ${
+                    contestType === value
+                      ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                  data-testid={`contest-type-${value}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
             <button
               onClick={() => setSortDirection(d => d === "high" ? "low" : "high")}
               className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-bold transition-colors cursor-pointer ${

@@ -1,0 +1,72 @@
+You are building an ownership projection system for a Daily Fantasy Sports (DFS) website.
+
+Goal:
+Create a backend service that calculates and stores projected player ownership percentages for ALL active sports available on my site (e.g., NFL, NBA, MLB, NHL, PGA, etc.). The system should be designed similarly in concept to other DFS sites that produce their own ownership models (e.g., using contest data, salaries, projections, and public signals), but implemented uniquely for my platform.
+
+Key requirements:
+
+1. Architecture
+- Build a modular ownership engine that supports multiple sports.
+- Each sport should have its own configuration and modeling logic but share a common interface.
+- Design it so I can easily add new sports later.
+
+2. Inputs to the model
+For each slate and sport, the model should be able to use:
+- Historical contest ownership data (if available).
+- Player salary, position, team, and game context (spread, total, pace, etc.).
+- My site’s own projection data (fantasy point projections, value metrics).
+- Public sentiment proxies (optional, but design for future use), such as:
+  - Recent performance
+  - Injury news
+  - Depth chart changes
+  - Popular stacks or game environments
+
+3. Core functionality
+- For each slate and sport:
+  - Ingest the player pool and relevant data.
+  - Generate projected ownership percentages for each player.
+  - Normalize ownership so that total ownership is realistic for the sport and contest type.
+- Support different contest types:
+  - Large-field GPP
+  - Small-field GPP
+  - Cash games
+- Allow tuning parameters per sport and contest type (e.g., chalkiness, spread of ownership).
+
+4. Implementation details
+- Use a clear, well-structured codebase with:
+  - A main ownership engine
+  - Sport-specific modules (e.g., nfl_model.py, nba_model.py, etc.)
+  - A configuration file or object that defines:
+    - Active sports
+    - Default parameters per sport
+- Include functions like:
+  - `get_player_pool(sport, slate_id)`
+  - `calculate_ownership(sport, slate_id, contest_type)`
+  - `save_ownership_results(sport, slate_id, contest_type, results)`
+
+5. Data handling
+- Assume data comes from my existing database or placeholder functions.
+- For now, mock data access with clear interfaces so I can later plug in my real DB.
+- Return results as JSON objects with:
+  - player_id
+  - name
+  - team
+  - projected_ownership (percentage)
+
+6. Similarity to other DFS sites
+- The model should:
+  - Concentrate ownership on obvious chalk plays.
+  - Spread ownership among mid-tier options.
+  - Leave some players very low-owned.
+- Implement a simple first version using:
+  - A weighted combination of projection rank, salary, and recent performance.
+  - A softmax or similar transformation to convert “popularity scores” into ownership percentages.
+
+7. Output
+- Provide:
+  - The full code implementation.
+  - Example usage for at least two sports (e.g., NFL and NBA).
+  - Example JSON output for a sample slate.
+  - Clear comments explaining where to plug in real data sources and how to add new sports.
+
+Now, generate the code and structure for this multi-sport ownership model system so I can run and extend it inside my Replit project.
