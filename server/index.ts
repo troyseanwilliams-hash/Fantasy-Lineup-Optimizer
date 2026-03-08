@@ -5,6 +5,7 @@ import { createServer } from "http";
 import cron from "node-cron";
 import { storage } from "./storage";
 import { fetchPrizePicksProjections, getSupportedPPSports } from "./prizepicks";
+import { refreshRecentlyPlayed } from "./espn-activity";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { users } from "@shared/models/auth";
@@ -178,6 +179,12 @@ app.use((req, res, next) => {
           await seedDatabase();
           log("Startup seed check completed", "cron");
 
+          for (const sport of ["NBA", "NHL", "MLB", "NFL"]) {
+            try {
+              await refreshRecentlyPlayed(sport);
+            } catch {}
+          }
+
           const snapshotted = await storage.backfillPlayerSnapshots();
           if (snapshotted > 0) log(`Backfilled player snapshots for ${snapshotted} lineup(s)`, "cron");
           const ppSports = getSupportedPPSports();
@@ -199,6 +206,11 @@ app.use((req, res, next) => {
           const expiredCount = await storage.deleteExpiredLineups();
           if (expiredCount > 0) log(`Moved ${expiredCount} expired lineup(s) to review`, "cron");
           await seedDatabase(true);
+          for (const sport of ["NBA", "NHL", "MLB", "NFL"]) {
+            try {
+              await refreshRecentlyPlayed(sport);
+            } catch {}
+          }
           const today = new Date().toISOString().split("T")[0];
           await generateDailyProps(today);
           const ppSports = getSupportedPPSports();

@@ -22,6 +22,7 @@ import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
 import { getLiveScores, getAllLiveScores } from "./espn-scores";
 import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analyzeManualPicks } from "./prizepicks";
 import { fetchBDLStats, type PlayerStatsMap, normalizeName } from "./balldontlie-stats";
+import { refreshRecentlyPlayed, getRecentlyPlayedCache, normalizePlayerName } from "./espn-activity";
 
 function computeOwnershipProjections(players: Player[], bdlStats?: PlayerStatsMap): (Player & { ownershipProjection: number })[] {
   if (players.length === 0) return [];
@@ -1962,6 +1963,7 @@ const INACTIVE_VALUE_THRESHOLD = 6.0;
 function getInactivePlayerIds(players: Player[], sport: string): number[] {
   const minSalary = SPORT_MIN_SALARY[sport] || 3000;
   const inactiveIds: number[] = [];
+  const recentlyPlayed = getRecentlyPlayedCache(sport);
 
   const outPlayersByTeamPos = new Map<string, string[]>();
   for (const p of players) {
@@ -1982,16 +1984,25 @@ function getInactivePlayerIds(players: Player[], sport: string): number[] {
     const fppg = Number(p.fppg) || 0;
     const valuePer1K = (fppg * 1000) / p.salary;
 
-    if (valuePer1K >= INACTIVE_VALUE_THRESHOLD) {
-      const positions = p.position.split("/");
-      const hasOutTeammate = positions.some(pos => {
-        const key = `${p.team}_${pos}`;
-        return outPlayersByTeamPos.has(key);
-      });
+    const positions = p.position.split("/");
+    const hasOutTeammate = positions.some(pos => {
+      const key = `${p.team}_${pos}`;
+      return outPlayersByTeamPos.has(key);
+    });
 
-      if (!hasOutTeammate) {
+    if (hasOutTeammate) continue;
+
+    if (valuePer1K >= INACTIVE_VALUE_THRESHOLD) {
+      inactiveIds.push(p.id);
+      console.log(`[Inactive Filter] Excluding ${p.name} (${p.team}) - $${p.salary} salary with ${fppg} FPPG (${valuePer1K.toFixed(1)} pts/$K) — likely not in rotation`);
+      continue;
+    }
+
+    if (recentlyPlayed && recentlyPlayed.size > 0) {
+      const normalized = normalizePlayerName(p.name);
+      if (!recentlyPlayed.has(normalized) && fppg > 0) {
         inactiveIds.push(p.id);
-        console.log(`[Inactive Filter] Excluding ${p.name} (${p.team}) - $${p.salary} salary with ${fppg} FPPG (${valuePer1K.toFixed(1)} pts/$K) — likely not in rotation`);
+        console.log(`[Inactive Filter] Excluding ${p.name} (${p.team}) - $${p.salary} salary, not found in recent ESPN boxscores`);
       }
     }
   }
