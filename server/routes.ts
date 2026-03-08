@@ -316,7 +316,7 @@ export async function registerRoutes(
       const sportCount = await storage.getLineupCountBySport(userId, input.sport);
       if (sportCount >= maxPerSport) {
         const upgradeMsg = tier === "free"
-          ? "Contender plan allows 1 saved team per sport. Upgrade to Sharpshooter for 20 teams or Champion for 150 teams per sport."
+          ? "Contender plan allows 1 saved team per sport. Delete your existing lineup to save a new one, or upgrade to Sharpshooter for 20 teams or Champion for 150 teams per sport."
           : tier === "star"
           ? "Sharpshooter plan allows 20 saved teams per sport. Upgrade to Champion for 150 teams per sport."
           : "You've reached the maximum of 150 saved teams per sport.";
