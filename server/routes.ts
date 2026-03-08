@@ -17,7 +17,7 @@ function isLoggedIn(req: Request): boolean {
 import { XMLParser } from "fast-xml-parser";
 
 import { type OptimizationConstraints, type ProOptimizationConstraints, type Player, type Slate, type InsertProp, type InsertAlert, proOptimizationConstraintSchema, insertPrizePicksEntrySchema } from "@shared/schema";
-import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus, fetchLivePlayerStatuses } from "./balldontlie";
+import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus, fetchLivePlayerStatuses, fetchAvailableDKSlates, fetchDKSlateByDraftGroup } from "./balldontlie";
 import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
 import { getLiveScores, getAllLiveScores } from "./espn-scores";
 import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analyzeManualPicks } from "./prizepicks";
@@ -958,6 +958,97 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Refresh failed:", err);
       res.status(500).json({ message: "Refresh failed" });
+    }
+  });
+
+  app.get("/api/admin/dk-slates/:sport", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    const dbUser = await storage.getUser(userId);
+    if (!dbUser?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+    try {
+      const sport = req.params.sport.toUpperCase();
+      const available = await fetchAvailableDKSlates(sport);
+      const existingSlates = await storage.getSlates();
+      const existingDraftGroupIds = new Set(
+        existingSlates
+          .filter(s => s.draftGroupId && s.sport === sport)
+          .map(s => s.draftGroupId)
+      );
+      const result = available.map(s => ({
+        ...s,
+        alreadyImported: existingDraftGroupIds.has(s.draftGroupId),
+      }));
+      res.json(result);
+    } catch (err: any) {
+      console.error("[Admin] Error fetching DK slates:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch DK slates" });
+    }
+  });
+
+  app.post("/api/admin/add-dk-slate", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    const dbUser = await storage.getUser(userId);
+    if (!dbUser?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+    try {
+      const { sport, draftGroupId, name } = req.body;
+      if (!sport || !draftGroupId) {
+        return res.status(400).json({ message: "sport and draftGroupId are required" });
+      }
+
+      const existingSlates = await storage.getSlates();
+      const alreadyExists = existingSlates.find(s => s.draftGroupId === draftGroupId && s.sport === sport);
+      if (alreadyExists) {
+        return res.status(409).json({ message: "This slate has already been imported", slateId: alreadyExists.id });
+      }
+
+      const slateData = await fetchDKSlateByDraftGroup(sport, draftGroupId);
+      if (!slateData || slateData.dkPlayers.length === 0) {
+        return res.status(404).json({ message: "No player data found for this DraftKings slate" });
+      }
+
+      const slateName = name || `${sport} Slate ${draftGroupId}`;
+      const newSlate = await storage.createSlate({
+        sport,
+        platform: "draftkings",
+        name: slateName,
+        startTime: slateData.slateDate,
+        isMain: false,
+        draftGroupId: draftGroupId,
+      });
+
+      const createdPlayers = await storage.bulkCreatePlayers(
+        slateData.dkPlayers.map((p: any) => ({ ...p, slateId: newSlate.id })) as any
+      );
+
+      const today = new Date().toISOString().split("T")[0];
+      try {
+        const historyRecords = createdPlayers.map(p => ({
+          playerName: p.name,
+          team: p.team,
+          sport,
+          position: p.position,
+          salary: p.salary,
+          projectedPoints: p.projectedPoints,
+          slateDate: today,
+          slateId: newSlate.id,
+          draftKingsPlayerId: p.draftKingsPlayerId,
+        }));
+        await storage.bulkInsertPlayerHistory(historyRecords);
+      } catch (err) {
+        console.error(`[History] Failed to save ${sport} snapshots for new slate:`, err);
+      }
+
+      console.log(`[Admin] Added ${sport} slate "${slateName}" (DG ${draftGroupId}) with ${createdPlayers.length} players`);
+      res.json({
+        slate: newSlate,
+        playerCount: createdPlayers.length,
+        message: `Imported ${createdPlayers.length} players for ${slateName}`,
+      });
+    } catch (err: any) {
+      console.error("[Admin] Error adding DK slate:", err);
+      res.status(500).json({ message: err.message || "Failed to add slate" });
     }
   });
 

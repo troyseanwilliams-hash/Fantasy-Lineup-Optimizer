@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { Navigation } from "@/components/Navigation";
-import { useCreateSlate, useBulkCreatePlayers } from "@/hooks/use-slates";
+import { useBulkCreatePlayers } from "@/hooks/use-slates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Upload, FileJson, Database, ShieldAlert, RefreshCw } from "lucide-react";
+import { Loader2, Plus, Upload, FileJson, Database, ShieldAlert, RefreshCw, Check } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 const EXAMPLE_JSON = `[
   {
@@ -33,8 +34,16 @@ const EXAMPLE_JSON = `[
   }
 ]`;
 
+interface DKSlateOption {
+  draftGroupId: number;
+  gameCount: number;
+  startTime: string;
+  label: string;
+  gameTypeId: number;
+  alreadyImported: boolean;
+}
+
 export default function Admin() {
-  const { mutate: createSlate, isPending: isCreatingSlate } = useCreateSlate();
   const { mutate: uploadPlayers, isPending: isUploading } = useBulkCreatePlayers();
   const { toast } = useToast();
 
@@ -67,10 +76,28 @@ export default function Admin() {
     }
   });
 
-  const [slateForm, setSlateForm] = useState({
-    name: "",
-    sport: "NBA",
-    startTime: "",
+  const [addSlateSport, setAddSlateSport] = useState("NBA");
+  const [selectedDraftGroup, setSelectedDraftGroup] = useState("");
+
+  const { data: availableSlates, isLoading: isLoadingSlates, refetch: refetchSlates } = useQuery<DKSlateOption[]>({
+    queryKey: ["/api/admin/dk-slates", addSlateSport],
+    enabled: !!addSlateSport,
+  });
+
+  const addSlateMutation = useMutation({
+    mutationFn: async ({ sport, draftGroupId, name }: { sport: string; draftGroupId: number; name: string }) => {
+      const res = await apiRequest("POST", "/api/admin/add-dk-slate", { sport, draftGroupId, name });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Slate Added", description: data.message || `Imported ${data.playerCount} players` });
+      setSelectedDraftGroup("");
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/dk-slates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/slates"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Import Failed", description: err.message || "Could not import slate", variant: "destructive" });
+    }
   });
 
   const [uploadForm, setUploadForm] = useState({
@@ -96,19 +123,14 @@ export default function Admin() {
     );
   }
 
-  const handleCreateSlate = (e: React.FormEvent) => {
-    e.preventDefault();
-    createSlate({
-      name: slateForm.name,
-      sport: slateForm.sport,
-      startTime: new Date(slateForm.startTime),
-    }, {
-      onSuccess: (data) => {
-        toast({ title: "Slate Created", description: `ID: ${data.id}` });
-        setUploadForm(prev => ({ ...prev, slateId: String(data.id) }));
-        setSlateForm({ name: "", sport: "NBA", startTime: "" });
-      },
-      onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" })
+  const handleAddSlate = () => {
+    if (!selectedDraftGroup) return;
+    const selected = availableSlates?.find(s => String(s.draftGroupId) === selectedDraftGroup);
+    if (!selected) return;
+    addSlateMutation.mutate({
+      sport: addSlateSport,
+      draftGroupId: selected.draftGroupId,
+      name: `${addSlateSport} ${selected.label.split(" (")[0]}`,
     });
   };
 
@@ -165,55 +187,104 @@ export default function Admin() {
             <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
               <Plus className="w-6 h-6 text-[#10B981]" />
             </div>
-            <h2 className="text-2xl font-bold text-white">Create New Slate</h2>
+            <h2 className="text-2xl font-bold text-white">Add New Slate</h2>
           </div>
 
-          <form onSubmit={handleCreateSlate} className="space-y-6">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-slate-400">Sport</Label>
-                <Select 
-                  value={slateForm.sport} 
-                  onValueChange={(val) => setSlateForm(prev => ({ ...prev, sport: val }))}
-                >
-                  <SelectTrigger className="bg-slate-900 border-slate-700">
-                    <SelectValue placeholder="Select sport" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-slate-700 text-white">
-                    <SelectItem value="NFL">NFL</SelectItem>
-                    <SelectItem value="NBA">NBA</SelectItem>
-                    <SelectItem value="MLB">MLB</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <Label className="text-slate-400">Slate Name</Label>
-                <Input 
-                  placeholder="e.g. NBA Main Slate" 
-                  className="input-dark"
-                  value={slateForm.name}
-                  onChange={e => setSlateForm(prev => ({ ...prev, name: e.target.value }))}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-400">Start Time</Label>
-                <Input 
-                  type="datetime-local" 
-                  className="input-dark"
-                  value={slateForm.startTime}
-                  onChange={e => setSlateForm(prev => ({ ...prev, startTime: e.target.value }))}
-                  required
-                />
-              </div>
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <Label className="text-slate-400">Sport</Label>
+              <Select 
+                value={addSlateSport} 
+                onValueChange={(val) => {
+                  setAddSlateSport(val);
+                  setSelectedDraftGroup("");
+                }}
+              >
+                <SelectTrigger className="bg-slate-900 border-slate-700" data-testid="select-add-slate-sport">
+                  <SelectValue placeholder="Select sport" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-slate-700 text-white">
+                  <SelectItem value="NBA">NBA</SelectItem>
+                  <SelectItem value="NHL">NHL</SelectItem>
+                  <SelectItem value="NFL">NFL</SelectItem>
+                  <SelectItem value="MLB">MLB</SelectItem>
+                  <SelectItem value="GOLF">GOLF</SelectItem>
+                  <SelectItem value="SOCCER">SOCCER</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
-            <Button type="submit" disabled={isCreatingSlate} className="btn-primary w-full h-12 text-lg font-bold">
-              {isCreatingSlate ? <Loader2 className="animate-spin" /> : "Create Slate"}
+            <div className="space-y-2">
+              <Label className="text-slate-400">Available DraftKings Slates</Label>
+              {isLoadingSlates ? (
+                <div className="flex items-center gap-2 text-slate-500 py-3">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">Loading slates from DraftKings...</span>
+                </div>
+              ) : !availableSlates || availableSlates.length === 0 ? (
+                <div className="text-sm text-slate-500 py-3 px-3 rounded-lg bg-slate-900 border border-slate-700">
+                  No classic DraftKings slates found for {addSlateSport}. Check back when DK publishes a slate.
+                </div>
+              ) : (
+                <Select
+                  value={selectedDraftGroup}
+                  onValueChange={setSelectedDraftGroup}
+                >
+                  <SelectTrigger className="bg-slate-900 border-slate-700" data-testid="select-dk-slate">
+                    <SelectValue placeholder="Select a DraftKings slate" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-slate-700 text-white">
+                    {availableSlates.map(s => (
+                      <SelectItem 
+                        key={s.draftGroupId} 
+                        value={String(s.draftGroupId)}
+                        disabled={s.alreadyImported}
+                      >
+                        <span className="flex items-center gap-2">
+                          {s.label}
+                          {s.alreadyImported && (
+                            <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded">
+                              Already Added
+                            </span>
+                          )}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            {selectedDraftGroup && (
+              <div className="rounded-lg bg-slate-900/50 border border-slate-700/50 px-4 py-3">
+                <div className="text-sm text-slate-300">
+                  {availableSlates?.find(s => String(s.draftGroupId) === selectedDraftGroup)?.label}
+                </div>
+                <div className="text-xs text-slate-500 mt-1">
+                  DraftGroup ID: {selectedDraftGroup}
+                </div>
+              </div>
+            )}
+
+            <Button 
+              onClick={handleAddSlate}
+              disabled={!selectedDraftGroup || addSlateMutation.isPending}
+              className="btn-primary w-full h-12 text-lg font-bold"
+              data-testid="button-add-slate"
+            >
+              {addSlateMutation.isPending ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="animate-spin w-5 h-5" />
+                  Importing Players...
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Plus className="w-5 h-5" />
+                  Add Slate
+                </div>
+              )}
             </Button>
-          </form>
+          </div>
         </div>
 
         <div className="card">

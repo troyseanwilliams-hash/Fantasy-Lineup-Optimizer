@@ -2,7 +2,7 @@
 
 ## Overview
 
-EliteLineup AI is a web application designed to help users create optimal Daily Fantasy Sports (DFS) lineups for platforms like DraftKings and FanDuel. It leverages Linear Programming (LP) optimization based on player projections across six sports: NBA, NHL, GOLF, MLB, NFL, and SOCCER. The application allows users to manage slates, customize player pools, run optimizations, and save their generated lineups. It also includes features for prop betting, parlay building, and PrizePicks entry optimization, with tiered subscription plans offering advanced functionalities. The project aims to provide a comprehensive tool for DFS enthusiasts to improve their lineup building and betting strategies.
+EliteLineup AI is a web application that provides advanced tools for Daily Fantasy Sports (DFS) players on platforms like DraftKings and FanDuel. It optimizes DFS lineups across six major sports (NBA, NHL, GOLF, MLB, NFL, SOCCER) using Linear Programming based on player projections. The application includes features for slate management, player pool customization, lineup optimization, and saving generated lineups. Beyond DFS, it offers functionalities for prop betting, parlay building, and PrizePicks entry optimization. The project's vision is to deliver a comprehensive, data-driven platform that empowers DFS enthusiasts and bettors to enhance their strategies and improve their success rates.
 
 ## User Preferences
 
@@ -11,90 +11,57 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### Frontend
-- **Framework**: React 18 with TypeScript
-- **Routing**: Wouter
-- **State/Data Management**: TanStack React Query for server state, local React state for UI
-- **UI Components**: shadcn/ui (New York style) built on Radix UI, styled with Tailwind CSS (dark theme, platform-specific color schemes)
-- **Build Tool**: Vite
+- **Framework**: React 18 with TypeScript, Wouter for routing.
+- **State Management**: TanStack React Query for server state, local React for UI state.
+- **UI**: shadcn/ui (New York style) built on Radix UI, styled with Tailwind CSS (dark theme, platform-specific colors).
+- **Build**: Vite.
 
 ### Backend
-- **Runtime**: Node.js with Express and TypeScript
-- **API Pattern**: RESTful JSON API with Zod schema validation
-- **Optimization Engine**: `javascript-lp-solver` for Linear Programming
-- **Authentication**: bcryptjs password hashing with session-based authentication stored in PostgreSQL
-- **Payments**: Stripe Elements embedded payment form for subscription payments with webhook event handling
-- **Cron Jobs**: Hourly tasks for data refresh (DraftKings slates/players, Odds API props, PrizePicks projections), hourly player status/injury refresh from DK API (:00), pre-contest accelerated status refresh (every 5 min within 1 hour of lock), daily vault maintenance, daily grace period expiration check (3 AM ET), and daily player history cleanup (4 AM ET, 90-day retention).
-- **Injury Handling**: All optimizers (regular, Pro, bulk generate) fetch **live injury statuses directly from the DraftKings draftables API** at optimization time — never relying on cached/stale DB data. The DK `status` field is the sole system of record for injury determination; `newsStatus` is ignored. OUT and Questionable players are completely excluded from lineups. Doubtful players get a 30% projection penalty, Probable players get a 90% penalty. `mapDKStatus()` in `server/balldontlie.ts` maps DK codes (Q→Questionable, O/OUT→OUT, D→Doubtful, P→Probable, GTD→Questionable, IR→OUT). `fetchLivePlayerStatuses()` provides real-time DK status data to `applyLiveDKStatuses()` in `routes.ts`. Both Optimizer.tsx and ProOptimizer.tsx show color-coded injury badges (red=OUT, orange=Doubtful, amber=Questionable, green=Probable).
-- **DK as System of Record**: All player/slate data comes exclusively from the DraftKings public API. No static seed data fallbacks — if DK doesn't have a live slate for a sport, that sport is simply unavailable until DK publishes data. No synthetic/fake injury statuses, boosts, or props. Injury statuses use ONLY the DK `status` field — never news articles or `newsStatus`. Boosts use the data-driven engine only; if it fails, no boosts are applied rather than generating fake ones. Props come from the Odds API only; no synthetic fallback.
-- **DK ID Auto-Repair**: On startup/refresh, if existing slates have players missing `draftKingsPlayerId` and live DK data is available, the system updates players in-place (matching by name+team) without deleting/recreating, preserving lineup references. Empty slates get populated with fresh live data. Slates also get `draftGroupId` backfilled if missing.
-- **Live Scores**: ESPN public scoreboard API with server-side caching.
-- **ESPN Activity Check** (`server/espn-activity.ts`): On startup and hourly refresh, fetches the last 5 days of completed game boxscores from ESPN for NBA, NHL, MLB, and NFL. Builds a cached set of player names who actually played (had minutes/at-bats/ice-time). Used by the inactive player filter to exclude minimum-salary players who haven't appeared in any recent boxscores — catching deep bench players that DK lists but never play. Cache TTL: 4 hours. Fetches games in batches of 5 for efficiency.
-- **Boost Engine** (`server/boost-engine.ts`): Data-driven scoring for DFS optimization using stored player history:
-  - `computeBoostScores()` — multi-factor analysis producing detailed, data-backed reasons: value scoring with position rankings (#X of Y), historical trend detection with streak analysis, salary movement tracking with dollar amounts, floor/ceiling projections from historical variance (CV%), momentum analysis (recent 3 vs prior 3 slates), lowest/highest salary detection across tracked slates, team environment scoring, and sport-specific stack potential (NFL QB-WR, MLB team, NBA/NHL game stacks). History sorted by date descending; all division-by-zero edge cases guarded.
-  - `computeCorrelationBonus()` — NFL QB-WR stacking, MLB team stacking, NBA/NHL game stacks (post-LP re-ranking)
-  - `applyCeilingMode()` — deterministic upside boost for GPP/tournament lineups
-  - `applyLeverageMode()` — contrarian ownership adjustments to differentiate from the field
-- **Player History**: `playerHistory` table tracks player projection snapshots per slate; populated on each data refresh; used by boost engine for trend/volatility analysis
-- **Player Snapshots**: `lineups.playerSnapshot` (JSONB) stores full player data (id, name, team, position, salary, fppg, projectedPoints, opponent, gameInfo, draftKingsPlayerId, boostScore, boostReason) at lineup save/update time. Used as fallback when live players are deleted (slate refresh, stale cleanup). All snapshot creation paths (save, update, moveToReview, deleteExpired, deleteSlateAndPlayers, backfill) include fppg. Orphaned lineups (where playerIds don't resolve to live players) are flagged with `isOrphaned` in API responses and shown with "Outdated" badge in the vault UI.
-- **Lineup Preservation on Slate Refresh**: `deleteSlateAndPlayers()` no longer deletes lineups when a slate is refreshed. Instead, it moves them to "review" status with player snapshots preserved, so users don't lose their saved lineups when slates are recreated hourly.
-- **Pro Optimizer Pool Trimming**: The LP solver (javascript-lp-solver) uses branch-and-bound for integer programming, which is exponentially slow with 250+ variables. The pro optimizer caps the player pool to 150 players (sorted by projected points, plus any locked players), reducing solve time from hanging indefinitely to ~50-60ms per iteration. A 45-second safety timeout is also enforced.
-- **Player Swap (Both Optimizers)**: Both `Optimizer.tsx` (Standard) and `ProOptimizer.tsx` (Advanced) support direct one-click player swaps on generated lineups. Swap button (ArrowLeftRight icon) appears next to each filled lineup slot. Clicking it enters swap mode — highlights the slot in amber, shows eligible replacements filtered by position and salary (budget = remaining cap + current player's salary), and lets users pick a replacement in one click. Standard Optimizer uses `swappingSlot` state + `swapBudget` memo; Pro Optimizer uses `swappingTarget` (lineupIdx + slot) + `lineupSwaps` overlay on immutable mutation data + inline swap panel per lineup card.
-- **DK Entries Import** (Champion only): Upload DraftKings entries CSV to import lineups into the vault. CSV parsed client-side to extract Entry ID, Contest Name, Contest ID, Entry Fee, and player DK IDs (from `Name (ID)` format). Players matched by `draftKingsPlayerId` against active slate. Imported lineups store DK metadata in `dkEntryId`, `dkContestName`, `dkContestId`, `dkEntryFee` columns. Export preserves DK format with Entry ID/Contest columns for re-upload. Existing swap/regenerate/save features work on imported entries.
-  - **Route**: `POST /api/lineups/import-dk` — accepts `{entries, sport, slateId}`, matches players by DK ID, validates roster, creates lineups
-  - **Key Files**: `client/src/pages/SavedLineups.tsx` (parseCSVRow, parseDKEntryCSV, handleDKImport, buildDraftKingsCSV with DK entry columns)
-- **Bulk Regenerate**: Select 1+ lineups in the vault and click "Regenerate" to replace each selected lineup's roster with a freshly optimized one using the advanced algorithm (boost engine, ceiling mode, leverage mode, correlation scoring, exposure management). Updates lineups in place — no new entries created — so they can be exported directly. Paid tiers only (Sharpshooter/Champion).
-  - **Route**: `POST /api/lineups/bulk-generate` — accepts `{ids: number[]}`, runs advanced optimizer per lineup, updates existing lineups in place
-  - **Key Files**: `client/src/pages/SavedLineups.tsx` (bulkGenerateMutation), `server/routes.ts`
+- **Runtime**: Node.js with Express and TypeScript.
+- **API**: RESTful JSON API with Zod validation.
+- **Optimization**: `javascript-lp-solver` for Linear Programming.
+- **Authentication**: Session-based using bcryptjs for password hashing.
+- **Payments**: Stripe Elements for subscriptions, including webhook handling.
+- **Data Refresh**: Hourly cron jobs for DraftKings slates/players, Odds API props, PrizePicks projections, and player status updates. Pre-contest accelerated status refresh (every 5 min within 1 hour of lock).
+- **Injury Handling**: Live injury statuses fetched directly from DraftKings API at optimization time. OUT and Questionable players are excluded, Doubtful players receive a 30% projection penalty, and Probable players a 90% penalty.
+- **Data Source**: DraftKings public API is the sole system of record for all player/slate data.
+- **Boost Engine**: Data-driven scoring using player history for value, trends, salary movement, floor/ceiling projections, momentum, team environment, and sport-specific stacking (NFL QB-WR, MLB team, NBA/NHL game stacks). Includes `computeBoostScores()`, `computeCorrelationBonus()`, `applyCeilingMode()`, and `applyLeverageMode()`.
+- **Player History**: Tracks player projection snapshots per slate for trend and volatility analysis.
+- **Lineup Preservation**: Saved lineups are moved to "review" status with preserved player snapshots during slate refreshes to prevent data loss.
+- **Pro Optimizer Pool Trimming**: Limits player pool to 150 players (sorted by projected points, plus locked players) to improve LP solver performance.
+- **Player Swap**: Both Standard and Pro Optimizers support one-click player swaps within generated lineups, filtering replacements by position and salary.
+- **DK Entries Import (Champion only)**: Allows users to upload DraftKings entries CSVs to import lineups into the vault, preserving DK metadata and enabling existing swap/regenerate features.
+- **Bulk Regenerate (Paid tiers)**: Enables regeneration of multiple selected lineups using advanced optimization algorithms (boost engine, ceiling/leverage mode, correlation, exposure management).
+- **Add New Slate (Admin)**: Admin can import additional DraftKings slates beyond the auto-refreshed main slates.
 
 ### Platform Configuration
-- Shared configuration in `shared/platform-config.ts` defines roster slots, salary caps, and position constraints per sport/platform.
-- Specific configurations for NBA, NHL, GOLF, MLB, NFL, and SOCCER for both DraftKings and FanDuel.
+- Shared configuration in `shared/platform-config.ts` defines sport-specific roster slots, salary caps, and position constraints for DraftKings and FanDuel across all supported sports.
 
 ### Data Storage
-- **Database**: PostgreSQL
-- **ORM**: Drizzle ORM with `drizzle-zod` for schema validation.
+- **Database**: PostgreSQL.
+- **ORM**: Drizzle ORM with `drizzle-zod`.
 - **Key Tables**: `users`, `sessions`, `slates`, `players`, `lineups`, `subscriptions`, `props`, `prizepicks_entries`, `playerHistory`.
 
-### Ownership Projection Engine (`server/ownership-engine.ts`)
-- **Modular, multi-sport ownership engine** using softmax-based probability distribution
-- **Sports**: NBA, NHL, NFL, MLB, GOLF, SOCCER — each with sport-specific config (projection/salary/value/recency weights, position chalk multipliers, softmax temperature, ownership ceilings)
-- **Contest types**: `gpp_large` (flat ownership, high temperature), `gpp_small` (moderate concentration), `cash` (concentrated on chalk, low temperature)
-- **Inputs**: Player projections, salary, value score, recency trends (from `playerHistory`), consistency (CV%), BDL star power/fantasy score, injury status, position scarcity
-- **Pipeline**: `computePopularityScores()` → `softmaxTransform(temperature)` → `normalizeOwnership(ceiling, floor)` → tier assignment (chalk/popular/mid/low/contrarian)
-- **Exported functions**: `calculateOwnership(players, sport, contestType, bdlStats)`, `computeOwnershipForPlayers(players, results)`, `getOwnershipConfig(sport)`, `getSupportedSports()`
+### Ownership Projection Engine
+- **Modular, multi-sport engine** utilizing softmax-based probability distribution.
+- **Configuration**: Sport-specific weights for projection, salary, value, recency, position chalk multipliers, and ownership ceilings.
+- **Contest Types**: Supports `gpp_large`, `gpp_small`, and `cash` contest types with varying concentration levels.
+- **Inputs**: Player projections, salary, value, recency trends, consistency, star power, injury status, and position scarcity.
 
 ### Ownership Heatmap (Champion-only)
-- **Route**: `/ownership` — shows top-owned players by position for a selected sport/slate with contest type selector (GPP Large, GPP Small, Cash)
-- **APIs**:
-  - `GET /api/ownership/:slateId?contestType=gpp_large` — returns players grouped by position with ownership projections, chalk player, and contrarian value pick (Champion + admin)
-  - `GET /api/ownership/:slateId/projections?contestType=gpp_large` — returns full player ownership list as JSON (Sharpshooter/Champion + admin)
-- **Gating**: Heatmap requires Champion tier (`tier === "pro"`) or admin; projections endpoint requires Sharpshooter/Champion/admin
-- **Key Files**: `client/src/pages/OwnershipHeatmap.tsx`, `server/ownership-engine.ts`, `server/balldontlie-stats.ts`
+- Displays top-owned players by position for a selected sport/slate with contest type selection.
+- Provides APIs for ownership projections and detailed player ownership lists.
 
 ### Subscription System
-- **Tiers**: Basic (free), Star ($19.99/mo), and Pro ($49.99/mo) — both with 7-day free trial for first-time subscribers
-- **Payment**: Stripe Elements embedded payment form (in-app modal) for upgrades; Stripe Customer Portal for managing/canceling subscriptions
-- **Grace Period**: Existing premium users without a Stripe subscription get 30 days to subscribe before reverting to Basic. Admin users are exempt.
-- **Stripe Routes**:
-  - `POST /api/subscription/create-intent` — creates a Stripe subscription with PaymentIntent for embedded payment form
-  - `POST /api/subscription/checkout` — creates a Stripe Checkout Session (fallback)
-  - `POST /api/subscription/portal` — creates a Stripe Customer Portal session
-  - `POST /api/stripe/webhook` — handles Stripe webhook events (checkout.session.completed, customer.subscription.updated, customer.subscription.deleted)
-- **Key Files**: `server/stripe.ts` (Stripe client, checkout/portal/webhook logic), `client/src/components/PaymentForm.tsx` (embedded Stripe Elements modal), `client/src/pages/Pricing.tsx`
-- **Environment Variables**:
-  - `STRIPE_SECRET_KEY` (secret) — Stripe API secret key
-  - `VITE_STRIPE_PUBLISHABLE_KEY` (env var) — Stripe publishable key for frontend
-  - `STRIPE_WEBHOOK_SECRET` (secret, optional) — Stripe webhook signing secret for signature verification
-- **Webhook Setup**: Configure in Stripe Dashboard → Developers → Webhooks → Add endpoint pointing to `https://<domain>/api/stripe/webhook`. Events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`
-
-### Shared Code
-- The `shared/` directory centralizes common code for both client and server, including database schemas, platform configurations, API routes, and affiliate marketing details.
+- **Tiers**: Basic (free), Star ($19.99/mo), and Pro ($49.99/mo), each with a 7-day free trial.
+- **Payment**: Stripe Elements for in-app upgrades and Stripe Customer Portal for subscription management.
+- **Grace Period**: 30-day grace period for existing premium users to subscribe via Stripe.
 
 ## External Dependencies
 
-- **PostgreSQL Database**: Primary data store for all application data and user sessions.
-- **Stripe**: Payment processing for subscription upgrades (Star & Pro tiers).
-- **DraftKings Public API**: Used for fetching DFS player pools, salaries, and game information without requiring an API key.
-- **ESPN Public API**: Provides live sport-specific news articles.
-- **PrizePicks Public API**: Fetches live player prop projections for various sports, with server-side caching to manage rate limits.
-- **NPM Packages**: Key packages include `drizzle-orm`, `javascript-lp-solver`, `express`, `bcryptjs`, `stripe`, `@tanstack/react-query`, `zod`, `wouter`, and shadcn/ui ecosystem components.
+- **PostgreSQL Database**: Main data store.
+- **Stripe**: Payment gateway for subscriptions.
+- **DraftKings Public API**: Source for DFS player pools, salaries, and game information.
+- **ESPN Public API**: Provides live sport-specific news and scores.
+- **PrizePicks Public API**: Fetches live player prop projections.
+- **NPM Packages**: `drizzle-orm`, `javascript-lp-solver`, `express`, `bcryptjs`, `stripe`, `@tanstack/react-query`, `zod`, `wouter`, and shadcn/ui.
