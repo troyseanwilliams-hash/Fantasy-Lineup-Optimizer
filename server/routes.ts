@@ -17,7 +17,7 @@ function isLoggedIn(req: Request): boolean {
 import { XMLParser } from "fast-xml-parser";
 
 import { type OptimizationConstraints, type ProOptimizationConstraints, type Player, type Slate, type InsertProp, type InsertAlert, proOptimizationConstraintSchema, insertPrizePicksEntrySchema } from "@shared/schema";
-import { fetchAllSportsLiveData, fetchPlayerStatusUpdates } from "./balldontlie";
+import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus } from "./balldontlie";
 import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
 import { getLiveScores, getAllLiveScores } from "./espn-scores";
 import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analyzeManualPicks } from "./prizepicks";
@@ -2238,45 +2238,6 @@ export async function generatePlayerBoostsAndInjuries() {
   }
 }
 
-const DK_STATUS_MAP: Record<string, string> = {
-  "O": "OUT",
-  "Out": "OUT",
-  "OUT": "OUT",
-  "Q": "Questionable",
-  "Questionable": "Questionable",
-  "D": "Doubtful",
-  "Doubtful": "Doubtful",
-  "P": "Probable",
-  "Probable": "Probable",
-  "GTD": "Questionable",
-  "IR": "OUT",
-  "Injured Reserve": "OUT",
-  "Suspended": "OUT",
-  "": "Healthy",
-  "None": "Healthy",
-};
-
-const DK_NEWS_ONLY_STATUSES = new Set(["Breaking", "Recent", "Normal", "Latest"]);
-
-function mapDKStatus(status: string, newsStatus: string): { injuryStatus: string; injuryDetail: string } {
-  const statusMapped = DK_STATUS_MAP[status];
-  const newsMapped = DK_STATUS_MAP[newsStatus];
-
-  const realStatus = (statusMapped && statusMapped !== "Healthy") ? statusMapped
-    : (newsMapped && newsMapped !== "Healthy") ? newsMapped
-    : null;
-
-  if (realStatus) {
-    const detail = status && status !== "None" && status !== "" && !DK_NEWS_ONLY_STATUSES.has(status) ? status : realStatus;
-    return { injuryStatus: realStatus, injuryDetail: detail };
-  }
-
-  if (DK_NEWS_ONLY_STATUSES.has(newsStatus) || DK_NEWS_ONLY_STATUSES.has(status)) {
-    return { injuryStatus: "Healthy", injuryDetail: "" };
-  }
-
-  return { injuryStatus: "Healthy", injuryDetail: "" };
-}
 
 export async function refreshPlayerStatuses() {
   const allSlates = await storage.getSlates();
