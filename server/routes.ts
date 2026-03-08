@@ -1917,6 +1917,104 @@ function seededRandom(seed: number): () => number {
   };
 }
 
+async function generateFallbackPropsFromDK(sports: string[], date: string): Promise<InsertProp[]> {
+  const props: InsertProp[] = [];
+  const allSlates = await storage.getSlates();
+  const dateSeed = date.split("-").join("");
+  const rng = seededRandom(parseInt(dateSeed, 10));
+
+  for (const sport of sports) {
+    if (sport === "GOLF") continue;
+    const propTypes = PROP_TYPES_BY_SPORT[sport];
+    if (!propTypes || propTypes.length === 0) continue;
+
+    const slate = allSlates.find(s => s.sport === sport && s.isMain)
+      || allSlates.filter(s => s.sport === sport).sort((a, b) => b.id - a.id)[0];
+    if (!slate) continue;
+
+    const players = await storage.getPlayersBySlate(slate.id);
+    if (players.length === 0) continue;
+
+    const eligible = players
+      .filter(p => {
+        const proj = parseFloat(p.projectedPoints || p.fppg || "0");
+        const status = (p.injuryStatus || "").toUpperCase();
+        return proj > 0 && status !== "OUT" && status !== "IR";
+      })
+      .sort((a, b) => parseFloat(b.projectedPoints || b.fppg || "0") - parseFloat(a.projectedPoints || a.fppg || "0"));
+
+    const topPlayers = eligible.slice(0, Math.min(30, eligible.length));
+    if (topPlayers.length === 0) continue;
+
+    const PICKS_PER_SPORT = 5;
+    const usedPlayers = new Set<string>();
+
+    for (let i = 0; i < PICKS_PER_SPORT && i < topPlayers.length; i++) {
+      let playerIdx = Math.floor(rng() * topPlayers.length);
+      let attempts = 0;
+      while (usedPlayers.has(topPlayers[playerIdx].name) && attempts < topPlayers.length) {
+        playerIdx = (playerIdx + 1) % topPlayers.length;
+        attempts++;
+      }
+      if (usedPlayers.has(topPlayers[playerIdx].name)) continue;
+
+      const player = topPlayers[playerIdx];
+      usedPlayers.add(player.name);
+
+      const pos = (player.position || "").toUpperCase();
+      let validPropTypes = propTypes;
+      if (sport === "NHL") {
+        const isGoalie = pos.includes("G") && !pos.includes("C") && !pos.includes("W") && !pos.includes("D");
+        validPropTypes = isGoalie
+          ? propTypes.filter(pt => pt.type === "Saves")
+          : propTypes.filter(pt => pt.type !== "Saves");
+        if (validPropTypes.length === 0) validPropTypes = propTypes;
+      } else if (sport === "MLB") {
+        const isPitcher = pos.includes("P") || pos.includes("SP") || pos.includes("RP");
+        validPropTypes = isPitcher
+          ? propTypes.filter(pt => pt.type === "Strikeouts")
+          : propTypes.filter(pt => pt.type !== "Strikeouts");
+        if (validPropTypes.length === 0) validPropTypes = propTypes;
+      }
+
+      const propType = validPropTypes[Math.floor(rng() * validPropTypes.length)];
+      const proj = parseFloat(player.projectedPoints || player.fppg || "0");
+      const rawLine = proj * propType.baseMultiplier;
+      const variance = 0.85 + rng() * 0.3;
+      const line = Math.round(rawLine * variance * 2) / 2;
+
+      if (line <= 0) continue;
+
+      const edgeRoll = rng();
+      const pick = edgeRoll > 0.5 ? "Over" : "Under";
+      const confidence = Math.round(60 + rng() * 30);
+
+      let opponentFromGameInfo: string | null = null;
+      if (player.gameInfo) {
+        const gi = player.gameInfo.replace(/\s*@\s*\d.*/, "").replace(/\s*\d+:\d+.*/, "");
+        const parts = gi.split(/\s+(?:vs|@)\s+/).map(t => t.trim()).filter(Boolean);
+        opponentFromGameInfo = parts.find(t => t !== player.team) || null;
+      }
+
+      props.push({
+        sport,
+        playerName: player.name,
+        team: player.team,
+        opponent: player.opponent || opponentFromGameInfo || "OPP",
+        propType: propType.type,
+        line: line.toString(),
+        pick,
+        confidence: confidence.toString(),
+        gameInfo: player.gameInfo || `${player.team} game`,
+        isLocked: false,
+        createdDate: date,
+      });
+    }
+  }
+
+  return props;
+}
+
 export async function generateDailyProps(date: string) {
   await storage.clearPropsByDate(date);
   
@@ -1972,10 +2070,21 @@ export async function generateDailyProps(date: string) {
 
     const sportsWithoutData = ACTIVE_SPORTS.filter(s => !sportsFetched.includes(s));
     if (sportsWithoutData.length > 0) {
-      console.log(`[Props] No API data for: ${sportsWithoutData.join(", ")} — skipping (DK is system of record)`);
+      console.log(`[Props] No API data for: ${sportsWithoutData.join(", ")} — generating from DK projections`);
+      const fallbackProps = await generateFallbackPropsFromDK(sportsWithoutData, date);
+      allProps.push(...fallbackProps);
+      if (fallbackProps.length > 0) {
+        console.log(`[Props] Generated ${fallbackProps.length} fallback props from DK data`);
+      }
     }
   } else {
-    console.log("[Props] No ODDS_API_KEY found, no props generated");
+    console.log("[Props] No ODDS_API_KEY found, generating from DK projections");
+    const fallbackSports = ACTIVE_SPORTS.filter(s => s !== "GOLF");
+    const fallbackProps = await generateFallbackPropsFromDK(fallbackSports, date);
+    allProps.push(...fallbackProps);
+    if (fallbackProps.length > 0) {
+      console.log(`[Props] Generated ${fallbackProps.length} fallback props from DK data`);
+    }
   }
 
   allProps.sort((a, b) => Number(b.confidence) - Number(a.confidence));

@@ -36,16 +36,17 @@ const SPORT_FALLBACK_IMAGE: Record<string, string> = {
   SOCCER: "/images/fallback-nba.png",
 };
 
-function TeamLogo({ team, sport, size = 20 }: { team: string; sport: string; size?: number }) {
+function TeamLogo({ team, sport, size = 20 }: { team: string | null | undefined; sport: string; size?: number }) {
   const [failed, setFailed] = useState(false);
-  if (failed) {
+  const safeTeam = team || "TBD";
+  if (failed || !team) {
     return (
       <img
         src={SPORT_FALLBACK_IMAGE[sport] || SPORT_FALLBACK_IMAGE.NBA}
-        alt={team}
+        alt={safeTeam}
         className="rounded-full bg-slate-800/60 object-contain shrink-0"
         style={{ width: size, height: size }}
-        data-testid={`team-logo-fallback-${team.toLowerCase()}`}
+        data-testid={`team-logo-fallback-${safeTeam.toLowerCase()}`}
       />
     );
   }
@@ -66,7 +67,7 @@ interface PropBet {
   sport: string;
   playerName: string;
   team: string;
-  opponent: string;
+  opponent: string | null;
   propType: string;
   line: string;
   pick: string;
@@ -276,7 +277,7 @@ function PropCard({ prop, index }: { prop: PropBet; index: number }) {
             <TeamLogo team={prop.opponent} sport={prop.sport} size={24} />
           </div>
           <div>
-            <span className="text-[11px] font-bold text-slate-400">{prop.team} vs {prop.opponent}</span>
+            <span className="text-[11px] font-bold text-slate-400">{prop.team} vs {prop.opponent || "TBD"}</span>
             {prop.gameInfo && (() => {
               const dotMatch = prop.gameInfo.match(/·\s*(.+)$/);
               const legacyMatch = !dotMatch && prop.gameInfo.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)\s*ET)/i);
