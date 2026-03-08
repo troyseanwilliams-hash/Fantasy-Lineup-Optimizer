@@ -260,7 +260,7 @@ export async function registerRoutes(
     const userId = getSessionUserId(req)!;
     const lineups = await storage.getLineups(userId);
 
-    const slateCache = new Map<number, ReturnType<typeof computeOwnershipProjections>>();
+    const slateCache = new Map<number, (Player & { ownershipProjection: number })[]>();
     const slatePlayerIdCache = new Map<number, Set<number>>();
     const bdlCache = new Map<string, PlayerStatsMap>();
     const enriched = await Promise.all(lineups.map(async (lineup: any) => {
@@ -271,7 +271,8 @@ export async function registerRoutes(
         if (!bdlCache.has(sport)) {
           bdlCache.set(sport, await fetchBDLStats(sport));
         }
-        slateCache.set(lineup.slateId, computeOwnershipProjections(slatePlayers, bdlCache.get(sport)));
+        const ownershipResults = await calculateOwnership(slatePlayers, sport, "gpp_large", bdlCache.get(sport));
+        slateCache.set(lineup.slateId, computeOwnershipForPlayers(slatePlayers, ownershipResults));
         slatePlayerIdCache.set(lineup.slateId, new Set(slatePlayers.map(p => p.id)));
       }
       const allWithOwn = slateCache.get(lineup.slateId)!;
@@ -556,7 +557,8 @@ export async function registerRoutes(
         }
 
         const bdlStats = await fetchBDLStats(slate.sport);
-        const playersWithOwnership = computeOwnershipProjections(pool, bdlStats);
+        const ownershipResults = await calculateOwnership(pool, slate.sport, "gpp_large", bdlStats);
+        const playersWithOwnership = computeOwnershipForPlayers(pool, ownershipResults);
         if (useLeverageMode) {
           pool = applyLeverageMode(playersWithOwnership);
         }
@@ -1534,7 +1536,8 @@ export async function registerRoutes(
 
       const bdlStats = await fetchBDLStats(slate.sport);
       console.log(`[ProOptimizer] BDL fetch completed in ${Date.now() - proStartTime}ms`);
-      const playersWithOwnership = computeOwnershipProjections(pool, bdlStats);
+      const proOwnershipResults = await calculateOwnership(pool, slate.sport, "gpp_large", bdlStats);
+      const playersWithOwnership = computeOwnershipForPlayers(pool, proOwnershipResults);
 
       if (constraints.leverageMode) {
         pool = applyLeverageMode(playersWithOwnership);
