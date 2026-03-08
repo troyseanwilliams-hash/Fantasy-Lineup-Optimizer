@@ -154,12 +154,9 @@ export async function registerRoutes(
        return res.status(404).json({ message: "Slate not found" });
     }
     const slate = await storage.getSlate(slateId);
-    players = players.map(p => {
+    players = players.filter(p => {
       const status = (p.injuryStatus || "").toUpperCase();
-      if (status === "OUT" || status === "IR") {
-        return { ...p, boostScore: null, boostReason: null };
-      }
-      return p;
+      return status !== "OUT" && status !== "IR";
     });
     const bdlStats = slate ? await fetchBDLStats(slate.sport) : {};
     const ownershipResults = slate ? await calculateOwnership(players, slate.sport, "gpp_large", bdlStats) : [];
