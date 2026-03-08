@@ -149,11 +149,18 @@ export async function registerRoutes(
 
   app.get(api.slates.getPlayers.path, async (req, res) => {
     const slateId = Number(req.params.id);
-    const players = await storage.getPlayersBySlate(slateId);
+    let players = await storage.getPlayersBySlate(slateId);
     if (!players) {
        return res.status(404).json({ message: "Slate not found" });
     }
     const slate = await storage.getSlate(slateId);
+    if (slate?.draftGroupId) {
+      players = await applyLiveDKStatuses(players, slate.draftGroupId);
+    }
+    players = players.filter(p => {
+      const status = (p.injuryStatus || "").toUpperCase();
+      return status !== "OUT" && status !== "IR";
+    });
     const bdlStats = slate ? await fetchBDLStats(slate.sport) : {};
     const ownershipResults = slate ? await calculateOwnership(players, slate.sport, "gpp_large", bdlStats) : [];
     const playersWithOwnership = computeOwnershipForPlayers(players, ownershipResults);
@@ -2449,24 +2456,6 @@ export async function seedDatabase(forceRefresh = false) {
 
   await generatePlayerBoostsAndInjuries();
 
-  // One-time tier upgrade for Cole Seibel
-  try {
-    const [coleUser] = await db.select().from(users).where(eq(users.email, "cbseibel@yahoo.com"));
-    if (coleUser) {
-      await storage.upsertSubscription({
-        userId: coleUser.id,
-        tier: "pro",
-        status: "active",
-        stripeSubscriptionId: null,
-        stripePriceId: null,
-        currentPeriodEnd: null,
-        graceEndsAt: null,
-      });
-      console.log("[Admin] Upgraded cbseibel@yahoo.com to Champion (pro) tier");
-    }
-  } catch (err) {
-    console.error("[Admin] Cole tier upgrade error:", err);
-  }
 }
 
 export async function generatePlayerBoostsAndInjuries() {
