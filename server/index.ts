@@ -179,6 +179,13 @@ app.use((req, res, next) => {
           await seedDatabase();
           log("Startup seed check completed", "cron");
 
+          try {
+            const statusUpdated = await refreshPlayerStatuses();
+            if (statusUpdated && statusUpdated > 0) log(`Startup status refresh: updated ${statusUpdated} player(s)`, "cron");
+          } catch (err) {
+            console.error("Startup status refresh failed:", err);
+          }
+
           for (const sport of ["NBA", "NHL", "MLB", "NFL"]) {
             try {
               await refreshRecentlyPlayed(sport);

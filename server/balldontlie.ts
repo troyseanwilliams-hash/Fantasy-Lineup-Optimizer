@@ -4,6 +4,46 @@ import { PLATFORM_CONFIGS } from "@shared/platform-config";
 const DK_API_BASE = "https://api.draftkings.com";
 const DK_LOBBY = "https://www.draftkings.com/lobby";
 
+const DK_STATUS_MAP: Record<string, string> = {
+  "O": "OUT",
+  "Out": "OUT",
+  "OUT": "OUT",
+  "Q": "Questionable",
+  "Questionable": "Questionable",
+  "D": "Doubtful",
+  "Doubtful": "Doubtful",
+  "P": "Probable",
+  "Probable": "Probable",
+  "GTD": "Questionable",
+  "IR": "OUT",
+  "Injured Reserve": "OUT",
+  "Suspended": "OUT",
+  "": "Healthy",
+  "None": "Healthy",
+};
+
+const DK_NEWS_ONLY_STATUSES = new Set(["Breaking", "Recent", "Normal", "Latest"]);
+
+export function mapDKStatus(status: string, newsStatus: string): { injuryStatus: string; injuryDetail: string } {
+  const statusMapped = DK_STATUS_MAP[status];
+  const newsMapped = DK_STATUS_MAP[newsStatus];
+
+  const realStatus = (statusMapped && statusMapped !== "Healthy") ? statusMapped
+    : (newsMapped && newsMapped !== "Healthy") ? newsMapped
+    : null;
+
+  if (realStatus) {
+    const detail = status && status !== "None" && status !== "" && !DK_NEWS_ONLY_STATUSES.has(status) ? status : realStatus;
+    return { injuryStatus: realStatus, injuryDetail: detail };
+  }
+
+  if (DK_NEWS_ONLY_STATUSES.has(newsStatus) || DK_NEWS_ONLY_STATUSES.has(status)) {
+    return { injuryStatus: "Healthy", injuryDetail: "" };
+  }
+
+  return { injuryStatus: "Healthy", injuryDetail: "" };
+}
+
 function parseEasternTime(dateStr: string): Date {
   const cleaned = dateStr.replace(/\.?0+$/, "");
   const asUtc = new Date(cleaned + "Z");
@@ -224,6 +264,7 @@ export async function fetchLiveDKData(sport: string): Promise<LiveSlateData | nu
     }
 
     const dkPos = mapDKPosition(sport, p.position);
+    const { injuryStatus, injuryDetail } = mapDKStatus(p.status || "", p.newsStatus || "");
 
     dkPlayers.push({
       name: p.displayName,
@@ -235,10 +276,13 @@ export async function fetchLiveDKData(sport: string): Promise<LiveSlateData | nu
       opponent,
       gameInfo,
       draftKingsPlayerId: p.draftableId,
+      injuryStatus: injuryStatus !== "Healthy" ? injuryStatus : undefined,
+      injuryDetail: injuryDetail || undefined,
     });
   }
 
-  console.log(`[DK] ${sport}: Processed ${dkPlayers.length} DK players`);
+  const injuredCount = dkPlayers.filter(p => p.injuryStatus && p.injuryStatus !== "Healthy").length;
+  console.log(`[DK] ${sport}: Processed ${dkPlayers.length} DK players (${injuredCount} with injury status)`);
 
   return {
     sport,
