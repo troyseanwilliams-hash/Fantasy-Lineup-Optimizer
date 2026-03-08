@@ -54,12 +54,21 @@ Preferred communication style: Simple, everyday language.
 - **ORM**: Drizzle ORM with `drizzle-zod` for schema validation.
 - **Key Tables**: `users`, `sessions`, `slates`, `players`, `lineups`, `subscriptions`, `props`, `prizepicks_entries`, `playerHistory`.
 
+### Ownership Projection Engine (`server/ownership-engine.ts`)
+- **Modular, multi-sport ownership engine** using softmax-based probability distribution
+- **Sports**: NBA, NHL, NFL, MLB, GOLF, SOCCER — each with sport-specific config (projection/salary/value/recency weights, position chalk multipliers, softmax temperature, ownership ceilings)
+- **Contest types**: `gpp_large` (flat ownership, high temperature), `gpp_small` (moderate concentration), `cash` (concentrated on chalk, low temperature)
+- **Inputs**: Player projections, salary, value score, recency trends (from `playerHistory`), consistency (CV%), BDL star power/fantasy score, injury status, position scarcity
+- **Pipeline**: `computePopularityScores()` → `softmaxTransform(temperature)` → `normalizeOwnership(ceiling, floor)` → tier assignment (chalk/popular/mid/low/contrarian)
+- **Exported functions**: `calculateOwnership(players, sport, contestType, bdlStats)`, `computeOwnershipForPlayers(players, results)`, `getOwnershipConfig(sport)`, `getSupportedSports()`
+
 ### Ownership Heatmap (Admin-only)
-- **Route**: `/ownership` — shows top-owned players by position for a selected sport/slate
-- **API**: `GET /api/ownership/:slateId` — returns players grouped by position with ownership projections, chalk player, and contrarian value pick
-- **Gating**: Admin-only (`user.isAdmin`); hidden from nav and pricing pages for non-admin users
-- **Ownership Model**: Multi-factor scoring (projected points, salary, value score, position scarcity) with tiered distribution bands (top 3% → 25-35%, mid-tier → 5-18%, bottom → <2.5%). BallDontLie API integration (`server/balldontlie-stats.ts`) enhances projections with real season stats when available (requires paid BDL tier for stats endpoints). Results cached 4 hours.
-- **Key Files**: `client/src/pages/OwnershipHeatmap.tsx`, `server/balldontlie-stats.ts`
+- **Route**: `/ownership` — shows top-owned players by position for a selected sport/slate with contest type selector (GPP Large, GPP Small, Cash)
+- **APIs**:
+  - `GET /api/ownership/:slateId?contestType=gpp_large` — returns players grouped by position with ownership projections, chalk player, and contrarian value pick
+  - `GET /api/ownership/:slateId/projections?contestType=gpp_large` — returns full player ownership list as JSON (paid tiers + admin)
+- **Gating**: Heatmap is admin-only; projections endpoint requires Sharpshooter/Champion/admin
+- **Key Files**: `client/src/pages/OwnershipHeatmap.tsx`, `server/ownership-engine.ts`, `server/balldontlie-stats.ts`
 
 ### Subscription System
 - **Tiers**: Basic (free), Star ($19.99/mo), and Pro ($49.99/mo) — both with 7-day free trial for first-time subscribers

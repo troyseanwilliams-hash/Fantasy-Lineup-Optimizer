@@ -23,93 +23,8 @@ import { getLiveScores, getAllLiveScores } from "./espn-scores";
 import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analyzeManualPicks } from "./prizepicks";
 import { fetchBDLStats, type PlayerStatsMap, normalizeName } from "./balldontlie-stats";
 import { refreshRecentlyPlayed, getRecentlyPlayedCache, normalizePlayerName } from "./espn-activity";
+import { calculateOwnership, computeOwnershipForPlayers, type ContestType } from "./ownership-engine";
 
-function computeOwnershipProjections(players: Player[], bdlStats?: PlayerStatsMap): (Player & { ownershipProjection: number })[] {
-  if (players.length === 0) return [];
-  const hasBDL = bdlStats && Object.keys(bdlStats).length > 0;
-
-  const maxSalary = Math.max(...players.map(p => p.salary));
-  const maxProj = Math.max(...players.map(p => Number(p.projectedPoints)));
-  const sorted = [...players].sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
-  const rankMap = new Map<number, number>();
-  sorted.forEach((p, i) => rankMap.set(p.id, i));
-
-  const posCounts: Record<string, number> = {};
-  players.forEach(p => {
-    const primary = p.position.split("/")[0];
-    posCounts[primary] = (posCounts[primary] || 0) + 1;
-  });
-  const avgPosCount = Object.values(posCounts).reduce((a, b) => a + b, 0) / Math.max(1, Object.keys(posCounts).length);
-
-  const maxValue = Math.max(...players.map(p => Number(p.projectedPoints) / (p.salary / 1000)));
-  const maxBDLFantasy = hasBDL ? Math.max(...Object.values(bdlStats!).map(s => s.fantasyScore), 1) : 1;
-
-  const rawScores = players.map(p => {
-    const rank = rankMap.get(p.id) || 0;
-    const salaryPct = p.salary / (maxSalary || 1);
-    const projPct = Number(p.projectedPoints) / (maxProj || 1);
-    const rankPct = 1 - (rank / players.length);
-    const primaryPos = p.position.split("/")[0];
-    const posScarcity = avgPosCount / Math.max(1, posCounts[primaryPos] || avgPosCount);
-    const scarcityBonus = Math.min(1.3, Math.max(0.8, posScarcity));
-
-    const valueScore = (Number(p.projectedPoints) / (p.salary / 1000));
-    const valuePct = valueScore / (maxValue || 1);
-
-    let bdlBoost = 0;
-    let bdlStarFactor = 0;
-    if (hasBDL) {
-      const key = normalizeName(p.name);
-      const stats = bdlStats![key];
-      if (stats) {
-        const fantasyPct = stats.fantasyScore / maxBDLFantasy;
-        bdlBoost = fantasyPct * 0.35 + stats.starPower * 0.15 + stats.consistency * 0.10;
-        bdlStarFactor = stats.starPower;
-      }
-    }
-
-    let raw: number;
-    if (hasBDL) {
-      raw = (projPct * 0.25 + salaryPct * 0.15 + valuePct * 0.10 + bdlBoost * 0.50) * scarcityBonus;
-      if (bdlStarFactor > 0.7) raw *= 1.15;
-    } else {
-      raw = (projPct * 0.40 + salaryPct * 0.25 + valuePct * 0.15 + rankPct * 0.20) * scarcityBonus;
-    }
-
-    const seeded = Math.sin(p.id * 9301 + 49297) * 0.5 + 0.5;
-    const jitter = (seeded - 0.5) * 0.06;
-    return { player: p, score: Math.max(0.01, raw + jitter) };
-  });
-
-  const sortedScores = [...rawScores].sort((a, b) => b.score - a.score);
-
-  return sortedScores.map(({ player, score }, idx) => {
-    let ownership: number;
-    const total = sortedScores.length;
-    const pct = idx / total;
-
-    if (pct < 0.03) {
-      ownership = 25 + (1 - pct / 0.03) * 10;
-    } else if (pct < 0.08) {
-      ownership = 18 + (1 - (pct - 0.03) / 0.05) * 7;
-    } else if (pct < 0.18) {
-      ownership = 10 + (1 - (pct - 0.08) / 0.10) * 8;
-    } else if (pct < 0.35) {
-      ownership = 5 + (1 - (pct - 0.18) / 0.17) * 5;
-    } else if (pct < 0.55) {
-      ownership = 2.5 + (1 - (pct - 0.35) / 0.20) * 2.5;
-    } else if (pct < 0.75) {
-      ownership = 1.2 + (1 - (pct - 0.55) / 0.20) * 1.3;
-    } else {
-      ownership = 0.5 + (1 - (pct - 0.75) / 0.25) * 0.7;
-    }
-
-    const seeded = Math.sin(player.id * 7919 + 13397) * 0.5 + 0.5;
-    ownership *= (0.85 + seeded * 0.30);
-    ownership = Math.max(0.5, Math.min(35, ownership));
-    return { ...player, ownershipProjection: Math.round(ownership * 10) / 10 };
-  });
-}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -156,8 +71,10 @@ export async function registerRoutes(
         return res.json({ slate: { id: slate.id, sport: slate.sport, platform: slate.platform, startTime: slate.startTime }, positions: {}, chalkPlayer: null, contrarianPlayer: null });
       }
 
+      const contestType = (req.query.contestType as ContestType) || "gpp_large";
       const bdlStats = await fetchBDLStats(slate.sport);
-      const playersWithOwnership = computeOwnershipProjections(players, bdlStats);
+      const ownershipResults = await calculateOwnership(players, slate.sport, contestType, bdlStats);
+      const playersWithOwnership = computeOwnershipForPlayers(players, ownershipResults);
 
       const positionGroups: Record<string, typeof playersWithOwnership> = {};
       for (const p of playersWithOwnership) {
@@ -180,10 +97,48 @@ export async function registerRoutes(
         positions: positionGroups,
         chalkPlayer,
         contrarianPlayer: contrarian,
+        contestType,
       });
     } catch (err) {
       console.error("[Ownership] Error:", err);
       res.status(500).json({ message: "Failed to fetch ownership data" });
+    }
+  });
+
+  app.get("/api/ownership/:slateId/projections", async (req, res) => {
+    try {
+      const userId = getSessionUserId(req);
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const dbUser = await storage.getUser(userId);
+      const isAdmin = dbUser?.isAdmin === true;
+      const sub = await storage.getSubscription(userId);
+      const tier = isAdmin ? "pro" : (sub?.tier || "free");
+      if (tier === "free") {
+        return res.status(403).json({ message: "Upgrade to access ownership projections" });
+      }
+
+      const slateId = Number(req.params.slateId);
+      const contestType = (req.query.contestType as ContestType) || "gpp_large";
+      const slate = await storage.getSlate(slateId);
+      if (!slate) return res.status(404).json({ message: "Slate not found" });
+
+      const players = await storage.getPlayersBySlate(slateId);
+      if (!players || players.length === 0) {
+        return res.json({ slate: { id: slate.id, sport: slate.sport, platform: slate.platform }, contestType, players: [] });
+      }
+
+      const bdlStats = await fetchBDLStats(slate.sport);
+      const results = await calculateOwnership(players, slate.sport, contestType, bdlStats);
+
+      res.json({
+        slate: { id: slate.id, sport: slate.sport, platform: slate.platform },
+        contestType,
+        players: results,
+      });
+    } catch (err) {
+      console.error("[Ownership Projections] Error:", err);
+      res.status(500).json({ message: "Failed to fetch ownership projections" });
     }
   });
 
@@ -195,7 +150,8 @@ export async function registerRoutes(
     }
     const slate = await storage.getSlate(slateId);
     const bdlStats = slate ? await fetchBDLStats(slate.sport) : {};
-    const playersWithOwnership = computeOwnershipProjections(players, bdlStats);
+    const ownershipResults = slate ? await calculateOwnership(players, slate.sport, "gpp_large", bdlStats) : [];
+    const playersWithOwnership = computeOwnershipForPlayers(players, ownershipResults);
     res.json(playersWithOwnership);
   });
   
