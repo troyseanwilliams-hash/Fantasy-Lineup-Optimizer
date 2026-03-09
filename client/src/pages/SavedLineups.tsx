@@ -804,6 +804,28 @@ function ReviewTabContent({
   isLoading: boolean;
 }) {
   const [expandedReviewId, setExpandedReviewId] = useState<number | null>(null);
+  const { toast } = useToast();
+
+  const deleteReviewMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/lineups/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/lineups/review"] });
+      toast({ title: "Lineup deleted" });
+    },
+  });
+
+  const clearAllReviewMutation = useMutation({
+    mutationFn: async () => {
+      const ids = reviewLineups.map((l: any) => l.id);
+      await apiRequest("POST", "/api/lineups/bulk-delete", { ids });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/lineups/review"] });
+      toast({ title: "All review lineups cleared" });
+    },
+  });
 
   if (isLoading) {
     return (
@@ -830,12 +852,25 @@ function ReviewTabContent({
   return (
     <div className="flex flex-col gap-5" data-testid="review-lineups-list">
       <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 mb-2">
-        <div className="flex items-center gap-3">
-          <Eye className="w-5 h-5 text-amber-400 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-bold text-white">Review Mode</p>
-            <p className="text-xs text-slate-400">These lineups have expired and are read-only. Compare your lineups against contest winners to learn and improve.</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Eye className="w-5 h-5 text-amber-400 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-bold text-white">Review Mode</p>
+              <p className="text-xs text-slate-400">These lineups have expired and are read-only. Compare your lineups against contest winners to learn and improve.</p>
+            </div>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-red-400 hover:text-red-300 hover:bg-red-500/10 flex-shrink-0"
+            onClick={() => clearAllReviewMutation.mutate()}
+            disabled={clearAllReviewMutation.isPending}
+            data-testid="clear-all-review"
+          >
+            <Trash2 className="w-4 h-4 mr-1.5" />
+            Clear All
+          </Button>
         </div>
       </div>
 
@@ -880,7 +915,7 @@ function ReviewTabContent({
                 </div>
               </div>
 
-              <div className="flex items-center gap-5">
+              <div className="flex items-center gap-3">
                 <div className="hidden sm:flex items-center gap-4">
                   <div className="text-right">
                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Proj</p>
@@ -891,6 +926,15 @@ function ReviewTabContent({
                     <p className="text-lg font-black text-white tabular-nums" data-testid={`review-salary-${lineup.id}`}>${lineup.totalSalary.toLocaleString()}</p>
                   </div>
                 </div>
+                <button
+                  className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                  onClick={(e) => { e.stopPropagation(); deleteReviewMutation.mutate(lineup.id); }}
+                  disabled={deleteReviewMutation.isPending}
+                  data-testid={`delete-review-${lineup.id}`}
+                  title="Delete review lineup"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
                 {isExpanded ? <ChevronUp className="w-5 h-5 text-slate-500" /> : <ChevronDown className="w-5 h-5 text-slate-500" />}
               </div>
             </div>
