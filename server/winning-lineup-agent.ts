@@ -221,12 +221,22 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string): P
       return { success: false, message: `${sport} slate for ${slateDate} already analyzed` };
     }
 
-    const history = await storage.getPlayerHistoryBySport(sport, 5000);
-    const slatePlayers = history.filter(h => h.slateDate === slateDate);
+    const history = await storage.getPlayerHistoryBySport(sport, 10000);
+    const allSlateRecords = history.filter(h => h.slateDate === slateDate);
 
-    if (slatePlayers.length === 0) {
+    if (allSlateRecords.length === 0) {
       return { success: false, message: `No player history found for ${sport} on ${slateDate}` };
     }
+
+    const deduped = new Map<string, typeof allSlateRecords[0]>();
+    for (const h of allSlateRecords) {
+      const key = h.draftKingsPlayerId ? `dk_${h.draftKingsPlayerId}` : `${h.playerName}_${h.team}_${h.position}_${h.salary}`;
+      if (!deduped.has(key) || h.id > deduped.get(key)!.id) {
+        deduped.set(key, h);
+      }
+    }
+    const slatePlayers = Array.from(deduped.values());
+    console.log(`[WinningAgent] ${sport} ${slateDate}: ${allSlateRecords.length} total records, ${slatePlayers.length} unique players after dedup`);
 
     const actualPointsMap = await fetchActualPointsForDate(sport, slateDate);
 
@@ -237,6 +247,8 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string): P
     const pool: PlayerWithActual[] = [];
     let matchCount = 0;
 
+    const batchUpdates: Array<{ playerName: string; actualPoints: string }> = [];
+
     for (const h of slatePlayers) {
       const normalized = normalizeName(h.playerName);
       const actual = actualPointsMap.get(normalized);
@@ -244,7 +256,7 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string): P
 
       if (actual) {
         matchCount++;
-        await storage.updatePlayerHistoryActualPoints(sport, slateDate, h.playerName, String(actualPts));
+        batchUpdates.push({ playerName: h.playerName, actualPoints: String(actualPts) });
       }
 
       pool.push({
@@ -268,6 +280,11 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string): P
     }
 
     console.log(`[WinningAgent] ${sport} ${slateDate}: Matched ${matchCount}/${slatePlayers.length} players with actual points`);
+
+    if (batchUpdates.length > 0) {
+      await storage.batchUpdatePlayerHistoryActualPoints(sport, slateDate, batchUpdates);
+      console.log(`[WinningAgent] ${sport} ${slateDate}: Updated ${batchUpdates.length} player history records with actual points`);
+    }
 
     if (matchCount < 10) {
       return { success: false, message: `Only matched ${matchCount} players with actual data — not enough for analysis` };

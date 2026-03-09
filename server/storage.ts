@@ -75,6 +75,7 @@ export interface IStorage extends IAuthStorage {
   getPlayerHistoryBySport(sport: string, limit?: number): Promise<PlayerHistory[]>;
   cleanOldPlayerHistory(daysToKeep: number): Promise<number>;
   updatePlayerHistoryActualPoints(sport: string, slateDate: string, playerName: string, actualPoints: string): Promise<void>;
+  batchUpdatePlayerHistoryActualPoints(sport: string, slateDate: string, updates: Array<{ playerName: string; actualPoints: string }>): Promise<void>;
 
   createWinningLineup(data: InsertWinningLineup): Promise<WinningLineup>;
   getWinningLineups(sport?: string, limit?: number): Promise<WinningLineup[]>;
@@ -533,6 +534,22 @@ export class DatabaseStorage implements IStorage {
         eq(playerHistory.slateDate, slateDate),
         eq(playerHistory.playerName, playerName)
       ));
+  }
+
+  async batchUpdatePlayerHistoryActualPoints(sport: string, slateDate: string, updates: Array<{ playerName: string; actualPoints: string }>): Promise<void> {
+    const CHUNK_SIZE = 50;
+    for (let i = 0; i < updates.length; i += CHUNK_SIZE) {
+      const chunk = updates.slice(i, i + CHUNK_SIZE);
+      await Promise.all(chunk.map(u =>
+        db.update(playerHistory)
+          .set({ actualPoints: u.actualPoints })
+          .where(and(
+            eq(playerHistory.sport, sport),
+            eq(playerHistory.slateDate, slateDate),
+            eq(playerHistory.playerName, u.playerName)
+          ))
+      ));
+    }
   }
 
   async createWinningLineup(data: InsertWinningLineup): Promise<WinningLineup> {
