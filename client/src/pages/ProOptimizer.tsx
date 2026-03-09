@@ -679,49 +679,54 @@ export default function ProOptimizer() {
               <span className="text-xs font-black text-amber-400 min-w-[18px] text-center" data-testid="text-lineup-count">{lineupCount}</span>
             </div>
 
-            {isPro && lineupCount > 1 && (
-              <div className="hidden md:flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
-                <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Max Exp</span>
-                <Slider
-                  value={[globalMaxExposure ?? 100]}
-                  onValueChange={(v) => setGlobalMaxExposure(v[0] === 100 ? null : v[0])}
-                  min={10}
-                  max={100}
-                  step={5}
-                  className="w-20"
-                  data-testid="slider-global-exposure"
-                />
-                <span className={`text-xs font-black min-w-[28px] text-center ${globalMaxExposure ? "text-cyan-400" : "text-slate-500"}`} data-testid="text-global-exposure">
-                  {globalMaxExposure ? `${globalMaxExposure}%` : "Off"}
-                </span>
-              </div>
-            )}
-
-            {players && players.length > 0 && (
-              <div className="hidden md:flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
-                <span className="text-[10px] font-black text-emerald-400 uppercase whitespace-nowrap">Salary</span>
-                <Slider
-                  value={salaryRange || [salaryBounds.min, salaryBounds.max]}
-                  onValueChange={(v) => setSalaryRange([v[0], v[1]])}
-                  min={salaryBounds.min}
-                  max={salaryBounds.max}
-                  step={salaryBounds.step}
-                  className="w-28"
-                  data-testid="slider-salary-range"
-                />
-                <span className={`text-[10px] font-black min-w-[70px] text-center tabular-nums ${salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) ? "text-emerald-400" : "text-slate-500"}`} data-testid="text-salary-range">
-                  {salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max)
-                    ? `$${(salaryRange[0] / 1000).toFixed(1)}k-$${(salaryRange[1] / 1000).toFixed(1)}k`
-                    : "All"}
-                </span>
-                {salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) && (
-                  <button onClick={() => setSalaryRange(null)} className="text-slate-500 hover:text-white cursor-pointer" data-testid="button-reset-salary">
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-            )}
           </div>
+
+          {/* Row 2 (Desktop): Max Exposure + Salary Range */}
+          {(isPro && lineupCount > 1 || (players && players.length > 0)) && (
+            <div className="hidden md:flex items-center gap-3 overflow-x-auto scrollbar-hide">
+              {isPro && lineupCount > 1 && (
+                <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+                  <span className="text-[10px] font-black text-cyan-400 uppercase whitespace-nowrap">Max Exp</span>
+                  <Slider
+                    value={[globalMaxExposure ?? 100]}
+                    onValueChange={(v) => setGlobalMaxExposure(v[0] === 100 ? null : v[0])}
+                    min={10}
+                    max={100}
+                    step={5}
+                    className="w-24"
+                    data-testid="slider-global-exposure"
+                  />
+                  <span className={`text-xs font-black min-w-[28px] text-center ${globalMaxExposure ? "text-cyan-400" : "text-slate-500"}`} data-testid="text-global-exposure">
+                    {globalMaxExposure ? `${globalMaxExposure}%` : "Off"}
+                  </span>
+                </div>
+              )}
+              {players && players.length > 0 && (
+                <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+                  <span className="text-[10px] font-black text-emerald-400 uppercase whitespace-nowrap">Salary</span>
+                  <Slider
+                    value={salaryRange || [salaryBounds.min, salaryBounds.max]}
+                    onValueChange={(v) => setSalaryRange([v[0], v[1]])}
+                    min={salaryBounds.min}
+                    max={salaryBounds.max}
+                    step={salaryBounds.step}
+                    className="w-32"
+                    data-testid="slider-salary-range"
+                  />
+                  <span className={`text-[10px] font-black min-w-[70px] text-center tabular-nums ${salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) ? "text-emerald-400" : "text-slate-500"}`} data-testid="text-salary-range">
+                    {salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max)
+                      ? `$${(salaryRange[0] / 1000).toFixed(1)}k-$${(salaryRange[1] / 1000).toFixed(1)}k`
+                      : "All"}
+                  </span>
+                  {salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) && (
+                    <button onClick={() => setSalaryRange(null)} className="text-slate-500 hover:text-white cursor-pointer" data-testid="button-reset-salary">
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Row 2 (Mobile only): Toggles + settings */}
           {isPro && (
