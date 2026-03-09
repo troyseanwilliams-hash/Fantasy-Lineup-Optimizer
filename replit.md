@@ -57,7 +57,7 @@ Preferred communication style: Simple, everyday language.
 - Provides APIs for ownership projections and detailed player ownership lists.
 
 ### Subscription System
-- **Tiers**: Basic (free), Star ($19.99/mo), and Pro ($49.99/mo), each with a 7-day free trial.
+- **Tiers**: Basic (free), Star ($19.99/mo), and Pro ($39.99/mo), each with a 7-day free trial.
 - **Payment**: Stripe Elements for in-app upgrades and Stripe Customer Portal for subscription management.
 - **Grace Period**: 30-day grace period for existing premium users to subscribe via Stripe.
 

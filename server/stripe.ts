@@ -11,15 +11,17 @@ export const stripe = process.env.STRIPE_SECRET_KEY
 
 const PRICE_CONFIGS: Record<string, { amount: number; name: string }> = {
   star_monthly: { amount: 1999, name: "EliteLineup AI Star" },
-  pro_monthly: { amount: 4999, name: "EliteLineup AI Pro" },
+  pro_monthly: { amount: 3999, name: "EliteLineup AI Pro" },
   star_annual: { amount: 19990, name: "EliteLineup AI Star (Annual)" },
-  pro_annual: { amount: 49990, name: "EliteLineup AI Pro (Annual)" },
+  pro_annual: { amount: 39990, name: "EliteLineup AI Pro (Annual)" },
 };
 
 const AMOUNT_TO_TIER: Record<number, string> = {
   1999: "star",
+  3999: "pro",
   4999: "pro",
   19990: "star",
+  39990: "pro",
   49990: "pro",
 };
 

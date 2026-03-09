@@ -53,7 +53,7 @@ const TIERS = [
   },
   {
     name: "Champion",
-    price: "$49.99/mo",
+    price: "$39.99/mo",
     badge: "Best Value",
     badgeIcon: Crown,
     ring: "ring-amber-500/50",

@@ -173,7 +173,7 @@ function NonProView() {
             <Lock className="w-12 h-12 text-purple-400/60 mx-auto mb-4" />
             <h2 className="text-2xl font-black text-white mb-3">Upgrade to Champion for Parlay Builder</h2>
             <p className="text-slate-400 mb-6">
-              The Parlay Builder is an exclusive Champion feature ($49.99/mo). Combine multiple player props across any sport into a single parlay with combined odds and a direct link to place your bet on DraftKings.
+              The Parlay Builder is an exclusive Champion feature ($39.99/mo). Combine multiple player props across any sport into a single parlay with combined odds and a direct link to place your bet on DraftKings.
             </p>
 
             <div className="bg-slate-800/40 border border-amber-500/20 rounded-xl p-5 text-left max-w-sm mx-auto mb-6">
