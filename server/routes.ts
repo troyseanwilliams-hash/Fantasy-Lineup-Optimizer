@@ -22,7 +22,7 @@ function isLoggedIn(req: Request): boolean {
 import { type OptimizationConstraints, type ProOptimizationConstraints, type Player, type Slate, type InsertProp, type InsertAlert, proOptimizationConstraintSchema, insertPrizePicksEntrySchema } from "@shared/schema";
 import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus, fetchLivePlayerStatuses, fetchAvailableDKSlates, fetchDKSlateByDraftGroup, fetchDraftables, isPlayerConfirmedStarter } from "./balldontlie";
 import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
-import { getLiveScores, getAllLiveScores } from "./espn-scores";
+import { getLiveScores, getAllLiveScores, fetchESPNStarters } from "./espn-scores";
 import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analyzeManualPicks } from "./prizepicks";
 import { fetchBDLStats, type PlayerStatsMap, normalizeName } from "./balldontlie-stats";
 import { refreshRecentlyPlayed, getRecentlyPlayedCache, normalizePlayerName } from "./espn-activity";
@@ -154,6 +154,9 @@ export async function registerRoutes(
        return res.status(404).json({ message: "Slate not found" });
     }
     const slate = await storage.getSlate(slateId);
+    if (slate) {
+      players = await applyLiveDKStatuses(players, slate.draftGroupId, slate.sport);
+    }
     players = players.filter(p => {
       const status = (p.injuryStatus || "").toUpperCase();
       return status !== "OUT" && status !== "IR" && status !== "QUESTIONABLE";
@@ -187,7 +190,7 @@ export async function registerRoutes(
     }
   });
 
-  async function applyLiveDKStatuses(players: Player[], draftGroupId: number | null): Promise<Player[]> {
+  async function applyLiveDKStatuses(players: Player[], draftGroupId: number | null, sport?: string): Promise<Player[]> {
     if (!draftGroupId) return players;
     let draftables: Awaited<ReturnType<typeof fetchDraftables>> = [];
     try {
@@ -210,11 +213,20 @@ export async function registerRoutes(
       }
     }
 
-    if (liveStatuses.size === 0 && liveStarters.size === 0) return players;
+    let espnStarters = new Set<string>();
+    if (sport && liveStarters.size === 0) {
+      try {
+        espnStarters = await fetchESPNStarters(sport);
+      } catch {}
+    }
+
+    if (liveStatuses.size === 0 && liveStarters.size === 0 && espnStarters.size === 0) return players;
     return players.map(p => {
       if (!p.draftKingsPlayerId) return p;
       let updated = { ...p };
-      updated.isConfirmedStarter = liveStarters.has(p.draftKingsPlayerId);
+      const isDKStarter = liveStarters.has(p.draftKingsPlayerId);
+      const isESPNStarter = espnStarters.size > 0 && espnStarters.has((p.name || "").toLowerCase().trim());
+      updated.isConfirmedStarter = isDKStarter || isESPNStarter;
       const liveStatus = liveStatuses.get(p.draftKingsPlayerId);
       if (liveStatus) {
         updated.injuryStatus = liveStatus;
@@ -330,7 +342,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No players found for this slate" });
       }
 
-      allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId);
+      allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
 
       let userOverrides: any[] = [];
       if (isLoggedIn(req)) {
@@ -684,7 +696,7 @@ export async function registerRoutes(
           continue;
         }
 
-        allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId);
+        allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
 
         const useBoosts = req.body.useBoosts !== false;
         const useCeilingMode = req.body.ceilingMode === true;
@@ -2055,7 +2067,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No players found for this slate" });
       }
 
-      allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId);
+      allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
 
       const proUserOverrides = await storage.getPlayerOverrides(userId, constraints.slateId);
       const proOverrideMap = new Map(proUserOverrides.map(o => [o.playerId, o]));
