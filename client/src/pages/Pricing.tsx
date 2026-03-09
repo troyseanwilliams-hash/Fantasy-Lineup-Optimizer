@@ -87,9 +87,9 @@ export default function Pricing() {
   const starPeriod = billing === "monthly" ? "/month" : "/year";
   const starSavings = billing === "annual" ? "Save $39.88/yr" : null;
 
-  const proPrice = billing === "monthly" ? "$49.99" : "$500";
+  const proPrice = billing === "monthly" ? "$39.99" : "$400";
   const proPeriod = billing === "monthly" ? "/month" : "/year";
-  const proSavings = billing === "annual" ? "Save $99.88/yr" : null;
+  const proSavings = billing === "annual" ? "Save $79.88/yr" : null;
 
   return (
     <div className="container mx-auto px-4 py-16 max-w-6xl">

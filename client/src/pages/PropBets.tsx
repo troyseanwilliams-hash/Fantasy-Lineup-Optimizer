@@ -771,7 +771,7 @@ export default function PropBets() {
             {isGuest
               ? "Create an account to start seeing AI-powered prop picks. Upgrade for even more picks across all sports."
               : tier === "star"
-                ? "Upgrade to Champion ($49.99/mo) for up to 15 AI-powered prop picks per sport with higher confidence ratings."
+                ? "Upgrade to Champion ($39.99/mo) for up to 15 AI-powered prop picks per sport with higher confidence ratings."
                 : "Upgrade your plan for more AI-powered prop picks across all sports. Sharpshooter gets up to 5, Champion gets up to 15."}
           </p>
           {isGuest ? (

@@ -236,7 +236,7 @@ export function PaymentModal({ tier, billing, onSuccess, onCancel }: PaymentForm
 
   const tierName = tier === "pro" ? "Champion" : "Sharpshooter";
   const price = tier === "pro"
-    ? (billing === "annual" ? "$500/year" : "$49.99/month")
+    ? (billing === "annual" ? "$400/year" : "$39.99/month")
     : (billing === "annual" ? "$200/year" : "$19.99/month");
   const isTrial = createIntentMutation.data?.isTrial ?? false;
 
