@@ -324,19 +324,21 @@ export async function registerRoutes(
       const dbUser = await storage.getUser(userId);
       const isAdmin = dbUser?.isAdmin === true;
       const tier = isAdmin ? "pro" : (sub?.tier || "free");
-      const maxPerSport = tier === "pro" ? 150 : tier === "star" ? 20 : 1;
 
-      const sportCount = await storage.getLineupCountBySport(userId, input.sport);
-      if (sportCount >= maxPerSport) {
-        const upgradeMsg = tier === "free"
-          ? "Contender plan allows 1 saved team per sport. Delete your existing lineup to save a new one, or upgrade to Sharpshooter for 20 teams or Champion for 150 teams per sport."
-          : tier === "star"
-          ? "Sharpshooter plan allows 20 saved teams per sport. Upgrade to Champion for 150 teams per sport."
-          : "You've reached the maximum of 150 saved teams per sport.";
-        return res.status(403).json({ 
-          message: upgradeMsg,
-          requiresUpgrade: tier !== "pro"
-        });
+      if (!isAdmin) {
+        const maxPerSport = tier === "pro" ? 150 : tier === "star" ? 20 : 1;
+        const sportCount = await storage.getLineupCountBySport(userId, input.sport);
+        if (sportCount >= maxPerSport) {
+          const upgradeMsg = tier === "free"
+            ? "Contender plan allows 1 saved team per sport. Delete your existing lineup to save a new one, or upgrade to Sharpshooter for 20 teams or Champion for 150 teams per sport."
+            : tier === "star"
+            ? "Sharpshooter plan allows 20 saved teams per sport. Upgrade to Champion for 150 teams per sport."
+            : "You've reached the maximum of 150 saved teams per sport.";
+          return res.status(403).json({ 
+            message: upgradeMsg,
+            requiresUpgrade: tier !== "pro"
+          });
+        }
       }
 
       const allPlayers = await storage.getPlayersBySlate(input.slateId);
@@ -732,7 +734,7 @@ export async function registerRoutes(
     const config = getPlatformConfig(sport, "draftkings" as Platform);
     const maxPerSport = 150;
     const currentCount = await storage.getLineupCountBySport(userId, sport);
-    const availableSlots = maxPerSport - currentCount;
+    const availableSlots = isAdmin ? Infinity : maxPerSport - currentCount;
     if (availableSlots <= 0) {
       return res.status(403).json({ message: "You've reached the maximum of 150 saved teams per sport." });
     }
@@ -829,7 +831,7 @@ export async function registerRoutes(
       sportCounts[sport] = await storage.getLineupCountBySport(userId, sport);
     }
 
-    const maxLineupsPerSport = tier === "pro" ? 150 : tier === "star" ? 20 : 1;
+    const maxLineupsPerSport = isAdmin ? 999999 : tier === "pro" ? 150 : tier === "star" ? 20 : 1;
 
     res.json({
       tier,
