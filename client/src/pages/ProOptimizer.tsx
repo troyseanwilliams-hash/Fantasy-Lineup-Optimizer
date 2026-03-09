@@ -123,9 +123,11 @@ export default function ProOptimizer() {
 
   const salaryBounds = useMemo(() => {
     if (!players || players.length === 0) return { min: 3000, max: 10000, step: 100 };
-    const salaries = players.map(p => p.salary);
+    const salaries = players.map(p => p.salary).filter(s => typeof s === "number" && !isNaN(s));
+    if (salaries.length === 0) return { min: 3000, max: 10000, step: 100 };
     const min = Math.min(...salaries);
     const max = Math.max(...salaries);
+    if (min === max) return { min, max: min + 100, step: 100 };
     return { min, max, step: 100 };
   }, [players]);
 

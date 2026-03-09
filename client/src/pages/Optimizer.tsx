@@ -81,9 +81,11 @@ export default function Optimizer() {
 
   const salaryBounds = useMemo(() => {
     if (!players || players.length === 0) return { min: 3000, max: 10000, step: 100 };
-    const salaries = players.map(p => p.salary);
+    const salaries = players.map(p => p.salary).filter(s => typeof s === "number" && !isNaN(s));
+    if (salaries.length === 0) return { min: 3000, max: 10000, step: 100 };
     const min = Math.min(...salaries);
     const max = Math.max(...salaries);
+    if (min === max) return { min, max: min + 100, step: 100 };
     return { min, max, step: 100 };
   }, [players]);
 
@@ -878,64 +880,52 @@ export default function Optimizer() {
       {/* RIGHT: Lineup Builder */}
       <div className="w-full xl:w-[420px] flex flex-col bg-slate-900/30 border-l border-slate-800 overflow-hidden">
         {/* Salary & Projection Bar */}
-        <div className="p-4 bg-slate-900/60 border-b border-slate-800">
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            <div className="bg-slate-800/80 rounded-lg p-3 text-center border border-slate-700/50">
-              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">Salary Rem.</p>
-              <p data-testid="salary-remaining" className={`text-lg font-black ${
+        <div className="px-4 py-3 bg-slate-900/60 border-b border-slate-800">
+          <div className="grid grid-cols-3 gap-2 mb-2">
+            <div className="bg-slate-800/80 rounded-lg px-2 py-2 text-center border border-slate-700/50">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Salary Rem.</p>
+              <p data-testid="salary-remaining" className={`text-base font-black ${
                 currentLineup ? (config.salaryCap - totalSalary < 0 ? "text-red-400" : "text-white") : "text-slate-400"
               }`}>
                 ${currentLineup ? (config.salaryCap - totalSalary).toLocaleString() : config.salaryCap.toLocaleString()}
               </p>
             </div>
-            <div className="bg-slate-800/80 rounded-lg p-3 text-center border border-slate-700/50">
-              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">FP Proj.</p>
-              <p data-testid="total-projection" className={`text-lg font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>
+            <div className="bg-slate-800/80 rounded-lg px-2 py-2 text-center border border-slate-700/50">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">FP Proj.</p>
+              <p data-testid="total-projection" className={`text-base font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>
                 {currentLineup ? totalProj.toFixed(1) : "0.0"}
               </p>
             </div>
-            <div className="bg-slate-800/80 rounded-lg p-3 text-center border border-slate-700/50">
-              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">Value</p>
-              <p data-testid="value-metric" className="text-lg font-black text-blue-400">
+            <div className="bg-slate-800/80 rounded-lg px-2 py-2 text-center border border-slate-700/50">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Value</p>
+              <p data-testid="value-metric" className="text-base font-black text-blue-400">
                 {totalSalary > 0 ? (totalProj / (totalSalary / 1000)).toFixed(1) + "x" : "0.0x"}
               </p>
             </div>
           </div>
 
           {players && players.length > 0 && (
-            <div className="bg-slate-800/60 rounded-lg px-3 py-2.5 border border-slate-700/50" data-testid="salary-range-section">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5">
-                  <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Salary Range</span>
-                </div>
-                {salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) && (
-                  <button
-                    onClick={() => setSalaryRange(null)}
-                    className="text-[10px] text-slate-500 hover:text-white font-bold cursor-pointer"
-                    data-testid="button-reset-salary"
-                  >
-                    Reset
-                  </button>
-                )}
-              </div>
+            <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-3 py-1.5 border border-slate-700/50" data-testid="salary-range-section">
+              <DollarSign className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
               <Slider
                 value={salaryRange || [salaryBounds.min, salaryBounds.max]}
                 onValueChange={(v) => setSalaryRange([v[0], v[1]])}
                 min={salaryBounds.min}
                 max={salaryBounds.max}
                 step={salaryBounds.step}
-                className="w-full"
+                className="flex-1"
                 data-testid="slider-salary-range"
               />
-              <div className="flex justify-between mt-1.5">
-                <span className={`text-[11px] font-bold tabular-nums ${salaryRange && salaryRange[0] > salaryBounds.min ? "text-emerald-400" : "text-slate-500"}`} data-testid="text-salary-min">
-                  ${(salaryRange?.[0] ?? salaryBounds.min).toLocaleString()}
-                </span>
-                <span className={`text-[11px] font-bold tabular-nums ${salaryRange && salaryRange[1] < salaryBounds.max ? "text-emerald-400" : "text-slate-500"}`} data-testid="text-salary-max">
-                  ${(salaryRange?.[1] ?? salaryBounds.max).toLocaleString()}
-                </span>
-              </div>
+              <span className={`text-[10px] font-black min-w-[80px] text-center tabular-nums ${salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) ? "text-emerald-400" : "text-slate-500"}`} data-testid="text-salary-min">
+                {salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max)
+                  ? `$${(salaryRange[0] / 1000).toFixed(1)}k – $${(salaryRange[1] / 1000).toFixed(1)}k`
+                  : "All Salaries"}
+              </span>
+              {salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) && (
+                <button onClick={() => setSalaryRange(null)} className="text-slate-500 hover:text-white flex-shrink-0 cursor-pointer" data-testid="button-reset-salary">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
             </div>
           )}
 
@@ -945,11 +935,11 @@ export default function Optimizer() {
               <p className="text-slate-400 text-xs mt-1">Switch to another sport with upcoming games to build lineups.</p>
             </div>
           )}
-          <div className="flex gap-2">
+          <div className="flex gap-2 mt-2">
             <Button
               onClick={handleOptimize}
               disabled={optimizeMutation.isPending || slateHasStarted}
-              className={`flex-1 h-11 text-white font-black text-sm shadow-lg ${
+              className={`flex-1 h-10 text-white font-black text-sm shadow-lg ${
                 platform === "fanduel"
                   ? "bg-blue-500 hover:bg-blue-600 shadow-blue-500/20"
                   : "bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20"
@@ -966,7 +956,7 @@ export default function Optimizer() {
             <Button
               onClick={handleReset}
               variant="outline"
-              className="h-11 border-slate-700 text-slate-400 hover:text-white"
+              className="h-10 border-slate-700 text-slate-400 hover:text-white"
               data-testid="reset-btn"
             >
               <RotateCcw className="w-4 h-4" />
