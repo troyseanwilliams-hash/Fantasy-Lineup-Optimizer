@@ -92,7 +92,9 @@ export default function Pricing() {
   const proSavings = billing === "annual" ? "Save $79.88/yr" : null;
 
   return (
-    <div className="container mx-auto px-4 py-16 max-w-6xl">
+    <div className="container mx-auto px-4 py-16 max-w-6xl relative">
+      <img src="/images/pricing-hero.png" alt="" className="absolute top-0 left-0 right-0 h-[400px] w-full object-cover opacity-10 pointer-events-none" />
+      <div className="absolute top-0 left-0 right-0 h-[400px] bg-gradient-to-b from-transparent to-[#0F172A] pointer-events-none" />
       {isTrialing && trialEndsAt && (
         <div className="mb-8 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-3 max-w-3xl mx-auto" data-testid="trial-banner">
           <Gift className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />

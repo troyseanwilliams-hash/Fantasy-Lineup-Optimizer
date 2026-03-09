@@ -180,7 +180,8 @@ function NonProView() {
   return (
     <div className="min-h-screen">
       <div className="relative overflow-hidden border-b border-slate-800/50">
-        <div className="absolute inset-0 bg-gradient-to-br from-violet-950/50 via-slate-950/90 to-slate-900/95" />
+        <img src="/images/prizepicks-hero.png" alt="" className="absolute inset-0 w-full h-full object-cover opacity-15" />
+        <div className="absolute inset-0 bg-gradient-to-br from-violet-950/70 via-slate-950/90 to-slate-900/95" />
         <div className="relative container mx-auto px-4 py-10">
           <div className="flex items-center gap-4 mb-4">
             <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
