@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye, AlertTriangle, Upload, Settings } from "lucide-react";
+import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye, AlertTriangle, Upload, Settings, RefreshCw, FileUp } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { useAuth } from "@/hooks/use-auth";
@@ -410,22 +410,46 @@ export default function SavedLineups() {
             Your personal lineup vault stores every optimized lineup you build. Save your best lineups, compare strategies across sports, swap players, and export to CSV for easy upload to DraftKings.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2" data-testid="vault-feature-save">
               <Shield className="w-5 h-5 text-cyan-400 mx-auto" />
               <div className="text-sm font-bold text-white">Save Lineups</div>
               <div className="text-xs text-slate-400">Store optimized lineups per sport and revisit them anytime</div>
             </div>
-            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2" data-testid="vault-feature-swap">
               <ArrowLeftRight className="w-5 h-5 text-amber-400 mx-auto" />
               <div className="text-sm font-bold text-white">Swap Players</div>
               <div className="text-xs text-slate-400">Fine-tune saved lineups with inline player swaps</div>
             </div>
-            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2">
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2" data-testid="vault-feature-export">
               <Download className="w-5 h-5 text-emerald-400 mx-auto" />
               <div className="text-sm font-bold text-white">CSV Export</div>
               <div className="text-xs text-slate-400">Export lineups to CSV for direct upload to DFS platforms</div>
             </div>
           </div>
+
+          <div className="pt-4">
+            <div className="inline-flex items-center px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold mb-4">
+              DraftKings Integration
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-slate-800/50 border border-amber-500/20 rounded-xl p-4 space-y-2" data-testid="vault-feature-dk-import">
+                <Upload className="w-5 h-5 text-amber-400 mx-auto" />
+                <div className="text-sm font-bold text-white">DK Entries Import</div>
+                <div className="text-xs text-slate-400">Upload your DraftKings contest CSV to import lineups directly into the Vault</div>
+              </div>
+              <div className="bg-slate-800/50 border border-amber-500/20 rounded-xl p-4 space-y-2" data-testid="vault-feature-bulk-regen">
+                <RefreshCw className="w-5 h-5 text-amber-400 mx-auto" />
+                <div className="text-sm font-bold text-white">Bulk Regenerate</div>
+                <div className="text-xs text-slate-400">Regenerate multiple lineups at once with AI boost engine, ceiling mode, and correlation stacking</div>
+              </div>
+              <div className="bg-slate-800/50 border border-amber-500/20 rounded-xl p-4 space-y-2" data-testid="vault-feature-dk-export">
+                <FileUp className="w-5 h-5 text-amber-400 mx-auto" />
+                <div className="text-sm font-bold text-white">DK Contest Export</div>
+                <div className="text-xs text-slate-400">Export your optimized lineups in DraftKings contest-ready CSV format for instant upload</div>
+              </div>
+            </div>
+          </div>
+
           <p className="text-slate-500 text-sm">Sign in to start building and saving your winning lineups.</p>
         </div>
       </div>
