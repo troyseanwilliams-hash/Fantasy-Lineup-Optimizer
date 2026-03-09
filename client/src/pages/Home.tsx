@@ -1087,7 +1087,7 @@ function AuthenticatedDashboard() {
       </div>
 
       <div className="mt-8 text-center">
-        <p className="text-[11px] text-slate-600">News powered by <a href="https://www.rotoballer.com" target="_blank" rel="noopener noreferrer" className="text-emerald-500/50 hover:text-emerald-400">RotoBaller</a></p>
+        <p className="text-[11px] text-slate-600">News powered by <a href="https://www.espn.com" target="_blank" rel="noopener noreferrer" className="text-emerald-500/50 hover:text-emerald-400">ESPN</a></p>
       </div>
     </div>
   );

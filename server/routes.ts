@@ -17,7 +17,6 @@ function getSessionUserId(req: Request): string | null {
 function isLoggedIn(req: Request): boolean {
   return !!getSessionUserId(req);
 }
-import { XMLParser } from "fast-xml-parser";
 
 import { type OptimizationConstraints, type ProOptimizationConstraints, type Player, type Slate, type InsertProp, type InsertAlert, proOptimizationConstraintSchema, insertPrizePicksEntrySchema } from "@shared/schema";
 import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus, fetchLivePlayerStatuses, fetchAvailableDKSlates, fetchDKSlateByDraftGroup } from "./balldontlie";
@@ -1201,31 +1200,18 @@ export async function registerRoutes(
     }
   });
 
-  const ROTOBALLER_RSS_URLS: Record<string, string> = {
-    NBA: "https://www.rotoballer.com/category/nba/feed",
-    NHL: "https://www.rotoballer.com/category/nhl/feed",
-    MLB: "https://www.rotoballer.com/category/mlb/feed",
-    NFL: "https://www.rotoballer.com/category/nfl/feed",
-    GOLF: "https://www.rotoballer.com/category/golf/feed",
-    SOCCER: "https://www.rotoballer.com/category/soccer/feed",
+  const ESPN_NEWS_URLS: Record<string, string> = {
+    NBA: "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/news",
+    NHL: "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/news",
+    MLB: "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/news",
+    NFL: "https://site.api.espn.com/apis/site/v2/sports/football/nfl/news",
+    GOLF: "https://site.api.espn.com/apis/site/v2/sports/golf/pga/news",
+    SOCCER: "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/news",
   };
 
   const newsCache = new Map<string, { data: any; fetchedAt: number }>();
   const NEWS_CACHE_TTL_MS = 5 * 60 * 1000;
 
-  const xmlParser = new XMLParser({
-    ignoreAttributes: false,
-    attributeNamePrefix: "@_",
-  });
-
-  function extractImageFromHtml(html: string): string | null {
-    const match = html?.match(/src="(https?:\/\/[^"]+\.(jpg|jpeg|png|webp)[^"]*)"/i);
-    return match ? match[1] : null;
-  }
-
-  function stripHtmlTags(html: string): string {
-    return html?.replace(/<[^>]*>/g, "").replace(/\[&#8230;\]/g, "...").replace(/&#8217;/g, "'").replace(/&#8216;/g, "'").replace(/&#8220;/g, '"').replace(/&#8221;/g, '"').replace(/&#038;/g, "&").replace(/&amp;/g, "&").replace(/&#039;/g, "'").trim() || "";
-  }
 
   app.get("/api/scores", async (_req, res) => {
     try {
@@ -1431,7 +1417,7 @@ export async function registerRoutes(
       if (!validSports.includes(sport)) {
         return res.status(400).json({ error: "Invalid sport" });
       }
-      const url = ROTOBALLER_RSS_URLS[sport];
+      const url = ESPN_NEWS_URLS[sport];
       if (!url) {
         return res.status(400).json({ error: "Invalid sport" });
       }
@@ -1441,34 +1427,32 @@ export async function registerRoutes(
         return res.json(cached.data);
       }
 
-      const response = await fetch(url, {
+      const response = await fetch(`${url}?limit=25`, {
         headers: { "User-Agent": "EliteLineupAI/1.0" },
       });
       if (!response.ok) {
         if (cached) return res.json(cached.data);
         return res.status(502).json({ error: "Failed to fetch news" });
       }
-      const xmlText = await response.text();
-      const parsed = xmlParser.parse(xmlText);
-      const items = parsed?.rss?.channel?.item || [];
-      const itemsArr = Array.isArray(items) ? items : [items];
+      const data = await response.json();
+      const espnArticles = Array.isArray(data.articles) ? data.articles : [];
 
-      const articles = itemsArr.slice(0, 25).map((item: any, idx: number) => {
-        const rawDesc = String(item.description || "");
-        const imageUrl = extractImageFromHtml(rawDesc);
-        const cleanDesc = stripHtmlTags(rawDesc);
-        const categories = Array.isArray(item.category)
-          ? item.category.filter((c: any) => typeof c === "string").slice(0, 3)
-          : typeof item.category === "string" ? [item.category] : [];
+      const articles = espnArticles.map((item: any, idx: number) => {
+        const imageUrl = item.images?.[0]?.url || null;
+        const description = item.description || "";
+        const categories = (item.categories || [])
+          .map((c: any) => c.description)
+          .filter((c: any) => typeof c === "string" && c.length > 0)
+          .slice(0, 3);
 
         return {
-          id: typeof item.guid === "string" ? item.guid : (typeof item.guid === "object" && item.guid?.["#text"] ? String(item.guid["#text"]) : `${sport}-${idx}`),
-          headline: item.title || "",
-          description: cleanDesc.length > 300 ? cleanDesc.substring(0, 300) + "..." : cleanDesc,
-          published: item.pubDate || "",
-          type: "Article",
+          id: item.links?.web?.href || `${sport}-${idx}`,
+          headline: item.headline || "",
+          description: description.length > 300 ? description.substring(0, 300) + "..." : description,
+          published: item.published || "",
+          type: item.type || "Article",
           imageUrl,
-          linkUrl: item.link || null,
+          linkUrl: item.links?.web?.href || null,
           categories,
         };
       });

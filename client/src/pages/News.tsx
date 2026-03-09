@@ -248,7 +248,7 @@ export default function News() {
         )}
 
         <div className="mt-10 text-center">
-          <p className="text-xs text-slate-500">News powered by <a href="https://www.rotoballer.com" target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400 transition-colors">RotoBaller</a></p>
+          <p className="text-xs text-slate-500">News powered by <a href="https://www.espn.com" target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400 transition-colors">ESPN</a></p>
         </div>
       </div>
     </div>
