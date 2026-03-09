@@ -1,5 +1,4 @@
-import logoPath from "@assets/elitelineup-logo.png";
-import bannerPath from "@assets/elitelineup-banner-trimmed.png";
+import logoPath from "@assets/logo_no_bg.png";
 
 interface LogoProps {
   size?: number;
@@ -26,7 +25,7 @@ interface BannerProps {
 export function LogoBanner({ height = 40, className = "" }: BannerProps) {
   return (
     <img
-      src={bannerPath}
+      src={logoPath}
       alt="EliteLineup AI"
       className={`object-contain ${className}`}
       style={{ height }}
