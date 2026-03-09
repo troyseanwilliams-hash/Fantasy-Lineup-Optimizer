@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Users } from "lucide-react";
+import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Users, Settings2 } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 import { LogoBanner } from "@/components/Logo";
@@ -230,6 +230,16 @@ export function Header() {
                 <span>Vault</span>
               </div>
             </Link>
+            {(isPaid || user?.isAdmin) && (
+              <Link href="/player-config">
+                <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
+                  location === "/player-config" ? "text-amber-400" : "text-slate-400 hover:text-white"
+                }`} data-testid="nav-player-config">
+                  <Settings2 className="w-4 h-4" />
+                  <span>Player Config</span>
+                </div>
+              </Link>
+            )}
             {user?.isAdmin && (
               <Link href="/ownership">
                 <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
@@ -504,6 +514,18 @@ export function Header() {
               <span>Saved Lineups</span>
             </button>
 
+            {(isPaid || user?.isAdmin) && (
+              <button
+                onClick={() => mobileNav("/player-config")}
+                className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                  location === "/player-config" ? "bg-amber-500/10 text-amber-400" : "text-white hover:bg-slate-800"
+                }`}
+                data-testid="mobile-nav-player-config"
+              >
+                <Settings2 className="w-5 h-5 shrink-0" />
+                <span>Player Config</span>
+              </button>
+            )}
             {user?.isAdmin && (
               <button
                 onClick={() => mobileNav("/ownership")}

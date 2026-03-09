@@ -37,6 +37,7 @@ Preferred communication style: Simple, everyday language.
 - **Add New Slate (Admin)**: Admin can import additional DraftKings slates beyond the auto-refreshed main slates.
 - **Winning Lineup Agent (Admin)**: Automated nightly analysis at 3:30 AM ET constructs "perfect hindsight" optimal lineups using actual ESPN box score data and LP solver. Deduplicates player history snapshots by DraftKings player ID before LP solve. Batch updates actual points via chunked parallel queries (50/chunk). Stores player-level insights (salary efficiency, projection accuracy, boost hit rate, value plays). Admin dashboard at `/winning-lineups` with sport tabs, aggregated trends, manual slate analysis trigger. Files: `server/winning-lineup-agent.ts`, `server/actual-points.ts`, `client/src/pages/WinningLineups.tsx`.
 - **Inactive Player Filter**: Async `getInactivePlayerIds()` auto-refreshes ESPN recently-played cache if expired for NBA/NHL/MLB/NFL. Excludes all players not in recent ESPN boxscores (no FPPG bypass). Applied in GET players, standard optimizer, pro optimizer, and bulk regenerate.
+- **Player Configuration (Sharpshooter/Champion)**: Per-user, per-slate player overrides stored in `player_overrides` table. Users can set custom projections, lock players into lineups, or exclude players. Overrides are automatically applied in both Standard and Pro Optimizers (merged with manual optimizer controls). Overrides are cleared when slates refresh. Page at `/player-config` with sport tabs, search/filter, inline editing. Files: `client/src/pages/PlayerConfig.tsx`, API routes in `server/routes.ts`.
 
 ### Platform Configuration
 - Shared configuration in `shared/platform-config.ts` defines sport-specific roster slots, salary caps, and position constraints for DraftKings and FanDuel across all supported sports.
@@ -44,7 +45,7 @@ Preferred communication style: Simple, everyday language.
 ### Data Storage
 - **Database**: PostgreSQL.
 - **ORM**: Drizzle ORM with `drizzle-zod`.
-- **Key Tables**: `users`, `sessions`, `slates`, `players`, `lineups`, `subscriptions`, `props`, `prizepicks_entries`, `playerHistory`, `winning_lineups`.
+- **Key Tables**: `users`, `sessions`, `slates`, `players`, `lineups`, `subscriptions`, `props`, `prizepicks_entries`, `playerHistory`, `winning_lineups`, `player_overrides`.
 
 ### Ownership Projection Engine
 - **Modular, multi-sport engine** utilizing softmax-based probability distribution.

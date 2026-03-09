@@ -26,6 +26,7 @@ import LineupBuilderInfo from "@/pages/LineupBuilderInfo";
 import PropInsightsInfo from "@/pages/PropInsightsInfo";
 import OwnershipHeatmap from "@/pages/OwnershipHeatmap";
 import WinningLineups from "@/pages/WinningLineups";
+import PlayerConfig from "@/pages/PlayerConfig";
 
 import NotFound from "@/pages/not-found";
 import { Header } from "@/components/Header";
@@ -81,6 +82,7 @@ function Router() {
           <Route path="/lineup-builder" component={LineupBuilderInfo} />
           <Route path="/prop-insights" component={PropInsightsInfo} />
           <Route path="/ownership" component={OwnershipHeatmap} />
+          <Route path="/player-config" component={PlayerConfig} />
           <Route path="/winning-lineups" component={WinningLineups} />
           <Route path="/admin" component={Admin} />
           <Route component={NotFound} />

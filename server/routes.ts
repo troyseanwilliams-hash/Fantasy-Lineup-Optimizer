@@ -206,6 +206,74 @@ export async function registerRoutes(
     });
   }
 
+  app.get("/api/player-overrides/:slateId", async (req, res) => {
+    const userId = getSessionUserId(req);
+    if (!userId) return res.status(401).json({ message: "Not logged in" });
+    const dbUser = await storage.getUser(userId);
+    if (!dbUser) return res.status(401).json({ message: "User not found" });
+    const sub = await storage.getSubscription(userId);
+    const isAdmin = dbUser.isAdmin === true;
+    const tier = isAdmin ? "pro" : (sub?.tier || "free");
+    if (tier === "free") return res.status(403).json({ message: "Sharpshooter or Champion required" });
+    const slateId = parseInt(req.params.slateId);
+    if (isNaN(slateId)) return res.status(400).json({ message: "Invalid slate ID" });
+    const overrides = await storage.getPlayerOverrides(userId, slateId);
+    res.json(overrides);
+  });
+
+  const playerOverrideBodySchema = z.object({
+    customProjection: z.number().min(0).max(500).nullable().optional(),
+    isExcluded: z.boolean().default(false),
+    isLocked: z.boolean().default(false),
+    notes: z.string().max(200).nullable().optional(),
+  });
+
+  app.put("/api/player-overrides/:slateId/:playerId", async (req, res) => {
+    const userId = getSessionUserId(req);
+    if (!userId) return res.status(401).json({ message: "Not logged in" });
+    const dbUser = await storage.getUser(userId);
+    if (!dbUser) return res.status(401).json({ message: "User not found" });
+    const sub = await storage.getSubscription(userId);
+    const isAdmin = dbUser.isAdmin === true;
+    const tier = isAdmin ? "pro" : (sub?.tier || "free");
+    if (tier === "free") return res.status(403).json({ message: "Sharpshooter or Champion required" });
+    const slateId = parseInt(req.params.slateId);
+    const playerId = parseInt(req.params.playerId);
+    if (isNaN(slateId) || isNaN(playerId)) return res.status(400).json({ message: "Invalid IDs" });
+    const parsed = playerOverrideBodySchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid request body", errors: parsed.error.flatten() });
+    const { customProjection, isExcluded, isLocked, notes } = parsed.data;
+    const override = await storage.upsertPlayerOverride({
+      userId,
+      slateId,
+      playerId,
+      customProjection: customProjection != null ? customProjection.toString() : null,
+      isExcluded: isExcluded || false,
+      isLocked: isLocked || false,
+      notes: notes || null,
+    });
+    res.json(override);
+  });
+
+  app.delete("/api/player-overrides/:slateId/:playerId", async (req, res) => {
+    const userId = getSessionUserId(req);
+    if (!userId) return res.status(401).json({ message: "Not logged in" });
+    const slateId = parseInt(req.params.slateId);
+    const playerId = parseInt(req.params.playerId);
+    if (isNaN(slateId) || isNaN(playerId)) return res.status(400).json({ message: "Invalid IDs" });
+    await storage.deletePlayerOverride(userId, slateId, playerId);
+    res.json({ success: true });
+  });
+
+  app.delete("/api/player-overrides/:slateId", async (req, res) => {
+    const userId = getSessionUserId(req);
+    if (!userId) return res.status(401).json({ message: "Not logged in" });
+    const slateId = parseInt(req.params.slateId);
+    if (isNaN(slateId)) return res.status(400).json({ message: "Invalid slate ID" });
+    await storage.deletePlayerOverridesByUser(userId, slateId);
+    res.json({ success: true });
+  });
+
   app.post(api.optimizer.optimize.path, async (req, res) => {
     try {
       const constraints = api.optimizer.optimize.input.parse(req.body);
@@ -239,15 +307,33 @@ export async function registerRoutes(
 
       allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId);
 
+      let userOverrides: any[] = [];
+      if (isLoggedIn(req)) {
+        const overrideUserId = getSessionUserId(req)!;
+        const overrideSub = await storage.getSubscription(overrideUserId);
+        const overrideUser = await storage.getUser(overrideUserId);
+        const overrideTier = overrideUser?.isAdmin ? "pro" : (overrideSub?.tier || "free");
+        if (overrideTier !== "free") {
+          userOverrides = await storage.getPlayerOverrides(overrideUserId, constraints.slateId);
+        }
+      }
+      const overrideMap = new Map(userOverrides.map(o => [o.playerId, o]));
+
+      const overrideExcluded = userOverrides.filter(o => o.isExcluded).map(o => o.playerId);
+      const overrideLocked = userOverrides.filter(o => o.isLocked).map(o => o.playerId);
+      const mergedLocked = [...new Set([...constraints.lockedPlayerIds, ...overrideLocked])];
+
       const autoExcluded = allPlayers
-        .filter(p => (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") && !constraints.excludedPlayerIds.includes(p.id))
+        .filter(p => (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") && !mergedLocked.includes(p.id))
         .map(p => p.id);
       const inactiveExcluded = (await getInactivePlayerIds(allPlayers, slate.sport))
-        .filter(id => !constraints.lockedPlayerIds.includes(id));
-      const mergedExclusions = [...new Set([...constraints.excludedPlayerIds, ...autoExcluded, ...inactiveExcluded])];
+        .filter(id => !mergedLocked.includes(id));
+      const mergedExclusions = [...new Set([...constraints.excludedPlayerIds, ...autoExcluded, ...inactiveExcluded, ...overrideExcluded])];
 
       const pool = allPlayers.map(p => {
-        const customProj = constraints.playerProjections?.[p.id.toString()];
+        const override = overrideMap.get(p.id);
+        const customProj = constraints.playerProjections?.[p.id.toString()]
+          ?? (override?.customProjection != null ? Number(override.customProjection) : undefined);
         let proj = customProj !== undefined ? customProj.toString() : p.projectedPoints;
         if (p.injuryStatus === "Doubtful") proj = (Number(proj) * 0.3).toString();
         else if (p.injuryStatus === "Probable") proj = (Number(proj) * 0.9).toString();
@@ -256,14 +342,14 @@ export async function registerRoutes(
 
       const salaryFilteredPool = (constraints.playerMinSalary || constraints.playerMaxSalary)
         ? pool.filter(p => {
-            if (constraints.lockedPlayerIds.includes(p.id)) return true;
+            if (mergedLocked.includes(p.id)) return true;
             if (constraints.playerMinSalary && p.salary < constraints.playerMinSalary) return false;
             if (constraints.playerMaxSalary && p.salary > constraints.playerMaxSalary) return false;
             return true;
           })
         : pool;
 
-      const result = solveLineup(salaryFilteredPool, { ...constraints, excludedPlayerIds: mergedExclusions }, slate.sport, platform);
+      const result = solveLineup(salaryFilteredPool, { ...constraints, lockedPlayerIds: mergedLocked, excludedPlayerIds: mergedExclusions }, slate.sport, platform);
 
       if (result.error) {
         return res.status(400).json(result);
@@ -1864,8 +1950,17 @@ export async function registerRoutes(
 
       allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId);
 
+      const proUserOverrides = await storage.getPlayerOverrides(userId, constraints.slateId);
+      const proOverrideMap = new Map(proUserOverrides.map(o => [o.playerId, o]));
+      const proOverrideExcluded = proUserOverrides.filter(o => o.isExcluded).map(o => o.playerId);
+      const proOverrideLocked = proUserOverrides.filter(o => o.isLocked).map(o => o.playerId);
+      constraints.lockedPlayerIds = [...new Set([...constraints.lockedPlayerIds, ...proOverrideLocked])];
+      constraints.excludedPlayerIds = [...new Set([...constraints.excludedPlayerIds, ...proOverrideExcluded])];
+
       let pool = allPlayers.map(p => {
-        const customProj = constraints.playerProjections?.[p.id.toString()];
+        const override = proOverrideMap.get(p.id);
+        const customProj = constraints.playerProjections?.[p.id.toString()]
+          ?? (override?.customProjection != null ? Number(override.customProjection) : undefined);
         let boostedPoints = customProj !== undefined ? customProj : Number(p.projectedPoints);
 
         if (constraints.useBoosts && p.boostScore) {
