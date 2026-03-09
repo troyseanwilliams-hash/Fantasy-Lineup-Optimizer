@@ -1146,6 +1146,11 @@ export default function ProOptimizer() {
                           <span className="font-bold text-sm text-white group-hover:text-amber-400 transition-colors" data-testid={`text-player-name-${player.id}`}>
                             {player.name}
                           </span>
+                          {player.isConfirmedStarter && (
+                            <Badge variant="outline" className="text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border-emerald-500/30" data-testid={`badge-starter-${player.id}`}>
+                              STARTER
+                            </Badge>
+                          )}
                           {hasInjury && (
                             <Badge variant="outline" className={`text-[11px] font-bold ${injuryColor}`} data-testid={`badge-injury-${player.id}`}>
                               {player.injuryStatus}

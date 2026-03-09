@@ -118,6 +118,10 @@ interface DKDraftable {
     value: string;
     sortValue: string;
   }>;
+  playerGameAttributes: Array<{
+    id: number;
+    value: string;
+  }>;
 }
 
 export interface LiveSlateData {
@@ -152,6 +156,16 @@ function formatGameTime(utcTimeStr: string): string {
   } catch {
     return "7:00PM ET";
   }
+}
+
+export function isPlayerConfirmedStarter(p: { playerGameAttributes?: Array<{ id: number; value: string }> }): boolean {
+  if (!p.playerGameAttributes || p.playerGameAttributes.length === 0) return false;
+  for (const attr of p.playerGameAttributes) {
+    if (attr.id === 2 && (attr.value || "").toLowerCase() === "true") {
+      return true;
+    }
+  }
+  return false;
 }
 
 function mapDKPosition(sport: string, pos: string): string {
@@ -276,6 +290,8 @@ export async function fetchLiveDKData(sport: string): Promise<LiveSlateData | nu
     const dkPos = mapDKPosition(sport, p.position);
     const { injuryStatus, injuryDetail } = mapDKStatus(p.status || "", p.newsStatus || "");
 
+    const isConfirmedStarter = isPlayerConfirmedStarter(p);
+
     dkPlayers.push({
       name: p.displayName,
       team: p.teamAbbreviation,
@@ -288,11 +304,13 @@ export async function fetchLiveDKData(sport: string): Promise<LiveSlateData | nu
       draftKingsPlayerId: p.draftableId,
       injuryStatus: injuryStatus !== "Healthy" ? injuryStatus : undefined,
       injuryDetail: injuryDetail || undefined,
+      isConfirmedStarter,
     });
   }
 
   const injuredCount = dkPlayers.filter(p => p.injuryStatus && p.injuryStatus !== "Healthy").length;
-  console.log(`[DK] ${sport}: Processed ${dkPlayers.length} DK players (${injuredCount} with injury status)`);
+  const starterCount = dkPlayers.filter(p => p.isConfirmedStarter).length;
+  console.log(`[DK] ${sport}: Processed ${dkPlayers.length} DK players (${injuredCount} with injury status, ${starterCount} confirmed starters)`);
 
   return {
     sport,
@@ -467,6 +485,8 @@ export async function fetchDKSlateByDraftGroup(sport: string, draftGroupId: numb
       const dkPos = mapDKPosition(sport, p.position);
       const { injuryStatus, injuryDetail } = mapDKStatus(p.status || "", p.newsStatus || "");
 
+      const isConfirmedStarter = isPlayerConfirmedStarter(p);
+
       dkPlayers.push({
         name: p.displayName,
         team: p.teamAbbreviation,
@@ -479,10 +499,12 @@ export async function fetchDKSlateByDraftGroup(sport: string, draftGroupId: numb
         draftKingsPlayerId: p.draftableId,
         injuryStatus: injuryStatus !== "Healthy" ? injuryStatus : undefined,
         injuryDetail: injuryDetail || undefined,
+        isConfirmedStarter,
       });
     }
 
-    console.log(`[DK] DraftGroup ${draftGroupId}: Processed ${dkPlayers.length} players from ${games.size} games`);
+    const starterCount = dkPlayers.filter(p => p.isConfirmedStarter).length;
+    console.log(`[DK] DraftGroup ${draftGroupId}: Processed ${dkPlayers.length} players from ${games.size} games (${starterCount} confirmed starters)`);
 
     return {
       sport,
