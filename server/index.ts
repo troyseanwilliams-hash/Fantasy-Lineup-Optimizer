@@ -4,6 +4,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import cron from "node-cron";
 import { storage } from "./storage";
+import { getEasternToday } from "./balldontlie";
 import { fetchPrizePicksProjections, getSupportedPPSports } from "./prizepicks";
 import { refreshRecentlyPlayed } from "./espn-activity";
 import { runNightlyAnalysis } from "./winning-lineup-agent";
@@ -219,7 +220,7 @@ app.use((req, res, next) => {
               await refreshRecentlyPlayed(sport);
             } catch {}
           }
-          const today = new Date().toISOString().split("T")[0];
+          const today = getEasternToday();
           await generateDailyProps(today);
           const ppSports = getSupportedPPSports();
           for (const sport of ppSports) {

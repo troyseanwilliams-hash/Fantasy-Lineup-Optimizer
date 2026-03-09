@@ -1,5 +1,6 @@
 import solver from "javascript-lp-solver";
 import { storage } from "./storage";
+import { getEasternToday } from "./balldontlie";
 import { fetchActualPointsForDate } from "./actual-points";
 import { getPlatformConfig, assignPlayersToSlots } from "@shared/platform-config";
 import { clearProfileCache } from "./historical-adjustments";
@@ -339,9 +340,10 @@ export async function runNightlyAnalysis(): Promise<string[]> {
   const results: string[] = [];
   const sports = ["NBA", "NHL", "MLB", "NFL"];
 
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const dateStr = yesterday.toISOString().split("T")[0];
+  const todayET = getEasternToday();
+  const yesterdayDate = new Date(todayET + "T12:00:00Z");
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const dateStr = yesterdayDate.toISOString().split("T")[0];
 
   console.log(`[WinningAgent] Starting nightly analysis for ${dateStr}`);
 

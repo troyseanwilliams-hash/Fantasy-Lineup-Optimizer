@@ -20,7 +20,7 @@ function isLoggedIn(req: Request): boolean {
 }
 
 import { type OptimizationConstraints, type ProOptimizationConstraints, type Player, type Slate, type InsertProp, type InsertAlert, proOptimizationConstraintSchema, insertPrizePicksEntrySchema } from "@shared/schema";
-import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus, fetchLivePlayerStatuses, fetchAvailableDKSlates, fetchDKSlateByDraftGroup, fetchDraftables, isPlayerConfirmedStarter, parseEasternTime } from "./balldontlie";
+import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus, fetchLivePlayerStatuses, fetchAvailableDKSlates, fetchDKSlateByDraftGroup, fetchDraftables, isPlayerConfirmedStarter, parseEasternTime, getEasternToday } from "./balldontlie";
 import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
 import { getLiveScores, getAllLiveScores, fetchESPNStarters } from "./espn-scores";
 import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analyzeManualPicks } from "./prizepicks";
@@ -1309,7 +1309,7 @@ export async function registerRoutes(
         slateData.dkPlayers.map((p: any) => ({ ...p, slateId: newSlate.id })) as any
       );
 
-      const today = new Date().toISOString().split("T")[0];
+      const today = getEasternToday();
       try {
         const historyRecords = createdPlayers.map(p => ({
           playerName: p.name,
@@ -1653,7 +1653,7 @@ export async function registerRoutes(
           dbPlayers.push(...slatePlayers);
         }
 
-        const today = new Date().toISOString().split('T')[0];
+        const today = getEasternToday();
         const sportProps = await storage.getPropsByDate(today, sport);
         dbProps.push(...sportProps);
       }
@@ -1694,7 +1694,7 @@ export async function registerRoutes(
         dbPlayers.push(...slatePlayers);
       }
 
-      const today = new Date().toISOString().split('T')[0];
+      const today = getEasternToday();
       const dbProps = await storage.getPropsByDate(today, sport);
 
       console.log(`[PrizePicks Builder] ${sport}: ${projections.length} PP lines, ${dbPlayers.length} DK players, ${dbProps.length} odds props`);
@@ -2323,7 +2323,7 @@ export async function registerRoutes(
     const validSports = ACTIVE_SPORTS as readonly string[];
     const rawSport = req.query.sport as string | undefined;
     const sport = rawSport && validSports.includes(rawSport) ? rawSport : undefined;
-    const today = new Date().toISOString().split("T")[0];
+    const today = getEasternToday();
     const allProps = await storage.getPropsByDate(today, sport);
     
     const sorted = allProps.sort((a, b) => Number(b.confidence) - Number(a.confidence));
@@ -2888,7 +2888,7 @@ export async function seedDatabase(forceRefresh = false) {
         seed.dkPlayers.map((p: any) => ({ ...p, slateId: dkSlate.id })) as any
       );
 
-      const today = new Date().toISOString().split("T")[0];
+      const today = getEasternToday();
       try {
         const historyRecords = createdPlayers.map(p => ({
           playerName: p.name,
@@ -2941,7 +2941,7 @@ export async function seedDatabase(forceRefresh = false) {
     }
   }
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = getEasternToday();
   const existingProps = await storage.getPropsByDate(today);
   if (existingProps.length === 0) {
     await generateDailyProps(today);
