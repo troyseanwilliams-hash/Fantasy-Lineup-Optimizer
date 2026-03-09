@@ -20,7 +20,7 @@ function isLoggedIn(req: Request): boolean {
 }
 
 import { type OptimizationConstraints, type ProOptimizationConstraints, type Player, type Slate, type InsertProp, type InsertAlert, proOptimizationConstraintSchema, insertPrizePicksEntrySchema } from "@shared/schema";
-import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus, fetchLivePlayerStatuses, fetchAvailableDKSlates, fetchDKSlateByDraftGroup, fetchDraftables } from "./balldontlie";
+import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus, fetchLivePlayerStatuses, fetchAvailableDKSlates, fetchDKSlateByDraftGroup, fetchDraftables, isPlayerConfirmedStarter } from "./balldontlie";
 import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
 import { getLiveScores, getAllLiveScores } from "./espn-scores";
 import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analyzeManualPicks } from "./prizepicks";
@@ -189,20 +189,43 @@ export async function registerRoutes(
 
   async function applyLiveDKStatuses(players: Player[], draftGroupId: number | null): Promise<Player[]> {
     if (!draftGroupId) return players;
-    const liveStatuses = await fetchLivePlayerStatuses(draftGroupId);
-    if (liveStatuses.size === 0) return players;
+    let draftables: Awaited<ReturnType<typeof fetchDraftables>> = [];
+    try {
+      draftables = await fetchDraftables(draftGroupId);
+    } catch {
+      return players;
+    }
+    if (draftables.length === 0) return players;
+
+    const liveStatuses = new Map<number, string>();
+    const liveStarters = new Set<number>();
+    for (const d of draftables) {
+      if (!d.draftableId) continue;
+      const mapped = mapDKStatus(d.status || "", d.newsStatus || "");
+      if (mapped.injuryStatus !== "Healthy") {
+        liveStatuses.set(d.draftableId, mapped.injuryStatus);
+      }
+      if (isPlayerConfirmedStarter(d)) {
+        liveStarters.add(d.draftableId);
+      }
+    }
+
+    if (liveStatuses.size === 0 && liveStarters.size === 0) return players;
     return players.map(p => {
       if (!p.draftKingsPlayerId) return p;
+      let updated = { ...p };
+      updated.isConfirmedStarter = liveStarters.has(p.draftKingsPlayerId);
       const liveStatus = liveStatuses.get(p.draftKingsPlayerId);
       if (liveStatus) {
-        return { ...p, injuryStatus: liveStatus, injuryDetail: liveStatus };
-      }
-      if (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable" || p.injuryStatus === "Doubtful" || p.injuryStatus === "Probable") {
+        updated.injuryStatus = liveStatus;
+        updated.injuryDetail = liveStatus;
+      } else if (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable" || p.injuryStatus === "Doubtful" || p.injuryStatus === "Probable") {
         if (!liveStatuses.has(p.draftKingsPlayerId)) {
-          return { ...p, injuryStatus: null, injuryDetail: null };
+          updated.injuryStatus = null;
+          updated.injuryDetail = null;
         }
       }
-      return p;
+      return updated;
     });
   }
 
@@ -339,6 +362,9 @@ export async function registerRoutes(
         let proj = customProj !== undefined ? Number(customProj) : Number(p.projectedPoints);
         if (override?.boostPercent && override.boostPercent > 0) {
           proj = Math.round(proj * (1 + override.boostPercent / 100) * 10) / 10;
+        }
+        if (p.isConfirmedStarter) {
+          proj = Math.round(proj * 1.05 * 10) / 10;
         }
         if (p.injuryStatus === "Doubtful") proj = proj * 0.3;
         else if (p.injuryStatus === "Probable") proj = proj * 0.9;
@@ -666,6 +692,9 @@ export async function registerRoutes(
 
         let pool = allPlayers.map(p => {
           let pts = Number(p.projectedPoints);
+          if (p.isConfirmedStarter) {
+            pts = Math.round(pts * 1.05 * 10) / 10;
+          }
           if (useBoosts && p.boostScore) pts += Number(p.boostScore);
           if (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") pts = 0;
           else if (p.injuryStatus === "Doubtful") pts *= 0.3;
@@ -2043,6 +2072,10 @@ export async function registerRoutes(
 
         if (override?.boostPercent && override.boostPercent > 0) {
           boostedPoints = Math.round(boostedPoints * (1 + override.boostPercent / 100) * 10) / 10;
+        }
+
+        if (p.isConfirmedStarter) {
+          boostedPoints = Math.round(boostedPoints * 1.05 * 10) / 10;
         }
 
         if (constraints.useBoosts && p.boostScore) {

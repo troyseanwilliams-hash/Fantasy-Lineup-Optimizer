@@ -793,6 +793,11 @@ export default function Optimizer() {
                     <td className="px-3 py-2">
                       <div className={`font-bold text-sm text-white transition-colors ${platform === "fanduel" ? "group-hover:text-blue-400" : "group-hover:text-emerald-400"}`}>
                         {player.name}
+                        {player.isConfirmedStarter && (
+                          <Badge variant="outline" className="ml-2 text-[9px] font-bold py-0 px-1.5 border-emerald-500/50 text-emerald-400 bg-emerald-500/10" data-testid={`starter-badge-${player.id}`}>
+                            STARTER
+                          </Badge>
+                        )}
                         {player.injuryStatus && player.injuryStatus !== "Healthy" && (
                           <Badge variant="outline" className={`ml-2 text-[9px] font-bold py-0 px-1.5 ${INJURY_COLORS[player.injuryStatus] || INJURY_COLORS["Day-to-Day"]}`} data-testid={`injury-badge-${player.id}`}>
                             {player.injuryStatus}
