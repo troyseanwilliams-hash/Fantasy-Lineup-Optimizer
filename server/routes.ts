@@ -416,18 +416,20 @@ export async function registerRoutes(
       const isAdmin = dbUser?.isAdmin === true;
       const tier = isAdmin ? "pro" : (sub?.tier || "free");
 
-      if (!isAdmin) {
-        const maxPerSport = tier === "pro" ? 300 : tier === "star" ? 20 : 1;
+      {
+        const maxPerSport = isAdmin ? 500 : tier === "pro" ? 300 : tier === "star" ? 20 : 1;
         const sportCount = await storage.getLineupCountBySport(userId, input.sport);
         if (sportCount >= maxPerSport) {
-          const upgradeMsg = tier === "free"
+          const upgradeMsg = isAdmin
+            ? "You've reached the admin maximum of 500 saved teams per sport."
+            : tier === "free"
             ? "Contender plan allows 1 saved team per sport. Delete your existing lineup to save a new one, or upgrade to Sharpshooter for 20 teams or Champion for 300 teams per sport."
             : tier === "star"
             ? "Sharpshooter plan allows 20 saved teams per sport. Upgrade to Champion for 300 teams per sport."
             : "You've reached the maximum of 300 saved teams per sport.";
           return res.status(403).json({ 
             message: upgradeMsg,
-            requiresUpgrade: tier !== "pro"
+            requiresUpgrade: !isAdmin && tier !== "pro"
           });
         }
       }
@@ -823,11 +825,11 @@ export async function registerRoutes(
     }
 
     const config = getPlatformConfig(sport, "draftkings" as Platform);
-    const maxPerSport = 300;
+    const maxPerSport = isAdmin ? 500 : 300;
     const currentCount = await storage.getLineupCountBySport(userId, sport);
-    const availableSlots = isAdmin ? Infinity : maxPerSport - currentCount;
+    const availableSlots = maxPerSport - currentCount;
     if (availableSlots <= 0) {
-      return res.status(403).json({ message: "You've reached the maximum of 300 saved teams per sport." });
+      return res.status(403).json({ message: `You've reached the maximum of ${maxPerSport} saved teams per sport.` });
     }
 
     const results: { entryId: string; status: string; lineupId?: number; error?: string }[] = [];
@@ -922,7 +924,7 @@ export async function registerRoutes(
       sportCounts[sport] = await storage.getLineupCountBySport(userId, sport);
     }
 
-    const maxLineupsPerSport = isAdmin ? 999999 : tier === "pro" ? 300 : tier === "star" ? 20 : 1;
+    const maxLineupsPerSport = isAdmin ? 500 : tier === "pro" ? 300 : tier === "star" ? 20 : 1;
 
     res.json({
       tier,
