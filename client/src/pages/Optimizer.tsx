@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useRoute, useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -17,6 +17,7 @@ import {
   DollarSign, Target, TrendingUp, RotateCcw, Crown, Plus, UserPlus, Activity, Flag,
   Trophy, Star, MapPin, Users, Flame, Award, Rocket, ArrowLeftRight
 } from "lucide-react";
+import { gradeLineup, GRADE_COLORS } from "@/lib/lineup-grader";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "fppg" | "value";
 type SortDir = "asc" | "desc";
@@ -263,6 +264,11 @@ export default function Optimizer() {
     const boostPct = boosts[p.id] || 0;
     return s + (boostPct > 0 ? Math.round((base * (1 + boostPct / 100)) * 10) / 10 : base);
   }, 0);
+
+  const lineupGrade = useMemo(() => {
+    if (activeLineupPlayers.length === 0) return null;
+    return gradeLineup(activeLineupPlayers, sport, platform, totalSalary, totalProj);
+  }, [activeLineupPlayers, sport, platform, totalSalary, totalProj]);
 
   const lockedSalary = useMemo(() => {
     if (!players) return 0;
@@ -890,7 +896,7 @@ export default function Optimizer() {
       <div className="w-full xl:w-[420px] flex flex-col bg-slate-900/30 border-l border-slate-800 overflow-hidden">
         {/* Salary & Projection Bar */}
         <div className="px-4 py-3 bg-slate-900/60 border-b border-slate-800">
-          <div className="grid grid-cols-3 gap-2 mb-2">
+          <div className="grid grid-cols-4 gap-2 mb-2">
             <div className="bg-slate-800/80 rounded-lg px-2 py-2 text-center border border-slate-700/50">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Salary Rem.</p>
               <p data-testid="salary-remaining" className={`text-base font-black ${
@@ -910,6 +916,17 @@ export default function Optimizer() {
               <p data-testid="value-metric" className="text-base font-black text-blue-400">
                 {totalSalary > 0 ? (totalProj / (totalSalary / 1000)).toFixed(1) + "x" : "0.0x"}
               </p>
+            </div>
+            <div className="bg-slate-800/80 rounded-lg px-2 py-2 text-center border border-slate-700/50">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Grade</p>
+              {lineupGrade ? (
+                <div className={`inline-flex items-center gap-0.5 px-1.5 py-0 rounded text-base font-black ${GRADE_COLORS[lineupGrade.grade]?.text || "text-slate-400"}`} data-testid="lineup-grade">
+                  {lineupGrade.grade === "S" && <Star className="w-3 h-3 fill-current" />}
+                  {lineupGrade.grade}
+                </div>
+              ) : (
+                <p className="text-base font-black text-slate-600">—</p>
+              )}
             </div>
           </div>
 
