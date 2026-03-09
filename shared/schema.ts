@@ -204,6 +204,7 @@ export const playerOverrides = pgTable("player_overrides", {
   slateId: integer("slate_id").notNull().references(() => slates.id),
   playerId: integer("player_id").notNull().references(() => players.id),
   customProjection: numeric("custom_projection"),
+  boostPercent: integer("boost_percent").notNull().default(0),
   isExcluded: boolean("is_excluded").notNull().default(false),
   isLocked: boolean("is_locked").notNull().default(false),
   notes: text("notes"),

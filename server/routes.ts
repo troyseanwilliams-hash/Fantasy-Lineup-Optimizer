@@ -223,6 +223,7 @@ export async function registerRoutes(
 
   const playerOverrideBodySchema = z.object({
     customProjection: z.number().min(0).max(500).nullable().optional(),
+    boostPercent: z.number().int().refine(v => [0, 5, 10, 15, 20].includes(v), { message: "Boost must be 0, 5, 10, 15, or 20" }).default(0),
     isExcluded: z.boolean().default(false),
     isLocked: z.boolean().default(false),
     notes: z.string().max(200).nullable().optional(),
@@ -242,12 +243,13 @@ export async function registerRoutes(
     if (isNaN(slateId) || isNaN(playerId)) return res.status(400).json({ message: "Invalid IDs" });
     const parsed = playerOverrideBodySchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid request body", errors: parsed.error.flatten() });
-    const { customProjection, isExcluded, isLocked, notes } = parsed.data;
+    const { customProjection, boostPercent, isExcluded, isLocked, notes } = parsed.data;
     const override = await storage.upsertPlayerOverride({
       userId,
       slateId,
       playerId,
       customProjection: customProjection != null ? customProjection.toString() : null,
+      boostPercent: boostPercent || 0,
       isExcluded: isExcluded || false,
       isLocked: isLocked || false,
       notes: notes || null,
@@ -334,10 +336,13 @@ export async function registerRoutes(
         const override = overrideMap.get(p.id);
         const customProj = constraints.playerProjections?.[p.id.toString()]
           ?? (override?.customProjection != null ? Number(override.customProjection) : undefined);
-        let proj = customProj !== undefined ? customProj.toString() : p.projectedPoints;
-        if (p.injuryStatus === "Doubtful") proj = (Number(proj) * 0.3).toString();
-        else if (p.injuryStatus === "Probable") proj = (Number(proj) * 0.9).toString();
-        return { ...p, projectedPoints: proj };
+        let proj = customProj !== undefined ? Number(customProj) : Number(p.projectedPoints);
+        if (override?.boostPercent && override.boostPercent > 0) {
+          proj = Math.round(proj * (1 + override.boostPercent / 100) * 10) / 10;
+        }
+        if (p.injuryStatus === "Doubtful") proj = proj * 0.3;
+        else if (p.injuryStatus === "Probable") proj = proj * 0.9;
+        return { ...p, projectedPoints: proj.toString() };
       });
 
       const salaryFilteredPool = (constraints.playerMinSalary || constraints.playerMaxSalary)
@@ -1962,6 +1967,10 @@ export async function registerRoutes(
         const customProj = constraints.playerProjections?.[p.id.toString()]
           ?? (override?.customProjection != null ? Number(override.customProjection) : undefined);
         let boostedPoints = customProj !== undefined ? customProj : Number(p.projectedPoints);
+
+        if (override?.boostPercent && override.boostPercent > 0) {
+          boostedPoints = Math.round(boostedPoints * (1 + override.boostPercent / 100) * 10) / 10;
+        }
 
         if (constraints.useBoosts && p.boostScore) {
           boostedPoints += Number(p.boostScore);
