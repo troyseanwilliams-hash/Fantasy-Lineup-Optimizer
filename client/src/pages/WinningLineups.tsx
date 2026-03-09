@@ -21,7 +21,7 @@ import {
   BarChart3,
   ChevronDown,
   ChevronUp,
-  ShieldAlert,
+  Lock,
   Zap,
   Users,
   Play,
@@ -103,14 +103,23 @@ export default function WinningLineups() {
     queryKey: ["/api/auth/user"],
   });
 
+  const { data: subData } = useQuery<{ tier: string }>({
+    queryKey: ["/api/subscription"],
+    enabled: !!user,
+  });
+
+  const isAdmin = user?.isAdmin === true;
+  const tier = isAdmin ? "pro" : (subData?.tier || "free");
+  const isChampion = tier === "pro";
+
   const { data: lineups, isLoading: lineupsLoading } = useQuery<WinningLineup[]>({
     queryKey: ["/api/winning-lineups", selectedSport],
-    enabled: !!user?.isAdmin,
+    enabled: isChampion,
   });
 
   const { data: aggregated, isLoading: insightsLoading } = useQuery<AggregatedInsights>({
     queryKey: ["/api/winning-lineups", selectedSport, "insights"],
-    enabled: !!user?.isAdmin,
+    enabled: isChampion,
   });
 
   const analyzeMutation = useMutation({
@@ -138,12 +147,12 @@ export default function WinningLineups() {
     );
   }
 
-  if (!user?.isAdmin) {
+  if (!isChampion) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <ShieldAlert className="w-16 h-16 text-red-400" />
-        <h1 className="text-2xl font-bold text-white" data-testid="text-access-denied">Access Denied</h1>
-        <p className="text-slate-400">You need admin privileges to access this page.</p>
+        <Lock className="w-16 h-16 text-amber-400" />
+        <h1 className="text-2xl font-bold text-white" data-testid="text-access-denied">Champion Feature</h1>
+        <p className="text-slate-400">Upgrade to Champion to access Winning Lineup Analysis.</p>
       </div>
     );
   }
@@ -160,24 +169,26 @@ export default function WinningLineups() {
           </h1>
           <p className="text-slate-400 mt-1 text-sm">Optimal hindsight lineups and performance insights</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Input
-            type="date"
-            value={analyzeDate}
-            onChange={(e) => setAnalyzeDate(e.target.value)}
-            className="bg-slate-900 border-slate-700 text-white w-40"
-            data-testid="input-analyze-date"
-          />
-          <Button
-            onClick={() => analyzeMutation.mutate({ sport: selectedSport, date: analyzeDate })}
-            disabled={!analyzeDate || analyzeMutation.isPending}
-            className="bg-amber-500 text-black font-bold hover:bg-amber-400"
-            data-testid="button-analyze-slate"
-          >
-            {analyzeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
-            Analyze
-          </Button>
-        </div>
+        {isAdmin && (
+          <div className="flex items-center gap-3">
+            <Input
+              type="date"
+              value={analyzeDate}
+              onChange={(e) => setAnalyzeDate(e.target.value)}
+              className="bg-slate-900 border-slate-700 text-white w-40"
+              data-testid="input-analyze-date"
+            />
+            <Button
+              onClick={() => analyzeMutation.mutate({ sport: selectedSport, date: analyzeDate })}
+              disabled={!analyzeDate || analyzeMutation.isPending}
+              className="bg-amber-500 text-black font-bold hover:bg-amber-400"
+              data-testid="button-analyze-slate"
+            >
+              {analyzeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+              Analyze
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2 flex-wrap">

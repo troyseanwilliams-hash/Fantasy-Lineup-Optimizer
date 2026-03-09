@@ -1099,7 +1099,12 @@ export async function registerRoutes(
       if (!isLoggedIn(req)) return res.sendStatus(401);
       const userId = getSessionUserId(req)!;
       const dbUser = await storage.getUser(userId);
-      if (!dbUser?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+      const isAdmin = dbUser?.isAdmin === true;
+      const sub = await storage.getSubscription(userId);
+      const tier = isAdmin ? "pro" : (sub?.tier || "free");
+      if (tier !== "pro") {
+        return res.status(403).json({ message: "Upgrade to Champion to access winning lineup insights" });
+      }
 
       const sport = req.params.sport.toUpperCase();
       const lineups = await storage.getWinningLineups(sport, 90);
@@ -1193,7 +1198,12 @@ export async function registerRoutes(
       if (!isLoggedIn(req)) return res.sendStatus(401);
       const userId = getSessionUserId(req)!;
       const dbUser = await storage.getUser(userId);
-      if (!dbUser?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+      const isAdmin = dbUser?.isAdmin === true;
+      const sub = await storage.getSubscription(userId);
+      const tier = isAdmin ? "pro" : (sub?.tier || "free");
+      if (tier !== "pro") {
+        return res.status(403).json({ message: "Upgrade to Champion to access winning lineup analysis" });
+      }
 
       const sport = req.params.sport.toUpperCase();
       const limit = parseInt(req.query.limit as string) || 30;

@@ -251,13 +251,14 @@ export function Header() {
                 </div>
               </Link>
             )}
-            {user?.isAdmin && (
+            {(isPro || user?.isAdmin) && (
               <Link href="/winning-lineups">
                 <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
                   location === "/winning-lineups" ? "text-amber-400" : "text-slate-400 hover:text-white"
                 }`} data-testid="nav-winning-lineups">
                   <Trophy className="w-4 h-4" />
                   <span>Win Agent</span>
+                  <Crown className="w-3 h-3 text-amber-400" />
                 </div>
               </Link>
             )}
@@ -613,7 +614,7 @@ export function Header() {
               </>
             )}
 
-            {user?.isAdmin && (
+            {(isPro || user?.isAdmin) && (
               <>
                 <div className="border-t border-border my-2 pt-2" />
                 <button
@@ -625,7 +626,12 @@ export function Header() {
                 >
                   <Trophy className="w-5 h-5 shrink-0" />
                   <span>Win Agent</span>
+                  <Crown className="w-3 h-3 text-amber-400 ml-auto" />
                 </button>
+              </>
+            )}
+            {user?.isAdmin && (
+              <>
                 <button
                   onClick={() => mobileNav("/admin")}
                   className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
