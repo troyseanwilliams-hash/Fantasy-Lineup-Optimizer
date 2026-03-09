@@ -21,6 +21,7 @@ import {
   Cloud, Sun, Wind, CloudRain, Droplets, Target,
   Trophy, Flame, Award, BarChart3, Users, Percent, ArrowLeftRight, Plus
 } from "lucide-react";
+import { gradeLineup, GRADE_COLORS } from "@/lib/lineup-grader";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "boostedProj" | "ownershipProjection";
 type SortDir = "asc" | "desc";
@@ -1624,6 +1625,9 @@ export default function ProOptimizer() {
                   {generatedLineups.map((lineupData, idx) => {
                     const lineupPlayers = lineupData.lineup || [];
                     const slots = assignPlayersToSlots(lineupPlayers, config.slots, sport);
+                    const lineupGrade = lineupPlayers.length > 0
+                      ? gradeLineup(lineupPlayers, sport, platform, lineupData.totalSalary || 0, lineupData.totalProjectedPoints || 0)
+                      : null;
                     return (
                       <Card key={idx} className={`border-slate-700/50 p-3 ${swappingTarget?.lineupIdx === idx ? "bg-slate-800/80 border-amber-500/30 ring-1 ring-amber-500/10" : "bg-slate-800/60"}`} data-testid={`lineup-card-${idx}`}>
                         <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
@@ -1638,6 +1642,12 @@ export default function ProOptimizer() {
                             <div className="flex items-center gap-1.5 bg-slate-700/50 rounded px-2 py-0.5 border border-slate-600/30" data-testid={`text-lineup-salary-${idx}`}>
                               <span className="text-sm font-black text-white tabular-nums">${lineupData.totalSalary?.toLocaleString()}</span>
                             </div>
+                            {lineupGrade && (
+                              <div className={`flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-black ${GRADE_COLORS[lineupGrade.grade]?.bg || ""} ${GRADE_COLORS[lineupGrade.grade]?.text || "text-slate-400"} ${GRADE_COLORS[lineupGrade.grade]?.border || ""}`} data-testid={`lineup-grade-${idx}`}>
+                                {lineupGrade.grade === "S" && <Star className="w-3 h-3 fill-current" />}
+                                {lineupGrade.grade}
+                              </div>
+                            )}
                           </div>
                           <Button
                             size="sm"

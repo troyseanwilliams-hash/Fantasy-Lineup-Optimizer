@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye, AlertTriangle, Upload, Settings, RefreshCw, FileUp } from "lucide-react";
+import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye, AlertTriangle, Upload, Settings, RefreshCw, FileUp, Star } from "lucide-react";
+import { gradeLineup, GRADE_COLORS, type LineupGrade } from "@/lib/lineup-grader";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { useAuth } from "@/hooks/use-auth";
@@ -15,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { getPlatformConfig, assignPlayersToSlots, getSlotDisplayName, positionFitsSlot } from "@shared/platform-config";
 import type { Player } from "@shared/schema";
 
-type VaultSortKey = "newest" | "oldest" | "projection_high" | "projection_low" | "ownership_high" | "ownership_low" | "salary_high" | "salary_low";
+type VaultSortKey = "newest" | "oldest" | "projection_high" | "projection_low" | "ownership_high" | "ownership_low" | "salary_high" | "salary_low" | "grade_high" | "grade_low";
 type VaultTab = "active" | "review";
 
 interface LineupWithPlayers {
@@ -51,6 +52,20 @@ export default function SavedLineups() {
     queryKey: ["/api/lineups"],
   });
 
+  const lineupGrades = useMemo(() => {
+    const map = new Map<number, LineupGrade>();
+    if (!lineups) return map;
+    lineups.forEach((lineup: any) => {
+      const snapshotPlayers = lineup.playerSnapshot && Array.isArray(lineup.playerSnapshot) && lineup.playerSnapshot.length > 0
+        ? lineup.playerSnapshot
+        : [];
+      if (snapshotPlayers.length > 0) {
+        map.set(lineup.id, gradeLineup(snapshotPlayers, lineup.sport, lineup.platform || "draftkings", lineup.totalSalary, lineup.totalProjectedPoints));
+      }
+    });
+    return map;
+  }, [lineups]);
+
   const sortedLineups = useMemo(() => {
     if (!lineups) return [];
     return [...lineups].sort((a, b) => {
@@ -63,10 +78,12 @@ export default function SavedLineups() {
         case "ownership_low": return (a.totalOwnership ?? 0) - (b.totalOwnership ?? 0);
         case "salary_high": return b.totalSalary - a.totalSalary;
         case "salary_low": return a.totalSalary - b.totalSalary;
+        case "grade_high": return (lineupGrades.get(b.id)?.score ?? 0) - (lineupGrades.get(a.id)?.score ?? 0);
+        case "grade_low": return (lineupGrades.get(a.id)?.score ?? 0) - (lineupGrades.get(b.id)?.score ?? 0);
         default: return 0;
       }
     });
-  }, [lineups, vaultSort]);
+  }, [lineups, vaultSort, lineupGrades]);
 
   const { data: subscription } = useQuery<any>({
     queryKey: ["/api/subscription"],
@@ -521,6 +538,8 @@ export default function SavedLineups() {
                       )}
                       <option value="salary_high">Salary: High → Low</option>
                       <option value="salary_low">Salary: Low → High</option>
+                      <option value="grade_high">Grade: Best → Worst</option>
+                      <option value="grade_low">Grade: Worst → Best</option>
                     </select>
                   </div>
                   <Button
@@ -747,6 +766,7 @@ export default function SavedLineups() {
                     isUpdating={updateMutation.isPending}
                     isSelected={selectedIds.has(lineup.id)}
                     onToggleSelect={() => toggleSelect(lineup.id)}
+                    grade={lineupGrades.get(lineup.id)}
                   />
                 ))}
               </div>
@@ -996,6 +1016,7 @@ function LineupCard({
   isUpdating,
   isSelected,
   onToggleSelect,
+  grade,
 }: {
   lineup: any;
   isExpanded: boolean;
@@ -1010,6 +1031,7 @@ function LineupCard({
   isUpdating: boolean;
   isSelected: boolean;
   onToggleSelect: () => void;
+  grade?: LineupGrade;
 }) {
   const { data: lineupDetail, isLoading: detailLoading } = useQuery<LineupWithPlayers>({
     queryKey: ["/api/lineups", lineup.id],
@@ -1097,6 +1119,15 @@ function LineupCard({
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Salary</p>
               <p className="text-lg font-black text-white tabular-nums" data-testid={`lineup-salary-${lineup.id}`}>${lineup.totalSalary.toLocaleString()}</p>
             </div>
+            {grade && (
+              <div className="text-center" data-testid={`lineup-grade-${lineup.id}`}>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Grade</p>
+                <div className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-lg font-black ${GRADE_COLORS[grade.grade]?.bg || ""} ${GRADE_COLORS[grade.grade]?.text || "text-slate-400"} ${GRADE_COLORS[grade.grade]?.border || ""} border`}>
+                  {grade.grade === "S" && <Star className="w-3.5 h-3.5 fill-current" />}
+                  {grade.grade}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
@@ -1162,6 +1193,33 @@ function LineupCard({
                 isUpdating={isUpdating}
                 isOrphaned={(lineupDetail as any).isOrphaned}
               />
+              {grade && (
+                <div className="mt-4 p-3 rounded-lg bg-slate-800/40 border border-slate-700/30" data-testid={`grade-breakdown-${lineup.id}`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-sm font-black ${GRADE_COLORS[grade.grade]?.bg || ""} ${GRADE_COLORS[grade.grade]?.text || "text-slate-400"} ${GRADE_COLORS[grade.grade]?.border || ""} border`}>
+                      {grade.grade === "S" && <Star className="w-3 h-3 fill-current" />}
+                      {grade.grade}
+                    </div>
+                    <span className="text-xs font-bold text-slate-400">Lineup Grade · Score {grade.score}/100</span>
+                  </div>
+                  <div className="grid grid-cols-5 gap-2">
+                    {grade.breakdown.map(b => (
+                      <div key={b.label} className="text-center">
+                        <div className="h-1.5 rounded-full bg-slate-700 overflow-hidden mb-1">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              b.score >= 80 ? "bg-emerald-500" : b.score >= 60 ? "bg-cyan-500" : b.score >= 40 ? "bg-amber-500" : "bg-red-500"
+                            }`}
+                            style={{ width: `${b.score}%` }}
+                          />
+                        </div>
+                        <p className="text-[9px] font-bold text-slate-500 uppercase">{b.label}</p>
+                        <p className="text-xs font-black text-slate-300">{b.score}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <p className="text-slate-400">Failed to load lineup details.</p>
