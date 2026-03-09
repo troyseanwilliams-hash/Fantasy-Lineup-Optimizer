@@ -10,6 +10,7 @@ import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import solver from "javascript-lp-solver";
 import { getPlatformConfig, ACTIVE_SPORTS, assignPlayersToSlots, type Platform } from "@shared/platform-config";
 import { computeBoostScores, computeCorrelationBonus, applyCeilingMode, applyLeverageMode } from "./boost-engine";
+import { getHistoricalProfile, applyHistoricalAdjustments } from "./historical-adjustments";
 
 function getSessionUserId(req: Request): string | null {
   return (req.session as any)?.userId || null;
@@ -567,6 +568,11 @@ export async function registerRoutes(
           else if (p.injuryStatus === "Probable") pts *= 0.9;
           return { ...p, projectedPoints: pts.toString() };
         });
+
+        const regenProfile = await getHistoricalProfile(slate.sport);
+        if (regenProfile.ready) {
+          pool = applyHistoricalAdjustments(pool, regenProfile);
+        }
 
         if (useCeilingMode) {
           pool = applyCeilingMode(pool, slate.sport);
@@ -1865,6 +1871,12 @@ export async function registerRoutes(
 
         return { ...p, projectedPoints: boostedPoints.toString() };
       });
+
+      const historicalProfile = await getHistoricalProfile(slate.sport);
+      if (historicalProfile.ready) {
+        pool = applyHistoricalAdjustments(pool, historicalProfile);
+        console.log(`[ProOptimizer] Applied historical adjustments from ${historicalProfile.slatesAnalyzed} analyzed slates for ${slate.sport}`);
+      }
 
       if (constraints.projectionMode === "ceiling") {
         pool = applyCeilingMode(pool, slate.sport);
