@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Zap, ArrowRight, BarChart3, Layers, Download, Sparkles,
   Crown, Trophy, Check, X, Shield, Target, Activity,
-  Dribbble, Flag, Circle
+  Dribbble, Flag, Circle, Brain, TrendingUp, Upload, RefreshCw
 } from "lucide-react";
 
 const SPORTS = [
@@ -61,8 +61,11 @@ const TIERS = [
       { text: "Everything in Sharpshooter", included: true },
       { text: "Generate up to 20 lineups at once", included: true },
       { text: "150 saved teams per sport", included: true },
-      { text: "Advanced exposure controls", included: true },
+      { text: "Pro Optimizer with ceiling & leverage modes", included: true },
       { text: "AI boost analysis & injury tracking", included: true },
+      { text: "Win Agent + auto-learning adjustments", included: true },
+      { text: "Ownership heatmap projections", included: true },
+      { text: "DK entries import & bulk regenerate", included: true },
       { text: "15 AI prop picks per sport", included: true },
       { text: "PrizePicks Builder with live lines", included: true },
     ],
@@ -132,6 +135,174 @@ export default function LineupBuilderInfo() {
               </div>
             </Card>
           ))}
+        </div>
+      </section>
+
+      <section className="container mx-auto px-4 pb-20" data-testid="section-optimizers">
+        <div className="flex items-center gap-2.5 mb-8">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500/30 to-cyan-500/20 flex items-center justify-center">
+            <Zap className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-white tracking-tight">Powerful Optimizers</h2>
+            <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Two engines built for every level of play</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
+          <Card className="bg-slate-800/40 border-border overflow-hidden group" data-testid="card-standard-optimizer">
+            <div className="relative h-48 overflow-hidden">
+              <img src="/images/optimizer-standard.png" alt="Standard Optimizer" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent" />
+              <Badge className="absolute top-4 left-4 bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-black gap-1" data-testid="badge-all-tiers">
+                <Zap className="w-3 h-3" /> All Tiers
+              </Badge>
+            </div>
+            <div className="p-6">
+              <h3 className="text-xl font-black text-white mb-2">Standard Optimizer</h3>
+              <p className="text-sm text-slate-400 leading-relaxed mb-4">
+                Build mathematically optimal lineups using our LP engine. Real-time player projections, salary constraints, lock and exclude controls, and one-click player swaps.
+              </p>
+              <ul className="space-y-2">
+                <li className="flex items-center gap-2 text-sm text-slate-300">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                  LP-based optimization with real projections
+                </li>
+                <li className="flex items-center gap-2 text-sm text-slate-300">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                  Lock must-play and exclude bad matchups
+                </li>
+                <li className="flex items-center gap-2 text-sm text-slate-300">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                  Live injury status and projection updates
+                </li>
+                <li className="flex items-center gap-2 text-sm text-slate-300">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                  One-click player swaps within lineups
+                </li>
+              </ul>
+            </div>
+          </Card>
+
+          <Card className="bg-slate-800/40 border-border overflow-hidden ring-1 ring-amber-500/30 group" data-testid="card-pro-optimizer">
+            <div className="relative h-48 overflow-hidden">
+              <img src="/images/optimizer-pro.png" alt="Pro Optimizer" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent" />
+              <Badge className="absolute top-4 left-4 bg-amber-500/20 text-amber-400 border-amber-500/30 font-black gap-1" data-testid="badge-champion">
+                <Crown className="w-3 h-3" /> Champion
+              </Badge>
+            </div>
+            <div className="p-6">
+              <h3 className="text-xl font-black text-white mb-2">Pro Optimizer</h3>
+              <p className="text-sm text-slate-400 leading-relaxed mb-4">
+                Advanced optimization with AI boost engine, ceiling and leverage modes, multi-sport correlation stacking, exposure management, and batch lineup generation.
+              </p>
+              <ul className="space-y-2">
+                <li className="flex items-center gap-2 text-sm text-amber-300">
+                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
+                  AI boost scores for value and momentum
+                </li>
+                <li className="flex items-center gap-2 text-sm text-amber-300">
+                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
+                  Ceiling mode for GPP upside, leverage for contrarian plays
+                </li>
+                <li className="flex items-center gap-2 text-sm text-amber-300">
+                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
+                  Correlation stacking (QB-WR, team, game stacks)
+                </li>
+                <li className="flex items-center gap-2 text-sm text-amber-300">
+                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
+                  Batch generation up to 20 lineups at once
+                </li>
+              </ul>
+            </div>
+          </Card>
+        </div>
+      </section>
+
+      <section className="container mx-auto px-4 pb-20" data-testid="section-advanced-features">
+        <div className="flex items-center gap-2.5 mb-8">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500/30 to-orange-500/20 flex items-center justify-center">
+            <Brain className="w-4 h-4 text-amber-400" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-white tracking-tight">AI-Powered Edge</h2>
+            <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Evolving algorithms that learn from every slate</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="bg-slate-800/40 border-border overflow-hidden group" data-testid="card-win-agent">
+            <div className="relative h-44 overflow-hidden">
+              <img src="/images/optimizer-winagent.png" alt="Winning Lineup Agent" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent" />
+              <Badge className="absolute top-4 left-4 bg-amber-500/20 text-amber-400 border-amber-500/30 font-black gap-1">
+                <Crown className="w-3 h-3" /> Champion
+              </Badge>
+            </div>
+            <div className="p-6">
+              <h3 className="text-xl font-black text-white mb-2">Winning Lineup Agent</h3>
+              <p className="text-sm text-slate-400 leading-relaxed mb-4">
+                After every slate completes, our AI reconstructs the mathematically perfect lineup using actual box score results. It tracks salary efficiency, projection accuracy, and value play patterns — then feeds those insights back into the optimizer to improve future projections.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-xs font-bold">Auto-Learning</Badge>
+                <Badge className="bg-cyan-500/10 text-cyan-400 border-cyan-500/20 text-xs font-bold">Historical Analysis</Badge>
+                <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-xs font-bold">Projection Tuning</Badge>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="bg-slate-800/40 border-border overflow-hidden group" data-testid="card-ownership-heatmap">
+            <div className="relative h-44 overflow-hidden">
+              <img src="/images/optimizer-heatmap.png" alt="Ownership Heatmap" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent" />
+              <Badge className="absolute top-4 left-4 bg-purple-500/20 text-purple-400 border-purple-500/30 font-black gap-1">
+                <Crown className="w-3 h-3" /> Champion
+              </Badge>
+            </div>
+            <div className="p-6">
+              <h3 className="text-xl font-black text-white mb-2">Ownership Heatmap</h3>
+              <p className="text-sm text-slate-400 leading-relaxed mb-4">
+                Visualize projected ownership across every position on any slate. Identify chalk plays the field will be heavy on and find contrarian pivots to differentiate your GPP lineups — with contest-type-specific projections for large-field, small-field, and cash games.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Badge className="bg-purple-500/10 text-purple-400 border-purple-500/20 text-xs font-bold">Position Breakdown</Badge>
+                <Badge className="bg-violet-500/10 text-violet-400 border-violet-500/20 text-xs font-bold">Contest Types</Badge>
+                <Badge className="bg-pink-500/10 text-pink-400 border-pink-500/20 text-xs font-bold">Contrarian Finds</Badge>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-6">
+          <Card className="bg-slate-800/40 border-border p-5" data-testid="card-dk-import">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-9 h-9 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                <Upload className="w-4.5 h-4.5 text-cyan-400" />
+              </div>
+              <h3 className="text-base font-black text-white">DK Entries Import</h3>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">Upload your DraftKings contest CSV to import existing lineups into the Vault for editing, swapping, and regenerating.</p>
+          </Card>
+          <Card className="bg-slate-800/40 border-border p-5" data-testid="card-bulk-regen">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-9 h-9 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                <RefreshCw className="w-4.5 h-4.5 text-amber-400" />
+              </div>
+              <h3 className="text-base font-black text-white">Bulk Regenerate</h3>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">Select multiple lineups and regenerate them all at once with the boost engine, ceiling mode, correlation stacking, and exposure controls.</p>
+          </Card>
+          <Card className="bg-slate-800/40 border-border p-5" data-testid="card-csv-export">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-9 h-9 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                <Download className="w-4.5 h-4.5 text-emerald-400" />
+              </div>
+              <h3 className="text-base font-black text-white">DK Contest Export</h3>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">Export optimized lineups in DraftKings contest-ready CSV format for instant upload. One click from optimizer to contest entry.</p>
+          </Card>
         </div>
       </section>
 
