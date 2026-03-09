@@ -94,7 +94,8 @@ export default function LineupBuilderInfo() {
   return (
     <div className="bg-[#0F172A] min-h-screen" data-testid="lineup-builder-info-page">
       <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/40 via-[#0F172A] to-[#0F172A]" />
+        <img src="/images/optimizer-standard.png" alt="" className="absolute inset-0 w-full h-full object-cover opacity-15" />
+        <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/60 via-[#0F172A]/90 to-[#0F172A]" />
         <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-bl from-emerald-500/8 via-transparent to-transparent rounded-full" />
         <div className="relative z-10 container mx-auto px-4 py-20 md:py-28">
           <div className="max-w-3xl">
