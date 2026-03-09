@@ -54,7 +54,7 @@ export async function fetchLivePlayerStatuses(draftGroupId: number): Promise<Map
   return statusMap;
 }
 
-function parseEasternTime(dateStr: string): Date {
+export function parseEasternTime(dateStr: string): Date {
   const cleaned = dateStr.replace(/\.?0+$/, "");
   const asUtc = new Date(cleaned + "Z");
   const formatter = new Intl.DateTimeFormat("en-US", {
