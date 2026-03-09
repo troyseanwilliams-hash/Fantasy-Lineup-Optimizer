@@ -168,6 +168,85 @@ export async function getLiveScores(sport: string): Promise<ScoreData[]> {
   }
 }
 
+const ESPN_SUMMARY_URLS: Record<string, string> = {
+  NBA: "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary",
+  NHL: "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/summary",
+  MLB: "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/summary",
+  NFL: "https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary",
+};
+
+interface StarterCacheEntry {
+  names: Set<string>;
+  fetchedAt: number;
+}
+const starterCache = new Map<string, StarterCacheEntry>();
+const STARTER_CACHE_TTL = 5 * 60 * 1000;
+
+export async function fetchESPNStarters(sport: string): Promise<Set<string>> {
+  const cacheKey = sport;
+  const cached = starterCache.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt < STARTER_CACHE_TTL) {
+    return cached.names;
+  }
+
+  const summaryBase = ESPN_SUMMARY_URLS[sport];
+  if (!summaryBase) return new Set();
+
+  const starterNames = new Set<string>();
+
+  try {
+    const scores = await getLiveScores(sport);
+    const gameIds = scores
+      .filter((s): s is GameScore => 'homeTeam' in s)
+      .filter(s => s.status === "in" || s.status === "pre")
+      .map(s => s.id);
+
+    const batchSize = 5;
+    for (let i = 0; i < gameIds.length; i += batchSize) {
+      const batch = gameIds.slice(i, i + batchSize);
+      const results = await Promise.allSettled(
+        batch.map(async (eventId) => {
+          const res = await fetch(`${summaryBase}?event=${eventId}`);
+          if (!res.ok) return [];
+          const data = await res.json();
+          const names: string[] = [];
+          const bp = data.boxscore?.players || [];
+          for (const team of bp) {
+            for (const stat of team.statistics || []) {
+              for (const a of stat.athletes || []) {
+                if (a.starter && a.athlete?.displayName) {
+                  names.push(a.athlete.displayName);
+                }
+              }
+            }
+          }
+          const rosters = data.rosters || [];
+          for (const r of rosters) {
+            for (const e of r.roster || []) {
+              if (e.starter && e.displayName) {
+                names.push(e.displayName);
+              }
+            }
+          }
+          return names;
+        })
+      );
+      for (const r of results) {
+        if (r.status === "fulfilled") {
+          for (const name of r.value) starterNames.add(name.toLowerCase().trim());
+        }
+      }
+    }
+
+    console.log(`[ESPN] ${sport}: Found ${starterNames.size} confirmed starters from ${gameIds.length} games`);
+    starterCache.set(cacheKey, { names: starterNames, fetchedAt: Date.now() });
+  } catch (err) {
+    console.error(`[ESPN] Error fetching ${sport} starters:`, err);
+  }
+
+  return starterNames;
+}
+
 export async function getAllLiveScores(): Promise<Record<string, ScoreData[]>> {
   const sports = Object.keys(ESPN_SCOREBOARD_URLS);
   const results: Record<string, ScoreData[]> = {};
