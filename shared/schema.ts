@@ -178,6 +178,25 @@ export const insertPlayerHistorySchema = createInsertSchema(playerHistory).omit(
 export type PlayerHistory = typeof playerHistory.$inferSelect;
 export type InsertPlayerHistory = z.infer<typeof insertPlayerHistorySchema>;
 
+// --- WINNING LINEUP ANALYSIS ---
+export const winningLineups = pgTable("winning_lineups", {
+  id: serial("id").primaryKey(),
+  sport: text("sport").notNull(),
+  slateId: integer("slate_id"),
+  slateDate: date("slate_date").notNull(),
+  draftGroupId: integer("draft_group_id"),
+  totalActualPoints: numeric("total_actual_points").notNull(),
+  totalSalary: integer("total_salary").notNull(),
+  salaryCap: integer("salary_cap").notNull(),
+  playerData: jsonb("player_data").notNull(),
+  insights: jsonb("insights"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertWinningLineupSchema = createInsertSchema(winningLineups).omit({ id: true, createdAt: true });
+export type WinningLineup = typeof winningLineups.$inferSelect;
+export type InsertWinningLineup = z.infer<typeof insertWinningLineupSchema>;
+
 // --- OPTIMIZATION TYPES ---
 export const optimizationConstraintSchema = z.object({
   slateId: z.number(),

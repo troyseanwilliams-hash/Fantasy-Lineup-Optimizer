@@ -1094,6 +1094,134 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/winning-lineups/:sport/insights", async (req, res) => {
+    try {
+      if (!isLoggedIn(req)) return res.sendStatus(401);
+      const userId = getSessionUserId(req)!;
+      const dbUser = await storage.getUser(userId);
+      if (!dbUser?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      const sport = req.params.sport.toUpperCase();
+      const lineups = await storage.getWinningLineups(sport, 90);
+
+      if (lineups.length === 0) {
+        return res.json({ sport, count: 0, aggregated: null });
+      }
+
+      const allInsights = lineups.map(l => l.insights as any).filter(Boolean);
+      const allPlayerData = lineups.flatMap(l => (l.playerData as any[]) || []);
+
+      const avgTotalPoints = allInsights.length > 0
+        ? Math.round(allInsights.reduce((s: number, i: any) => s + (i.totalActualPoints || 0), 0) / allInsights.length * 100) / 100
+        : 0;
+
+      const avgSalaryUtil = allInsights.length > 0
+        ? Math.round(allInsights.reduce((s: number, i: any) => s + (i.salaryUtilization || 0), 0) / allInsights.length * 10) / 10
+        : 0;
+
+      const avgProjectionRatio = allInsights.length > 0
+        ? Math.round(allInsights.reduce((s: number, i: any) => s + (i.avgProjectionRatio || 0), 0) / allInsights.length * 100) / 100
+        : 0;
+
+      const avgSalaryEfficiency = allInsights.length > 0
+        ? Math.round(allInsights.reduce((s: number, i: any) => s + (i.salaryEfficiency || 0), 0) / allInsights.length * 100) / 100
+        : 0;
+
+      const salaryBuckets: Record<string, { count: number; avgActual: number }> = {
+        "3000-4999": { count: 0, avgActual: 0 },
+        "5000-6999": { count: 0, avgActual: 0 },
+        "7000-8999": { count: 0, avgActual: 0 },
+        "9000+": { count: 0, avgActual: 0 },
+      };
+
+      for (const p of allPlayerData) {
+        const salary = p.salary || 0;
+        const actual = p.actualPoints || 0;
+        let bucket: string;
+        if (salary < 5000) bucket = "3000-4999";
+        else if (salary < 7000) bucket = "5000-6999";
+        else if (salary < 9000) bucket = "7000-8999";
+        else bucket = "9000+";
+        salaryBuckets[bucket].count++;
+        salaryBuckets[bucket].avgActual += actual;
+      }
+      for (const b of Object.keys(salaryBuckets)) {
+        if (salaryBuckets[b].count > 0) {
+          salaryBuckets[b].avgActual = Math.round((salaryBuckets[b].avgActual / salaryBuckets[b].count) * 100) / 100;
+        }
+      }
+
+      const posFrequency: Record<string, number> = {};
+      for (const p of allPlayerData) {
+        const pos = (p.position || "").split("/")[0];
+        posFrequency[pos] = (posFrequency[pos] || 0) + 1;
+      }
+
+      const topPlayers = Object.entries(
+        allPlayerData.reduce((acc: Record<string, { count: number; totalActual: number }>, p: any) => {
+          const name = p.name || "Unknown";
+          if (!acc[name]) acc[name] = { count: 0, totalActual: 0 };
+          acc[name].count++;
+          acc[name].totalActual += p.actualPoints || 0;
+          return acc;
+        }, {})
+      )
+        .map(([name, data]) => ({ name, ...data, avgActual: Math.round((data.totalActual / data.count) * 100) / 100 }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 20);
+
+      res.json({
+        sport,
+        count: lineups.length,
+        aggregated: {
+          avgTotalPoints,
+          avgSalaryUtil,
+          avgProjectionRatio,
+          avgSalaryEfficiency,
+          salaryBuckets,
+          posFrequency,
+          topPlayers,
+        },
+      });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to compute insights" });
+    }
+  });
+
+  app.get("/api/winning-lineups/:sport", async (req, res) => {
+    try {
+      if (!isLoggedIn(req)) return res.sendStatus(401);
+      const userId = getSessionUserId(req)!;
+      const dbUser = await storage.getUser(userId);
+      if (!dbUser?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      const sport = req.params.sport.toUpperCase();
+      const limit = parseInt(req.query.limit as string) || 30;
+      const lineups = await storage.getWinningLineups(sport, limit);
+      res.json(lineups);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to fetch winning lineups" });
+    }
+  });
+
+  app.post("/api/admin/analyze-slate", async (req, res) => {
+    try {
+      if (!isLoggedIn(req)) return res.sendStatus(401);
+      const userId = getSessionUserId(req)!;
+      const dbUser = await storage.getUser(userId);
+      if (!dbUser?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      const { sport, date } = req.body;
+      if (!sport || !date) return res.status(400).json({ message: "sport and date required" });
+
+      const { analyzeCompletedSlate } = await import("./winning-lineup-agent");
+      const result = await analyzeCompletedSlate(sport.toUpperCase(), date);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Analysis failed" });
+    }
+  });
+
   app.get("/api/dashboard/:sport", async (req, res) => {
     try {
       const sport = req.params.sport.toUpperCase();
