@@ -820,8 +820,10 @@ export async function registerRoutes(
 
     const allPlayers = await storage.getPlayersBySlate(slateId);
     const dkIdMap = new Map<number, typeof allPlayers[0]>();
+    const nameMap = new Map<string, typeof allPlayers[0]>();
     for (const p of allPlayers) {
       if (p.draftKingsPlayerId) dkIdMap.set(p.draftKingsPlayerId, p);
+      if (p.name) nameMap.set(p.name.toLowerCase().trim(), p);
     }
 
     const config = getPlatformConfig(sport, "draftkings" as Platform);
@@ -841,21 +843,31 @@ export async function registerRoutes(
         continue;
       }
 
-      const dkPlayerIds: number[] = [...new Set(entry.dkPlayerIds || [])];
+      const rawDkPlayerIds: number[] = entry.dkPlayerIds || [];
+      const entryPlayerNames: string[] = entry.playerNames || [];
       const matchedPlayers: typeof allPlayers = [];
-      const missingIds: number[] = [];
+      const missingNames: string[] = [];
+      const seenPlayerIds = new Set<number>();
 
-      for (const dkId of dkPlayerIds) {
-        const p = dkIdMap.get(dkId);
-        if (p) matchedPlayers.push(p);
-        else missingIds.push(dkId);
+      for (let i = 0; i < rawDkPlayerIds.length; i++) {
+        const dkId = rawDkPlayerIds[i];
+        let p = dkIdMap.get(dkId);
+        if (!p && entryPlayerNames[i]) {
+          p = nameMap.get(entryPlayerNames[i].toLowerCase().trim());
+        }
+        if (p && !seenPlayerIds.has(p.id)) {
+          seenPlayerIds.add(p.id);
+          matchedPlayers.push(p);
+        } else if (!p) {
+          missingNames.push(entryPlayerNames[i] || `DK#${dkId}`);
+        }
       }
 
       if (matchedPlayers.length !== config.rosterSize) {
         results.push({
           entryId: entry.entryId,
           status: "failed",
-          error: `Matched ${matchedPlayers.length}/${config.rosterSize} players. Missing DK IDs: ${missingIds.join(", ")}`,
+          error: `Matched ${matchedPlayers.length}/${config.rosterSize} players. Could not find: ${missingNames.join(", ")}`,
         });
         continue;
       }
