@@ -197,6 +197,23 @@ export const insertWinningLineupSchema = createInsertSchema(winningLineups).omit
 export type WinningLineup = typeof winningLineups.$inferSelect;
 export type InsertWinningLineup = z.infer<typeof insertWinningLineupSchema>;
 
+// --- PLAYER OVERRIDES ---
+export const playerOverrides = pgTable("player_overrides", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  slateId: integer("slate_id").notNull().references(() => slates.id),
+  playerId: integer("player_id").notNull().references(() => players.id),
+  customProjection: numeric("custom_projection"),
+  isExcluded: boolean("is_excluded").notNull().default(false),
+  isLocked: boolean("is_locked").notNull().default(false),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPlayerOverrideSchema = createInsertSchema(playerOverrides).omit({ id: true, updatedAt: true });
+export type PlayerOverride = typeof playerOverrides.$inferSelect;
+export type InsertPlayerOverride = z.infer<typeof insertPlayerOverrideSchema>;
+
 // --- OPTIMIZATION TYPES ---
 export const optimizationConstraintSchema = z.object({
   slateId: z.number(),

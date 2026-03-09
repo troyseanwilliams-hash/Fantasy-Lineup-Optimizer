@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { eq, and, inArray, lt, gte, desc, isNull, isNotNull, ne, sql } from "drizzle-orm";
 import {
-  slates, players, lineups, subscriptions, props, alerts, prizePicksEntries, playerHistory, winningLineups,
+  slates, players, lineups, subscriptions, props, alerts, prizePicksEntries, playerHistory, winningLineups, playerOverrides,
   type Slate, type InsertSlate,
   type Player, type InsertPlayer,
   type Lineup, type InsertLineup,
@@ -11,6 +11,7 @@ import {
   type PrizePicksEntry, type InsertPrizePicksEntry,
   type PlayerHistory, type InsertPlayerHistory,
   type WinningLineup, type InsertWinningLineup,
+  type PlayerOverride, type InsertPlayerOverride,
 } from "@shared/schema";
 
 import { authStorage, type IAuthStorage } from "./replit_integrations/auth/storage";
@@ -80,6 +81,12 @@ export interface IStorage extends IAuthStorage {
   createWinningLineup(data: InsertWinningLineup): Promise<WinningLineup>;
   getWinningLineups(sport?: string, limit?: number): Promise<WinningLineup[]>;
   getWinningLineupBySlateDate(sport: string, slateDate: string): Promise<WinningLineup | undefined>;
+
+  getPlayerOverrides(userId: string, slateId: number): Promise<PlayerOverride[]>;
+  upsertPlayerOverride(data: InsertPlayerOverride): Promise<PlayerOverride>;
+  deletePlayerOverride(userId: string, slateId: number, playerId: number): Promise<void>;
+  deletePlayerOverridesBySlate(slateId: number): Promise<void>;
+  deletePlayerOverridesByUser(userId: string, slateId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -139,6 +146,7 @@ export class DatabaseStorage implements IStorage {
       await db.update(props).set({ playerId: null }).where(inArray(props.playerId, playerIds));
       await db.update(alerts).set({ playerId: null }).where(inArray(alerts.playerId, playerIds));
     }
+    await db.delete(playerOverrides).where(eq(playerOverrides.slateId, slateId));
     await db.delete(players).where(eq(players.slateId, slateId));
     const remainingLineups = await db.select({ id: lineups.id }).from(lineups).where(eq(lineups.slateId, slateId));
     if (remainingLineups.length === 0) {
@@ -155,6 +163,7 @@ export class DatabaseStorage implements IStorage {
       await db.update(props).set({ playerId: null }).where(inArray(props.playerId, playerIds));
       await db.update(alerts).set({ playerId: null }).where(inArray(alerts.playerId, playerIds));
     }
+    await db.delete(playerOverrides).where(eq(playerOverrides.slateId, slateId));
     await db.delete(players).where(eq(players.slateId, slateId));
   }
 
@@ -575,6 +584,47 @@ export class DatabaseStorage implements IStorage {
     const [result] = await db.select().from(winningLineups)
       .where(and(eq(winningLineups.sport, sport), eq(winningLineups.slateDate, slateDate)));
     return result;
+  }
+
+  async getPlayerOverrides(userId: string, slateId: number): Promise<PlayerOverride[]> {
+    return await db.select().from(playerOverrides)
+      .where(and(eq(playerOverrides.userId, userId), eq(playerOverrides.slateId, slateId)));
+  }
+
+  async upsertPlayerOverride(data: InsertPlayerOverride): Promise<PlayerOverride> {
+    const existing = await db.select().from(playerOverrides)
+      .where(and(
+        eq(playerOverrides.userId, data.userId),
+        eq(playerOverrides.slateId, data.slateId),
+        eq(playerOverrides.playerId, data.playerId)
+      ));
+    if (existing.length > 0) {
+      const [updated] = await db.update(playerOverrides)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(playerOverrides.id, existing[0].id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(playerOverrides).values(data).returning();
+    return created;
+  }
+
+  async deletePlayerOverride(userId: string, slateId: number, playerId: number): Promise<void> {
+    await db.delete(playerOverrides)
+      .where(and(
+        eq(playerOverrides.userId, userId),
+        eq(playerOverrides.slateId, slateId),
+        eq(playerOverrides.playerId, playerId)
+      ));
+  }
+
+  async deletePlayerOverridesBySlate(slateId: number): Promise<void> {
+    await db.delete(playerOverrides).where(eq(playerOverrides.slateId, slateId));
+  }
+
+  async deletePlayerOverridesByUser(userId: string, slateId: number): Promise<void> {
+    await db.delete(playerOverrides)
+      .where(and(eq(playerOverrides.userId, userId), eq(playerOverrides.slateId, slateId)));
   }
 }
 
