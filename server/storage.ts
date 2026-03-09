@@ -101,8 +101,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async clearAllSlatesAndPlayers(): Promise<void> {
-    await db.delete(players);
-    await db.delete(slates);
+    const allSlates = await db.select({ id: slates.id }).from(slates);
+    for (const slate of allSlates) {
+      await this.deleteSlateAndPlayers(slate.id);
+    }
   }
 
   async deleteSlateAndPlayers(slateId: number): Promise<void> {
