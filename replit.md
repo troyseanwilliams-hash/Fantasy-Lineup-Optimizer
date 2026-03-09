@@ -22,14 +22,14 @@ Preferred communication style: Simple, everyday language.
 - **Optimization**: `javascript-lp-solver` for Linear Programming.
 - **Authentication**: Session-based using bcryptjs for password hashing.
 - **Payments**: Stripe Elements for subscriptions, including webhook handling.
-- **Data Refresh**: Hourly cron jobs for DraftKings slates/players, Odds API props, PrizePicks projections, and player status updates. Pre-contest accelerated status refresh (every 5 min within 1 hour of lock).
+- **Data Refresh**: Hourly cron jobs for DraftKings slates/players, Odds API props, PrizePicks projections, and player status updates. Pre-contest accelerated status refresh (every 5 min within 1 hour of lock). 2 AM ET vault reset clears expired lineups and all PrizePicks vault entries nightly.
 - **Injury Handling**: Live injury statuses fetched directly from DraftKings API at optimization time. OUT and Questionable players are excluded, Doubtful players receive a 30% projection penalty, and Probable players a 90% penalty.
 - **Data Source**: DraftKings public API is the sole system of record for all player/slate data.
 - **Boost Engine**: Data-driven scoring using player history for value, trends, salary movement, floor/ceiling projections, momentum, team environment, and sport-specific stacking (NFL QB-WR, MLB team, NBA/NHL game stacks). Includes `computeBoostScores()`, `computeCorrelationBonus()`, `applyCeilingMode()`, and `applyLeverageMode()`.
 - **Player History**: Tracks player projection snapshots per slate for trend and volatility analysis.
 - **Lineup Preservation**: Saved lineups are moved to "review" status with preserved player snapshots during slate refreshes to prevent data loss.
 - **Pro Optimizer Pool Trimming**: Limits player pool to 150 players (sorted by projected points, plus locked players) to improve LP solver performance.
-- **Player Swap**: Both Standard and Pro Optimizers support one-click player swaps within generated lineups, filtering replacements by position and salary.
+- **Player Swap**: Both Standard and Pro Optimizers support one-click player swaps within generated lineups, filtering replacements by position and salary. PrizePicks Builder also supports swapping picks in the entry slip via the ArrowLeftRight icon, preserving the More/Less direction.
 - **DK Entries Import (Champion only)**: Allows users to upload DraftKings entries CSVs to import lineups into the vault, preserving DK metadata and enabling existing swap/regenerate features.
 - **Bulk Regenerate (Paid tiers)**: Enables regeneration of multiple selected lineups using advanced optimization algorithms (boost engine, ceiling/leverage mode, correlation, exposure management).
 - **Add New Slate (Admin)**: Admin can import additional DraftKings slates beyond the auto-refreshed main slates.
