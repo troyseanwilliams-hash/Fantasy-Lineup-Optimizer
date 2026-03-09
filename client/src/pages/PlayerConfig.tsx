@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
-import { Crown, Lock, LockOpen, Ban, Check, RotateCcw, Search, Loader2, Settings2, ArrowUpDown, Pencil, X, Save } from "lucide-react";
+import { Crown, Lock, LockOpen, Ban, RotateCcw, Search, Loader2, Settings2, ArrowUpDown, Pencil, X, Save, Rocket, Check } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,17 @@ const SPORT_COLORS: Record<string, { accent: string; bg: string; border: string;
   SOCCER: { accent: "text-teal-400", bg: "bg-teal-500/10", border: "border-teal-500/20", tab: "bg-teal-500" },
 };
 
-type SortField = "name" | "position" | "salary" | "projectedPoints" | "override";
+const INJURY_COLORS: Record<string, string> = {
+  OUT: "border-red-500/40 text-red-400 bg-red-500/10",
+  Questionable: "border-yellow-500/40 text-yellow-400 bg-yellow-500/10",
+  Doubtful: "border-orange-500/40 text-orange-400 bg-orange-500/10",
+  Probable: "border-green-500/40 text-green-400 bg-green-500/10",
+  "Day-to-Day": "border-yellow-500/40 text-yellow-400 bg-yellow-500/10",
+};
+
+const BOOST_LEVELS = [0, 5, 10, 15, 20];
+
+type SortField = "name" | "position" | "salary" | "projectedPoints" | "fppg" | "value" | "override";
 type SortDir = "asc" | "desc";
 
 export default function PlayerConfig() {
@@ -119,7 +129,10 @@ export default function PlayerConfig() {
 
   const filteredPlayers = useMemo(() => {
     if (!players) return [];
-    let filtered = [...players];
+    let filtered = players.map(p => {
+      const val = p.salary > 0 ? Number(p.projectedPoints) / (p.salary / 1000) : 0;
+      return { ...p, value: val };
+    });
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -140,6 +153,8 @@ export default function PlayerConfig() {
         case "position": cmp = a.position.localeCompare(b.position); break;
         case "salary": cmp = a.salary - b.salary; break;
         case "projectedPoints": cmp = Number(a.projectedPoints) - Number(b.projectedPoints); break;
+        case "fppg": cmp = Number(a.fppg) - Number(b.fppg); break;
+        case "value": cmp = a.value - b.value; break;
         case "override": {
           const aHas = overrideMap.has(a.id) ? 1 : 0;
           const bHas = overrideMap.has(b.id) ? 1 : 0;
@@ -162,64 +177,57 @@ export default function PlayerConfig() {
     }
   }
 
+  function getOverrideData(playerId: number) {
+    const existing = overrideMap.get(playerId);
+    return {
+      customProjection: existing?.customProjection != null ? Number(existing.customProjection) : null,
+      boostPercent: existing?.boostPercent || 0,
+      isExcluded: existing?.isExcluded || false,
+      isLocked: existing?.isLocked || false,
+      notes: existing?.notes || null,
+    };
+  }
+
   function handleToggleExclude(player: Player) {
-    const existing = overrideMap.get(player.id);
-    const newExcluded = !existing?.isExcluded;
+    const d = getOverrideData(player.id);
+    const newExcluded = !d.isExcluded;
     upsertMutation.mutate({
       playerId: player.id,
-      data: {
-        customProjection: existing?.customProjection ?? null,
-        isExcluded: newExcluded,
-        isLocked: newExcluded ? false : (existing?.isLocked || false),
-        notes: existing?.notes || null,
-      },
+      data: { ...d, isExcluded: newExcluded, isLocked: newExcluded ? false : d.isLocked },
     });
   }
 
   function handleToggleLock(player: Player) {
-    const existing = overrideMap.get(player.id);
-    const newLocked = !existing?.isLocked;
+    const d = getOverrideData(player.id);
+    const newLocked = !d.isLocked;
     upsertMutation.mutate({
       playerId: player.id,
-      data: {
-        customProjection: existing?.customProjection ?? null,
-        isExcluded: newLocked ? false : (existing?.isExcluded || false),
-        isLocked: newLocked,
-        notes: existing?.notes || null,
-      },
+      data: { ...d, isLocked: newLocked, isExcluded: newLocked ? false : d.isExcluded },
+    });
+  }
+
+  function handleCycleBoost(player: Player) {
+    const d = getOverrideData(player.id);
+    const currentIdx = BOOST_LEVELS.indexOf(d.boostPercent);
+    const nextBoost = BOOST_LEVELS[(currentIdx + 1) % BOOST_LEVELS.length];
+    upsertMutation.mutate({
+      playerId: player.id,
+      data: { ...d, boostPercent: nextBoost },
     });
   }
 
   function handleSaveProjection(player: Player) {
     const val = editProjection.trim();
-    const existing = overrideMap.get(player.id);
+    const d = getOverrideData(player.id);
     if (val === "" || val === player.projectedPoints) {
-      if (existing && existing.customProjection != null) {
-        upsertMutation.mutate({
-          playerId: player.id,
-          data: {
-            customProjection: null,
-            isExcluded: existing.isExcluded,
-            isLocked: existing.isLocked,
-            notes: existing.notes,
-          },
-        });
-      }
+      upsertMutation.mutate({ playerId: player.id, data: { ...d, customProjection: null } });
     } else {
       const num = parseFloat(val);
       if (isNaN(num) || num < 0) {
         toast({ title: "Invalid projection", description: "Please enter a valid number.", variant: "destructive" });
         return;
       }
-      upsertMutation.mutate({
-        playerId: player.id,
-        data: {
-          customProjection: num,
-          isExcluded: existing?.isExcluded || false,
-          isLocked: existing?.isLocked || false,
-          notes: existing?.notes || null,
-        },
-      });
+      upsertMutation.mutate({ playerId: player.id, data: { ...d, customProjection: num } });
     }
     setEditingPlayer(null);
     setEditProjection("");
@@ -227,6 +235,14 @@ export default function PlayerConfig() {
 
   function handleRemoveOverride(playerId: number) {
     deleteMutation.mutate(playerId);
+  }
+
+  function getEffectiveProjection(player: Player, override: PlayerOverride | undefined): number {
+    let proj = override?.customProjection != null ? Number(override.customProjection) : Number(player.projectedPoints);
+    if (override?.boostPercent && override.boostPercent > 0) {
+      proj = Math.round(proj * (1 + override.boostPercent / 100) * 10) / 10;
+    }
+    return proj;
   }
 
   const colors = SPORT_COLORS[selectedSport] || SPORT_COLORS.NBA;
@@ -271,7 +287,7 @@ export default function PlayerConfig() {
               Player Configuration
             </h1>
             <p className="text-slate-400 text-sm mt-1">
-              Customize projections, lock, or exclude players. Changes apply to both optimizers and reset with each slate refresh.
+              Customize projections, boosts, lock or exclude players. Changes apply to both optimizers and reset with each slate refresh.
             </p>
           </div>
           {overrideCount > 0 && (
@@ -370,29 +386,30 @@ export default function PlayerConfig() {
                   <table className="w-full" data-testid="players-table">
                     <thead>
                       <tr className="bg-slate-800/80">
-                        {[
+                        {([
                           { key: "name" as SortField, label: "Player" },
                           { key: "position" as SortField, label: "Pos" },
                           { key: "salary" as SortField, label: "Salary" },
+                          { key: "fppg" as SortField, label: "FPPG" },
                           { key: "projectedPoints" as SortField, label: "Projection" },
-                        ].map(col => (
+                          { key: "value" as SortField, label: "Value" },
+                        ]).map(col => (
                           <th
                             key={col.key}
-                            className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase cursor-pointer hover:text-white transition"
+                            className="px-3 py-3 text-left text-xs font-bold text-slate-400 uppercase cursor-pointer hover:text-white transition"
                             onClick={() => handleSort(col.key)}
                             data-testid={`sort-${col.key}`}
                           >
                             <div className="flex items-center gap-1">
                               {col.label}
-                              {sortField === col.key && (
-                                <ArrowUpDown className="w-3 h-3" />
-                              )}
+                              {sortField === col.key && <ArrowUpDown className="w-3 h-3" />}
                             </div>
                           </th>
                         ))}
-                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">Custom Proj</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">Status</th>
-                        <th className="px-4 py-3 text-center text-xs font-bold text-slate-400 uppercase">Actions</th>
+                        <th className="px-3 py-3 text-center text-xs font-bold text-slate-400 uppercase">Boost</th>
+                        <th className="px-3 py-3 text-center text-xs font-bold text-slate-400 uppercase">Custom Proj</th>
+                        <th className="px-3 py-3 text-center text-xs font-bold text-slate-400 uppercase">Status</th>
+                        <th className="px-3 py-3 text-center text-xs font-bold text-slate-400 uppercase">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800">
@@ -400,6 +417,8 @@ export default function PlayerConfig() {
                         const override = overrideMap.get(player.id);
                         const hasOverride = !!override;
                         const isEditing = editingPlayer === player.id;
+                        const boostPct = override?.boostPercent || 0;
+                        const effectiveProj = getEffectiveProjection(player, override);
 
                         return (
                           <tr
@@ -415,20 +434,57 @@ export default function PlayerConfig() {
                             }`}
                             data-testid={`player-row-${player.id}`}
                           >
-                            <td className="px-4 py-3">
+                            <td className="px-3 py-2.5">
                               <div className="flex flex-col">
-                                <span className="text-white font-medium text-sm">{player.name}</span>
-                                <span className="text-slate-500 text-xs">{player.team} {player.opponent ? `vs ${player.opponent}` : ""}</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-white font-medium text-sm">{player.name}</span>
+                                  {player.injuryStatus && player.injuryStatus !== "Healthy" && (
+                                    <Badge variant="outline" className={`text-[9px] font-bold py-0 px-1.5 ${INJURY_COLORS[player.injuryStatus] || INJURY_COLORS["Day-to-Day"]}`}>
+                                      {player.injuryStatus}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <span className="text-slate-500 text-xs">{player.team} {player.opponent ? `vs ${player.opponent}` : ""} · {player.gameInfo}</span>
                               </div>
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-3 py-2.5">
                               <Badge variant="outline" className="text-xs border-slate-600 text-slate-300">{player.position}</Badge>
                             </td>
-                            <td className="px-4 py-3 text-slate-300 text-sm font-mono">${player.salary?.toLocaleString()}</td>
-                            <td className="px-4 py-3 text-slate-300 text-sm font-mono">{Number(player.projectedPoints).toFixed(1)}</td>
-                            <td className="px-4 py-3">
+                            <td className="px-3 py-2.5 text-white text-sm font-mono font-bold">${player.salary?.toLocaleString()}</td>
+                            <td className="px-3 py-2.5 text-slate-400 text-xs font-mono">{player.fppg}</td>
+                            <td className="px-3 py-2.5">
+                              <div className="flex flex-col items-start">
+                                <span className="text-emerald-400 text-sm font-mono font-bold">{Number(player.projectedPoints).toFixed(1)}</span>
+                                {(override?.customProjection != null || boostPct > 0) && (
+                                  <span className="text-amber-400 text-[10px] font-bold font-mono" data-testid={`effective-proj-${player.id}`}>
+                                    → {effectiveProj.toFixed(1)}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2.5 text-blue-400 text-xs font-mono font-bold">{player.value.toFixed(1)}x</td>
+                            <td className="px-3 py-2.5 text-center">
+                              <button
+                                onClick={() => handleCycleBoost(player)}
+                                className={`relative p-1.5 rounded-md transition-all ${
+                                  boostPct > 0
+                                    ? "bg-amber-500/20 text-amber-400 shadow-md shadow-amber-500/10 ring-1 ring-amber-500/30"
+                                    : "text-slate-500 hover:text-amber-400 hover:bg-amber-500/10"
+                                }`}
+                                title={boostPct > 0 ? `Boosted +${boostPct}% — click to change` : "Boost player projection"}
+                                data-testid={`boost-${player.id}`}
+                              >
+                                <Rocket className={`w-3.5 h-3.5 ${boostPct > 0 ? "fill-amber-400" : ""}`} />
+                                {boostPct > 0 && (
+                                  <span className="absolute -top-1.5 -right-2 text-[9px] font-black text-amber-300 bg-amber-950 rounded px-0.5">
+                                    +{boostPct}%
+                                  </span>
+                                )}
+                              </button>
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
                               {isEditing ? (
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-1 justify-center">
                                   <Input
                                     type="number"
                                     step="0.1"
@@ -438,7 +494,7 @@ export default function PlayerConfig() {
                                       if (e.key === "Enter") handleSaveProjection(player);
                                       if (e.key === "Escape") { setEditingPlayer(null); setEditProjection(""); }
                                     }}
-                                    className="w-20 h-7 text-xs bg-slate-800 border-slate-600 text-white"
+                                    className="w-20 h-7 text-xs bg-slate-800 border-slate-600 text-white text-right font-mono"
                                     autoFocus
                                     data-testid={`edit-projection-input-${player.id}`}
                                   />
@@ -450,7 +506,7 @@ export default function PlayerConfig() {
                                   </button>
                                 </div>
                               ) : (
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-1 justify-center">
                                   {override?.customProjection != null ? (
                                     <span className="text-amber-400 font-mono text-sm font-bold" data-testid={`custom-proj-${player.id}`}>
                                       {Number(override.customProjection).toFixed(1)}
@@ -471,23 +527,20 @@ export default function PlayerConfig() {
                                 </div>
                               )}
                             </td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-1">
+                            <td className="px-3 py-2.5">
+                              <div className="flex items-center gap-1 justify-center">
                                 {override?.isLocked && (
                                   <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px]">LOCKED</Badge>
                                 )}
                                 {override?.isExcluded && (
                                   <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px]">EXCLUDED</Badge>
                                 )}
-                                {player.injuryStatus && player.injuryStatus !== "Healthy" && (
-                                  <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-[10px]">{player.injuryStatus}</Badge>
-                                )}
-                                {!override?.isLocked && !override?.isExcluded && !player.injuryStatus && (
+                                {!override?.isLocked && !override?.isExcluded && (
                                   <span className="text-slate-600 text-xs">—</span>
                                 )}
                               </div>
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-3 py-2.5">
                               <div className="flex items-center justify-center gap-1">
                                 <button
                                   onClick={() => handleToggleLock(player)}
@@ -517,7 +570,7 @@ export default function PlayerConfig() {
                                   <button
                                     onClick={() => handleRemoveOverride(player.id)}
                                     className="p-1.5 rounded text-slate-600 hover:text-amber-400 hover:bg-amber-500/10 transition"
-                                    title="Remove all overrides for this player"
+                                    title="Reset to original settings"
                                     data-testid={`remove-override-${player.id}`}
                                   >
                                     <RotateCcw className="w-3.5 h-3.5" />
@@ -537,6 +590,8 @@ export default function PlayerConfig() {
                     const override = overrideMap.get(player.id);
                     const hasOverride = !!override;
                     const isEditing = editingPlayer === player.id;
+                    const boostPct = override?.boostPercent || 0;
+                    const effectiveProj = getEffectiveProjection(player, override);
 
                     return (
                       <Card
@@ -552,24 +607,57 @@ export default function PlayerConfig() {
                         }`}
                         data-testid={`player-card-${player.id}`}
                       >
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-white font-medium text-sm truncate">{player.name}</span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-white font-medium text-sm">{player.name}</span>
                               <Badge variant="outline" className="text-[10px] border-slate-600 text-slate-400 shrink-0">{player.position}</Badge>
-                            </div>
-                            <div className="flex items-center gap-3 mt-1 text-xs text-slate-400">
-                              <span>{player.team}</span>
-                              <span className="font-mono">${player.salary?.toLocaleString()}</span>
-                              <span className="font-mono">{Number(player.projectedPoints).toFixed(1)} pts</span>
-                              {override?.customProjection != null && (
-                                <span className="text-amber-400 font-bold font-mono" data-testid={`mobile-custom-proj-${player.id}`}>
-                                  → {Number(override.customProjection).toFixed(1)}
-                                </span>
+                              {player.injuryStatus && player.injuryStatus !== "Healthy" && (
+                                <Badge variant="outline" className={`text-[9px] font-bold py-0 px-1 ${INJURY_COLORS[player.injuryStatus] || INJURY_COLORS["Day-to-Day"]}`}>
+                                  {player.injuryStatus}
+                                </Badge>
                               )}
                             </div>
+                            <div className="flex items-center gap-3 mt-1 text-xs text-slate-400">
+                              <span>{player.team} {player.opponent ? `vs ${player.opponent}` : ""}</span>
+                            </div>
+                            <div className="flex items-center gap-3 mt-1.5 text-xs">
+                              <span className="font-mono text-white font-bold">${player.salary?.toLocaleString()}</span>
+                              <span className="font-mono text-slate-400">FPPG {player.fppg}</span>
+                              <span className="font-mono text-emerald-400 font-bold">{Number(player.projectedPoints).toFixed(1)} pts</span>
+                              <span className="font-mono text-blue-400 font-bold">{player.value.toFixed(1)}x</span>
+                            </div>
+                            {(override?.customProjection != null || boostPct > 0) && (
+                              <div className="flex items-center gap-2 mt-1 text-xs">
+                                <span className="text-amber-400 font-bold font-mono" data-testid={`mobile-effective-proj-${player.id}`}>
+                                  → {effectiveProj.toFixed(1)} pts
+                                </span>
+                                {override?.customProjection != null && (
+                                  <span className="text-slate-500">(custom: {Number(override.customProjection).toFixed(1)})</span>
+                                )}
+                                {boostPct > 0 && (
+                                  <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[9px] py-0">+{boostPct}%</Badge>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          <div className="flex items-center gap-1 shrink-0 ml-2">
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => handleCycleBoost(player)}
+                              className={`relative p-1.5 rounded-md transition-all ${
+                                boostPct > 0
+                                  ? "bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/30"
+                                  : "text-slate-600 hover:text-amber-400"
+                              }`}
+                              data-testid={`mobile-boost-${player.id}`}
+                            >
+                              <Rocket className={`w-4 h-4 ${boostPct > 0 ? "fill-amber-400" : ""}`} />
+                              {boostPct > 0 && (
+                                <span className="absolute -top-1 -right-1.5 text-[8px] font-black text-amber-300 bg-amber-950 rounded px-0.5">
+                                  +{boostPct}%
+                                </span>
+                              )}
+                            </button>
                             <button
                               onClick={() => {
                                 setEditingPlayer(isEditing ? null : player.id);
@@ -606,6 +694,7 @@ export default function PlayerConfig() {
                               <button
                                 onClick={() => handleRemoveOverride(player.id)}
                                 className="p-1.5 rounded text-slate-600 hover:text-amber-400"
+                                title="Reset to original"
                                 data-testid={`mobile-remove-override-${player.id}`}
                               >
                                 <RotateCcw className="w-3.5 h-3.5" />
@@ -621,7 +710,7 @@ export default function PlayerConfig() {
                               step="0.1"
                               value={editProjection}
                               onChange={e => setEditProjection(e.target.value)}
-                              className="w-24 h-7 text-xs bg-slate-800 border-slate-600 text-white"
+                              className="w-24 h-7 text-xs bg-slate-800 border-slate-600 text-white font-mono"
                               autoFocus
                               data-testid={`mobile-edit-input-${player.id}`}
                             />
