@@ -55,7 +55,11 @@ export async function fetchLivePlayerStatuses(draftGroupId: number): Promise<Map
 }
 
 export function parseEasternTime(dateStr: string): Date {
-  const cleaned = dateStr.replace(/\.?0+$/, "");
+  const hasTimezone = /Z$/i.test(dateStr.trim()) || /[+-]\d{2}:\d{2}$/.test(dateStr.trim());
+  if (hasTimezone) {
+    return new Date(dateStr);
+  }
+  const cleaned = dateStr.replace(/\.0+$/, "");
   const asUtc = new Date(cleaned + "Z");
   const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
@@ -68,6 +72,26 @@ export function parseEasternTime(dateStr: string): Date {
   const etAtUtc = new Date(`${g("year")}-${g("month")}-${g("day")}T${g("hour")}:${g("minute")}:${g("second")}Z`);
   const offsetMs = asUtc.getTime() - etAtUtc.getTime();
   return new Date(asUtc.getTime() + offsetMs);
+}
+
+export function formatToET(utcDate: Date): string {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+  return formatter.format(utcDate) + " ET";
+}
+
+export function getEasternToday(): string {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  });
+  const parts = formatter.formatToParts(new Date());
+  const g = (t: string) => parts.find(p => p.type === t)?.value || "01";
+  return `${g("year")}-${g("month")}-${g("day")}`;
 }
 
 const SPORT_MAP: Record<string, string> = {
@@ -145,16 +169,18 @@ async function fetchJSON<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-function formatGameTime(utcTimeStr: string): string {
+function formatGameTime(etTimeStr: string): string {
   try {
-    const d = new Date(utcTimeStr);
-    const etHours = d.getUTCHours() - 5;
-    const adjustedHours = etHours < 0 ? etHours + 24 : etHours;
-    const period = adjustedHours >= 12 ? "PM" : "AM";
-    const h = adjustedHours > 12 ? adjustedHours - 12 : adjustedHours === 0 ? 12 : adjustedHours;
-    return `${h}:${d.getUTCMinutes().toString().padStart(2, "0")}${period} ET`;
+    const etDate = parseEasternTime(etTimeStr);
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+    return formatter.format(etDate) + " ET";
   } catch {
-    return "7:00PM ET";
+    return "7:00 PM ET";
   }
 }
 
@@ -257,7 +283,14 @@ export async function fetchLiveDKData(sport: string): Promise<LiveSlateData | nu
       const away = parts[0]?.trim() || "";
       const home = parts[1]?.trim() || "";
       const time = formatGameTime(p.competition.startTime);
-      const date = p.competition.startTime.split("T")[0];
+      const gameUtc = parseEasternTime(p.competition.startTime);
+      const dateFmt = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        year: "numeric", month: "2-digit", day: "2-digit",
+      });
+      const dp = dateFmt.formatToParts(gameUtc);
+      const dg = (t: string) => dp.find(x => x.type === t)?.value || "01";
+      const date = `${dg("year")}-${dg("month")}-${dg("day")}`;
       games.set(p.competition.competitionId, { away, home, time, date });
     }
   }
@@ -359,10 +392,11 @@ export async function fetchPlayerStatusUpdates(draftGroupId: number): Promise<Ma
 }
 
 function generateRollingDate(daysAhead: number): Date {
-  const d = new Date();
-  d.setDate(d.getDate() + daysAhead);
-  d.setHours(19, 0, 0, 0);
-  return d;
+  const etToday = getEasternToday();
+  const base = new Date(etToday + "T12:00:00Z");
+  base.setDate(base.getDate() + daysAhead);
+  const futureDate = base.toISOString().split("T")[0];
+  return parseEasternTime(`${futureDate}T19:00:00`);
 }
 
 export function getRollingSlateDate(sport: string): Date {
@@ -402,7 +436,7 @@ export async function fetchAvailableDKSlates(sport: string): Promise<AvailableDK
     return classics.map((g, idx) => {
       const startDate = parseEasternTime(g.StartDateEst);
       const timeStr = formatGameTime(g.StartDateEst);
-      const dateStr = startDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const dateStr = startDate.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
       const prefix = idx === 0 ? "Main" : `Slate ${idx + 1}`;
       const label = `${prefix} (${g.GameCount} game${g.GameCount !== 1 ? "s" : ""}) - ${dateStr} ${timeStr}`;
 
@@ -449,14 +483,21 @@ export async function fetchDKSlateByDraftGroup(sport: string, draftGroupId: numb
         const away = parts[0]?.trim() || "";
         const home = parts[1]?.trim() || "";
         const time = formatGameTime(p.competition.startTime);
-        const date = p.competition.startTime.split("T")[0];
+        const gameUtc = parseEasternTime(p.competition.startTime);
+        const dateFmt = new Intl.DateTimeFormat("en-US", {
+          timeZone: "America/New_York",
+          year: "numeric", month: "2-digit", day: "2-digit",
+        });
+        const dp = dateFmt.formatToParts(gameUtc);
+        const dg = (t: string) => dp.find(x => x.type === t)?.value || "01";
+        const date = `${dg("year")}-${dg("month")}-${dg("day")}`;
         games.set(p.competition.competitionId, { away, home, time, date });
       }
     }
 
     let slateDate = new Date();
     if (draftables[0]?.competition?.startTime) {
-      slateDate = new Date(draftables[0].competition.startTime);
+      slateDate = parseEasternTime(draftables[0].competition.startTime);
     }
 
     const dkPlayers: Omit<InsertPlayer, "slateId">[] = [];
