@@ -19,7 +19,7 @@ interface ActivityCache {
 
 const activityCache = new Map<string, ActivityCache>();
 const CACHE_TTL = 4 * 60 * 60 * 1000;
-const LOOKBACK_DAYS = 5;
+const LOOKBACK_DAYS = 8;
 
 function normalizeName(name: string): string {
   return name

@@ -158,6 +158,13 @@ export async function registerRoutes(
       const status = (p.injuryStatus || "").toUpperCase();
       return status !== "OUT" && status !== "IR" && status !== "QUESTIONABLE";
     });
+    if (slate) {
+      await refreshRecentlyPlayed(slate.sport);
+      const inactiveIds = new Set(getInactivePlayerIds(players, slate.sport));
+      if (inactiveIds.size > 0) {
+        players = players.filter(p => !inactiveIds.has(p.id));
+      }
+    }
     const bdlStats = slate ? await fetchBDLStats(slate.sport) : {};
     const ownershipResults = slate ? await calculateOwnership(players, slate.sport, "gpp_large", bdlStats) : [];
     const playersWithOwnership = computeOwnershipForPlayers(players, ownershipResults);
@@ -2214,30 +2221,32 @@ function getInactivePlayerIds(players: Player[], sport: string): number[] {
 
   for (const p of players) {
     if (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") continue;
-    if (p.salary > minSalary * 1.1) continue;
 
     const fppg = Number(p.fppg) || 0;
-    const valuePer1K = (fppg * 1000) / p.salary;
-
-    const positions = p.position.split("/");
-    const hasOutTeammate = positions.some(pos => {
-      const key = `${p.team}_${pos}`;
-      return outPlayersByTeamPos.has(key);
-    });
-
-    if (hasOutTeammate) continue;
-
-    if (valuePer1K >= INACTIVE_VALUE_THRESHOLD) {
-      inactiveIds.push(p.id);
-      console.log(`[Inactive Filter] Excluding ${p.name} (${p.team}) - $${p.salary} salary with ${fppg} FPPG (${valuePer1K.toFixed(1)} pts/$K) — likely not in rotation`);
-      continue;
-    }
 
     if (recentlyPlayed && recentlyPlayed.size > 0) {
       const normalized = normalizePlayerName(p.name);
       if (!recentlyPlayed.has(normalized) && fppg > 0) {
         inactiveIds.push(p.id);
-        console.log(`[Inactive Filter] Excluding ${p.name} (${p.team}) - $${p.salary} salary, not found in recent ESPN boxscores`);
+        console.log(`[Inactive Filter] Excluding ${p.name} (${p.team}) - $${p.salary} salary, not found in recent ESPN boxscores (no game in 7+ days)`);
+        continue;
+      }
+    }
+
+    if (p.salary <= minSalary * 1.1) {
+      const valuePer1K = (fppg * 1000) / p.salary;
+
+      const positions = p.position.split("/");
+      const hasOutTeammate = positions.some(pos => {
+        const key = `${p.team}_${pos}`;
+        return outPlayersByTeamPos.has(key);
+      });
+
+      if (hasOutTeammate) continue;
+
+      if (valuePer1K >= INACTIVE_VALUE_THRESHOLD) {
+        inactiveIds.push(p.id);
+        console.log(`[Inactive Filter] Excluding ${p.name} (${p.team}) - $${p.salary} salary with ${fppg} FPPG (${valuePer1K.toFixed(1)} pts/$K) — likely not in rotation`);
       }
     }
   }
