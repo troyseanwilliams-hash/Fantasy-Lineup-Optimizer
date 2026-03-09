@@ -254,7 +254,16 @@ export async function registerRoutes(
         return { ...p, projectedPoints: proj };
       });
 
-      const result = solveLineup(pool, { ...constraints, excludedPlayerIds: mergedExclusions }, slate.sport, platform);
+      const salaryFilteredPool = (constraints.playerMinSalary || constraints.playerMaxSalary)
+        ? pool.filter(p => {
+            if (constraints.lockedPlayerIds.includes(p.id)) return true;
+            if (constraints.playerMinSalary && p.salary < constraints.playerMinSalary) return false;
+            if (constraints.playerMaxSalary && p.salary > constraints.playerMaxSalary) return false;
+            return true;
+          })
+        : pool;
+
+      const result = solveLineup(salaryFilteredPool, { ...constraints, excludedPlayerIds: mergedExclusions }, slate.sport, platform);
 
       if (result.error) {
         return res.status(400).json(result);
@@ -1907,6 +1916,16 @@ export async function registerRoutes(
         .filter(id => !constraints.lockedPlayerIds.includes(id) && !baseExcluded.includes(id));
       baseExcluded.push(...inactiveExcluded);
 
+      if (constraints.playerMinSalary || constraints.playerMaxSalary) {
+        const lockedSet = new Set(constraints.lockedPlayerIds);
+        pool = pool.filter(p => {
+          if (lockedSet.has(p.id)) return true;
+          if (constraints.playerMinSalary && p.salary < constraints.playerMinSalary) return false;
+          if (constraints.playerMaxSalary && p.salary > constraints.playerMaxSalary) return false;
+          return true;
+        });
+      }
+
       const MAX_POOL_SIZE = 150;
       const excludedSet = new Set(baseExcluded);
       const eligiblePool = pool.filter(p => !excludedSet.has(p.id));
@@ -2481,7 +2500,7 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
     optimize: "projectedPoints",
     opType: "max",
     constraints: {
-      salary: { max: constraints.maxSalary || config.salaryCap },
+      salary: { max: constraints.maxSalary || config.salaryCap, ...(constraints.minSalary ? { min: constraints.minSalary } : {}) },
       rosterSize: { equal: config.rosterSize },
     },
     variables: {},
