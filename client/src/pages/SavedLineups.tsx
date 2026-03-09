@@ -240,14 +240,19 @@ export default function SavedLineups() {
       }
 
       const dkPlayerIds: number[] = [];
+      const playerNames: string[] = [];
       for (let s = 0; s < slotHeaders.length; s++) {
         const cell = cols[slotStartIdx + s] || "";
         const match = cell.match(/\((\d+)\)\s*$/);
-        if (match) dkPlayerIds.push(parseInt(match[1]));
+        if (match) {
+          dkPlayerIds.push(parseInt(match[1]));
+          const nameMatch = cell.match(/^(.+?)\s*\(\d+\)\s*$/);
+          playerNames.push(nameMatch ? nameMatch[1].trim() : "");
+        }
       }
 
       if (dkPlayerIds.length > 0) {
-        entries.push({ entryId, contestName, contestId, entryFee, dkPlayerIds });
+        entries.push({ entryId, contestName, contestId, entryFee, dkPlayerIds, playerNames });
       }
     }
 
