@@ -2727,13 +2727,15 @@ export async function seedDatabase(forceRefresh = false) {
 
     const now = new Date();
     const isStale = existingSlate && new Date(existingSlate.startTime) < now;
+    const draftGroupChanged = existingSlate && seed.draftGroupId && existingSlate.draftGroupId !== seed.draftGroupId;
 
-    if (isStale) {
-      await storage.deleteSlateAndPlayers(existingSlate.id);
-      console.log(`[DK] Removed stale ${seed.sport} slate (started ${existingSlate.startTime})`);
+    if (isStale || draftGroupChanged) {
+      await storage.deleteSlateAndPlayers(existingSlate!.id);
+      console.log(`[DK] Removed ${draftGroupChanged ? "outdated" : "stale"} ${seed.sport} slate (DG ${existingSlate!.draftGroupId} → ${seed.draftGroupId})`);
     }
 
-    const staleSlateStillExists = isStale && (await storage.getSlate(existingSlate?.id as number)) !== undefined;
+    const slateWasRemoved = (isStale || draftGroupChanged) && existingSlate;
+    const staleSlateStillExists = slateWasRemoved && (await storage.getSlate(existingSlate?.id as number)) !== undefined;
 
     if (staleSlateStillExists) {
       await storage.deletePlayersBySlate(existingSlate!.id);
@@ -2746,7 +2748,7 @@ export async function seedDatabase(forceRefresh = false) {
         seed.dkPlayers.map((p: any) => ({ ...p, slateId: existingSlate!.id })) as any
       );
       console.log(`[DK] Repopulated stale ${seed.sport} slate ${existingSlate!.id} with ${createdPlayers.length} players`);
-    } else if (!existingSlate || isStale) {
+    } else if (!existingSlate || isStale || draftGroupChanged) {
       const dkSlate = await storage.createSlate({
         sport: seed.sport,
         platform: "draftkings",
