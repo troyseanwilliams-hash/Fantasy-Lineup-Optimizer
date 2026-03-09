@@ -75,7 +75,7 @@ export default function Optimizer() {
     refetchInterval: 300000,
   });
 
-  const { data: subData } = useQuery<{ tier: string; lineupCount: number; maxLineups: number; sportCounts: Record<string, number> }>({
+  const { data: subData } = useQuery<{ tier: string; lineupCount: number; maxLineups: number; maxLineupsPerSport: number; sportCounts: Record<string, number> }>({
     queryKey: ["/api/subscription"],
     enabled: !!user,
   });
@@ -1121,7 +1121,7 @@ export default function Optimizer() {
           {currentLineup?.lineup && (
             <>
               {(() => {
-                const maxPerSport = subData?.tier === "pro" ? 150 : subData?.tier === "star" ? 20 : 1;
+                const maxPerSport = subData?.maxLineupsPerSport || (subData?.tier === "pro" ? 300 : subData?.tier === "star" ? 20 : 1);
                 const sportCount = subData?.sportCounts?.[sport] || 0;
                 const atLimit = sportCount >= maxPerSport;
                 if (atLimit) {
@@ -1133,11 +1133,11 @@ export default function Optimizer() {
                       </div>
                       <p className="text-xs text-slate-300 leading-relaxed">
                         {subData?.tier === "free" ? (
-                          <>Contender accounts can save 1 team per sport. Delete your existing {sport} lineup from the <Link href="/lineups" className="underline text-emerald-400 font-bold">Saved Lineups</Link> page to save a new one, or upgrade to <span className="font-black text-emerald-400">Sharpshooter ($19.99/mo)</span> for 20 teams or <span className="font-black text-amber-400">Champion ($39.99/mo)</span> for 150 teams per sport.</>
+                          <>Contender accounts can save 1 team per sport. Delete your existing {sport} lineup from the <Link href="/lineups" className="underline text-emerald-400 font-bold">Saved Lineups</Link> page to save a new one, or upgrade to <span className="font-black text-emerald-400">Sharpshooter ($19.99/mo)</span> for 20 teams or <span className="font-black text-amber-400">Champion ($39.99/mo)</span> for 300 teams per sport.</>
                         ) : subData?.tier === "star" ? (
-                          <>Sharpshooter accounts can save 20 teams per sport. Upgrade to <span className="font-black text-amber-400">Champion ($39.99/mo)</span> for 150 teams per sport with AI boost analysis.</>
+                          <>Sharpshooter accounts can save 20 teams per sport. Upgrade to <span className="font-black text-amber-400">Champion ($39.99/mo)</span> for 300 teams per sport with AI boost analysis.</>
                         ) : (
-                          <>You've reached the maximum of 150 saved teams for {sport}.</>
+                          <>You've reached the maximum of {maxPerSport} saved teams for {sport}.</>
                         )}
                       </p>
                       {subData?.tier !== "pro" && (
