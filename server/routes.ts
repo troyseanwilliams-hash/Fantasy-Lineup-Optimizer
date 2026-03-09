@@ -2,7 +2,7 @@ import type { Express, Request } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, subscriptions } from "@shared/schema";
+import { users, subscriptions, slates } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -20,7 +20,7 @@ function isLoggedIn(req: Request): boolean {
 }
 
 import { type OptimizationConstraints, type ProOptimizationConstraints, type Player, type Slate, type InsertProp, type InsertAlert, proOptimizationConstraintSchema, insertPrizePicksEntrySchema } from "@shared/schema";
-import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus, fetchLivePlayerStatuses, fetchAvailableDKSlates, fetchDKSlateByDraftGroup, fetchDraftables, isPlayerConfirmedStarter } from "./balldontlie";
+import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus, fetchLivePlayerStatuses, fetchAvailableDKSlates, fetchDKSlateByDraftGroup, fetchDraftables, isPlayerConfirmedStarter, parseEasternTime } from "./balldontlie";
 import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
 import { getLiveScores, getAllLiveScores, fetchESPNStarters } from "./espn-scores";
 import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analyzeManualPicks } from "./prizepicks";
@@ -892,7 +892,7 @@ export async function registerRoutes(
                   sport,
                   platform: "draftkings",
                   name: `${sport} ${avSlate.label || `DG ${avSlate.draftGroupId}`}`,
-                  startTime: avSlate.startTime ? new Date(avSlate.startTime) : new Date(),
+                  startTime: avSlate.startTime ? parseEasternTime(avSlate.startTime) : new Date(),
                   isMain: false,
                   draftGroupId: avSlate.draftGroupId,
                 });
@@ -1247,6 +1247,29 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("[Admin] Error fetching DK slates:", err);
       res.status(500).json({ message: err.message || "Failed to fetch DK slates" });
+    }
+  });
+
+  app.patch("/api/admin/fix-slate-time/:id", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    const dbUser = await storage.getUser(userId);
+    if (!dbUser?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+    const slateId = Number(req.params.id);
+    const slate = await storage.getSlate(slateId);
+    if (!slate) return res.status(404).json({ message: "Slate not found" });
+    if (!slate.draftGroupId) return res.status(400).json({ message: "Slate has no draft group ID" });
+    try {
+      const availableSlates = await fetchAvailableDKSlates(slate.sport);
+      const match = availableSlates.find(s => s.draftGroupId === slate.draftGroupId);
+      if (match && match.startTime) {
+        const correctedTime = parseEasternTime(match.startTime);
+        await db.update(slates).set({ startTime: correctedTime }).where(eq(slates.id, slateId));
+        return res.json({ message: `Updated slate ${slateId} start time to ${correctedTime.toISOString()}`, startTime: correctedTime });
+      }
+      return res.status(404).json({ message: "Could not find matching DK slate to correct time" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
     }
   });
 
