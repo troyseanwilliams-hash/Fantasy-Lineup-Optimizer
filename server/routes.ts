@@ -1466,6 +1466,86 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/news/golf/enhanced", async (req, res) => {
+    try {
+      const cached = newsCache.get("GOLF_ENHANCED");
+      if (cached && Date.now() - cached.fetchedAt < NEWS_CACHE_TTL_MS) {
+        return res.json(cached.data);
+      }
+
+      const [newsRes, scoreboardRes] = await Promise.all([
+        fetch(`${ESPN_NEWS_URLS.GOLF}?limit=25`, { headers: { "User-Agent": "EliteLineupAI/1.0" } }).catch(() => null),
+        fetch("https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard", { headers: { "User-Agent": "EliteLineupAI/1.0" } }).catch(() => null),
+      ]);
+
+      const articles: any[] = [];
+      if (newsRes?.ok) {
+        const newsData = await newsRes.json();
+        const espnArticles = Array.isArray(newsData.articles) ? newsData.articles : [];
+        for (let idx = 0; idx < espnArticles.length; idx++) {
+          const item = espnArticles[idx];
+          articles.push({
+            id: item.links?.web?.href || `GOLF-${idx}`,
+            headline: item.headline || "",
+            description: (item.description || "").substring(0, 300),
+            published: item.published || "",
+            type: item.type || "Article",
+            imageUrl: item.images?.[0]?.url || null,
+            linkUrl: item.links?.web?.href || null,
+            categories: (item.categories || []).map((c: any) => c.description).filter((c: any) => typeof c === "string" && c.length > 0).slice(0, 3),
+          });
+        }
+      }
+
+      const tournaments: any[] = [];
+      if (scoreboardRes?.ok) {
+        const sbData = await scoreboardRes.json();
+        const events = Array.isArray(sbData.events) ? sbData.events : [];
+        for (const event of events) {
+          const comp = event.competitions?.[0];
+          const competitors = comp?.competitors || [];
+          const status = event.status?.type?.name || "";
+          const isLive = status === "STATUS_IN_PROGRESS";
+          const isFinal = status === "STATUS_FINAL";
+          const top10 = competitors.slice(0, 10);
+          let currentPos = 1;
+          const leaderboard = top10.map((c: any, i: number) => {
+            if (i > 0 && c.score !== top10[i - 1].score) currentPos = i + 1;
+            return {
+              position: currentPos,
+              playerName: c.athlete?.displayName || "Unknown",
+              score: c.score || "E",
+              rounds: (c.linescores || []).filter((l: any) => l.value != null).map((l: any) => l.value),
+              country: c.athlete?.flag?.alt || "",
+            };
+          });
+
+          tournaments.push({
+            name: event.name || event.shortName || "Tournament",
+            date: event.date || "",
+            status: isLive ? "live" : isFinal ? "final" : "upcoming",
+            fieldSize: competitors.length,
+            leaderboard,
+            purse: comp?.purse?.value ? `$${(comp.purse.value / 1000000).toFixed(1)}M` : null,
+          });
+        }
+      }
+
+      if (articles.length === 0 && tournaments.length === 0 && cached) {
+        return res.json(cached.data);
+      }
+
+      const result = { sport: "GOLF", articles, tournaments };
+      newsCache.set("GOLF_ENHANCED", { data: result, fetchedAt: Date.now() });
+      res.json(result);
+    } catch (err) {
+      console.error("Enhanced golf news error:", err);
+      const cached = newsCache.get("GOLF_ENHANCED");
+      if (cached) return res.json(cached.data);
+      res.status(500).json({ error: "Failed to fetch golf news" });
+    }
+  });
+
   app.get("/api/golf-analysis/:slateId", async (req, res) => {
     try {
       const slateId = Number(req.params.slateId);
