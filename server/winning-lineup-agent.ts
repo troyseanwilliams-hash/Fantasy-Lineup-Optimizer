@@ -2,6 +2,7 @@ import solver from "javascript-lp-solver";
 import { storage } from "./storage";
 import { fetchActualPointsForDate } from "./actual-points";
 import { getPlatformConfig, assignPlayersToSlots } from "@shared/platform-config";
+import { clearProfileCache } from "./historical-adjustments";
 import type { Player, InsertWinningLineup } from "@shared/schema";
 
 function buildPositionVariables(position: string, sport: string): Record<string, number> {
@@ -307,7 +308,8 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string): P
     };
 
     await storage.createWinningLineup(record);
-    console.log(`[WinningAgent] Stored optimal lineup for ${sport} ${slateDate}: ${result.totalActualPoints} pts, $${result.totalSalary} salary`);
+    clearProfileCache(sport);
+    console.log(`[WinningAgent] Stored optimal lineup for ${sport} ${slateDate}: ${result.totalActualPoints} pts, $${result.totalSalary} salary (historical profile cache cleared)`);
 
     return { success: true, message: `Analyzed ${sport} ${slateDate}: ${result.totalActualPoints} pts optimal lineup (${matchCount} players matched)` };
   } catch (err: any) {
