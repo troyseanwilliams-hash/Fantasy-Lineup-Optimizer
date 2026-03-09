@@ -281,6 +281,10 @@ export default function Pricing() {
               <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
               <span>No AI boost analysis</span>
             </li>
+            <li className="flex items-center gap-3 text-sm text-slate-400">
+              <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
+              <span>No Win Agent or ownership heatmap</span>
+            </li>
           </ul>
           {currentTier === "star" && hasActiveStripeSubscription ? (
             <Button
@@ -387,10 +391,33 @@ export default function Pricing() {
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
               <span className="font-bold text-amber-300">AI boost analysis & injury tracking</span>
             </li>
-            
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <span className="font-bold text-amber-300">Pro Optimizer with ceiling & leverage modes</span>
+            </li>
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
               <span className="font-bold text-amber-300">PrizePicks Builder with live lines</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <span className="font-bold text-amber-300">Ownership Heatmap projections</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <span className="font-bold text-amber-300">Win Agent — AI lineup analysis</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <span className="font-bold text-amber-300">Auto-learning historical adjustments</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <span className="font-bold text-amber-300">DraftKings entries import</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <span className="font-bold text-amber-300">Bulk lineup regeneration</span>
             </li>
           </ul>
           {currentTier === "pro" && hasActiveStripeSubscription ? (
