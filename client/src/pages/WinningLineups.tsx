@@ -160,8 +160,10 @@ export default function WinningLineups() {
   const agg = aggregated?.aggregated;
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-8 max-w-7xl">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="container mx-auto px-4 py-8 space-y-8 max-w-7xl relative">
+      <img src="/images/optimizer-winagent.png" alt="" className="absolute inset-0 w-full h-48 object-cover opacity-10 rounded-t-xl pointer-events-none" />
+      <div className="absolute inset-0 h-48 bg-gradient-to-b from-amber-950/30 via-transparent to-transparent rounded-t-xl pointer-events-none" />
+      <div className="relative flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3" data-testid="text-page-title">
             <Trophy className="w-8 h-8 text-amber-400" />

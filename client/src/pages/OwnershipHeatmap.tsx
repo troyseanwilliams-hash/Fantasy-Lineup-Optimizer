@@ -119,19 +119,22 @@ export default function OwnershipHeatmap() {
 
   return (
     <div className="min-h-screen bg-[#0F172A]">
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <Users className="w-6 h-6 text-amber-400" />
-              <h1 className="text-2xl font-black text-white" data-testid="ownership-title">Projected Ownership Heatmap</h1>
-              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[10px] font-black">CHAMPION</Badge>
+      <div className="relative overflow-hidden mb-6">
+        <img src="/images/optimizer-heatmap.png" alt="" className="absolute inset-0 w-full h-full object-cover opacity-10" />
+        <div className="absolute inset-0 bg-gradient-to-b from-purple-950/50 via-slate-950/90 to-[#0F172A]" />
+        <div className="relative container mx-auto px-4 pt-8 pb-6 max-w-6xl">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <Users className="w-6 h-6 text-amber-400" />
+                <h1 className="text-2xl font-black text-white" data-testid="ownership-title">Projected Ownership Heatmap</h1>
+                <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[10px] font-black">CHAMPION</Badge>
+              </div>
+              <p className="text-sm text-slate-400">Projected ownership by position — find chalk and contrarian plays</p>
             </div>
-            <p className="text-sm text-slate-400">Projected ownership by position — find chalk and contrarian plays</p>
-          </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-1 bg-[#1E293B] border border-slate-700 rounded-lg p-1" data-testid="contest-type-selector">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-1 bg-[#1E293B] border border-slate-700 rounded-lg p-1" data-testid="contest-type-selector">
               {([["gpp_large", "GPP Large"], ["gpp_small", "GPP Small"], ["cash", "Cash"]] as const).map(([value, label]) => (
                 <button
                   key={value}
@@ -174,9 +177,12 @@ export default function OwnershipHeatmap() {
               </select>
               <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
+            </div>
           </div>
         </div>
+      </div>
 
+      <div className="container mx-auto px-4 max-w-6xl">
         {!activeSlate ? (
           <Card className="bg-[#1E293B] border-slate-700 p-12 text-center" data-testid="ownership-no-slate">
             <Users className="w-12 h-12 text-slate-600 mx-auto mb-4" />

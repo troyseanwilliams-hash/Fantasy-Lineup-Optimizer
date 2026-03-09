@@ -560,7 +560,8 @@ export default function PrizePicksBuilder() {
   return (
     <div className="min-h-screen">
       <div className="relative overflow-hidden border-b border-slate-800/50">
-        <div className="absolute inset-0 bg-gradient-to-br from-violet-950/60 via-slate-950/90 to-slate-900/95" />
+        <img src="/images/prizepicks-hero.png" alt="" className="absolute inset-0 w-full h-full object-cover opacity-10" />
+        <div className="absolute inset-0 bg-gradient-to-br from-violet-950/70 via-slate-950/90 to-slate-900/95" />
         <div className="absolute top-0 right-0 w-96 h-96 bg-violet-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
 
         <div className="relative container mx-auto px-4 py-8">
