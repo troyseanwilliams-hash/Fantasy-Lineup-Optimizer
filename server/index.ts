@@ -310,6 +310,12 @@ app.use((req, res, next) => {
           const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
           const deleted = await storage.deleteOldReviewLineups(cutoff);
           if (deleted > 0) log(`Deleted ${deleted} review lineup(s) older than 24 hours`, "cron");
+          try {
+            const ppCleared = await storage.deleteAllPrizePicksEntries();
+            if (ppCleared > 0) log(`Cleared ${ppCleared} PrizePicks vault entries`, "cron");
+          } catch (ppErr) {
+            console.error("PrizePicks vault clear failed:", ppErr);
+          }
           log("2 AM vault reset completed", "cron");
         } catch (err) {
           console.error("2 AM vault reset failed:", err);

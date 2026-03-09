@@ -14,7 +14,7 @@ import {
   ArrowUp, ArrowDown, Dribbble, Activity, Flag, Target, Trophy,
   DollarSign, Sparkles, CheckCircle2, Info, Copy, ExternalLink,
   Search, Bot, ChevronDown, ChevronUp, Loader2, Save, Vault, Clock,
-  Brain, AlertTriangle
+  Brain, AlertTriangle, ArrowLeftRight
 } from "lucide-react";
 
 const PP_SPORTS = ["NBA", "NHL", "NFL", "MLB", "GOLF", "SOCCER"] as const;
@@ -273,6 +273,7 @@ export default function PrizePicksBuilder() {
   const [aiEntries, setAiEntries] = useState<AIBuiltEntry[]>([]);
   const [activeTab, setActiveTab] = useState<"builder" | "vault">("builder");
   const [expandedVaultEntry, setExpandedVaultEntry] = useState<number | null>(null);
+  const [swappingProjId, setSwappingProjId] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<{
     analyzedPicks: Array<{
@@ -398,6 +399,7 @@ export default function PrizePicksBuilder() {
   };
 
   const removeEntry = (projId: string) => {
+    if (swappingProjId === projId) setSwappingProjId(null);
     setEntries(prev => prev.filter(e => e.projection.id !== projId));
     setAnalysisResult(null);
   };
@@ -411,8 +413,22 @@ export default function PrizePicksBuilder() {
     setAnalysisResult(null);
   };
 
+  const swapEntry = (oldProjId: string, newProjection: PrizePicksProjection) => {
+    if (entries.some(e => e.projection.id === newProjection.id)) return;
+    const oldEntry = entries.find(e => e.projection.id === oldProjId);
+    if (!oldEntry) { setSwappingProjId(null); return; }
+    setEntries(prev => prev.map(e =>
+      e.projection.id === oldProjId
+        ? { ...e, projection: newProjection }
+        : e
+    ));
+    setSwappingProjId(null);
+    setAnalysisResult(null);
+  };
+
   const clearAll = () => {
     setEntries([]);
+    setSwappingProjId(null);
     setAnalysisResult(null);
   };
 
@@ -571,7 +587,7 @@ export default function PrizePicksBuilder() {
                     key={sport}
                     variant={selectedSport === sport ? "default" : "outline"}
                     size="sm"
-                    onClick={() => { setSelectedSport(sport); setEntries([]); setStatFilter("ALL"); setSearchQuery(""); setShowAIEntries(false); setAiEntries([]); setExpandedAIEntry(null); setAiError(null); }}
+                    onClick={() => { setSelectedSport(sport); setEntries([]); setSwappingProjId(null); setStatFilter("ALL"); setSearchQuery(""); setShowAIEntries(false); setAiEntries([]); setExpandedAIEntry(null); setAiError(null); }}
                     className={selectedSport === sport
                       ? "bg-violet-500 text-white font-bold"
                       : "border-slate-700 text-slate-400 font-bold"
@@ -932,9 +948,21 @@ export default function PrizePicksBuilder() {
                 Available Lines
                 <span className="text-sm text-slate-400 font-normal ml-1">- {selectedSport}</span>
               </h2>
-              <Badge variant="outline" className="border-slate-700 text-slate-400 text-xs">
-                {filteredProjections.length} lines
-              </Badge>
+              {swappingProjId ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-amber-400 border border-amber-500/30 font-bold text-xs"
+                  onClick={() => setSwappingProjId(null)}
+                  data-testid="pp-builder-cancel-swap"
+                >
+                  <X className="w-3 h-3 mr-1" /> Cancel Swap
+                </Button>
+              ) : (
+                <Badge variant="outline" className="border-slate-700 text-slate-400 text-xs">
+                  {filteredProjections.length} lines
+                </Badge>
+              )}
             </div>
 
             <div className="flex gap-2 flex-col sm:flex-row">
@@ -1042,6 +1070,16 @@ export default function PrizePicksBuilder() {
                             >
                               <X className="w-3 h-3 mr-1" /> Remove
                             </Button>
+                          ) : swappingProjId ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-amber-400 border border-amber-500/30 font-bold text-xs px-3"
+                              onClick={() => swapEntry(swappingProjId, proj)}
+                              data-testid={`pp-builder-swap-${proj.id}`}
+                            >
+                              <ArrowLeftRight className="w-3 h-3 mr-1" /> Swap
+                            </Button>
                           ) : (
                             <>
                               <Button
@@ -1112,7 +1150,7 @@ export default function PrizePicksBuilder() {
                     {entries.map((entry, idx) => (
                       <div
                         key={entry.projection.id}
-                        className="bg-slate-900/50 border border-slate-700/50 rounded-lg p-3"
+                        className={`bg-slate-900/50 border rounded-lg p-3 ${swappingProjId === entry.projection.id ? "border-amber-500/50 bg-amber-500/5" : "border-slate-700/50"}`}
                         data-testid={`pp-builder-entry-${idx}`}
                       >
                         <div className="flex items-center justify-between">
@@ -1122,14 +1160,30 @@ export default function PrizePicksBuilder() {
                             </Badge>
                             <span className="text-sm font-bold text-white truncate">{entry.projection.playerName}</span>
                           </div>
-                          <button
-                            onClick={() => removeEntry(entry.projection.id)}
-                            className="text-slate-500 p-1 shrink-0"
-                            data-testid={`pp-builder-entry-remove-${idx}`}
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => setSwappingProjId(swappingProjId === entry.projection.id ? null : entry.projection.id)}
+                              className={`p-1 ${swappingProjId === entry.projection.id ? "text-amber-400" : "text-slate-500 hover:text-amber-400"}`}
+                              title="Swap player"
+                              data-testid={`pp-builder-entry-swap-${idx}`}
+                            >
+                              <ArrowLeftRight className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => removeEntry(entry.projection.id)}
+                              className="text-slate-500 p-1"
+                              data-testid={`pp-builder-entry-remove-${idx}`}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
+                        {swappingProjId === entry.projection.id && (
+                          <div className="mt-1.5 flex items-center gap-1.5">
+                            <ArrowLeftRight className="w-3 h-3 text-amber-400 shrink-0" />
+                            <span className="text-[11px] text-amber-400 font-bold">Select a replacement from the list below</span>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between mt-1.5">
                           <span className="text-xs text-slate-400">{entry.projection.statType}</span>
                           <div className="flex items-center gap-2">

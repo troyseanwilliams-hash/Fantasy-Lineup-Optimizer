@@ -67,6 +67,7 @@ export interface IStorage extends IAuthStorage {
   createPrizePicksEntry(entry: InsertPrizePicksEntry): Promise<PrizePicksEntry>;
   deletePrizePicksEntry(id: number, userId: string): Promise<void>;
   getPrizePicksEntryCount(userId: string): Promise<number>;
+  deleteAllPrizePicksEntries(): Promise<number>;
 
   bulkInsertPlayerHistory(records: InsertPlayerHistory[]): Promise<void>;
   getPlayerHistoryByName(playerName: string, sport: string, limit?: number): Promise<PlayerHistory[]>;
@@ -476,6 +477,13 @@ export class DatabaseStorage implements IStorage {
     const rows = await db.select().from(prizePicksEntries)
       .where(eq(prizePicksEntries.userId, userId));
     return rows.length;
+  }
+
+  async deleteAllPrizePicksEntries(): Promise<number> {
+    const all = await db.select({ id: prizePicksEntries.id }).from(prizePicksEntries);
+    if (all.length === 0) return 0;
+    await db.delete(prizePicksEntries);
+    return all.length;
   }
 
   async bulkInsertPlayerHistory(records: InsertPlayerHistory[]): Promise<void> {
