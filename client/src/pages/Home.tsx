@@ -4,7 +4,7 @@ import {
   Zap, Newspaper, TrendingUp, ArrowRight, Clock, ExternalLink,
   ArrowUpRight, ArrowDownRight, Archive, Crown, Trophy, Dribbble,
   Activity, Target, Lock, Sparkles, Star, Flame, Shield, Swords, Flag,
-  Radio, Circle
+  Radio, Circle, Brain, Upload, BarChart3, Layers
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -1156,7 +1156,64 @@ export default function Home() {
                 </p>
               </div>
             </div>
-            <p className="text-sm text-slate-400">1 optimized lineup included. Upgrade for more.</p>
+            <p className="text-sm text-slate-400 mb-16">1 optimized lineup included. Upgrade for more.</p>
+
+            <div className="max-w-5xl mx-auto" data-testid="feature-showcase">
+              <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-bold mb-8 backdrop-blur-sm">
+                <Crown className="w-4 h-4 mr-2" />
+                Platform Features
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-left mb-10">
+                <div className="bg-white/5 border border-cyan-500/20 rounded-xl p-6 backdrop-blur-sm" data-testid="feature-dk-vault">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                      <Upload className="w-5 h-5 text-cyan-400" />
+                    </div>
+                    <h3 className="text-lg font-black text-white">DK Vault Integration</h3>
+                  </div>
+                  <p className="text-sm text-slate-400 leading-relaxed">
+                    Import your DraftKings contest entries directly into the Vault. Edit rosters, swap players, bulk regenerate with AI, and export back in DK-ready CSV format — all from one place.
+                  </p>
+                </div>
+
+                <div className="bg-white/5 border border-amber-500/20 rounded-xl p-6 backdrop-blur-sm" data-testid="feature-win-agent">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                      <Brain className="w-5 h-5 text-amber-400" />
+                    </div>
+                    <h3 className="text-lg font-black text-white">Winning Lineup Agent</h3>
+                  </div>
+                  <p className="text-sm text-slate-400 leading-relaxed">
+                    Our AI analyzes every completed slate to build "perfect hindsight" lineups using actual box scores. It learns salary efficiency, projection accuracy, and value patterns — then auto-tunes future projections.
+                  </p>
+                </div>
+
+                <div className="bg-white/5 border border-emerald-500/20 rounded-xl p-6 backdrop-blur-sm" data-testid="feature-pro-optimizer">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                      <Layers className="w-5 h-5 text-emerald-400" />
+                    </div>
+                    <h3 className="text-lg font-black text-white">Pro Optimizer</h3>
+                  </div>
+                  <p className="text-sm text-slate-400 leading-relaxed">
+                    Advanced optimization with boost engine scoring, ceiling and leverage modes, correlation stacking (QB-WR, team stacks), exposure management, and batch lineup generation up to 20 at once.
+                  </p>
+                </div>
+
+                <div className="bg-white/5 border border-purple-500/20 rounded-xl p-6 backdrop-blur-sm" data-testid="feature-ownership">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                      <BarChart3 className="w-5 h-5 text-purple-400" />
+                    </div>
+                    <h3 className="text-lg font-black text-white">Ownership Heatmap</h3>
+                  </div>
+                  <p className="text-sm text-slate-400 leading-relaxed">
+                    See projected ownership by position across any slate. Identify chalk plays and contrarian pivots for GPP tournaments with contest-type-specific projections.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
