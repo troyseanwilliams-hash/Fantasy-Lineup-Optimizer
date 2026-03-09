@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
 import {
   Lock, Unlock, X, Zap, RefreshCw, Save, Search,
   ChevronDown, ChevronUp, ArrowUpDown, Heart, Loader2,
@@ -48,6 +49,7 @@ export default function Optimizer() {
   const [replacingSlot, setReplacingSlot] = useState<string | null>(null);
   const [swappingSlot, setSwappingSlot] = useState<string | null>(null);
   const [manualReplacements, setManualReplacements] = useState<Record<string, Player>>({});
+  const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
 
   const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"], refetchInterval: 300000 });
   const slate = useMemo(() => slates?.find(s => s.id === slateId), [slates, slateId]);
@@ -76,6 +78,14 @@ export default function Optimizer() {
     queryKey: ["/api/subscription"],
     enabled: !!user,
   });
+
+  const salaryBounds = useMemo(() => {
+    if (!players || players.length === 0) return { min: 3000, max: 10000, step: 100 };
+    const salaries = players.map(p => p.salary);
+    const min = Math.min(...salaries);
+    const max = Math.max(...salaries);
+    return { min, max, step: 100 };
+  }, [players]);
 
   const optimizeMutation = useMutation<OptimizeResponse, Error, any>({
     mutationFn: async (constraints) => {
@@ -267,6 +277,8 @@ export default function Optimizer() {
       lockedPlayerIds: lockedIds,
       excludedPlayerIds: excludedIds,
       maxSalary: config.salaryCap,
+      playerMinSalary: salaryRange && salaryRange[0] > salaryBounds.min ? salaryRange[0] : undefined,
+      playerMaxSalary: salaryRange && salaryRange[1] < salaryBounds.max ? salaryRange[1] : undefined,
       playerProjections: Object.keys(mergedProjections).length > 0 ? mergedProjections : undefined,
     });
   };
@@ -293,6 +305,7 @@ export default function Optimizer() {
     setReplacingSlot(null);
     setSwappingSlot(null);
     setManualReplacements({});
+    setSalaryRange(null);
     optimizeMutation.reset();
     setLineupName("");
   };
@@ -888,6 +901,43 @@ export default function Optimizer() {
               </p>
             </div>
           </div>
+
+          {players && players.length > 0 && (
+            <div className="bg-slate-800/60 rounded-lg px-3 py-2.5 border border-slate-700/50" data-testid="salary-range-section">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Salary Range</span>
+                </div>
+                {salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) && (
+                  <button
+                    onClick={() => setSalaryRange(null)}
+                    className="text-[10px] text-slate-500 hover:text-white font-bold cursor-pointer"
+                    data-testid="button-reset-salary"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+              <Slider
+                value={salaryRange || [salaryBounds.min, salaryBounds.max]}
+                onValueChange={(v) => setSalaryRange([v[0], v[1]])}
+                min={salaryBounds.min}
+                max={salaryBounds.max}
+                step={salaryBounds.step}
+                className="w-full"
+                data-testid="slider-salary-range"
+              />
+              <div className="flex justify-between mt-1.5">
+                <span className={`text-[11px] font-bold tabular-nums ${salaryRange && salaryRange[0] > salaryBounds.min ? "text-emerald-400" : "text-slate-500"}`} data-testid="text-salary-min">
+                  ${(salaryRange?.[0] ?? salaryBounds.min).toLocaleString()}
+                </span>
+                <span className={`text-[11px] font-bold tabular-nums ${salaryRange && salaryRange[1] < salaryBounds.max ? "text-emerald-400" : "text-slate-500"}`} data-testid="text-salary-max">
+                  ${(salaryRange?.[1] ?? salaryBounds.max).toLocaleString()}
+                </span>
+              </div>
+            </div>
+          )}
 
           {slateHasStarted && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center" data-testid="slate-locked-msg">

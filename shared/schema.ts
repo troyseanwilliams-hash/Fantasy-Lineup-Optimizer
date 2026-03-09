@@ -205,6 +205,8 @@ export const optimizationConstraintSchema = z.object({
   excludedPlayerIds: z.array(z.number()).default([]),
   minSalary: z.number().optional(),
   maxSalary: z.number().optional(),
+  playerMinSalary: z.number().optional(),
+  playerMaxSalary: z.number().optional(),
   playerProjections: z.record(z.string(), z.number()).optional(),
 });
 
