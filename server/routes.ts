@@ -160,7 +160,7 @@ export async function registerRoutes(
     });
     if (slate) {
       await refreshRecentlyPlayed(slate.sport);
-      const inactiveIds = new Set(getInactivePlayerIds(players, slate.sport));
+      const inactiveIds = new Set(await getInactivePlayerIds(players, slate.sport));
       if (inactiveIds.size > 0) {
         players = players.filter(p => !inactiveIds.has(p.id));
       }
@@ -242,7 +242,7 @@ export async function registerRoutes(
       const autoExcluded = allPlayers
         .filter(p => (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") && !constraints.excludedPlayerIds.includes(p.id))
         .map(p => p.id);
-      const inactiveExcluded = getInactivePlayerIds(allPlayers, slate.sport)
+      const inactiveExcluded = (await getInactivePlayerIds(allPlayers, slate.sport))
         .filter(id => !constraints.lockedPlayerIds.includes(id));
       const mergedExclusions = [...new Set([...constraints.excludedPlayerIds, ...autoExcluded, ...inactiveExcluded])];
 
@@ -586,7 +586,7 @@ export async function registerRoutes(
         }
 
         const baseExcluded = allPlayers.filter(p => p.injuryStatus === "OUT" || p.injuryStatus === "Questionable").map(p => p.id);
-        const inactiveExcluded = getInactivePlayerIds(allPlayers, slate.sport)
+        const inactiveExcluded = (await getInactivePlayerIds(allPlayers, slate.sport))
           .filter(id => !baseExcluded.includes(id));
         baseExcluded.push(...inactiveExcluded);
 
@@ -1903,7 +1903,7 @@ export async function registerRoutes(
           baseExcluded.push(p.id);
         }
       });
-      const inactiveExcluded = getInactivePlayerIds(allPlayers, slate.sport)
+      const inactiveExcluded = (await getInactivePlayerIds(allPlayers, slate.sport))
         .filter(id => !constraints.lockedPlayerIds.includes(id) && !baseExcluded.includes(id));
       baseExcluded.push(...inactiveExcluded);
 
@@ -2416,10 +2416,14 @@ const SPORT_MIN_SALARY: Record<string, number> = {
 
 const INACTIVE_VALUE_THRESHOLD = 6.0;
 
-function getInactivePlayerIds(players: Player[], sport: string): number[] {
+async function getInactivePlayerIds(players: Player[], sport: string): Promise<number[]> {
   const minSalary = SPORT_MIN_SALARY[sport] || 3000;
   const inactiveIds: number[] = [];
-  const recentlyPlayed = getRecentlyPlayedCache(sport);
+
+  let recentlyPlayed = getRecentlyPlayedCache(sport);
+  if (!recentlyPlayed && ["NBA", "NHL", "MLB", "NFL"].includes(sport)) {
+    recentlyPlayed = await refreshRecentlyPlayed(sport);
+  }
 
   const outPlayersByTeamPos = new Map<string, string[]>();
   for (const p of players) {
@@ -2440,15 +2444,14 @@ function getInactivePlayerIds(players: Player[], sport: string): number[] {
 
     if (recentlyPlayed && recentlyPlayed.size > 0) {
       const normalized = normalizePlayerName(p.name);
-      if (!recentlyPlayed.has(normalized) && fppg > 0) {
+      if (!recentlyPlayed.has(normalized)) {
         inactiveIds.push(p.id);
-        console.log(`[Inactive Filter] Excluding ${p.name} (${p.team}) - $${p.salary} salary, not found in recent ESPN boxscores (no game in 7+ days)`);
         continue;
       }
     }
 
     if (p.salary <= minSalary * 1.1) {
-      const valuePer1K = (fppg * 1000) / p.salary;
+      const valuePer1K = fppg > 0 ? (fppg * 1000) / p.salary : 0;
 
       const positions = p.position.split("/");
       const hasOutTeammate = positions.some(pos => {
@@ -2460,9 +2463,12 @@ function getInactivePlayerIds(players: Player[], sport: string): number[] {
 
       if (valuePer1K >= INACTIVE_VALUE_THRESHOLD) {
         inactiveIds.push(p.id);
-        console.log(`[Inactive Filter] Excluding ${p.name} (${p.team}) - $${p.salary} salary with ${fppg} FPPG (${valuePer1K.toFixed(1)} pts/$K) — likely not in rotation`);
       }
     }
+  }
+
+  if (inactiveIds.length > 0) {
+    console.log(`[Inactive Filter] ${sport}: Excluded ${inactiveIds.length} inactive/non-recent players from pool`);
   }
 
   return inactiveIds;
