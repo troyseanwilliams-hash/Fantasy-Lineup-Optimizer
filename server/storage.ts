@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { eq, and, inArray, lt, gte, desc, isNull, isNotNull, ne, sql } from "drizzle-orm";
 import {
-  slates, players, lineups, subscriptions, props, alerts, prizePicksEntries, playerHistory,
+  slates, players, lineups, subscriptions, props, alerts, prizePicksEntries, playerHistory, winningLineups,
   type Slate, type InsertSlate,
   type Player, type InsertPlayer,
   type Lineup, type InsertLineup,
@@ -10,6 +10,7 @@ import {
   type Alert, type InsertAlert,
   type PrizePicksEntry, type InsertPrizePicksEntry,
   type PlayerHistory, type InsertPlayerHistory,
+  type WinningLineup, type InsertWinningLineup,
 } from "@shared/schema";
 
 import { authStorage, type IAuthStorage } from "./replit_integrations/auth/storage";
@@ -73,6 +74,11 @@ export interface IStorage extends IAuthStorage {
   getPlayerHistoryByName(playerName: string, sport: string, limit?: number): Promise<PlayerHistory[]>;
   getPlayerHistoryBySport(sport: string, limit?: number): Promise<PlayerHistory[]>;
   cleanOldPlayerHistory(daysToKeep: number): Promise<number>;
+  updatePlayerHistoryActualPoints(sport: string, slateDate: string, playerName: string, actualPoints: string): Promise<void>;
+
+  createWinningLineup(data: InsertWinningLineup): Promise<WinningLineup>;
+  getWinningLineups(sport?: string, limit?: number): Promise<WinningLineup[]>;
+  getWinningLineupBySlateDate(sport: string, slateDate: string): Promise<WinningLineup | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -517,6 +523,39 @@ export class DatabaseStorage implements IStorage {
       .where(lt(playerHistory.slateDate, cutoffStr))
       .returning();
     return deleted.length;
+  }
+
+  async updatePlayerHistoryActualPoints(sport: string, slateDate: string, playerName: string, actualPoints: string): Promise<void> {
+    await db.update(playerHistory)
+      .set({ actualPoints })
+      .where(and(
+        eq(playerHistory.sport, sport),
+        eq(playerHistory.slateDate, slateDate),
+        eq(playerHistory.playerName, playerName)
+      ));
+  }
+
+  async createWinningLineup(data: InsertWinningLineup): Promise<WinningLineup> {
+    const [result] = await db.insert(winningLineups).values(data).returning();
+    return result;
+  }
+
+  async getWinningLineups(sport?: string, limit = 30): Promise<WinningLineup[]> {
+    if (sport) {
+      return await db.select().from(winningLineups)
+        .where(eq(winningLineups.sport, sport))
+        .orderBy(desc(winningLineups.slateDate))
+        .limit(limit);
+    }
+    return await db.select().from(winningLineups)
+      .orderBy(desc(winningLineups.slateDate))
+      .limit(limit);
+  }
+
+  async getWinningLineupBySlateDate(sport: string, slateDate: string): Promise<WinningLineup | undefined> {
+    const [result] = await db.select().from(winningLineups)
+      .where(and(eq(winningLineups.sport, sport), eq(winningLineups.slateDate, slateDate)));
+    return result;
   }
 }
 

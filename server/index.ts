@@ -6,6 +6,7 @@ import cron from "node-cron";
 import { storage } from "./storage";
 import { fetchPrizePicksProjections, getSupportedPPSports } from "./prizepicks";
 import { refreshRecentlyPlayed } from "./espn-activity";
+import { runNightlyAnalysis } from "./winning-lineup-agent";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { users } from "@shared/models/auth";
@@ -324,6 +325,19 @@ app.use((req, res, next) => {
         timezone: "America/New_York",
       });
       log("Scheduled 2 AM ET vault reset cron job", "cron");
+
+      cron.schedule("30 3 * * *", async () => {
+        try {
+          log("Starting winning lineup analysis", "cron");
+          const results = await runNightlyAnalysis();
+          results.forEach(r => log(`[WinningAgent] ${r}`, "cron"));
+        } catch (err) {
+          console.error("Winning lineup analysis failed:", err);
+        }
+      }, {
+        timezone: "America/New_York",
+      });
+      log("Scheduled 3:30 AM ET winning lineup analysis cron job", "cron");
 
       cron.schedule("0 4 * * *", async () => {
         try {
