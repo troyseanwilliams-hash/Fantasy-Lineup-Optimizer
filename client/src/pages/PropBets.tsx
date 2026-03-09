@@ -470,7 +470,8 @@ export default function PropBets() {
     <div className="min-h-screen">
       {/* Hero Background */}
       <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/40 via-slate-950/80 to-[#0F172A]" />
+        <img src="/images/props-hero.png" alt="" className="absolute inset-0 w-full h-full object-cover opacity-10" />
+        <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/60 via-slate-950/90 to-[#0F172A]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-500/8 via-transparent to-transparent" />
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl" />
         <div className="absolute top-10 right-1/4 w-72 h-72 bg-amber-500/5 rounded-full blur-3xl" />
