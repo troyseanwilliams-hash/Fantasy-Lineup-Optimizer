@@ -20,7 +20,7 @@ function isLoggedIn(req: Request): boolean {
 }
 
 import { type OptimizationConstraints, type ProOptimizationConstraints, type Player, type Slate, type InsertProp, type InsertAlert, proOptimizationConstraintSchema, insertPrizePicksEntrySchema } from "@shared/schema";
-import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus, fetchLivePlayerStatuses, fetchAvailableDKSlates, fetchDKSlateByDraftGroup } from "./balldontlie";
+import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus, fetchLivePlayerStatuses, fetchAvailableDKSlates, fetchDKSlateByDraftGroup, fetchDraftables } from "./balldontlie";
 import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
 import { getLiveScores, getAllLiveScores } from "./espn-scores";
 import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analyzeManualPicks } from "./prizepicks";
@@ -818,13 +818,72 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Only DraftKings slates are supported for import." });
     }
 
-    const allPlayers = await storage.getPlayersBySlate(slateId);
-    const dkIdMap = new Map<number, typeof allPlayers[0]>();
-    const nameMap = new Map<string, typeof allPlayers[0]>();
+    let allPlayers = await storage.getPlayersBySlate(slateId);
+    let dkIdMap = new Map<number, typeof allPlayers[0]>();
+    let nameMap = new Map<string, typeof allPlayers[0]>();
     for (const p of allPlayers) {
       if (p.draftKingsPlayerId) dkIdMap.set(p.draftKingsPlayerId, p);
       if (p.name) nameMap.set(p.name.toLowerCase().trim(), p);
     }
+
+    const firstEntry = entries[0];
+    const firstDkIds: number[] = firstEntry?.dkPlayerIds || [];
+    const localMatchCount = firstDkIds.filter(id => dkIdMap.has(id)).length;
+
+    if (localMatchCount < firstDkIds.length / 2) {
+      console.log(`[DK Import] Local slate mismatch (${localMatchCount}/${firstDkIds.length} matched). Searching for correct draft group...`);
+      try {
+        const availableSlates = await fetchAvailableDKSlates(sport);
+        let foundDraftGroup: number | null = null;
+
+        for (const avSlate of availableSlates) {
+          try {
+            const draftables = await fetchDraftables(avSlate.draftGroupId);
+            const draftableIds = new Set(draftables.map(d => d.playerId));
+            const matchCount = firstDkIds.filter(id => draftableIds.has(id)).length;
+            if (matchCount >= firstDkIds.length / 2) {
+              foundDraftGroup = avSlate.draftGroupId;
+              console.log(`[DK Import] Found matching draft group ${avSlate.draftGroupId} (${matchCount}/${firstDkIds.length} players match)`);
+
+              const slateData = await fetchDKSlateByDraftGroup(sport, avSlate.draftGroupId);
+              if (slateData && slateData.dkPlayers.length > 0) {
+                const newSlate = await storage.createSlate({
+                  sport,
+                  platform: "draftkings",
+                  name: `${sport} ${avSlate.label || `DG ${avSlate.draftGroupId}`}`,
+                  startTime: avSlate.startTime ? new Date(avSlate.startTime) : new Date(),
+                  isMain: false,
+                  draftGroupId: avSlate.draftGroupId,
+                });
+                const createdPlayers = await storage.bulkCreatePlayers(
+                  slateData.dkPlayers.map((p: any) => ({ ...p, slateId: newSlate.id })) as any
+                );
+                console.log(`[DK Import] Created slate ${newSlate.id} with ${createdPlayers.length} players for DG ${avSlate.draftGroupId}`);
+
+                allPlayers = createdPlayers;
+                dkIdMap = new Map();
+                nameMap = new Map();
+                for (const p of allPlayers) {
+                  if (p.draftKingsPlayerId) dkIdMap.set(p.draftKingsPlayerId, p);
+                  if (p.name) nameMap.set(p.name.toLowerCase().trim(), p);
+                }
+                req.body.slateId = newSlate.id;
+              }
+              break;
+            }
+          } catch (err) {
+            console.error(`[DK Import] Error checking DG ${avSlate.draftGroupId}:`, err);
+          }
+        }
+        if (!foundDraftGroup) {
+          console.log(`[DK Import] Could not find matching draft group among ${availableSlates.length} available slates`);
+        }
+      } catch (err) {
+        console.error("[DK Import] Error searching for draft group:", err);
+      }
+    }
+
+    const importSlateId = req.body.slateId;
 
     const config = getPlatformConfig(sport, "draftkings" as Platform);
     const maxPerSport = isAdmin ? 500 : 300;
@@ -899,7 +958,7 @@ export async function registerRoutes(
       try {
         const lineup = await storage.createLineup({
           userId,
-          slateId,
+          slateId: importSlateId,
           sport,
           platform: "draftkings",
           totalSalary,

@@ -198,7 +198,7 @@ async function findMainSlate(sport: string): Promise<DKDraftGroup | null> {
   }
 }
 
-async function fetchDraftables(draftGroupId: number): Promise<DKDraftable[]> {
+export async function fetchDraftables(draftGroupId: number): Promise<DKDraftable[]> {
   const data = await fetchJSON<{ draftables: DKDraftable[] }>(
     `${DK_API_BASE}/draftgroups/v1/draftgroups/${draftGroupId}/draftables`
   );
