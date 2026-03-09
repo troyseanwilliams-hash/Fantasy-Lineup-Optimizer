@@ -176,6 +176,14 @@ export default function ProOptimizer() {
     },
   });
 
+  useEffect(() => {
+    optimizeMutation.reset();
+    setLineupSwaps({});
+    setSwappingTarget(null);
+    setSavedIndices(new Set());
+    setSalaryRange(null);
+  }, [slateId]);
+
   const [savedIndices, setSavedIndices] = useState<Set<number>>(new Set());
   const [isSavingAll, setIsSavingAll] = useState(false);
 

@@ -101,6 +101,15 @@ export default function Optimizer() {
     }
   });
 
+  useEffect(() => {
+    optimizeMutation.reset();
+    setRemovedSlots(new Set());
+    setReplacingSlot(null);
+    setSwappingSlot(null);
+    setManualReplacements({});
+    setSalaryRange(null);
+  }, [slateId]);
+
   const saveLineupMutation = useMutation({
     mutationFn: async (data: any) => {
       const res = await apiRequest("POST", "/api/lineups", data);
