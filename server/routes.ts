@@ -880,7 +880,7 @@ export async function registerRoutes(
         for (const avSlate of availableSlates) {
           try {
             const draftables = await fetchDraftables(avSlate.draftGroupId);
-            const draftableIds = new Set(draftables.map(d => d.playerId));
+            const draftableIds = new Set(draftables.map(d => d.draftableId));
             const matchCount = firstDkIds.filter(id => draftableIds.has(id)).length;
             if (matchCount >= firstDkIds.length / 2) {
               foundDraftGroup = avSlate.draftGroupId;
