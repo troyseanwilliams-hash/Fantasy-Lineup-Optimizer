@@ -1477,6 +1477,66 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/backfill-and-analyze", async (req, res) => {
+    try {
+      if (!isLoggedIn(req)) return res.sendStatus(401);
+      const userId = getSessionUserId(req)!;
+      const dbUser = await storage.getUser(userId);
+      if (!dbUser?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      const { sport, date, draftGroupId } = req.body;
+      if (!sport || !date || !draftGroupId) return res.status(400).json({ message: "sport, date, and draftGroupId required" });
+
+      const sportUpper = sport.toUpperCase();
+      const { fetchDraftables } = await import("./balldontlie");
+      const draftables = await fetchDraftables(Number(draftGroupId));
+      if (!draftables || draftables.length === 0) {
+        return res.status(404).json({ message: `No draftables found for DraftGroup ${draftGroupId}` });
+      }
+
+      const existingHistory = await storage.getPlayerHistoryBySport(sportUpper, 10000);
+      const existingForDate = existingHistory.filter(h => h.slateDate === date);
+
+      if (existingForDate.length > 0) {
+        const { analyzeCompletedSlate } = await import("./winning-lineup-agent");
+        const result = await analyzeCompletedSlate(sportUpper, date);
+        return res.json({ backfilled: 0, analysis: result });
+      }
+
+      const slates = await storage.getSlates();
+      const slate = slates.find(s => s.draftGroupId === Number(draftGroupId));
+      const slateId = slate?.id || null;
+
+      const historyRecords = draftables
+        .filter(d => d.salary > 0 && d.displayName)
+        .map(d => ({
+          playerName: d.displayName,
+          team: d.teamAbbreviation || "",
+          sport: sportUpper,
+          position: d.position || "",
+          salary: d.salary,
+          projectedPoints: (() => {
+            const fppg = d.draftStatAttributes?.find((a: any) => a.id === 219)?.value || d.draftStatAttributes?.find((a: any) => a.id === 90)?.value;
+            const parsed = fppg ? parseFloat(fppg) : NaN;
+            return String(isNaN(parsed) ? (d.salary / 1000) : parsed);
+          })(),
+          slateDate: date,
+          slateId,
+          draftKingsPlayerId: d.draftableId || null,
+        }));
+
+      await storage.bulkInsertPlayerHistory(historyRecords);
+      console.log(`[Admin] Backfilled ${historyRecords.length} player history records for ${sportUpper} ${date} (DG ${draftGroupId})`);
+
+      const { analyzeCompletedSlate } = await import("./winning-lineup-agent");
+      const result = await analyzeCompletedSlate(sportUpper, date);
+      res.json({ backfilled: historyRecords.length, analysis: result });
+    } catch (err: any) {
+      console.error("Backfill and analyze failed:", err);
+      res.status(500).json({ message: err.message || "Backfill and analysis failed" });
+    }
+  });
+
   app.get("/api/dashboard/:sport", async (req, res) => {
     try {
       const sport = req.params.sport.toUpperCase();
