@@ -1,5 +1,41 @@
-import type { Player, PlayerHistory } from "@shared/schema";
+import type { Player, PlayerHistory, WinningLineup } from "@shared/schema";
 import { storage } from "./storage";
+
+interface WinningPlayerData {
+  name: string;
+  team: string;
+  position: string;
+  salary: number;
+  actualPoints: number;
+  value: number;
+}
+
+function buildWinningFrequencyMap(winningLineups: WinningLineup[]): Map<string, { count: number; avgActual: number; avgValue: number }> {
+  const freq = new Map<string, { count: number; totalActual: number; totalValue: number }>();
+  for (const wl of winningLineups) {
+    const players = (wl.playerData as WinningPlayerData[]) || [];
+    const seen = new Set<string>();
+    for (const p of players) {
+      const key = p.name;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const entry = freq.get(key) || { count: 0, totalActual: 0, totalValue: 0 };
+      entry.count++;
+      entry.totalActual += (p.actualPoints || 0);
+      entry.totalValue += (p.value || 0);
+      freq.set(key, entry);
+    }
+  }
+  const result = new Map<string, { count: number; avgActual: number; avgValue: number }>();
+  for (const [name, data] of freq) {
+    result.set(name, {
+      count: data.count,
+      avgActual: data.totalActual / data.count,
+      avgValue: data.totalValue / data.count,
+    });
+  }
+  return result;
+}
 
 interface BoostResult {
   playerId: number;
@@ -26,6 +62,10 @@ export async function computeBoostScores(
     const status = (p.injuryStatus || "").toUpperCase();
     return status === "OUT" || status === "IR";
   });
+
+  const winningLineups = await storage.getWinningLineups(sport, 50);
+  const winFreqMap = buildWinningFrequencyMap(winningLineups);
+  const totalSlatesAnalyzed = winningLineups.length;
 
   const history = await storage.getPlayerHistoryBySport(sport, 5000);
   history.sort((a, b) => {
@@ -294,6 +334,26 @@ export async function computeBoostScores(
           totalBoost += 0.5;
           reasons.push(`Team stack: ${player.team} has ${teamBatters.length} batters averaging ${teamBatAvg.toFixed(1)} pts — correlated upside in GPP`);
         }
+      }
+    }
+
+    if (totalSlatesAnalyzed >= 2) {
+      const winData = winFreqMap.get(player.name);
+      if (winData && winData.count >= 2) {
+        const freqPct = (winData.count / totalSlatesAnalyzed) * 100;
+        if (freqPct >= 50) {
+          totalBoost += 3.0;
+          reasons.push(`Optimal regular: appeared in ${winData.count}/${totalSlatesAnalyzed} winning lineups (${freqPct.toFixed(0)}%) — avg ${winData.avgActual.toFixed(1)} actual pts, ${winData.avgValue.toFixed(1)}x value`);
+        } else if (freqPct >= 25) {
+          totalBoost += 2.0;
+          reasons.push(`Winning lineup pick: appeared in ${winData.count}/${totalSlatesAnalyzed} winning lineups (${freqPct.toFixed(0)}%) — avg ${winData.avgActual.toFixed(1)} actual pts`);
+        } else {
+          totalBoost += 1.0;
+          reasons.push(`Past optimal: appeared in ${winData.count}/${totalSlatesAnalyzed} winning lineups — avg ${winData.avgActual.toFixed(1)} actual pts`);
+        }
+      } else if (winData && winData.count === 1 && winData.avgValue >= 6.0) {
+        totalBoost += 0.5;
+        reasons.push(`High-value winner: ${winData.avgValue.toFixed(1)}x value in a past optimal lineup (${winData.avgActual.toFixed(1)} actual pts)`);
       }
     }
 
