@@ -275,6 +275,9 @@ export class DatabaseStorage implements IStorage {
 
   async deleteExpiredLineups(): Promise<number> {
     const now = new Date();
+    const etHour = parseInt(new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: "America/New_York" }).format(now));
+    if (etHour < 1) return 0;
+
     const expiredSlateIds = await db.select({ id: slates.id }).from(slates).where(lt(slates.startTime, now));
     if (expiredSlateIds.length === 0) return 0;
     const ids = expiredSlateIds.map(s => s.id);
