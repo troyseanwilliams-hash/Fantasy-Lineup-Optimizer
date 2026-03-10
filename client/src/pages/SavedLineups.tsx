@@ -39,7 +39,7 @@ export default function SavedLineups() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [swappingSlot, setSwappingSlot] = useState<{ lineupId: number; slot: string; currentPlayerId: number } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [vaultSort, setVaultSort] = useState<VaultSortKey>("newest");
+  const [vaultSort, setVaultSort] = useState<VaultSortKey>("projection_high");
   const [activeTab, setActiveTab] = useState<VaultTab>("active");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [regenUseBoosts, setRegenUseBoosts] = useState(true);
