@@ -793,11 +793,9 @@ export default function Optimizer() {
                     </td>
                     <td className="px-3 py-2">
                       <div className={`font-bold text-sm text-white transition-colors ${platform === "fanduel" ? "group-hover:text-blue-400" : "group-hover:text-emerald-400"}`}>
-                        {sport === "NBA" ? (
-                          <PlayerHistoryCard playerName={player.name} sport={sport}>
-                            <span className="cursor-default">{player.name}</span>
-                          </PlayerHistoryCard>
-                        ) : player.name}
+                        <PlayerHistoryCard playerName={player.name} sport={sport}>
+                          <span className="cursor-default">{player.name}</span>
+                        </PlayerHistoryCard>
                         {player.isConfirmedStarter && (
                           <Badge variant="outline" className="ml-2 text-[9px] font-bold py-0 px-1.5 border-emerald-500/50 text-emerald-400 bg-emerald-500/10" data-testid={`starter-badge-${player.id}`}>
                             STARTER
