@@ -1522,9 +1522,14 @@ export async function registerRoutes(
           position: d.position || "",
           salary: d.salary,
           projectedPoints: (() => {
-            const fppg = d.draftStatAttributes?.find((a: any) => a.id === 219)?.value || d.draftStatAttributes?.find((a: any) => a.id === 90)?.value;
-            const parsed = fppg ? parseFloat(fppg) : NaN;
-            return String(isNaN(parsed) ? (d.salary / 1000) : parsed);
+            const FPPG_IDS = [219, 90, 341, 745];
+            for (const fid of FPPG_IDS) {
+              const attr = d.draftStatAttributes?.find((a: any) => a.id === fid);
+              if (attr?.value && attr.value !== "-" && !isNaN(parseFloat(attr.value))) {
+                return attr.value;
+              }
+            }
+            return String(d.salary / 1000);
           })(),
           slateDate: date,
           slateId,

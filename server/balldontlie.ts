@@ -148,6 +148,19 @@ interface DKDraftable {
   }>;
 }
 
+const FPPG_STAT_IDS = [219, 90, 341, 745];
+
+function extractFppg(draftStatAttributes: Array<{ id: number; value: string; sortValue: string }> | undefined): number | null {
+  if (!draftStatAttributes) return null;
+  for (const id of FPPG_STAT_IDS) {
+    const attr = draftStatAttributes.find(a => a.id === id);
+    if (attr && attr.value && attr.value !== "-" && !isNaN(Number(attr.value))) {
+      return Number(attr.value);
+    }
+  }
+  return null;
+}
+
 export interface LiveSlateData {
   sport: string;
   slateDate: Date;
@@ -302,9 +315,7 @@ export async function fetchLiveDKData(sport: string): Promise<LiveSlateData | nu
   for (const p of trimmedPlayers) {
     if (!p.position || !p.salary || p.salary <= 0) continue;
 
-    const fppgAttr = p.draftStatAttributes?.find(a => a.id === 219);
-    const rawFppg = fppgAttr?.value;
-    const fppgNum = rawFppg && rawFppg !== "-" && !isNaN(Number(rawFppg)) ? Number(rawFppg) : (p.salary / 250);
+    const fppgNum = extractFppg(p.draftStatAttributes) ?? (p.salary / 250);
     const fppg = fppgNum.toFixed(1);
     const projectedPoints = fppg;
 
@@ -505,9 +516,7 @@ export async function fetchDKSlateByDraftGroup(sport: string, draftGroupId: numb
     for (const p of trimmedPlayers) {
       if (!p.position || !p.salary || p.salary <= 0) continue;
 
-      const fppgAttr = p.draftStatAttributes?.find(a => a.id === 219);
-      const rawFppg = fppgAttr?.value;
-      const fppgNum = rawFppg && rawFppg !== "-" && !isNaN(Number(rawFppg)) ? Number(rawFppg) : (p.salary / 250);
+      const fppgNum = extractFppg(p.draftStatAttributes) ?? (p.salary / 250);
       const fppg = fppgNum.toFixed(1);
       const projectedPoints = fppg;
 
