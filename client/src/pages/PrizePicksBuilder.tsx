@@ -864,45 +864,93 @@ export default function PrizePicksBuilder() {
                     {expandedAIEntry === idx && (
                       <div className="border-t border-slate-700/40 p-4 space-y-2">
                         {entry.picks.map((pick, pIdx) => (
-                          <div key={pIdx} className="flex items-center gap-3 bg-slate-900/40 rounded-lg p-3" data-testid={`pp-builder-ai-pick-${idx}-${pIdx}`}>
-                            {pick.projection.imageUrl ? (
-                              <img
-                                src={pick.projection.imageUrl}
-                                alt={pick.projection.playerName}
-                                className="w-9 h-9 rounded-full bg-slate-700/50 object-cover shrink-0"
-                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                              />
-                            ) : (
-                              <div className="w-9 h-9 rounded-full bg-slate-700/50 flex items-center justify-center shrink-0">
-                                <span className="text-[10px] font-black text-slate-400">{pick.projection.team?.slice(0, 3)}</span>
+                          <div key={pIdx} className="bg-slate-900/40 rounded-lg p-3" data-testid={`pp-builder-ai-pick-${idx}-${pIdx}`}>
+                            <div className="hidden sm:flex items-center gap-3">
+                              {pick.projection.imageUrl ? (
+                                <img
+                                  src={pick.projection.imageUrl}
+                                  alt={pick.projection.playerName}
+                                  className="w-9 h-9 rounded-full bg-slate-700/50 object-cover shrink-0"
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                />
+                              ) : (
+                                <div className="w-9 h-9 rounded-full bg-slate-700/50 flex items-center justify-center shrink-0">
+                                  <span className="text-[10px] font-black text-slate-400">{pick.projection.team?.slice(0, 3)}</span>
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-bold text-white truncate">{pick.projection.playerName}</span>
+                                  <span className="text-[10px] text-slate-500 font-bold">{pick.projection.team}</span>
+                                </div>
+                                <div className="text-[11px] text-slate-500 mt-0.5">{pick.reasoning}</div>
                               </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-bold text-white truncate">{pick.projection.playerName}</span>
-                                <span className="text-[10px] text-slate-500 font-bold">{pick.projection.team}</span>
+                              <div className="text-center shrink-0">
+                                <Badge className={`${getStatColor(pick.projection.statType)} text-[9px] font-bold border px-1.5 py-0 mb-1`}>
+                                  {pick.projection.statType}
+                                </Badge>
+                                <div className="text-sm font-black text-white">{pick.projection.line}</div>
                               </div>
-                              <div className="text-[11px] text-slate-500 mt-0.5">{pick.reasoning}</div>
+                              <div className={`text-xs font-black px-2.5 py-1 rounded-md border shrink-0 ${
+                                pick.pick === "more"
+                                  ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
+                                  : "text-red-400 bg-red-500/10 border-red-500/30"
+                              }`}>
+                                {pick.pick === "more" ? "MORE" : "LESS"}
+                              </div>
+                              <div className={`text-[10px] font-bold shrink-0 ${
+                                pick.confidence >= 65 ? "text-emerald-400" :
+                                pick.confidence >= 55 ? "text-amber-400" :
+                                "text-slate-400"
+                              }`}>
+                                {pick.confidence}%
+                              </div>
                             </div>
-                            <div className="text-center shrink-0">
-                              <Badge className={`${getStatColor(pick.projection.statType)} text-[9px] font-bold border px-1.5 py-0 mb-1`}>
-                                {pick.projection.statType}
-                              </Badge>
-                              <div className="text-sm font-black text-white">{pick.projection.line}</div>
-                            </div>
-                            <div className={`text-xs font-black px-2.5 py-1 rounded-md border shrink-0 ${
-                              pick.pick === "more"
-                                ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
-                                : "text-red-400 bg-red-500/10 border-red-500/30"
-                            }`}>
-                              {pick.pick === "more" ? "MORE" : "LESS"}
-                            </div>
-                            <div className={`text-[10px] font-bold shrink-0 ${
-                              pick.confidence >= 65 ? "text-emerald-400" :
-                              pick.confidence >= 55 ? "text-amber-400" :
-                              "text-slate-400"
-                            }`}>
-                              {pick.confidence}%
+
+                            <div className="sm:hidden">
+                              <div className="flex items-center gap-2.5 mb-2">
+                                {pick.projection.imageUrl ? (
+                                  <img
+                                    src={pick.projection.imageUrl}
+                                    alt={pick.projection.playerName}
+                                    className="w-9 h-9 rounded-full bg-slate-700/50 object-cover shrink-0"
+                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                  />
+                                ) : (
+                                  <div className="w-9 h-9 rounded-full bg-slate-700/50 flex items-center justify-center shrink-0">
+                                    <span className="text-[10px] font-black text-slate-400">{pick.projection.team?.slice(0, 3)}</span>
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[13px] font-bold text-white truncate">{pick.projection.playerName}</span>
+                                    <span className="text-[10px] text-slate-500 font-bold">{pick.projection.team}</span>
+                                  </div>
+                                </div>
+                                <div className={`text-[10px] font-bold shrink-0 ${
+                                  pick.confidence >= 65 ? "text-emerald-400" :
+                                  pick.confidence >= 55 ? "text-amber-400" :
+                                  "text-slate-400"
+                                }`}>
+                                  {pick.confidence}%
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between gap-2 mb-1.5">
+                                <div className="flex items-center gap-2">
+                                  <Badge className={`${getStatColor(pick.projection.statType)} text-[10px] font-bold border px-2 py-0.5`}>
+                                    {pick.projection.statType}
+                                  </Badge>
+                                  <span className="text-base font-black text-white">{pick.projection.line}</span>
+                                </div>
+                                <div className={`text-xs font-black px-2.5 py-1 rounded-md border shrink-0 ${
+                                  pick.pick === "more"
+                                    ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
+                                    : "text-red-400 bg-red-500/10 border-red-500/30"
+                                }`}>
+                                  {pick.pick === "more" ? "MORE" : "LESS"}
+                                </div>
+                              </div>
+                              <div className="text-[11px] text-slate-500 leading-relaxed">{pick.reasoning}</div>
                             </div>
                           </div>
                         ))}
@@ -1023,7 +1071,7 @@ export default function PrizePicksBuilder() {
                       className={`bg-slate-800/40 border rounded-xl p-3 transition-colors ${inEntry ? "border-violet-500/50 bg-violet-500/5" : "border-slate-700/40"}`}
                       data-testid={`pp-builder-line-${proj.id}`}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="hidden sm:flex items-center gap-3">
                         {proj.imageUrl ? (
                           <img
                             src={proj.imageUrl}
@@ -1106,6 +1154,96 @@ export default function PrizePicksBuilder() {
                               </Button>
                             </>
                           )}
+                        </div>
+                      </div>
+
+                      <div className="sm:hidden">
+                        <div className="flex items-center gap-2.5 mb-2">
+                          {proj.imageUrl ? (
+                            <img
+                              src={proj.imageUrl}
+                              alt={proj.playerName}
+                              className="w-9 h-9 rounded-full bg-slate-700/50 object-cover shrink-0"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded-full bg-slate-700/50 flex items-center justify-center shrink-0">
+                              <span className="text-[10px] font-black text-slate-400">{proj.team?.slice(0, 3)}</span>
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[13px] font-black text-white truncate">{proj.playerName}</span>
+                              {proj.isLive && (
+                                <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[9px] font-black px-1 py-0">LIVE</Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-slate-400 font-bold">{proj.team}</span>
+                              {proj.position && (
+                                <>
+                                  <span className="text-slate-600">·</span>
+                                  <span className="text-[10px] text-slate-500">{proj.position}</span>
+                                </>
+                              )}
+                              <span className="text-slate-600">·</span>
+                              <span className="text-[10px] text-slate-500 truncate">{proj.gameInfo}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Badge className={`${getStatColor(proj.statType)} text-[10px] font-bold border px-2 py-0.5`}>
+                              {proj.statType}
+                            </Badge>
+                            <span className="text-lg font-black text-white">{proj.line}</span>
+                          </div>
+                          <div className="flex gap-1.5">
+                            {inEntry ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-red-400 border border-red-500/30 font-bold text-xs px-4 py-1.5"
+                                onClick={() => removeEntry(proj.id)}
+                                data-testid={`pp-builder-remove-mobile-${proj.id}`}
+                              >
+                                <X className="w-3.5 h-3.5 mr-1" /> Remove
+                              </Button>
+                            ) : swappingProjId ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-amber-400 border border-amber-500/30 font-bold text-xs px-4 py-1.5"
+                                onClick={() => swapEntry(swappingProjId, proj)}
+                                data-testid={`pp-builder-swap-mobile-${proj.id}`}
+                              >
+                                <ArrowLeftRight className="w-3.5 h-3.5 mr-1" /> Swap
+                              </Button>
+                            ) : (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-emerald-400 border border-emerald-500/30 font-bold text-xs px-4 py-1.5"
+                                  onClick={() => addEntry(proj, "more")}
+                                  disabled={entries.length >= maxPicks}
+                                  data-testid={`pp-builder-more-mobile-${proj.id}`}
+                                >
+                                  <ArrowUp className="w-3.5 h-3.5 mr-1" /> More
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-red-400 border border-red-500/30 font-bold text-xs px-4 py-1.5"
+                                  onClick={() => addEntry(proj, "less")}
+                                  disabled={entries.length >= maxPicks}
+                                  data-testid={`pp-builder-less-mobile-${proj.id}`}
+                                >
+                                  <ArrowDown className="w-3.5 h-3.5 mr-1" /> Less
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
