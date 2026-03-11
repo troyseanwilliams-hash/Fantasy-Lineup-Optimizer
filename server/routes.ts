@@ -1514,27 +1514,31 @@ export async function registerRoutes(
       const slateId = slate?.id || null;
 
       const historyRecords = draftables
-        .filter(d => d.salary > 0 && d.displayName)
-        .map(d => ({
-          playerName: d.displayName,
-          team: d.teamAbbreviation || "",
-          sport: sportUpper,
-          position: d.position || "",
-          salary: d.salary,
-          projectedPoints: (() => {
-            const FPPG_IDS = [219, 90, 341, 745];
-            for (const fid of FPPG_IDS) {
-              const attr = d.draftStatAttributes?.find((a: any) => a.id === fid);
-              if (attr?.value && attr.value !== "-" && !isNaN(parseFloat(attr.value))) {
-                return attr.value;
-              }
+        .filter(d => d.displayName && (d.salary > 0 || d.draftStatAttributes?.length > 0))
+        .map(d => {
+          const FPPG_IDS = [219, 90, 341, 745];
+          let fppg = "0";
+          for (const fid of FPPG_IDS) {
+            const attr = d.draftStatAttributes?.find((a: any) => a.id === fid);
+            if (attr?.value && attr.value !== "-" && !isNaN(parseFloat(attr.value))) {
+              fppg = attr.value;
+              break;
             }
-            return String(d.salary / 1000);
-          })(),
-          slateDate: date,
-          slateId,
-          draftKingsPlayerId: d.draftableId || null,
-        }));
+          }
+          const salary = d.salary || Math.round(parseFloat(fppg) * 200);
+          return {
+            playerName: d.displayName,
+            team: d.teamAbbreviation || "",
+            sport: sportUpper,
+            position: d.position || "",
+            salary,
+            projectedPoints: fppg !== "0" ? fppg : String(salary / 1000),
+            slateDate: date,
+            slateId,
+            draftKingsPlayerId: d.draftableId || null,
+          };
+        })
+        .filter(d => d.salary > 0);
 
       await storage.bulkInsertPlayerHistory(historyRecords);
       console.log(`[Admin] Backfilled ${historyRecords.length} player history records for ${sportUpper} ${date} (DG ${draftGroupId})`);
