@@ -707,7 +707,10 @@ export async function registerRoutes(
           if (p.isConfirmedStarter) {
             pts = Math.round(pts * 1.05 * 10) / 10;
           }
-          if (useBoosts && p.boostScore) pts += Number(p.boostScore);
+          if (useBoosts && p.boostScore) {
+            const boostPct = Math.max(-0.15, Math.min(0.15, Number(p.boostScore) * 0.015));
+            pts = Math.round(pts * (1 + boostPct) * 10) / 10;
+          }
           if (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") pts = 0;
           else if (p.injuryStatus === "Doubtful") pts *= 0.3;
           else if (p.injuryStatus === "Probable") pts *= 0.9;
@@ -808,12 +811,11 @@ export async function registerRoutes(
 
         const origTotalPts = playerSnapshot.reduce((sum: number, p: any) => sum + Number(p.projectedPoints), 0);
         const correlationScore = computeCorrelationBonus(solveResult.lineup as Player[], slate.sport);
-        const adjustedPoints = origTotalPts + correlationScore;
 
         await storage.updateLineup(Number(id), {
           playerIds,
           totalSalary: solveResult.totalSalary,
-          totalProjectedPoints: adjustedPoints.toFixed(1),
+          totalProjectedPoints: origTotalPts.toFixed(1),
           playerSnapshot,
         });
 
@@ -2174,7 +2176,8 @@ export async function registerRoutes(
         }
 
         if (constraints.useBoosts && p.boostScore) {
-          boostedPoints += Number(p.boostScore);
+          const boostPct = Math.max(-0.15, Math.min(0.15, Number(p.boostScore) * 0.015));
+          boostedPoints = Math.round(boostedPoints * (1 + boostPct) * 10) / 10;
         }
 
         if (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") {
@@ -2314,8 +2317,7 @@ export async function registerRoutes(
           const key = result.lineup.map((p: Player) => p.id).sort().join(",");
           if (!usedLineupKeys.has(key)) {
             const correlationScore = computeCorrelationBonus(result.lineup as Player[], slate.sport);
-            const adjustedPoints = result.totalProjectedPoints + correlationScore;
-            lineupResults.push({ ...result, platform, correlationScore, totalProjectedPoints: adjustedPoints });
+            lineupResults.push({ ...result, platform, correlationScore });
             usedLineupKeys.add(key);
             for (const p of result.lineup as Player[]) {
               playerAppearances[p.id] = (playerAppearances[p.id] || 0) + 1;
@@ -2324,7 +2326,11 @@ export async function registerRoutes(
         }
       }
 
-      lineupResults.sort((a, b) => b.totalProjectedPoints - a.totalProjectedPoints);
+      lineupResults.sort((a, b) => {
+        const ptsDiff = b.totalProjectedPoints - a.totalProjectedPoints;
+        if (ptsDiff !== 0) return ptsDiff;
+        return (b.correlationScore || 0) - (a.correlationScore || 0);
+      });
 
       const boostsSummary = allPlayers
         .filter(p => p.boostScore && Number(p.boostScore) !== 0)
