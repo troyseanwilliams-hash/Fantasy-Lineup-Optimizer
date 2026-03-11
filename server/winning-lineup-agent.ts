@@ -231,7 +231,7 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string): P
 
     const deduped = new Map<string, typeof allSlateRecords[0]>();
     for (const h of allSlateRecords) {
-      const key = h.draftKingsPlayerId ? `dk_${h.draftKingsPlayerId}` : `${h.playerName}_${h.team}_${h.position}_${h.salary}`;
+      const key = `${h.playerName}_${h.team}_${h.position}`;
       if (!deduped.has(key) || h.id > deduped.get(key)!.id) {
         deduped.set(key, h);
       }
