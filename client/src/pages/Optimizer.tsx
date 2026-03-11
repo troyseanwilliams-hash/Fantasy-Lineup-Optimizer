@@ -52,6 +52,7 @@ export default function Optimizer() {
   const [swappingSlot, setSwappingSlot] = useState<string | null>(null);
   const [manualReplacements, setManualReplacements] = useState<Record<string, Player>>({});
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
+  const [mobileView, setMobileView] = useState<"players" | "lineup">("players");
 
   const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"], refetchInterval: 300000 });
   const slate = useMemo(() => slates?.find(s => s.id === slateId), [slates, slateId]);
@@ -425,8 +426,34 @@ export default function Optimizer() {
 
   return (
     <div className="flex flex-col xl:flex-row h-[calc(100vh-80px)] overflow-hidden">
+      {/* Mobile Tab Toggle */}
+      <div className="xl:hidden flex border-b border-slate-800 bg-slate-900/80 sticky top-0 z-20">
+        <button
+          onClick={() => setMobileView("players")}
+          data-testid="mobile-tab-players"
+          className={`flex-1 px-4 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${
+            mobileView === "players"
+              ? `${platform === "fanduel" ? "text-blue-400 border-b-2 border-blue-400" : "text-emerald-400 border-b-2 border-emerald-400"} bg-slate-800/50`
+              : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          Players {filteredPlayers.length > 0 && `(${filteredPlayers.length})`}
+        </button>
+        <button
+          onClick={() => setMobileView("lineup")}
+          data-testid="mobile-tab-lineup"
+          className={`flex-1 px-4 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${
+            mobileView === "lineup"
+              ? `${platform === "fanduel" ? "text-blue-400 border-b-2 border-blue-400" : "text-emerald-400 border-b-2 border-emerald-400"} bg-slate-800/50`
+              : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          Lineup {currentLineup ? `(${totalProj.toFixed(0)} pts)` : ""}
+        </button>
+      </div>
+
       {/* LEFT: Player Pool */}
-      <div className="flex-1 flex flex-col overflow-hidden border-r border-slate-800">
+      <div className={`flex-1 flex flex-col overflow-hidden border-r border-slate-800 ${mobileView !== "players" ? "hidden xl:flex" : ""}`}>
         {/* Top Bar */}
         <div className="relative border-b border-slate-800 overflow-hidden">
           <div className="absolute inset-0">
@@ -690,8 +717,8 @@ export default function Optimizer() {
           </div>
         )}
 
-        {/* Player Table */}
-        <div className="flex-1 overflow-auto">
+        {/* Player Table - Desktop */}
+        <div className="flex-1 overflow-auto hidden md:block">
           <table className="w-full text-left border-collapse min-w-[700px]">
             <thead className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800">
               <tr className="text-slate-400">
@@ -881,6 +908,116 @@ export default function Optimizer() {
           </table>
         </div>
 
+        {/* Player Cards - Mobile */}
+        <div className="flex-1 overflow-auto md:hidden p-2 space-y-1.5">
+          {filteredPlayers.map(player => {
+            const isLocked = lockedIds.includes(player.id);
+            const isExcluded = excludedIds.includes(player.id);
+            const isInLineup = activeLineupPlayers.some(p => p.id === player.id);
+            const isEligibleReplacement = replacingSlot ? replacementEligiblePlayers.some(p => p.id === player.id) : false;
+            const isIneligible = replacingSlot && !isEligibleReplacement && !isInLineup;
+            const currentBoost = boosts[player.id] || 0;
+            const boostLevels = [0, 5, 10, 15, 20];
+            const nextBoost = boostLevels[(boostLevels.indexOf(currentBoost) + 1) % boostLevels.length];
+            return (
+              <div
+                key={player.id}
+                data-testid={`mobile-player-card-${player.id}`}
+                className={`rounded-lg border p-2.5 transition-all ${
+                  isIneligible ? "opacity-30 border-slate-800 bg-slate-900/30" :
+                  isEligibleReplacement ? `border-emerald-500/30 bg-emerald-500/5 cursor-pointer` :
+                  isLocked ? `border-emerald-500/30 bg-emerald-500/5` :
+                  isExcluded ? "border-red-500/30 bg-red-500/5 opacity-50" :
+                  isInLineup ? "border-slate-700 bg-slate-800/30" :
+                  "border-slate-800 bg-slate-900/50"
+                }`}
+                onClick={isEligibleReplacement ? () => handleSelectReplacement(player) : undefined}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`font-mono text-[10px] font-bold px-1.5 py-0.5 rounded ${platform === "fanduel" ? "bg-blue-500/20 text-blue-400" : "bg-emerald-500/20 text-emerald-400"}`}>{player.position}</span>
+                      <span className="text-sm font-bold text-white truncate">{player.name}</span>
+                      {player.isConfirmedStarter && (
+                        <Badge variant="outline" className="text-[8px] font-bold py-0 px-1 border-emerald-500/50 text-emerald-400 bg-emerald-500/10">STARTER</Badge>
+                      )}
+                      {player.injuryStatus && player.injuryStatus !== "Healthy" && (
+                        <Badge variant="outline" className={`text-[8px] font-bold py-0 px-1 ${INJURY_COLORS[player.injuryStatus] || INJURY_COLORS["Day-to-Day"]}`}>
+                          {player.injuryStatus}
+                        </Badge>
+                      )}
+                      {isInLineup && <span className={`text-[9px] font-black ${platform === "fanduel" ? "text-blue-500" : "text-emerald-500"}`}>IN LINEUP</span>}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400">
+                      <span className="font-bold">{player.team}</span>
+                      {player.opponent && <span>vs {player.opponent}</span>}
+                      <span className="text-slate-600">{player.gameInfo}</span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1.5">
+                      <span className="text-sm font-mono font-bold text-white">${player.salary.toLocaleString()}</span>
+                      <span className={`text-sm font-mono font-bold ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>{Number(player.projectedPoints).toFixed(1)} pts</span>
+                      <span className="text-xs font-mono text-slate-400">FPPG {player.fppg}</span>
+                      <span className="text-xs font-mono font-bold text-blue-400">{player.value.toFixed(1)}x</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    {replacingSlot ? (
+                      isEligibleReplacement ? (
+                        <button className={`p-1.5 rounded-md ${platform === "fanduel" ? "bg-blue-500/20 text-blue-400" : "bg-emerald-500/20 text-emerald-400"}`} data-testid={`mobile-select-replacement-${player.id}`}>
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      ) : null
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => {
+                            const updated = { ...boosts };
+                            if (nextBoost === 0) { delete updated[player.id]; } else { updated[player.id] = nextBoost; }
+                            setBoosts(updated);
+                          }}
+                          data-testid={`mobile-boost-${player.id}`}
+                          className={`relative p-1.5 rounded-md transition-all ${
+                            currentBoost > 0
+                              ? "bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/30"
+                              : "text-slate-600 hover:text-amber-400"
+                          }`}
+                        >
+                          <Rocket className={`w-3.5 h-3.5 ${currentBoost > 0 ? "fill-amber-400" : ""}`} />
+                          {currentBoost > 0 && (
+                            <span className="absolute -top-1 -right-1.5 text-[8px] font-black text-amber-300 bg-amber-950 rounded px-0.5">+{currentBoost}%</span>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setLockedIds(prev => prev.includes(player.id) ? prev.filter(i => i !== player.id) : [...prev, player.id]);
+                            setExcludedIds(prev => prev.filter(i => i !== player.id));
+                          }}
+                          data-testid={`mobile-lock-${player.id}`}
+                          className={`p-1.5 rounded-md transition-all ${
+                            isLocked ? `${platform === "fanduel" ? "bg-blue-500" : "bg-emerald-500"} text-white` : "text-slate-600 hover:text-emerald-400"
+                          }`}
+                        >
+                          {isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setExcludedIds(prev => [...prev, player.id]);
+                            setLockedIds(prev => prev.filter(i => i !== player.id));
+                          }}
+                          data-testid={`mobile-exclude-${player.id}`}
+                          className="p-1.5 rounded-md text-slate-600 hover:text-red-400"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
         {/* Excluded Players Bar */}
         {excludedPlayers.length > 0 && (
           <div className="border-t border-slate-800 bg-slate-900/60 px-4 py-2 flex items-center gap-2 flex-wrap">
@@ -901,7 +1038,7 @@ export default function Optimizer() {
       </div>
 
       {/* RIGHT: Lineup Builder */}
-      <div className="w-full xl:w-[420px] flex flex-col bg-slate-900/30 border-l border-slate-800 overflow-hidden">
+      <div className={`w-full xl:w-[420px] flex flex-col bg-slate-900/30 border-l border-slate-800 overflow-hidden ${mobileView !== "lineup" ? "hidden xl:flex" : ""}`}>
         {/* Salary & Projection Bar */}
         <div className="px-4 py-3 bg-slate-900/60 border-b border-slate-800">
           <div className="grid grid-cols-4 gap-2 mb-2">
