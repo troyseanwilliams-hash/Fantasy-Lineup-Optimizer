@@ -1299,6 +1299,8 @@ function ExpandedRoster({
   const slotAssignments = assignPlayersToSlots(lineup.players, config.slots, lineup.sport);
   const isSwapping = swappingSlot?.lineupId === lineup.id;
   const currentSwapSlot = isSwapping ? swappingSlot!.slot : null;
+  const isFD = lineup.platform === "fanduel";
+  const maxProj = Math.max(...lineup.players.map((p: Player) => Number(p.projectedPoints) || 0), 1);
 
   const eligibleReplacements = currentSwapSlot
     ? lineup.allPlayers.filter(p =>
@@ -1320,7 +1322,7 @@ function ExpandedRoster({
               <th className="text-left py-2 pr-4 w-16">Team</th>
               <th className="text-right py-2 pr-4 w-24">Salary</th>
               <th className="text-right py-2 pr-4 w-16">FPPG</th>
-              <th className="text-right py-2 pr-4 w-20">Proj</th>
+              <th className="text-right py-2 pr-4 w-40">Proj</th>
               <th className="text-center py-2 w-16">Swap</th>
             </tr>
           </thead>
@@ -1357,8 +1359,25 @@ function ExpandedRoster({
                   <td className="py-3 pr-4 text-right text-sm text-slate-400">
                     {player ? Number(player.fppg || player.projectedPoints).toFixed(1) : "—"}
                   </td>
-                  <td className="py-3 pr-4 text-right text-sm font-semibold text-emerald-400">
-                    {player ? Number(player.projectedPoints).toFixed(1) : "—"}
+                  <td className="py-3 pr-4">
+                    {player ? (
+                      <div className="flex items-center gap-2 justify-end">
+                        <div className="w-20 hidden sm:block">
+                          <div className="w-full bg-slate-700/40 rounded-full h-2 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${isFD ? "bg-blue-500" : "bg-emerald-500"}`}
+                              style={{ width: `${Math.min((Number(player.projectedPoints) / maxProj) * 100, 100)}%` }}
+                              data-testid={`proj-bar-${lineup.id}-${slot}`}
+                            />
+                          </div>
+                        </div>
+                        <span className={`text-sm font-semibold tabular-nums ${isFD ? "text-blue-400" : "text-emerald-400"}`}>
+                          {Number(player.projectedPoints).toFixed(1)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-right block text-sm text-slate-500">—</span>
+                    )}
                   </td>
                   <td className="py-3 text-center">
                     {player && !isOrphaned && (
@@ -1399,7 +1418,7 @@ function ExpandedRoster({
                 ${lineup.totalSalary.toLocaleString()}
               </td>
               <td className="py-3 pr-4"></td>
-              <td className="py-3 pr-4 text-right text-sm font-bold text-emerald-400">
+              <td className="py-3 pr-4 text-right text-sm font-bold text-emerald-400" data-testid={`total-proj-${lineup.id}`}>
                 {Number(lineup.totalProjectedPoints).toFixed(1)}
               </td>
               <td></td>
