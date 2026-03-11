@@ -1144,17 +1144,11 @@ export default function ProOptimizer() {
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2 flex-wrap">
-                          {sport === "NBA" ? (
-                            <PlayerHistoryCard playerName={player.name} sport={sport}>
-                              <span className="font-bold text-sm text-white group-hover:text-amber-400 transition-colors cursor-default" data-testid={`text-player-name-${player.id}`}>
-                                {player.name}
-                              </span>
-                            </PlayerHistoryCard>
-                          ) : (
-                            <span className="font-bold text-sm text-white group-hover:text-amber-400 transition-colors" data-testid={`text-player-name-${player.id}`}>
+                          <PlayerHistoryCard playerName={player.name} sport={sport}>
+                            <span className="font-bold text-sm text-white group-hover:text-amber-400 transition-colors cursor-default" data-testid={`text-player-name-${player.id}`}>
                               {player.name}
                             </span>
-                          )}
+                          </PlayerHistoryCard>
                           {player.isConfirmedStarter && (
                             <Badge variant="outline" className="text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border-emerald-500/30" data-testid={`badge-starter-${player.id}`}>
                               STARTER
