@@ -178,6 +178,28 @@ app.use((req, res, next) => {
 
           const delCount = await storage.deleteExpiredLineups();
           if (delCount > 0) log(`Moved ${delCount} expired lineup(s) to review on startup`, "cron");
+
+          try {
+            const { analyzeCompletedSlate } = await import("./winning-lineup-agent");
+            const existingWL = await storage.getWinningLineupBySlateDate("NBA", "2026-03-09");
+            if (existingWL) {
+              const players = existingWL.playerData as any[];
+              const names = players?.map((p: any) => p.name) || [];
+              const hasDupes = names.length !== new Set(names).size;
+              if (hasDupes) {
+                const { db } = await import("./db");
+                const { winningLineups } = await import("@shared/schema");
+                const { eq } = await import("drizzle-orm");
+                await db.delete(winningLineups).where(eq(winningLineups.id, existingWL.id));
+                log("Deleted duplicate-player NBA 3/9 winning lineup for re-analysis", "cron");
+                const result = await analyzeCompletedSlate("NBA", "2026-03-09");
+                log(`Re-analyzed NBA 3/9: ${result.message}`, "cron");
+              }
+            }
+          } catch (err) {
+            console.error("NBA 3/9 re-analysis failed:", err);
+          }
+
           await seedDatabase();
           log("Startup seed check completed", "cron");
 
