@@ -537,13 +537,77 @@ export async function registerRoutes(
 
     const reviewLineups = await storage.getReviewLineups(userId);
 
+    const sportCache = new Map<string, { history: any[]; winLineups: any[] }>();
+
     const enriched = await Promise.all(reviewLineups.map(async (lineup: any) => {
+      let players: any[];
       if (lineup.playerSnapshot && Array.isArray(lineup.playerSnapshot) && lineup.playerSnapshot.length > 0) {
-        return { ...lineup, players: lineup.playerSnapshot };
+        players = lineup.playerSnapshot;
+      } else {
+        const allPlayers = await storage.getPlayersBySlate(lineup.slateId);
+        players = allPlayers.filter((p: any) => lineup.playerIds.includes(p.id));
       }
-      const allPlayers = await storage.getPlayersBySlate(lineup.slateId);
-      const rosterPlayers = allPlayers.filter((p: any) => lineup.playerIds.includes(p.id));
-      return { ...lineup, players: rosterPlayers };
+
+      try {
+        const sport = lineup.sport;
+        if (!sportCache.has(sport)) {
+          const history = await storage.getPlayerHistoryBySport(sport, 5000);
+          const winLineups = await storage.getWinningLineups(sport, 50);
+          sportCache.set(sport, { history, winLineups });
+        }
+        const { history, winLineups } = sportCache.get(sport)!;
+        const playerNames = players.map((p: any) => p.name);
+
+        const actualByName = new Map<string, { actualPoints: number; gamesTracked: number }>();
+        for (const h of history) {
+          if (!playerNames.includes(h.playerName)) continue;
+          if (h.actualPoints == null || Number(h.actualPoints) <= 0) continue;
+          const existing = actualByName.get(h.playerName);
+          if (!existing) {
+            actualByName.set(h.playerName, { actualPoints: Number(h.actualPoints), gamesTracked: 1 });
+          } else if (existing.gamesTracked < 5) {
+            actualByName.set(h.playerName, {
+              actualPoints: (existing.actualPoints * existing.gamesTracked + Number(h.actualPoints)) / (existing.gamesTracked + 1),
+              gamesTracked: existing.gamesTracked + 1,
+            });
+          }
+        }
+
+        const winFreq = new Map<string, { count: number; avgActual: number }>();
+        for (const wl of winLineups) {
+          const wPlayers = (wl.playerData as any[]) || [];
+          const seen = new Set<string>();
+          for (const wp of wPlayers) {
+            if (!playerNames.includes(wp.name) || seen.has(wp.name)) continue;
+            seen.add(wp.name);
+            const entry = winFreq.get(wp.name) || { count: 0, avgActual: 0 };
+            entry.avgActual = (entry.avgActual * entry.count + (wp.actualPoints || 0)) / (entry.count + 1);
+            entry.count++;
+            winFreq.set(wp.name, entry);
+          }
+        }
+
+        const totalSlates = winLineups.length;
+        players = players.map((p: any) => {
+          const enriched = { ...p };
+          const actual = actualByName.get(p.name);
+          if (actual) {
+            enriched.recentActualAvg = Math.round(actual.actualPoints * 10) / 10;
+            enriched.gamesTracked = actual.gamesTracked;
+          }
+          const wf = winFreq.get(p.name);
+          if (wf && wf.count >= 1 && totalSlates >= 2) {
+            enriched.winLineupCount = wf.count;
+            enriched.winLineupTotal = totalSlates;
+            enriched.winAvgActual = Math.round(wf.avgActual * 10) / 10;
+          }
+          return enriched;
+        });
+      } catch (err) {
+        console.error("[ReviewLineup] enrichment error:", err);
+      }
+
+      return { ...lineup, players };
     }));
 
     res.json(enriched);
@@ -563,6 +627,80 @@ export async function registerRoutes(
     if (isOrphaned && lineup.playerSnapshot && Array.isArray(lineup.playerSnapshot) && (lineup.playerSnapshot as any[]).length > 0) {
       rosterPlayers = lineup.playerSnapshot as any;
     }
+
+    try {
+      const sport = lineup.sport;
+      const playerNames = rosterPlayers.map((p: any) => p.name);
+      const history = await storage.getPlayerHistoryBySport(sport, 5000);
+      const winningLineups = await storage.getWinningLineups(sport, 50);
+
+      const actualByName = new Map<string, { actualPoints: number; gamesTracked: number }>();
+      for (const h of history) {
+        if (!playerNames.includes(h.playerName)) continue;
+        if (h.actualPoints == null || Number(h.actualPoints) <= 0) continue;
+        const existing = actualByName.get(h.playerName);
+        if (!existing) {
+          actualByName.set(h.playerName, { actualPoints: Number(h.actualPoints), gamesTracked: 1 });
+        } else if (existing.gamesTracked < 5) {
+          actualByName.set(h.playerName, {
+            actualPoints: (existing.actualPoints * existing.gamesTracked + Number(h.actualPoints)) / (existing.gamesTracked + 1),
+            gamesTracked: existing.gamesTracked + 1,
+          });
+        }
+      }
+
+      const winFreq = new Map<string, { count: number; avgActual: number; avgValue: number }>();
+      for (const wl of winningLineups) {
+        const wPlayers = (wl.playerData as any[]) || [];
+        const seen = new Set<string>();
+        for (const wp of wPlayers) {
+          if (!playerNames.includes(wp.name) || seen.has(wp.name)) continue;
+          seen.add(wp.name);
+          const entry = winFreq.get(wp.name) || { count: 0, avgActual: 0, avgValue: 0 };
+          entry.avgActual = (entry.avgActual * entry.count + (wp.actualPoints || 0)) / (entry.count + 1);
+          entry.avgValue = (entry.avgValue * entry.count + (wp.value || 0)) / (entry.count + 1);
+          entry.count++;
+          winFreq.set(wp.name, entry);
+        }
+      }
+
+      const totalSlates = winningLineups.length;
+
+      rosterPlayers = rosterPlayers.map((p: any) => {
+        const enriched = { ...p };
+        const actual = actualByName.get(p.name);
+        if (actual) {
+          enriched.recentActualAvg = Math.round(actual.actualPoints * 10) / 10;
+          enriched.gamesTracked = actual.gamesTracked;
+        }
+        const wf = winFreq.get(p.name);
+        if (wf && wf.count >= 1 && totalSlates >= 2) {
+          enriched.winLineupCount = wf.count;
+          enriched.winLineupTotal = totalSlates;
+          enriched.winAvgActual = Math.round(wf.avgActual * 10) / 10;
+          enriched.winAvgValue = Math.round(wf.avgValue * 10) / 10;
+          if (!enriched.boostScore && !enriched.boostReason) {
+            const freqPct = (wf.count / totalSlates) * 100;
+            const reasons: string[] = [];
+            if (freqPct >= 50) {
+              enriched.boostScore = "3.0";
+              reasons.push(`Optimal regular: appeared in ${wf.count}/${totalSlates} winning lineups (${freqPct.toFixed(0)}%) — avg ${wf.avgActual.toFixed(1)} actual pts`);
+            } else if (freqPct >= 25) {
+              enriched.boostScore = "2.0";
+              reasons.push(`Winning lineup pick: appeared in ${wf.count}/${totalSlates} winning lineups (${freqPct.toFixed(0)}%) — avg ${wf.avgActual.toFixed(1)} actual pts`);
+            } else if (wf.count >= 2) {
+              enriched.boostScore = "1.0";
+              reasons.push(`Past optimal: appeared in ${wf.count}/${totalSlates} winning lineups — avg ${wf.avgActual.toFixed(1)} actual pts`);
+            }
+            if (reasons.length > 0) enriched.boostReason = reasons.join("; ");
+          }
+        }
+        return enriched;
+      });
+    } catch (err) {
+      console.error("[LineupDetail] enrichment error:", err);
+    }
+
     res.json({ ...lineup, players: rosterPlayers, allPlayers, isOrphaned });
   });
 
