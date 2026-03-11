@@ -48,6 +48,7 @@ export default function SavedLineups() {
   const [regenLeverageMode, setRegenLeverageMode] = useState(false);
   const [showRegenSettings, setShowRegenSettings] = useState(false);
   const [regenMaxExposure, setRegenMaxExposure] = useState<number | null>(null);
+  const [regenProjFloor, setRegenProjFloor] = useState<number | null>(null);
 
   const { data: lineups, isLoading } = useQuery<any[]>({
     queryKey: ["/api/lineups"],
@@ -125,8 +126,8 @@ export default function SavedLineups() {
   });
 
   const bulkGenerateMutation = useMutation({
-    mutationFn: async ({ ids, useBoosts, ceilingMode, leverageMode, globalMaxExposure }: { ids: number[]; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; globalMaxExposure?: number }) => {
-      const res = await apiRequest("POST", "/api/lineups/bulk-generate", { ids, useBoosts: useBoosts !== false, ceilingMode: ceilingMode || false, leverageMode: leverageMode || false, globalMaxExposure: globalMaxExposure ?? undefined });
+    mutationFn: async ({ ids, useBoosts, ceilingMode, leverageMode, globalMaxExposure, projFloor }: { ids: number[]; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; globalMaxExposure?: number; projFloor?: number }) => {
+      const res = await apiRequest("POST", "/api/lineups/bulk-generate", { ids, useBoosts: useBoosts !== false, ceilingMode: ceilingMode || false, leverageMode: leverageMode || false, globalMaxExposure: globalMaxExposure ?? undefined, projFloor: projFloor ?? undefined });
       return res.json();
     },
     onSuccess: (data) => {
@@ -574,7 +575,7 @@ export default function SavedLineups() {
                       {isPaid && (
                         <div className="flex items-center gap-1">
                           <Button
-                            onClick={() => bulkGenerateMutation.mutate({ ids: Array.from(selectedIds), useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, globalMaxExposure: regenMaxExposure ?? undefined })}
+                            onClick={() => bulkGenerateMutation.mutate({ ids: Array.from(selectedIds), useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, globalMaxExposure: regenMaxExposure ?? undefined, projFloor: regenProjFloor ?? undefined })}
                             disabled={bulkGenerateMutation.isPending}
                             className="bg-blue-600 hover:bg-blue-700 text-white"
                             data-testid="bulk-generate-btn"
@@ -658,6 +659,21 @@ export default function SavedLineups() {
                   />
                   <span className={`text-xs font-black min-w-[28px] text-center ${regenMaxExposure ? "text-cyan-400" : "text-slate-500"}`} data-testid="regen-text-exposure">
                     {regenMaxExposure ? `${regenMaxExposure}%` : "Off"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 min-w-[180px]">
+                  <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Proj Floor</span>
+                  <Slider
+                    value={[regenProjFloor ?? 0]}
+                    onValueChange={(v) => setRegenProjFloor(v[0] <= 0 ? null : v[0])}
+                    min={0}
+                    max={350}
+                    step={5}
+                    className="flex-1"
+                    data-testid="regen-slider-proj-floor"
+                  />
+                  <span className={`text-xs font-black min-w-[28px] text-center ${regenProjFloor ? "text-amber-400" : "text-slate-500"}`} data-testid="regen-text-proj-floor">
+                    {regenProjFloor ? regenProjFloor : "Off"}
                   </span>
                 </div>
               </div>
