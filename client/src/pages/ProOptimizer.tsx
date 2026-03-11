@@ -92,6 +92,7 @@ export default function ProOptimizer() {
   const [lineupSwaps, setLineupSwaps] = useState<Record<string, Record<string, Player>>>({});
   const [swappingTarget, setSwappingTarget] = useState<{ lineupIdx: number; slot: string } | null>(null);
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
+  const [mobileView, setMobileView] = useState<"players" | "lineup">("players");
 
   const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"], refetchInterval: 300000 });
   const slate = useMemo(() => slates?.find(s => s.id === slateId), [slates, slateId]);
@@ -931,9 +932,35 @@ export default function ProOptimizer() {
         </div>
       </div>
 
+      {/* Mobile Tab Toggle */}
+      <div className="xl:hidden flex border-b border-slate-800 bg-slate-900/80">
+        <button
+          onClick={() => setMobileView("players")}
+          data-testid="pro-mobile-tab-players"
+          className={`flex-1 px-4 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${
+            mobileView === "players"
+              ? "text-amber-400 border-b-2 border-amber-400 bg-slate-800/50"
+              : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          Players {filteredPlayers.length > 0 && `(${filteredPlayers.length})`}
+        </button>
+        <button
+          onClick={() => setMobileView("lineup")}
+          data-testid="pro-mobile-tab-lineup"
+          className={`flex-1 px-4 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${
+            mobileView === "lineup"
+              ? "text-amber-400 border-b-2 border-amber-400 bg-slate-800/50"
+              : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          Lineups {optimizeMutation.data ? `(${optimizeMutation.data.lineups?.length || 0})` : ""}
+        </button>
+      </div>
+
       <div className="flex flex-col xl:flex-row flex-1 overflow-hidden">
         {/* LEFT: Player Pool */}
-        <div className="flex-1 flex flex-col overflow-hidden border-r border-slate-800">
+        <div className={`flex-1 flex flex-col overflow-hidden border-r border-slate-800 ${mobileView !== "players" ? "hidden xl:flex" : ""}`}>
           {/* Filter Bar */}
           <div className="px-4 py-3 border-b border-slate-800 bg-slate-900/20 flex flex-col md:flex-row gap-3 items-stretch md:items-center">
             <div className="relative flex-1 max-w-sm">
@@ -1050,8 +1077,8 @@ export default function ProOptimizer() {
             </div>
           )}
 
-          {/* Player Table */}
-          <div className="flex-1 overflow-auto">
+          {/* Player Table - Desktop */}
+          <div className="flex-1 overflow-auto hidden md:block">
             <table className="w-full text-left border-collapse min-w-[800px]">
               <thead className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800">
                 <tr className="text-slate-400">
@@ -1276,6 +1303,111 @@ export default function ProOptimizer() {
             </table>
           </div>
 
+          {/* Player Cards - Mobile */}
+          <div className="flex-1 overflow-auto md:hidden p-2 space-y-1.5">
+            {filteredPlayers.map(player => {
+              const isLocked = lockedIds.includes(player.id);
+              const isExcluded = excludedIds.includes(player.id);
+              const isFaded = fadedIds.includes(player.id);
+              const ownershipPct = (player as PlayerWithOwnership).ownershipProjection;
+              const isSwapEligible = swappingTarget ? (() => {
+                const lineupIdx = swappingTarget.lineupIdx;
+                const slot = swappingTarget.slot;
+                const lineup = generatedLineups[lineupIdx];
+                if (!lineup) return false;
+                const slotPos = slot.replace(/\d+/g, '');
+                if (!positionFitsSlot(player.position, slotPos, sport)) return false;
+                const currentPlayer = lineup.find((_, i) => `${lineup[i].position}${i}` === slot || getSlotDisplayName(config.rosterSlots[i], i, config.rosterSlots) === slot);
+                if (currentPlayer && player.id === currentPlayer.id) return false;
+                return true;
+              })() : false;
+              const isSwapIneligible = swappingTarget && !isSwapEligible;
+              return (
+                <div
+                  key={player.id}
+                  data-testid={`mobile-pro-player-card-${player.id}`}
+                  className={`rounded-lg border p-2.5 transition-all ${
+                    isSwapIneligible ? "opacity-30 border-slate-800 bg-slate-900/30" :
+                    isSwapEligible ? "border-emerald-500/30 bg-emerald-500/5 cursor-pointer" :
+                    isExcluded ? "border-red-500/30 bg-red-500/5 opacity-50" :
+                    isLocked ? "border-amber-500/30 bg-amber-500/5" :
+                    isFaded ? "border-slate-700 bg-slate-900/30 opacity-60" :
+                    "border-slate-800 bg-slate-900/50"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400">{player.position}</span>
+                        <span className="text-sm font-bold text-white truncate">{player.name}</span>
+                        {player.isConfirmedStarter && (
+                          <Badge variant="outline" className="text-[8px] font-bold py-0 px-1 border-emerald-500/50 text-emerald-400 bg-emerald-500/10">STARTER</Badge>
+                        )}
+                        {player.injuryStatus && player.injuryStatus !== "Healthy" && (
+                          <Badge variant="outline" className={`text-[8px] font-bold py-0 px-1 ${INJURY_COLORS[player.injuryStatus] || INJURY_COLORS["Day-to-Day"]}`}>
+                            {player.injuryStatus}
+                          </Badge>
+                        )}
+                        {isFaded && <Badge className="text-[8px] py-0 px-1 bg-slate-700 text-slate-400 border-slate-600">FADED</Badge>}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400">
+                        <span className="font-bold">{player.team}</span>
+                        {player.opponent && <span>vs {player.opponent}</span>}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1.5">
+                        <span className="text-sm font-mono font-bold text-white">${player.salary.toLocaleString()}</span>
+                        <span className="text-sm font-mono font-bold text-amber-400">{Number(player.projectedPoints).toFixed(1)} pts</span>
+                        {player.effectiveProj && Number(player.effectiveProj) !== Number(player.projectedPoints) && (
+                          <span className="text-xs font-mono font-bold text-emerald-400">{Number(player.effectiveProj).toFixed(1)}</span>
+                        )}
+                        {hasPaidAccess && ownershipPct != null && (
+                          <span className="text-xs font-mono text-cyan-400">{ownershipPct.toFixed(1)}%</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <button
+                        onClick={() => {
+                          setLockedIds(prev => prev.includes(player.id) ? prev.filter(i => i !== player.id) : [...prev, player.id]);
+                          setExcludedIds(prev => prev.filter(i => i !== player.id));
+                          setFadedIds(prev => prev.filter(i => i !== player.id));
+                        }}
+                        data-testid={`mobile-pro-lock-${player.id}`}
+                        className={`p-1.5 rounded-md transition-all ${
+                          isLocked ? "bg-amber-500 text-white" : "text-slate-600 hover:text-amber-400"
+                        }`}
+                      >
+                        {isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setFadedIds(prev => prev.includes(player.id) ? prev.filter(i => i !== player.id) : [...prev, player.id]);
+                          setLockedIds(prev => prev.filter(i => i !== player.id));
+                        }}
+                        data-testid={`mobile-pro-fade-${player.id}`}
+                        className={`p-1.5 rounded-md transition-all ${
+                          isFaded ? "bg-slate-600 text-white" : "text-slate-600 hover:text-slate-300"
+                        }`}
+                      >
+                        <TrendingDown className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setExcludedIds(prev => [...prev, player.id]);
+                          setLockedIds(prev => prev.filter(i => i !== player.id));
+                        }}
+                        data-testid={`mobile-pro-exclude-${player.id}`}
+                        className="p-1.5 rounded-md text-slate-600 hover:text-red-400"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
           {/* Excluded Players Bar */}
           {excludedPlayers.length > 0 && (
             <div className="border-t border-slate-800 bg-slate-900/60 px-4 py-2 flex items-center gap-2 flex-wrap">
@@ -1335,7 +1467,7 @@ export default function ProOptimizer() {
         </div>
 
         {/* RIGHT: Results & Summary Panels */}
-        <div className="w-full xl:w-[480px] flex flex-col bg-slate-900/30 overflow-hidden">
+        <div className={`w-full xl:w-[480px] flex flex-col bg-slate-900/30 overflow-hidden ${mobileView !== "lineup" ? "hidden xl:flex" : ""}`}>
           <div className="flex-1 overflow-auto p-4 space-y-4">
             {/* GOLF Tournament Analysis */}
             {isGolf && golfAnalysis && (
