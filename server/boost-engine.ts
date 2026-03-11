@@ -343,13 +343,13 @@ export async function computeBoostScores(
         const freqPct = (winData.count / totalSlatesAnalyzed) * 100;
         if (freqPct >= 50) {
           totalBoost += 3.0;
-          reasons.push(`Optimal regular: appeared in ${winData.count}/${totalSlatesAnalyzed} winning lineups (${freqPct.toFixed(0)}%) — avg ${winData.avgActual.toFixed(1)} actual pts, ${winData.avgValue.toFixed(1)}x value`);
+          reasons.push(`Optimal regular: appeared in ${winData.count}/${totalSlatesAnalyzed} winning lineups (${freqPct.toFixed(0)}%) — avg ${winData.avgActual.toFixed(1)} actual pts, ${winData.avgValue.toFixed(1)}x value · proj nudged toward win avg`);
         } else if (freqPct >= 25) {
           totalBoost += 2.0;
-          reasons.push(`Winning lineup pick: appeared in ${winData.count}/${totalSlatesAnalyzed} winning lineups (${freqPct.toFixed(0)}%) — avg ${winData.avgActual.toFixed(1)} actual pts`);
+          reasons.push(`Winning lineup pick: appeared in ${winData.count}/${totalSlatesAnalyzed} winning lineups (${freqPct.toFixed(0)}%) — avg ${winData.avgActual.toFixed(1)} actual pts · proj nudged toward win avg`);
         } else {
           totalBoost += 1.0;
-          reasons.push(`Past optimal: appeared in ${winData.count}/${totalSlatesAnalyzed} winning lineups — avg ${winData.avgActual.toFixed(1)} actual pts`);
+          reasons.push(`Past optimal: appeared in ${winData.count}/${totalSlatesAnalyzed} winning lineups — avg ${winData.avgActual.toFixed(1)} actual pts · proj nudged toward win avg`);
         }
       } else if (winData && winData.count === 1 && winData.avgValue >= 6.0) {
         totalBoost += 0.5;
@@ -582,6 +582,64 @@ export function applyLeverageMode(
 
     leverageMultiplier = Math.max(0.7, Math.min(1.15, leverageMultiplier));
     return { ...p, projectedPoints: (proj * leverageMultiplier).toString() };
+  });
+}
+
+export async function applyWinningLineupAdjustment(
+  players: Player[],
+  sport: string
+): Promise<Player[]> {
+  if (players.length === 0) return players;
+
+  const winningLineups = await storage.getWinningLineups(sport, 50);
+  if (winningLineups.length < 2) return players;
+
+  const playerActuals = new Map<string, number[]>();
+  for (const wl of winningLineups) {
+    const wPlayers = (wl.playerData as WinningPlayerData[]) || [];
+    const seen = new Set<string>();
+    for (const wp of wPlayers) {
+      if (seen.has(wp.name)) continue;
+      seen.add(wp.name);
+      if ((wp.actualPoints || 0) <= 0) continue;
+      const arr = playerActuals.get(wp.name) || [];
+      arr.push(wp.actualPoints);
+      playerActuals.set(wp.name, arr);
+    }
+  }
+
+  return players.map(p => {
+    const proj = Number(p.projectedPoints);
+    if (proj <= 0) return p;
+
+    const actuals = playerActuals.get(p.name);
+    if (!actuals || actuals.length < 2) return p;
+
+    const sorted = [...actuals].sort((a, b) => a - b);
+
+    let cleaned = sorted;
+    if (sorted.length >= 4) {
+      const q1Idx = Math.floor(sorted.length * 0.25);
+      const q3Idx = Math.floor(sorted.length * 0.75);
+      const q1 = sorted[q1Idx];
+      const q3 = sorted[q3Idx];
+      const iqr = q3 - q1;
+      const lower = q1 - 1.5 * iqr;
+      const upper = q3 + 1.5 * iqr;
+      cleaned = sorted.filter(v => v >= lower && v <= upper);
+      if (cleaned.length < 2) cleaned = sorted;
+    }
+
+    const winAvg = cleaned.reduce((a, b) => a + b, 0) / cleaned.length;
+
+    const appearances = actuals.length;
+    const blendWeight = Math.min(0.35, 0.10 + (appearances - 2) * 0.05);
+
+    const adjusted = proj * (1 - blendWeight) + winAvg * blendWeight;
+    const capped = Math.max(proj * 0.80, Math.min(proj * 1.25, adjusted));
+    const rounded = Math.round(capped * 10) / 10;
+
+    return { ...p, projectedPoints: rounded.toString() };
   });
 }
 
