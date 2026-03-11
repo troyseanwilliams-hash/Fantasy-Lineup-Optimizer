@@ -2,7 +2,7 @@ import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/h
 import { Badge } from "@/components/ui/badge";
 import {
   DollarSign, Target, TrendingUp, TrendingDown, Activity,
-  Flame, Snowflake, Shield, AlertTriangle, Zap
+  Flame, Snowflake, Shield, AlertTriangle, Zap, Trophy, BarChart3
 } from "lucide-react";
 
 interface PlayerInfo {
@@ -19,6 +19,12 @@ interface PlayerInfo {
   boostScore?: string | number | null;
   boostReason?: string | null;
   isConfirmedStarter?: boolean;
+  recentActualAvg?: number | null;
+  gamesTracked?: number | null;
+  winLineupCount?: number | null;
+  winLineupTotal?: number | null;
+  winAvgActual?: number | null;
+  winAvgValue?: number | null;
 }
 
 const INJURY_BADGE: Record<string, string> = {
@@ -43,6 +49,16 @@ export function PlayerInfoHoverCard({
   const valuePer1K = player.salary > 0 ? (proj * 1000) / player.salary : 0;
   const boost = Number(player.boostScore) || 0;
   const accentColor = platform === "fanduel" ? "blue" : "emerald";
+
+  const actualAvg = player.recentActualAvg ?? null;
+  const gamesTracked = player.gamesTracked ?? 0;
+  const hasActual = actualAvg !== null && actualAvg > 0;
+  const actualDiff = hasActual ? actualAvg - proj : 0;
+  const actualPct = hasActual && proj > 0 ? ((actualAvg / proj) - 1) * 100 : 0;
+
+  const winCount = player.winLineupCount ?? 0;
+  const winTotal = player.winLineupTotal ?? 0;
+  const winAvgActual = player.winAvgActual ?? 0;
 
   const boostReasons = player.boostReason
     ? player.boostReason.split("; ").slice(0, 4)
@@ -98,7 +114,7 @@ export function PlayerInfoHoverCard({
           )}
         </div>
 
-        <div className="grid grid-cols-4 gap-0 border-b border-slate-800">
+        <div className={`grid ${hasActual ? "grid-cols-5" : "grid-cols-4"} gap-0 border-b border-slate-800`}>
           <div className="p-2.5 text-center border-r border-slate-800/50">
             <div className="text-[10px] font-bold text-slate-500 uppercase mb-0.5">Salary</div>
             <div className="text-sm font-bold text-white">${(player.salary / 1000).toFixed(1)}K</div>
@@ -107,6 +123,14 @@ export function PlayerInfoHoverCard({
             <div className="text-[10px] font-bold text-slate-500 uppercase mb-0.5">Proj</div>
             <div className={`text-sm font-bold text-${accentColor}-400`}>{proj.toFixed(1)}</div>
           </div>
+          {hasActual && (
+            <div className="p-2.5 text-center border-r border-slate-800/50">
+              <div className="text-[10px] font-bold text-slate-500 uppercase mb-0.5">Actual</div>
+              <div className={`text-sm font-bold ${actualDiff >= 0 ? "text-green-400" : "text-red-400"}`}>
+                {actualAvg.toFixed(1)}
+              </div>
+            </div>
+          )}
           <div className="p-2.5 text-center border-r border-slate-800/50">
             <div className="text-[10px] font-bold text-slate-500 uppercase mb-0.5">FPPG</div>
             <div className="text-sm font-bold text-white">{fppg.toFixed(1)}</div>
@@ -118,6 +142,28 @@ export function PlayerInfoHoverCard({
             </div>
           </div>
         </div>
+
+        {hasActual && (
+          <div className="px-3 py-2 border-b border-slate-800 flex items-center gap-2">
+            <BarChart3 className="w-3.5 h-3.5 text-slate-400" />
+            <span className="text-[11px] font-bold text-slate-400">Actual vs Proj:</span>
+            <span className={`text-[11px] font-black ${actualDiff >= 0 ? "text-green-400" : "text-red-400"}`}>
+              {actualDiff >= 0 ? "+" : ""}{actualDiff.toFixed(1)} pts ({actualPct >= 0 ? "+" : ""}{actualPct.toFixed(0)}%)
+            </span>
+            <span className="text-[10px] text-slate-500 ml-auto">{gamesTracked} game{gamesTracked !== 1 ? "s" : ""}</span>
+          </div>
+        )}
+
+        {winCount >= 1 && (
+          <div className="px-3 py-2 border-b border-slate-800 flex items-center gap-2">
+            <Trophy className="w-3.5 h-3.5 text-amber-400" />
+            <span className="text-[11px] font-bold text-slate-400">Win Agent:</span>
+            <span className="text-[11px] font-black text-amber-400">
+              {winCount}/{winTotal} lineups
+            </span>
+            <span className="text-[10px] text-slate-500">avg {winAvgActual.toFixed(1)} pts</span>
+          </div>
+        )}
 
         {boost !== 0 && (
           <div className="px-3 py-2 border-b border-slate-800 flex items-center gap-2">
@@ -150,7 +196,7 @@ export function PlayerInfoHoverCard({
           </div>
         )}
 
-        {boostReasons.length === 0 && boost === 0 && (
+        {boostReasons.length === 0 && boost === 0 && !hasActual && winCount === 0 && (
           <div className="px-3 py-2">
             <span className="text-[11px] text-slate-500 italic">No boost data available</span>
           </div>
