@@ -357,6 +357,48 @@ export async function computeBoostScores(
       }
     }
 
+    const playerHist2 = historyByName.get(player.name);
+    if (playerHist2 && playerHist2.length >= 3) {
+      const withActuals = playerHist2.filter(h => h.actualPoints != null && Number(h.actualPoints) > 0);
+      if (withActuals.length >= 3) {
+        const ratios = withActuals.slice(0, 10).map(h => Number(h.actualPoints!) / Math.max(1, Number(h.projectedPoints)));
+        const avgRatio = ratios.reduce((a, b) => a + b, 0) / ratios.length;
+        const beatsProjection = ratios.filter(r => r > 1.0).length;
+        const underProjection = ratios.filter(r => r < 0.9).length;
+        const consistency = beatsProjection / ratios.length;
+
+        if (avgRatio >= 1.15 && consistency >= 0.6) {
+          const accuracyBoost = Math.min(3.0, (avgRatio - 1) * 6);
+          totalBoost += accuracyBoost;
+          reasons.push(`Consistent outperformer: actual ${((avgRatio - 1) * 100).toFixed(0)}% above projection over ${withActuals.length} games (beat proj ${beatsProjection}/${ratios.length} times)`);
+        } else if (avgRatio >= 1.05 && consistency >= 0.5) {
+          const accuracyBoost = Math.min(1.5, (avgRatio - 1) * 5);
+          totalBoost += accuracyBoost;
+          reasons.push(`Above-projection trend: actual +${((avgRatio - 1) * 100).toFixed(0)}% vs proj over ${withActuals.length} games (beat proj ${beatsProjection}/${ratios.length})`);
+        } else if (avgRatio <= 0.85 && underProjection >= Math.ceil(ratios.length * 0.6)) {
+          const accuracyPenalty = Math.max(-2.5, (avgRatio - 1) * 5);
+          totalBoost += accuracyPenalty;
+          reasons.push(`Consistent underperformer: actual ${((1 - avgRatio) * 100).toFixed(0)}% below projection over ${withActuals.length} games (missed proj ${underProjection}/${ratios.length} times)`);
+        } else if (avgRatio <= 0.92 && underProjection >= Math.ceil(ratios.length * 0.5)) {
+          const accuracyPenalty = Math.max(-1.5, (avgRatio - 1) * 4);
+          totalBoost += accuracyPenalty;
+          reasons.push(`Below-projection trend: actual -${((1 - avgRatio) * 100).toFixed(0)}% vs proj over ${withActuals.length} games (missed proj ${underProjection}/${ratios.length})`);
+        }
+
+        if (withActuals.length >= 5) {
+          const recentActuals = withActuals.slice(0, 5).map(h => Number(h.actualPoints!));
+          const recentActualAvg = recentActuals.reduce((a, b) => a + b, 0) / recentActuals.length;
+          if (recentActualAvg > proj * 1.12) {
+            totalBoost += 1.0;
+            reasons.push(`Hot actual form: avg ${recentActualAvg.toFixed(1)} actual pts over last 5 games vs ${proj.toFixed(1)} projected — trending above expectations`);
+          } else if (recentActualAvg < proj * 0.80) {
+            totalBoost -= 0.8;
+            reasons.push(`Cold actual form: avg ${recentActualAvg.toFixed(1)} actual pts over last 5 games vs ${proj.toFixed(1)} projected — underperforming recently`);
+          }
+        }
+      }
+    }
+
     if (player.opponent) {
       if (projRank <= Math.ceil(posCount * 0.15) && posCount >= 5) {
         reasons.push(`Favorable spot vs ${player.opponent}: top ${Math.ceil((projRank / posCount) * 100)}% projection at ${primary}`);
@@ -540,5 +582,49 @@ export function applyLeverageMode(
 
     leverageMultiplier = Math.max(0.7, Math.min(1.15, leverageMultiplier));
     return { ...p, projectedPoints: (proj * leverageMultiplier).toString() };
+  });
+}
+
+export async function applyActualAdjustedProjections(
+  players: Player[],
+  sport: string
+): Promise<Player[]> {
+  if (players.length === 0) return players;
+
+  const history = await storage.getPlayerHistoryBySport(sport, 5000);
+  const historyByName = new Map<string, PlayerHistory[]>();
+  for (const h of history) {
+    const existing = historyByName.get(h.playerName) || [];
+    existing.push(h);
+    historyByName.set(h.playerName, existing);
+  }
+
+  return players.map(p => {
+    const proj = Number(p.projectedPoints);
+    if (proj <= 0) return p;
+
+    const hist = historyByName.get(p.name);
+    if (!hist || hist.length < 3) return p;
+
+    const withActuals = hist
+      .filter(h => h.actualPoints != null && Number(h.actualPoints) > 0)
+      .slice(0, 10);
+
+    if (withActuals.length < 3) return p;
+
+    const recencyWeights = withActuals.map((_, i) => Math.pow(0.85, i));
+    const totalWeight = recencyWeights.reduce((a, b) => a + b, 0);
+    const weightedActualAvg = withActuals.reduce((sum, h, i) =>
+      sum + Number(h.actualPoints!) * recencyWeights[i], 0
+    ) / totalWeight;
+
+    const gamesPlayed = withActuals.length;
+    const blendWeight = Math.min(0.40, 0.15 + (gamesPlayed - 3) * 0.035);
+
+    const adjustedProj = proj * (1 - blendWeight) + weightedActualAvg * blendWeight;
+    const capped = Math.max(proj * 0.75, Math.min(proj * 1.30, adjustedProj));
+    const rounded = Math.round(capped * 10) / 10;
+
+    return { ...p, projectedPoints: rounded.toString() };
   });
 }

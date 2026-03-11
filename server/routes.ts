@@ -9,7 +9,7 @@ import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import solver from "javascript-lp-solver";
 import { getPlatformConfig, ACTIVE_SPORTS, assignPlayersToSlots, type Platform } from "@shared/platform-config";
-import { computeBoostScores, computeCorrelationBonus, applyCeilingMode, applyLeverageMode } from "./boost-engine";
+import { computeBoostScores, computeCorrelationBonus, applyCeilingMode, applyLeverageMode, applyActualAdjustedProjections } from "./boost-engine";
 import { getHistoricalProfile, applyHistoricalAdjustments } from "./historical-adjustments";
 
 function getSessionUserId(req: Request): string | null {
@@ -367,7 +367,7 @@ export async function registerRoutes(
         .filter(id => !mergedLocked.includes(id));
       const mergedExclusions = [...new Set([...constraints.excludedPlayerIds, ...autoExcluded, ...inactiveExcluded, ...overrideExcluded])];
 
-      const pool = allPlayers.map(p => {
+      let pool = allPlayers.map(p => {
         const override = overrideMap.get(p.id);
         const customProj = constraints.playerProjections?.[p.id.toString()]
           ?? (override?.customProjection != null ? Number(override.customProjection) : undefined);
@@ -382,6 +382,8 @@ export async function registerRoutes(
         else if (p.injuryStatus === "Probable") proj = proj * 0.9;
         return { ...p, projectedPoints: proj.toString() };
       });
+
+      pool = await applyActualAdjustedProjections(pool, slate.sport);
 
       const salaryFilteredPool = (constraints.playerMinSalary || constraints.playerMaxSalary)
         ? pool.filter(p => {
@@ -716,6 +718,8 @@ export async function registerRoutes(
           else if (p.injuryStatus === "Probable") pts *= 0.9;
           return { ...p, projectedPoints: pts.toString() };
         });
+
+        pool = await applyActualAdjustedProjections(pool, slate.sport);
 
         const regenProfile = await getHistoricalProfile(slate.sport);
         if (regenProfile.ready) {
@@ -2190,6 +2194,8 @@ export async function registerRoutes(
 
         return { ...p, projectedPoints: boostedPoints.toString() };
       });
+
+      pool = await applyActualAdjustedProjections(pool, slate.sport);
 
       const historicalProfile = await getHistoricalProfile(slate.sport);
       if (historicalProfile.ready) {
