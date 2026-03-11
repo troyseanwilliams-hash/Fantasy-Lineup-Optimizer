@@ -77,6 +77,7 @@ export interface IStorage extends IAuthStorage {
   cleanOldPlayerHistory(daysToKeep: number): Promise<number>;
   updatePlayerHistoryActualPoints(sport: string, slateDate: string, playerName: string, actualPoints: string): Promise<void>;
   batchUpdatePlayerHistoryActualPoints(sport: string, slateDate: string, updates: Array<{ playerName: string; actualPoints: string }>): Promise<void>;
+  getZeroPointPlayerNames(sport: string, minAppearances?: number): Promise<string[]>;
 
   createWinningLineup(data: InsertWinningLineup): Promise<WinningLineup>;
   getWinningLineups(sport?: string, limit?: number): Promise<WinningLineup[]>;
@@ -564,6 +565,26 @@ export class DatabaseStorage implements IStorage {
           ))
       ));
     }
+  }
+
+  async getZeroPointPlayerNames(sport: string, minAppearances = 2): Promise<string[]> {
+    const results = await db.execute(sql`
+      WITH ranked AS (
+        SELECT player_name, actual_points, projected_points,
+          ROW_NUMBER() OVER (PARTITION BY player_name ORDER BY slate_date DESC) as rn
+        FROM player_history
+        WHERE sport = ${sport}
+          AND CAST(projected_points AS NUMERIC) > 0
+      )
+      SELECT player_name
+      FROM ranked
+      WHERE rn <= 5
+      GROUP BY player_name
+      HAVING COUNT(*) >= ${minAppearances}
+        AND SUM(CASE WHEN actual_points IS NOT NULL AND CAST(actual_points AS NUMERIC) > 1 THEN 1 ELSE 0 END) = 0
+        AND SUM(CASE WHEN actual_points IS NOT NULL THEN 1 ELSE 0 END) >= 1
+    `);
+    return (results.rows as Array<{ player_name: string }>).map(r => r.player_name);
   }
 
   async createWinningLineup(data: InsertWinningLineup): Promise<WinningLineup> {
