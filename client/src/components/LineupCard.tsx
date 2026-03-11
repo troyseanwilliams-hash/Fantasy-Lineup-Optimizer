@@ -1,6 +1,7 @@
 import { type Player, type OptimizeResponse } from "@shared/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { Zap } from "lucide-react";
+import { PlayerInfoHoverCard } from "@/components/PlayerInfoHoverCard";
 
 interface LineupCardProps {
   lineup: OptimizeResponse | any;
@@ -39,10 +40,12 @@ export function LineupCard({ lineup, playersMap, onDelete, index }: LineupCardPr
                 <div className="w-7 h-7 rounded bg-slate-800 flex items-center justify-center text-[11px] font-black text-slate-400 border border-slate-700">
                   {player.position}
                 </div>
-                <div>
-                  <div className="text-xs font-bold text-slate-200">{player.name}</div>
-                  <div className="text-[11px] text-slate-400 font-bold uppercase">{player.team}</div>
-                </div>
+                <PlayerInfoHoverCard player={player}>
+                  <div className="cursor-pointer">
+                    <div className="text-xs font-bold text-slate-200 hover:underline decoration-dotted underline-offset-2">{player.name}</div>
+                    <div className="text-[11px] text-slate-400 font-bold uppercase">{player.team}</div>
+                  </div>
+                </PlayerInfoHoverCard>
               </div>
               <div className="text-right">
                 <div className="text-[11px] font-bold text-slate-300">{player.projectedPoints}</div>
