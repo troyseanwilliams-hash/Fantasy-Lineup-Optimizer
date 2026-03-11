@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
+import { PlayerHistoryCard } from "@/components/PlayerHistoryCard";
 import {
   Lock, Unlock, X, Zap, RefreshCw, Save, Search,
   ChevronDown, ChevronUp, ArrowUpDown, Heart, Loader2,
@@ -792,7 +793,11 @@ export default function Optimizer() {
                     </td>
                     <td className="px-3 py-2">
                       <div className={`font-bold text-sm text-white transition-colors ${platform === "fanduel" ? "group-hover:text-blue-400" : "group-hover:text-emerald-400"}`}>
-                        {player.name}
+                        {sport === "NBA" ? (
+                          <PlayerHistoryCard playerName={player.name} sport={sport}>
+                            <span className="cursor-default">{player.name}</span>
+                          </PlayerHistoryCard>
+                        ) : player.name}
                         {player.isConfirmedStarter && (
                           <Badge variant="outline" className="ml-2 text-[9px] font-bold py-0 px-1.5 border-emerald-500/50 text-emerald-400 bg-emerald-500/10" data-testid={`starter-badge-${player.id}`}>
                             STARTER

@@ -2385,6 +2385,19 @@ export async function registerRoutes(
     res.sendStatus(204);
   });
 
+  app.get("/api/players/:name/history", async (req, res) => {
+    try {
+      const sport = (req.query.sport as string || "NBA").toUpperCase();
+      const playerName = decodeURIComponent(req.params.name);
+      const limit = Math.max(1, Math.min(Number(req.query.limit) || 5, 10));
+      const history = await storage.getPlayerHistoryByName(playerName, sport, limit);
+      res.json(history);
+    } catch (err) {
+      console.error("Player history error:", err);
+      res.status(500).json({ message: "Failed to fetch player history" });
+    }
+  });
+
   app.get("/api/props", async (req, res) => {
     const validSports = ACTIVE_SPORTS as readonly string[];
     const rawSport = req.query.sport as string | undefined;
