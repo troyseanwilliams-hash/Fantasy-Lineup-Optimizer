@@ -181,23 +181,74 @@ app.use((req, res, next) => {
 
           try {
             const { analyzeCompletedSlate } = await import("./winning-lineup-agent");
+            const { fetchDraftables } = await import("./balldontlie");
+            const { db } = await import("./db");
+            const { winningLineups, playerHistory } = await import("@shared/schema");
+            const { eq, and } = await import("drizzle-orm");
+
             const existingWL = await storage.getWinningLineupBySlateDate("NBA", "2026-03-09");
             if (existingWL) {
               const players = existingWL.playerData as any[];
               const names = players?.map((p: any) => p.name) || [];
               const hasDupes = names.length !== new Set(names).size;
               if (hasDupes) {
-                const { db } = await import("./db");
-                const { winningLineups } = await import("@shared/schema");
-                const { eq } = await import("drizzle-orm");
                 await db.delete(winningLineups).where(eq(winningLineups.id, existingWL.id));
                 log("Deleted duplicate-player NBA 3/9 winning lineup for re-analysis", "cron");
                 const result = await analyzeCompletedSlate("NBA", "2026-03-09");
                 log(`Re-analyzed NBA 3/9: ${result.message}`, "cron");
               }
             }
+
+            const backfillTasks = [
+              { sport: "NBA", date: "2026-03-10", draftGroupId: 143552 },
+              { sport: "NHL", date: "2026-03-10", draftGroupId: null },
+              { sport: "SOCCER", date: "2026-03-10", draftGroupId: null },
+              { sport: "NFL", date: "2026-03-10", draftGroupId: null },
+            ];
+
+            for (const task of backfillTasks) {
+              try {
+                const existingWL310 = await storage.getWinningLineupBySlateDate(task.sport, task.date);
+                if (existingWL310) continue;
+
+                if (task.draftGroupId) {
+                  const existing = await storage.getPlayerHistoryBySport(task.sport, 10000);
+                  const existingForDate = existing.filter(h => h.slateDate === task.date);
+                  if (existingForDate.length === 0) {
+                    const draftables = await fetchDraftables(task.draftGroupId);
+                    const FPPG_IDS = [219, 90, 341, 745];
+                    const records = draftables
+                      .filter((d: any) => d.displayName && (d.salary > 0 || d.draftStatAttributes?.length > 0))
+                      .map((d: any) => {
+                        let fppg = "0";
+                        for (const fid of FPPG_IDS) {
+                          const attr = d.draftStatAttributes?.find((a: any) => a.id === fid);
+                          if (attr?.value && attr.value !== "-" && !isNaN(parseFloat(attr.value))) { fppg = attr.value; break; }
+                        }
+                        const salary = d.salary || Math.round(parseFloat(fppg) * 200);
+                        return {
+                          playerName: d.displayName, team: d.teamAbbreviation || "", sport: task.sport,
+                          position: d.position || "", salary,
+                          projectedPoints: fppg !== "0" ? fppg : String(salary / 1000),
+                          slateDate: task.date, slateId: null, draftKingsPlayerId: d.draftableId || null,
+                        };
+                      })
+                      .filter((d: any) => d.salary > 0);
+                    if (records.length > 0) {
+                      await storage.bulkInsertPlayerHistory(records);
+                      log(`Backfilled ${records.length} ${task.sport} ${task.date} player history records`, "cron");
+                    }
+                  }
+                }
+
+                const result = await analyzeCompletedSlate(task.sport, task.date);
+                if (result.success) log(`Startup analyzed ${task.sport} ${task.date}: ${result.message}`, "cron");
+              } catch (err) {
+                console.error(`Startup ${task.sport} ${task.date} analysis failed:`, err);
+              }
+            }
           } catch (err) {
-            console.error("NBA 3/9 re-analysis failed:", err);
+            console.error("Startup winning lineup fixes failed:", err);
           }
 
           await seedDatabase();
