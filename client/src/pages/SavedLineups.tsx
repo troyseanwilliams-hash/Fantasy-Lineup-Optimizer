@@ -1002,7 +1002,10 @@ function ReviewRosterTable({
 }) {
   const config = getPlatformConfig(sport, platform as any);
   const slotAssignments = assignPlayersToSlots(players, config.slots, sport);
-  const accentColor = isWinner ? "text-amber-400" : "text-emerald-400";
+  const isFD = platform === "fanduel";
+  const accentColor = isWinner ? "text-amber-400" : (isFD ? "text-blue-400" : "text-emerald-400");
+  const barColor = isWinner ? "bg-amber-500" : (isFD ? "bg-blue-500" : "bg-emerald-500");
+  const maxProj = Math.max(...players.map((p: Player) => Number(p.projectedPoints) || 0), 1);
 
   return (
     <div className="overflow-x-auto">
@@ -1014,7 +1017,7 @@ function ReviewRosterTable({
             <th className="text-left py-2 pr-4 w-16">Pos</th>
             <th className="text-left py-2 pr-4 w-16">Team</th>
             <th className="text-right py-2 pr-4 w-24">Salary</th>
-            <th className="text-right py-2 pr-4 w-20">Proj</th>
+            <th className="text-right py-2 pr-4 w-40">Proj</th>
           </tr>
         </thead>
         <tbody>
@@ -1027,14 +1030,38 @@ function ReviewRosterTable({
                     {getSlotDisplayName(slot)}
                   </span>
                 </td>
-                <td className="py-2 pr-4 text-sm font-semibold text-white">{player?.name || "—"}</td>
+                <td className="py-2 pr-4">
+                  {player ? (
+                    <PlayerInfoHoverCard player={player} platform={platform}>
+                      <span className="text-sm font-semibold text-white cursor-pointer hover:underline decoration-dotted underline-offset-2">{player.name}</span>
+                    </PlayerInfoHoverCard>
+                  ) : (
+                    <span className="text-sm text-slate-500">—</span>
+                  )}
+                </td>
                 <td className="py-2 pr-4 text-xs text-slate-400">{player?.position || "—"}</td>
                 <td className="py-2 pr-4 text-xs text-slate-400">{player?.team || "—"}</td>
                 <td className="py-2 pr-4 text-right text-sm font-medium text-white">
                   {player ? `$${player.salary.toLocaleString()}` : "—"}
                 </td>
-                <td className={`py-2 pr-4 text-right text-sm font-semibold ${accentColor}`}>
-                  {player ? Number(player.projectedPoints).toFixed(1) : "—"}
+                <td className="py-2 pr-4">
+                  {player ? (
+                    <div className="flex items-center gap-2 justify-end">
+                      <div className="w-20 hidden sm:block">
+                        <div className="w-full bg-slate-700/40 rounded-full h-2 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${barColor}`}
+                            style={{ width: `${Math.min((Number(player.projectedPoints) / maxProj) * 100, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                      <span className={`text-sm font-semibold tabular-nums ${accentColor}`}>
+                        {Number(player.projectedPoints).toFixed(1)}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-right block text-sm text-slate-500">—</span>
+                  )}
                 </td>
               </tr>
             );
