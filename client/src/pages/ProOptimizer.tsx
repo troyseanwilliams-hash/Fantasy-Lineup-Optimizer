@@ -23,6 +23,7 @@ import {
   Trophy, Flame, Award, BarChart3, Users, Percent, ArrowLeftRight, Plus
 } from "lucide-react";
 import { gradeLineup, GRADE_COLORS } from "@/lib/lineup-grader";
+import { PlayerInfoHoverCard } from "@/components/PlayerInfoHoverCard";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "boostedProj" | "ownershipProjection";
 type SortDir = "asc" | "desc";
@@ -1813,7 +1814,9 @@ export default function ProOptimizer() {
                                 <span className={`font-black w-8 text-right ${isSwapping ? "text-amber-400" : "text-amber-400/70"}`}>{getSlotDisplayName(slot)}</span>
                                 {p ? (
                                   <>
-                                    <span className={`font-bold flex-1 truncate ${fadedIds.includes(p.id) ? "text-purple-300" : "text-white"}`}>{p.name}</span>
+                                    <PlayerInfoHoverCard player={p} platform={platform}>
+                                      <span className={`font-bold flex-1 truncate cursor-pointer hover:underline decoration-dotted underline-offset-2 ${fadedIds.includes(p.id) ? "text-purple-300" : "text-white"}`}>{p.name}</span>
+                                    </PlayerInfoHoverCard>
                                     <PlayerStarRating stars={getPlayerStarCount(Number(p.projectedPoints))} />
                                     <span className="text-slate-400 font-mono">${p.salary.toLocaleString()}</span>
                                     {hasPaidAccess && <span className="text-purple-400/70 font-mono text-[10px] w-10 text-right">{((p as any).ownershipProjection ?? 0).toFixed(0)}%</span>}

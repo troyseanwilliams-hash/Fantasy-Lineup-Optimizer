@@ -19,6 +19,7 @@ import {
   Trophy, Star, MapPin, Users, Flame, Award, Rocket, ArrowLeftRight
 } from "lucide-react";
 import { gradeLineup, GRADE_COLORS } from "@/lib/lineup-grader";
+import { PlayerInfoHoverCard } from "@/components/PlayerInfoHoverCard";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "fppg" | "value";
 type SortDir = "asc" | "desc";
@@ -1197,14 +1198,16 @@ export default function Optimizer() {
                 </div>
                 {player ? (
                   <div className="flex-1 flex items-center justify-between px-3 py-2">
-                    <div>
-                      <div className="text-sm font-bold text-white">{player.name}</div>
-                      <div className="flex items-center gap-2 text-[11px] text-slate-400 font-bold uppercase">
-                        <span>{player.team}</span>
-                        <span>vs {player.opponent}</span>
-                        <span className={`${platform === "fanduel" ? "text-blue-400/60" : "text-emerald-400/60"}`}>{player.position}</span>
+                    <PlayerInfoHoverCard player={player} platform={platform}>
+                      <div className="cursor-pointer">
+                        <div className="text-sm font-bold text-white hover:underline decoration-dotted underline-offset-2">{player.name}</div>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-400 font-bold uppercase">
+                          <span>{player.team}</span>
+                          <span>vs {player.opponent}</span>
+                          <span className={`${platform === "fanduel" ? "text-blue-400/60" : "text-emerald-400/60"}`}>{player.position}</span>
+                        </div>
                       </div>
-                    </div>
+                    </PlayerInfoHoverCard>
                     <div className="flex items-center gap-2">
                       <div className="text-right">
                         <div className={`text-sm font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>{Number(player.projectedPoints).toFixed(1)}</div>

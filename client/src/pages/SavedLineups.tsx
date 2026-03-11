@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { getPlatformConfig, assignPlayersToSlots, getSlotDisplayName, positionFitsSlot } from "@shared/platform-config";
 import type { Player } from "@shared/schema";
+import { PlayerInfoHoverCard } from "@/components/PlayerInfoHoverCard";
 
 type VaultSortKey = "newest" | "oldest" | "projection_high" | "projection_low" | "ownership_high" | "ownership_low" | "salary_high" | "salary_low" | "grade_high" | "grade_low";
 type VaultTab = "active" | "review";
@@ -1340,7 +1341,13 @@ function ExpandedRoster({
                     </span>
                   </td>
                   <td className="py-3 pr-4">
-                    <span className="text-sm font-semibold text-white">{player?.name || "—"}</span>
+                    {player ? (
+                      <PlayerInfoHoverCard player={player} platform={lineup.platform}>
+                        <span className="text-sm font-semibold text-white cursor-pointer hover:underline decoration-dotted underline-offset-2">{player.name}</span>
+                      </PlayerInfoHoverCard>
+                    ) : (
+                      <span className="text-sm text-slate-500">—</span>
+                    )}
                   </td>
                   <td className="py-3 pr-4 text-xs text-slate-400">{player?.position || "—"}</td>
                   <td className="py-3 pr-4 text-xs text-slate-400">{player?.team || "—"}</td>
