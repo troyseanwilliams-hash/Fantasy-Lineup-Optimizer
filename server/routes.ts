@@ -811,6 +811,7 @@ export async function registerRoutes(
     const playerAppearances: Record<number, number> = {};
     const totalCount = ids.length;
     const globalMaxExposure = typeof req.body.globalMaxExposure === "number" ? req.body.globalMaxExposure : 80;
+    const projFloor = typeof req.body.projFloor === "number" && req.body.projFloor > 0 ? req.body.projFloor : null;
 
     for (const id of ids) {
       const lineup = await storage.getLineup(Number(id));
@@ -934,11 +935,6 @@ export async function registerRoutes(
 
         const lineupKey = solveResult.lineup.map((p: any) => p.id).sort((a: number, b: number) => a - b).join(",");
         if (usedLineupKeys.has(lineupKey)) continue;
-        usedLineupKeys.add(lineupKey);
-
-        for (const p of solveResult.lineup as Player[]) {
-          playerAppearances[p.id] = (playerAppearances[p.id] || 0) + 1;
-        }
 
         const playerIds = solveResult.lineup.map((p: any) => p.id);
         const { allPlayers: origPlayers } = cached;
@@ -955,6 +951,14 @@ export async function registerRoutes(
         });
 
         const origTotalPts = playerSnapshot.reduce((sum: number, p: any) => sum + Number(p.projectedPoints), 0);
+
+        if (projFloor && origTotalPts < projFloor) continue;
+
+        usedLineupKeys.add(lineupKey);
+
+        for (const p of solveResult.lineup as Player[]) {
+          playerAppearances[p.id] = (playerAppearances[p.id] || 0) + 1;
+        }
         const correlationScore = computeCorrelationBonus(solveResult.lineup as Player[], slate.sport);
 
         await storage.updateLineup(Number(id), {
