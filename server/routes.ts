@@ -9,7 +9,7 @@ import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import solver from "javascript-lp-solver";
 import { getPlatformConfig, ACTIVE_SPORTS, assignPlayersToSlots, type Platform } from "@shared/platform-config";
-import { computeBoostScores, computeCorrelationBonus, applyCeilingMode, applyLeverageMode, applyActualAdjustedProjections } from "./boost-engine";
+import { computeBoostScores, computeCorrelationBonus, applyCeilingMode, applyLeverageMode, applyActualAdjustedProjections, applyWinningLineupAdjustment } from "./boost-engine";
 import { getHistoricalProfile, applyHistoricalAdjustments } from "./historical-adjustments";
 
 function getSessionUserId(req: Request): string | null {
@@ -385,6 +385,7 @@ export async function registerRoutes(
       });
 
       pool = await applyActualAdjustedProjections(pool, slate.sport);
+      pool = await applyWinningLineupAdjustment(pool, slate.sport);
 
       const salaryFilteredPool = (constraints.playerMinSalary || constraints.playerMaxSalary)
         ? pool.filter(p => {
@@ -721,6 +722,7 @@ export async function registerRoutes(
         });
 
         pool = await applyActualAdjustedProjections(pool, slate.sport);
+        pool = await applyWinningLineupAdjustment(pool, slate.sport);
 
         const regenProfile = await getHistoricalProfile(slate.sport);
         if (regenProfile.ready) {
@@ -2210,6 +2212,7 @@ export async function registerRoutes(
       });
 
       pool = await applyActualAdjustedProjections(pool, slate.sport);
+      pool = await applyWinningLineupAdjustment(pool, slate.sport);
 
       const historicalProfile = await getHistoricalProfile(slate.sport);
       if (historicalProfile.ready) {
