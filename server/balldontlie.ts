@@ -237,14 +237,42 @@ async function findMainSlate(sport: string): Promise<DKDraftGroup | null> {
     const validTypes = CLASSIC_GAME_TYPES[sport] || [70];
 
     const classics = data.DraftGroups
-      .filter(g => validTypes.includes(g.GameTypeId))
-      .sort((a, b) => b.GameCount - a.GameCount);
+      .filter(g => validTypes.includes(g.GameTypeId));
 
-    if (classics.length > 0) return classics[0];
+    if (classics.length === 0) {
+      const fallback = data.DraftGroups
+        .sort((a, b) => b.GameCount - a.GameCount);
+      return fallback[0] || null;
+    }
 
-    const fallback = data.DraftGroups
-      .sort((a, b) => b.GameCount - a.GameCount);
-    return fallback[0] || null;
+    const todayET = getEasternToday();
+    const todaySlates = classics.filter(g => {
+      const startET = parseEasternTime(g.StartDateEst);
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        year: "numeric", month: "2-digit", day: "2-digit",
+      });
+      const parts = formatter.formatToParts(startET);
+      const getP = (t: string) => parts.find(p => p.type === t)?.value || "01";
+      const slateDay = `${getP("year")}-${getP("month")}-${getP("day")}`;
+      return slateDay === todayET;
+    });
+
+    if (todaySlates.length > 0) {
+      todaySlates.sort((a, b) => b.GameCount - a.GameCount);
+      return todaySlates[0];
+    }
+
+    const now = Date.now();
+    const futureClassics = classics.filter(g => parseEasternTime(g.StartDateEst).getTime() > now - 3 * 3600000);
+    const pool = futureClassics.length > 0 ? futureClassics : classics;
+    pool.sort((a, b) => {
+      const aTime = parseEasternTime(a.StartDateEst).getTime();
+      const bTime = parseEasternTime(b.StartDateEst).getTime();
+      if (aTime !== bTime) return aTime - bTime;
+      return b.GameCount - a.GameCount;
+    });
+    return pool[0];
   } catch (err) {
     console.error(`[DK] Error finding ${sport} slate:`, err);
     return null;
