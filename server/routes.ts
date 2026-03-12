@@ -3118,15 +3118,56 @@ export async function seedDatabase(forceRefresh = false) {
     );
 
     const now = new Date();
-    const isStale = existingSlate && new Date(existingSlate.startTime) < now;
+    let isStale = false;
+    if (existingSlate) {
+      const slatePlayers = await storage.getPlayersBySlate(existingSlate.id);
+      let latestGameStart = new Date(existingSlate.startTime);
+
+      const slateStartET = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        year: "numeric", month: "2-digit", day: "2-digit",
+      }).format(new Date(existingSlate.startTime));
+      const [sMonth, sDay, sYear] = slateStartET.split("/");
+      const slateDateStr = `${sYear}-${sMonth}-${sDay}`;
+
+      for (const p of slatePlayers) {
+        if (p.gameInfo) {
+          const timeMatch = p.gameInfo.match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s*ET/i);
+          if (timeMatch) {
+            const [, hourStr, minStr, ampm] = timeMatch;
+            let hour = parseInt(hourStr);
+            if (ampm.toUpperCase() === "PM" && hour !== 12) hour += 12;
+            if (ampm.toUpperCase() === "AM" && hour === 12) hour = 0;
+            const gameET = parseEasternTime(`${slateDateStr}T${String(hour).padStart(2, "0")}:${minStr}:00`);
+            if (gameET > latestGameStart) latestGameStart = gameET;
+          }
+        }
+      }
+
+      const STALE_BUFFER_MS = 3 * 3600000;
+      isStale = (latestGameStart.getTime() + STALE_BUFFER_MS) < now.getTime();
+      if (!isStale && new Date(existingSlate.startTime) < now) {
+        console.log(`[DK] ${seed.sport} slate still active — last game at ${latestGameStart.toISOString()}, not stale until ${new Date(latestGameStart.getTime() + STALE_BUFFER_MS).toISOString()}`);
+      }
+    }
     const draftGroupChanged = existingSlate && seed.draftGroupId && existingSlate.draftGroupId !== seed.draftGroupId;
 
-    if (isStale || draftGroupChanged) {
+    if (draftGroupChanged && !isStale) {
+      console.log(`[DK] ${seed.sport} draft group changed (${existingSlate!.draftGroupId} → ${seed.draftGroupId}) but current slate still active — skipping replacement`);
+    }
+
+    const shouldReplace = isStale || (draftGroupChanged && isStale);
+
+    if (shouldReplace) {
       await storage.deleteSlateAndPlayers(existingSlate!.id);
       console.log(`[DK] Removed ${draftGroupChanged ? "outdated" : "stale"} ${seed.sport} slate (DG ${existingSlate!.draftGroupId} → ${seed.draftGroupId})`);
     }
 
-    const slateWasRemoved = (isStale || draftGroupChanged) && existingSlate;
+    if (existingSlate && !shouldReplace) {
+      continue;
+    }
+
+    const slateWasRemoved = shouldReplace && existingSlate;
     const staleSlateStillExists = slateWasRemoved && (await storage.getSlate(existingSlate?.id as number)) !== undefined;
 
     if (staleSlateStillExists) {
@@ -3140,7 +3181,7 @@ export async function seedDatabase(forceRefresh = false) {
         seed.dkPlayers.map((p: any) => ({ ...p, slateId: existingSlate!.id })) as any
       );
       console.log(`[DK] Repopulated stale ${seed.sport} slate ${existingSlate!.id} with ${createdPlayers.length} players`);
-    } else if (!existingSlate || isStale || draftGroupChanged) {
+    } else if (!existingSlate || shouldReplace) {
       const dkSlate = await storage.createSlate({
         sport: seed.sport,
         platform: "draftkings",
