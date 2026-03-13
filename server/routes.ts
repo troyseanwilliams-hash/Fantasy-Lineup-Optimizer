@@ -3119,8 +3119,10 @@ export async function seedDatabase(forceRefresh = false) {
 
     const now = new Date();
     let isStale = false;
+    let existingPlayerCount = 0;
     if (existingSlate) {
       const slatePlayers = await storage.getPlayersBySlate(existingSlate.id);
+      existingPlayerCount = slatePlayers.length;
       let latestGameStart = new Date(existingSlate.startTime);
 
       const slateStartET = new Intl.DateTimeFormat("en-US", {
@@ -3163,7 +3165,40 @@ export async function seedDatabase(forceRefresh = false) {
       console.log(`[DK] Removed ${draftGroupChanged ? "outdated" : "stale"} ${seed.sport} slate (DG ${existingSlate!.draftGroupId} → ${seed.draftGroupId})`);
     }
 
-    if (existingSlate && !shouldReplace) {
+    if (existingSlate && !shouldReplace && existingPlayerCount > 0) {
+      continue;
+    }
+
+    if (existingSlate && !shouldReplace && existingPlayerCount === 0 && seed.dkPlayers.length > 0) {
+      await storage.deletePlayersBySlate(existingSlate.id);
+      const updatedSlate = await storage.updateSlateData(existingSlate.id, {
+        name: seed.dkSlate.name!,
+        startTime: seed.dkSlate.startTime!,
+        draftGroupId: seed.draftGroupId || null,
+      });
+      const createdPlayers = await storage.bulkCreatePlayers(
+        seed.dkPlayers.map((p: any) => ({ ...p, slateId: existingSlate.id })) as any
+      );
+      console.log(`[DK] Repopulated empty ${seed.sport} slate ${existingSlate.id} with ${createdPlayers.length} players`);
+
+      const today = getEasternToday();
+      try {
+        const historyRecords = createdPlayers.map(p => ({
+          playerName: p.name,
+          team: p.team,
+          sport: seed.sport,
+          position: p.position,
+          salary: p.salary,
+          projectedPoints: p.projectedPoints,
+          slateDate: today,
+          slateId: existingSlate.id,
+          draftKingsPlayerId: p.draftKingsPlayerId,
+        }));
+        await storage.bulkInsertPlayerHistory(historyRecords);
+        console.log(`[History] Saved ${historyRecords.length} ${seed.sport} player snapshots`);
+      } catch (err) {
+        console.error(`[History] Failed to save ${seed.sport} snapshots:`, err);
+      }
       continue;
     }
 
