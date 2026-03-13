@@ -73,6 +73,9 @@ export default function ProOptimizer() {
   const [, params] = useRoute("/optimizer-pro/:id");
   const [, setLocation] = useLocation();
   const { user } = useAuth();
+  // Type-safe accessors — avoids repeated (user as any) casts throughout
+  const userId = (user as any)?.id as string | undefined;
+  const userIsAdmin = (user as any)?.isAdmin === true;
   const { toast } = useToast();
   const slateId = Number(params?.id);
 
@@ -84,7 +87,12 @@ export default function ProOptimizer() {
   const [sortKey, setSortKey] = useState<SortKey>("projectedPoints");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [lineupCount, setLineupCount] = useState(5);
-  const [useBoosts, setUseBoosts] = useState(false);
+  // useBoosts: pro users get boosts on by default; they can still toggle it off.
+  // We use a separate userOverride flag so a pro user's explicit "off" is respected
+  // even after subData refetches — without this, the useEffect would flip it back on.
+  const [useBoostsUserOverride, setUseBoostsUserOverride] = useState<boolean | null>(null);
+  const useBoosts = useBoostsUserOverride !== null ? useBoostsUserOverride : false;
+  const setUseBoosts = (val: boolean) => setUseBoostsUserOverride(val);
   const [fadedIds, setFadedIds] = useState<number[]>([]);
   const [exposureLimits, setExposureLimits] = useState<Record<string, number>>({});
   const [globalMaxExposure, setGlobalMaxExposure] = useState<number | null>(null);
@@ -157,7 +165,7 @@ export default function ProOptimizer() {
       return { ...p, odds: americanOdds > 0 ? `+${americanOdds}` : `${americanOdds}`, impliedProb: (impliedProb * 100).toFixed(0) };
     });
     const valuePicks = [...players].map(p => ({ ...p, value: Number(p.projectedPoints) / (p.salary / 1000) })).sort((a, b) => b.value - a.value).slice(0, 4);
-    const tournamentParts = (players[0]?.gameInfo || "Tournament").split(" - ");
+    const tournamentParts = (players.find(p => p.gameInfo)?.gameInfo || "Tournament").split(" - ");
     return { favorites, valuePicks, tournamentName: tournamentParts[0] || "Tournament", courseName: tournamentParts[1] || "", fieldSize: players.length, avgSalary: Math.round(players.reduce((s, p) => s + p.salary, 0) / players.length) };
   }, [isGolf, players]);
 
@@ -168,25 +176,50 @@ export default function ProOptimizer() {
   const maxLineupSlider = isAdmin ? 150 : isPro ? 20 : 5;
 
   useEffect(() => {
-    if (isPro) {
-      setUseBoosts(true);
+    if (isPro && useBoostsUserOverride === null) {
+      setUseBoostsUserOverride(true);
     }
-  }, [isPro]);
+  }, [isPro, useBoostsUserOverride]);
 
   const optimizeMutation = useMutation<ProOptimizeResponse, Error, any>({
     mutationFn: async (constraints) => {
       const res = await apiRequest("POST", "/api/optimize/pro", constraints);
       return res.json();
     },
+    onSuccess: (data) => {
+      // Warn if server returned lineups that violate the requested exposure limits.
+      // This can happen due to solver rounding or insufficient player pool diversity.
+      if (data?.lineups && (Object.keys(exposureLimits).length > 0 || globalMaxExposure)) {
+        const appearances: Record<number, number> = {};
+        for (const ld of data.lineups) {
+          for (const p of (ld.lineup || [])) {
+            appearances[p.id] = (appearances[p.id] || 0) + 1;
+          }
+        }
+        const violations = Object.entries(appearances).filter(([id, count]) => {
+          const pct = (count / data.lineups.length) * 100;
+          const playerLimit = exposureLimits[id];
+          const effectiveLimit = playerLimit ?? (globalMaxExposure ?? undefined);
+          return effectiveLimit !== undefined && pct > effectiveLimit;
+        });
+        if (violations.length > 0) {
+          toast({
+            title: "Exposure Limits Exceeded",
+            description: `${violations.length} player(s) exceeded their set limits. Try reducing lineup count or tightening exposure settings.`,
+            variant: "destructive",
+          });
+        }
+      }
+    },
   });
 
   useEffect(() => {
-    optimizeMutation.reset();
-    setLineupSwaps({});
-    setSwappingTarget(null);
-    setSavedIndices(new Set());
-    setSalaryRange(null);
-  }, [slateId]);
+    // Call handleReset to ensure ALL state is cleared when slate changes.
+    // Previously fadedIds, lockedIds, excludedIds, exposureLimits, globalMaxExposure,
+    // and useBoostsUserOverride were not cleared — stale player IDs from one slate
+    // could match different players on the new slate.
+    handleReset();
+  }, [slateId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [savedIndices, setSavedIndices] = useState<Set<number>>(new Set());
   const [isSavingAll, setIsSavingAll] = useState(false);
@@ -226,7 +259,13 @@ export default function ProOptimizer() {
       .map(p => {
         const boost = p.boostScore ? Number(p.boostScore) : 0;
         const baseProj = Number(p.projectedPoints);
-        const boostedProj = useBoosts && boost !== 0 ? baseProj + boost : baseProj;
+        // Normalize boostScore to a bounded % adjustment before adding to projection.
+        // boostScore is an arbitrary optimizer weight (can reach ±10+), not a fantasy
+        // point delta. Dividing by 10 and capping at ±30% keeps the display meaningful.
+        const boostAdjPct = Math.max(-0.30, Math.min(0.30, boost / 10));
+        const boostedProj = useBoosts && boost !== 0
+          ? Math.round(baseProj * (1 + boostAdjPct) * 10) / 10
+          : baseProj;
         const isFaded = fadedIds.includes(p.id);
         const own = (p as any).ownershipProjection ?? 0;
         return { ...p, baseProj, boostedProj, boost, isFaded, ownershipProjection: own as number };
@@ -350,8 +389,10 @@ export default function ProOptimizer() {
     const lineupPlayerIds = new Set(lineupPlayers.map(p => p.id));
     const slots = assignPlayersToSlots(lineupPlayers, config.slots, sport);
     const currentPlayer = slots[swappingTarget.slot];
+    // Single slot assignment call — previously called twice redundantly
+    const currentPlayerSalary = slots[swappingTarget.slot]?.salary || 0;
     const lineupSalary = lineupPlayers.reduce((s, p) => s + p.salary, 0);
-    const availableBudget = config.salaryCap - lineupSalary + (currentPlayer?.salary || 0);
+    const availableBudget = config.salaryCap - lineupSalary + currentPlayerSalary;
     return players.filter(p => {
       if (lineupPlayerIds.has(p.id)) return false;
       if (excludedIds.includes(p.id)) return false;
@@ -428,7 +469,7 @@ export default function ProOptimizer() {
     if (!user || savedIndices.has(index)) return;
     const lineupPlayers = lineup.lineup || [];
     saveLineupMutation.mutate({
-      userId: (user as any).id,
+      userId: userId!,
       slateId,
       sport,
       platform,
@@ -454,13 +495,12 @@ export default function ProOptimizer() {
       return;
     }
     setIsSavingAll(true);
-    let successCount = 0;
-    let failCount = 0;
-    for (const { lineup, index } of unsavedLineups) {
-      const lineupPlayers = lineup.lineup || [];
-      try {
-        const res = await apiRequest("POST", "/api/lineups", {
-          userId: (user as any).id,
+    // Fire all saves in parallel — much faster than sequential awaits for 20 lineups.
+    const saveResults = await Promise.allSettled(
+      unsavedLineups.map(({ lineup, index }) => {
+        const lineupPlayers = lineup.lineup || [];
+        return apiRequest("POST", "/api/lineups", {
+          userId: userId!,
           slateId,
           sport,
           platform,
@@ -468,21 +508,33 @@ export default function ProOptimizer() {
           totalProjectedPoints: String(lineup.totalProjectedPoints),
           playerIds: lineupPlayers.map((p: Player) => p.id),
           name: `Optimizer Pro #${index + 1} - ${sport} ${config.shortLabel}`,
-        });
-        if (res.ok) {
-          successCount++;
-          setSavedIndices(prev => new Set(prev).add(index));
-        } else {
-          const err = await res.json();
-          failCount++;
-          if (err.message?.includes("limit") || err.message?.includes("maximum")) {
-            toast({ title: "Vault Limit Reached", description: err.message, variant: "destructive" });
-            break;
+        }).then(async res => {
+          if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.message || "Failed to save");
           }
-        }
-      } catch {
+          return { index };
+        });
+      })
+    );
+    let successCount = 0;
+    let failCount = 0;
+    let vaultLimitMsg: string | null = null;
+    for (let i = 0; i < saveResults.length; i++) {
+      const result = saveResults[i];
+      if (result.status === "fulfilled") {
+        successCount++;
+        setSavedIndices(prev => new Set(prev).add(unsavedLineups[i].index));
+      } else {
         failCount++;
+        const msg = (result as PromiseRejectedResult).reason?.message || "";
+        if ((msg.includes("limit") || msg.includes("maximum")) && !vaultLimitMsg) {
+          vaultLimitMsg = msg;
+        }
       }
+    }
+    if (vaultLimitMsg) {
+      toast({ title: "Vault Limit Reached", description: vaultLimitMsg, variant: "destructive" });
     }
     queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
     queryClient.invalidateQueries({ queryKey: ["/api/subscription"] });
@@ -505,7 +557,7 @@ export default function ProOptimizer() {
       toast({ title: "Export Unavailable", description: "CSV export is only available for DraftKings lineups.", variant: "destructive" });
       return;
     }
-    const config = getPlatformConfig(sport, platform);
+    // Use outer config (from useMemo) — no need to re-call getPlatformConfig here
     const headers = config.slots.map(slot => getSlotDisplayName(slot));
     let missingIdCount = 0;
     const rows = generatedLineups.map(lineupData => {
@@ -548,6 +600,9 @@ export default function ProOptimizer() {
     setGlobalMaxExposure(null);
     setSavedIndices(new Set());
     setSalaryRange(null);
+    setLineupSwaps({});
+    setSwappingTarget(null);
+    setUseBoostsUserOverride(null); // reset to subscription-derived default
     optimizeMutation.reset();
   };
 
@@ -625,8 +680,7 @@ export default function ProOptimizer() {
               onChange={e => {
                 const selectedSlate = sportSlates.find(s => String(s.id) === e.target.value);
                 const userTier = subData?.tier || "free";
-                const isUserAdmin = (user as any)?.isAdmin === true;
-                if (selectedSlate && !selectedSlate.isMain && userTier !== "pro" && !isUserAdmin) {
+                if (selectedSlate && !selectedSlate.isMain && userTier !== "pro" && !userIsAdmin) {
                   toast({ title: "Champion Feature", description: "Additional slates require a Champion subscription. Visit the Pricing page to upgrade.", variant: "destructive" });
                   return;
                 }
@@ -637,8 +691,7 @@ export default function ProOptimizer() {
               {sportSlates.map(s => {
                 const locked = new Date(s.startTime) <= new Date();
                 const userTier = subData?.tier || "free";
-                const isUserAdmin = (user as any)?.isAdmin === true;
-                const isGated = !s.isMain && userTier !== "pro" && !isUserAdmin;
+                const isGated = !s.isMain && userTier !== "pro" && !userIsAdmin;
                 return (
                   <option key={s.id} value={s.id} disabled={isGated}>
                     {s.isMain ? "★ " : ""}{locked ? "🔒 " : ""}{s.platform === "fanduel" ? "FD" : "DK"} - {s.name}{locked ? " (Locked)" : ""}{isGated ? " (CHAMPION)" : ""}
@@ -1876,6 +1929,11 @@ export default function ProOptimizer() {
                               {proSwapEligiblePlayers.length === 0 && (
                                 <div className="text-[11px] text-slate-500 text-center py-2">No eligible replacements within salary cap</div>
                               )}
+                            {proSwapEligiblePlayers.length > 30 && (
+                              <div className="text-[10px] text-slate-500 text-center py-1">
+                                Showing 30 of {proSwapEligiblePlayers.length} eligible players
+                              </div>
+                            )}
                             </div>
                           </div>
                         )}
