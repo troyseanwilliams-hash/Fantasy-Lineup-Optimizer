@@ -185,9 +185,19 @@ function computePopularityScores(
     const scarcity = avgPosCount / Math.max(1, posCounts[primaryPos] || avgPosCount);
     const scarcityBonus = Math.min(1.2, Math.max(0.85, scarcity));
 
-    const injuryPenalty = player.injuryStatus === "OUT" || player.injuryStatus === "Questionable" ? 0
-      : player.injuryStatus === "Doubtful" ? 0.15
-      : player.injuryStatus === "Probable" ? 0.85
+    // Injury penalty multiplier applied to raw popularity score.
+    // OUT/IR:        zeroed — excluded from lineup generation, shown at ~0% ownership.
+    // Questionable:  heavily suppressed (0.15) — visible in UI with low projected
+    //                ownership so users can see the player is flagged. Using 0 here
+    //                would zero out the score entirely, misrepresenting field behavior
+    //                and breaking the ownership distribution sum.
+    // Doubtful:      near-zero (0.05) — same reasoning, even more suppressed.
+    // Probable:      slight suppression (0.90) — most Probable players suit up.
+    const injuryPenalty =
+      player.injuryStatus === "OUT" || player.injuryStatus === "IR" ? 0
+      : player.injuryStatus === "Questionable" ? 0.15
+      : player.injuryStatus === "Doubtful" ? 0.05
+      : player.injuryStatus === "Probable" ? 0.90
       : 1.0;
 
     const raw = (
