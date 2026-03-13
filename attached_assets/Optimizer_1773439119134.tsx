@@ -38,7 +38,7 @@ export default function Optimizer() {
   const { user } = useAuth();
   // Type-safe accessors — avoids repeated (user as any) casts throughout
   const userId = (user as any)?.id as string | undefined;
-  const userIsAdmin = (user as any)?.isAdmin === true;
+  const userIsAdmin = userIsAdmin;
   const { toast } = useToast();
   const slateId = Number(params?.id);
 
