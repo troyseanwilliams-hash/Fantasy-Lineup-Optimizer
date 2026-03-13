@@ -69,8 +69,10 @@ export default function OwnershipHeatmap() {
     enabled: !!user,
   });
 
+  // Type-safe isAdmin accessor — avoids (user as any) cast
   const isAdmin = (user as any)?.isAdmin === true;
   const tier = subscription?.tier || "free";
+  // Mirror access pattern from ProOptimizer — pro, premium, and star all have paid access
   const hasAccess = isAdmin || tier === "pro" || tier === "premium" || tier === "star";
   const mainSlates = slates?.filter(s => s.isMain && s.platform === "draftkings") || [];
   const availableSports = ACTIVE_SPORTS.filter(s => mainSlates.some(sl => sl.sport === s));
@@ -89,6 +91,9 @@ export default function OwnershipHeatmap() {
       return res.json();
     },
     enabled: !!activeSlate && hasAccess,
+    // Refresh every 5 minutes — ownership projections update as slates get new data.
+    // Previously stopped refreshing permanently once data loaded, meaning stale
+    // projections were shown for the rest of the session.
     refetchInterval: 300000,
     staleTime: 60000,
   });
@@ -110,9 +115,13 @@ export default function OwnershipHeatmap() {
 
   const sportColors = SPORT_COLORS[activeSport] || SPORT_COLORS.NBA;
 
+  // Build a sport-aware position order from platform-config slot definitions.
+  // This shows positions in the same order as the lineup builder rather than
+  // alphabetically (which put C before PG in NBA, etc.).
   const positionOrder = useMemo(() => {
     try {
       const config = getPlatformConfig(activeSport, "draftkings");
+      // Deduplicate slot base names while preserving order
       const seen = new Set<string>();
       const order: string[] = [];
       for (const slot of config.slots) {
@@ -129,6 +138,8 @@ export default function OwnershipHeatmap() {
     if (!ownershipData) return [];
     const entries = Object.entries(ownershipData.positions);
 
+    // Sort position cards using slot order from platform-config, falling back to
+    // alphabetical for any position not in the config (e.g. UTIL, FLEX)
     entries.sort(([a], [b]) => {
       const ai = positionOrder.indexOf(a);
       const bi = positionOrder.indexOf(b);
@@ -148,13 +159,20 @@ export default function OwnershipHeatmap() {
     ] as [string, OwnershipPlayer[]]);
   }, [ownershipData, sortDirection, positionOrder]);
 
+  // Derive a meaningful contrarian pick client-side: the player with the best
+  // projected points per unit of ownership (high value, low ownership).
+  // The server's contrarianPlayer is just the lowest-ownership player which is
+  // often a bad player no one wants — not a useful contrarian recommendation.
   const derivedContrarianPlayer = useMemo(() => {
     if (!ownershipData) return null;
     const allPlayers = Object.values(ownershipData.positions).flat();
+    // Only consider players with meaningful ownership (> 1%) and projection (> 0)
+    // to filter out DNPs and truly unrosterable players
     const eligible = allPlayers.filter(
       p => p.ownershipProjection > 1 && Number(p.projectedPoints) > 0
     );
     if (eligible.length === 0) return null;
+    // Score = projected points per ownership % — rewards high value at low ownership
     return eligible.reduce((best, p) => {
       const score = Number(p.projectedPoints) / p.ownershipProjection;
       const bestScore = Number(best.projectedPoints) / best.ownershipProjection;
@@ -293,6 +311,7 @@ export default function OwnershipHeatmap() {
 
                   <div className="divide-y divide-slate-800/50">
                     {(() => {
+                      // Compute max ownership for this position group to scale bars relatively
                       const maxOwn = Math.max(...players.map(p => p.ownershipProjection), 1);
                       return players.map((player, idx) => (
                       <div key={player.id} className="px-5 py-3 flex items-center gap-3 hover:bg-slate-800/30 transition-colors" data-testid={`ownership-player-${player.id}`}>
