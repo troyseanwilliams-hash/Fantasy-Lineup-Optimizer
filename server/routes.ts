@@ -3181,6 +3181,25 @@ export async function seedDatabase(forceRefresh = false) {
         seed.dkPlayers.map((p: any) => ({ ...p, slateId: existingSlate!.id })) as any
       );
       console.log(`[DK] Repopulated stale ${seed.sport} slate ${existingSlate!.id} with ${createdPlayers.length} players`);
+
+      const today = getEasternToday();
+      try {
+        const historyRecords = createdPlayers.map(p => ({
+          playerName: p.name,
+          team: p.team,
+          sport: seed.sport,
+          position: p.position,
+          salary: p.salary,
+          projectedPoints: p.projectedPoints,
+          slateDate: today,
+          slateId: existingSlate!.id,
+          draftKingsPlayerId: p.draftKingsPlayerId,
+        }));
+        await storage.bulkInsertPlayerHistory(historyRecords);
+        console.log(`[History] Saved ${historyRecords.length} ${seed.sport} player snapshots`);
+      } catch (err) {
+        console.error(`[History] Failed to save ${seed.sport} snapshots:`, err);
+      }
     } else if (!existingSlate || shouldReplace) {
       const dkSlate = await storage.createSlate({
         sport: seed.sport,
