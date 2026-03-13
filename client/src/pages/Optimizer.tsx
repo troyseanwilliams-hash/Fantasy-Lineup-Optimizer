@@ -441,24 +441,29 @@ export default function Optimizer() {
         <button
           onClick={() => setMobileView("players")}
           data-testid="mobile-tab-players"
-          className={`flex-1 px-4 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${
+          className={`flex-1 px-3 py-2 text-[11px] font-black uppercase tracking-wider transition-all ${
             mobileView === "players"
               ? `${platform === "fanduel" ? "text-blue-400 border-b-2 border-blue-400" : "text-emerald-400 border-b-2 border-emerald-400"} bg-slate-800/50`
               : "text-slate-500 hover:text-slate-300"
           }`}
         >
+          <Users className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />
           Players {filteredPlayers.length > 0 && `(${filteredPlayers.length})`}
         </button>
         <button
           onClick={() => setMobileView("lineup")}
           data-testid="mobile-tab-lineup"
-          className={`flex-1 px-4 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${
+          className={`flex-1 px-3 py-2 text-[11px] font-black uppercase tracking-wider transition-all relative ${
             mobileView === "lineup"
               ? `${platform === "fanduel" ? "text-blue-400 border-b-2 border-blue-400" : "text-emerald-400 border-b-2 border-emerald-400"} bg-slate-800/50`
               : "text-slate-500 hover:text-slate-300"
           }`}
         >
+          <Target className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />
           Lineup {currentLineup ? `(${totalProj.toFixed(0)} pts)` : ""}
+          {currentLineup && mobileView !== "lineup" && (
+            <span className={`absolute top-1 right-2 w-2 h-2 rounded-full animate-pulse ${platform === "fanduel" ? "bg-blue-400" : "bg-emerald-400"}`} />
+          )}
         </button>
       </div>
 
@@ -474,25 +479,25 @@ export default function Optimizer() {
             />
             <div className={`absolute inset-0 bg-gradient-to-r ${platform === "fanduel" ? "from-blue-950/90 via-slate-900/95 to-slate-900" : "from-emerald-950/90 via-slate-900/95 to-slate-900"}`} />
           </div>
-          <div className="relative px-4 py-3 flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Zap className={`w-5 h-5 fill-current ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`} />
-              <span className="text-lg font-black text-white tracking-tight">{sport} OPTIMIZER</span>
-              <Badge className={`text-[11px] font-black ${platform === "fanduel" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"}`} data-testid="platform-badge">
+          <div className="relative px-3 sm:px-4 py-2 sm:py-3 flex flex-wrap items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Zap className={`w-4 h-4 sm:w-5 sm:h-5 fill-current ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`} />
+              <span className="text-sm sm:text-lg font-black text-white tracking-tight">{sport} OPTIMIZER</span>
+              <Badge className={`text-[10px] sm:text-[11px] font-black ${platform === "fanduel" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"}`} data-testid="platform-badge">
                 {config.shortLabel}
               </Badge>
             </div>
             {slate && (
-              <div className="flex items-center gap-2" data-testid="slate-date">
+              <div className="hidden sm:flex items-center gap-2" data-testid="slate-date">
                 <span className={`text-xs font-black ${platform === "fanduel" ? "text-blue-400/70" : "text-emerald-400/70"}`}>
                   {new Date(slate.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
                 </span>
               </div>
             )}
-            <div className="ml-auto flex items-center gap-2">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Slate:</span>
+            <div className="ml-auto flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto mt-1.5 sm:mt-0">
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-widest hidden sm:inline">Slate:</span>
               <select
-                className="bg-slate-800 border border-slate-700 text-white text-sm rounded-lg px-3 py-1.5 font-bold"
+                className="bg-slate-800 border border-slate-700 text-white text-xs sm:text-sm rounded-lg px-2 sm:px-3 py-1.5 font-bold flex-1 sm:flex-none truncate"
                 value={slateId}
                 onChange={e => {
                   const selectedSlate = sportSlates.find(s => String(s.id) === e.target.value);
@@ -522,15 +527,15 @@ export default function Optimizer() {
           </div>
 
           {/* Game Scoreboard Cards / Golf Tournament Cards */}
-          <div className={`relative z-10 px-4 pb-3 pt-3 border-b bg-slate-950 ${platform === "fanduel" ? "border-blue-500/20" : "border-emerald-500/20"}`}>
+          <div className={`relative z-10 px-3 sm:px-4 pb-2 sm:pb-3 pt-2 sm:pt-3 border-b bg-slate-950 ${platform === "fanduel" ? "border-blue-500/20" : "border-emerald-500/20"}`}>
             {isGolf && golfAnalysis ? (
               <>
-                <div className="flex items-center gap-2 mb-3">
-                  <Trophy className="w-4 h-4 text-white" />
-                  <span className="text-sm font-black text-white uppercase tracking-widest" style={{textShadow: '0 1px 3px rgba(0,0,0,0.8)'}}>Tournament Center</span>
-                  <Badge className="text-[10px] font-black bg-lime-500/20 text-white border-lime-500/30">LIVE</Badge>
+                <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                  <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                  <span className="text-xs sm:text-sm font-black text-white uppercase tracking-widest" style={{textShadow: '0 1px 3px rgba(0,0,0,0.8)'}}>Tournament Center</span>
+                  <Badge className="text-[9px] sm:text-[10px] font-black bg-lime-500/20 text-white border-lime-500/30">LIVE</Badge>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pb-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5 pb-1 sm:pb-2">
                   {/* Tournament Info Card */}
                   <div className="rounded-xl overflow-hidden bg-slate-900 border border-lime-500/30 shadow-lg" data-testid="tournament-info-card">
                     <div className="px-4 py-3 bg-gradient-to-br from-lime-500/20 to-transparent">
@@ -615,30 +620,30 @@ export default function Optimizer() {
               </>
             ) : (
               <>
-                <div className="flex items-center gap-2 mb-3">
-                  <Activity className={`w-4 h-4 ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`} />
-                  <span className="text-xs font-black text-white uppercase tracking-widest">Slate Games</span>
-                  <Badge className={`text-[10px] font-black ${platform === "fanduel" ? "bg-blue-500/20 text-blue-300 border-blue-500/30" : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"}`}>
+                <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                  <Activity className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`} />
+                  <span className="text-[11px] sm:text-xs font-black text-white uppercase tracking-widest">Slate Games</span>
+                  <Badge className={`text-[9px] sm:text-[10px] font-black ${platform === "fanduel" ? "bg-blue-500/20 text-blue-300 border-blue-500/30" : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"}`}>
                     {games.length}
                   </Badge>
                 </div>
-                <div className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-2">
+                <div className="flex gap-2 sm:gap-2.5 overflow-x-auto scrollbar-hide pb-1 sm:pb-2">
                   {games.map((game, i) => (
                     <div
                       key={i}
-                      className={`flex-shrink-0 rounded-xl min-w-[110px] overflow-hidden shadow-lg ${
+                      className={`flex-shrink-0 rounded-xl min-w-[95px] sm:min-w-[110px] overflow-hidden shadow-lg ${
                         platform === "fanduel"
                           ? "bg-gradient-to-b from-blue-600/25 to-blue-900/40 border border-blue-400/30 shadow-blue-500/10"
                           : "bg-gradient-to-b from-emerald-600/25 to-emerald-900/40 border border-emerald-400/30 shadow-emerald-500/10"
                       }`}
                       data-testid={`game-card-${i}`}
                     >
-                      <div className="flex flex-col items-center px-4 py-2.5 gap-1">
-                        <span className="text-sm font-black text-white drop-shadow-sm">{game.away}</span>
-                        <span className={`text-[10px] font-black ${platform === "fanduel" ? "text-blue-300" : "text-emerald-300"}`}>VS</span>
-                        <span className="text-sm font-black text-white drop-shadow-sm">{game.home}</span>
+                      <div className="flex flex-col items-center px-3 sm:px-4 py-2 sm:py-2.5 gap-0.5 sm:gap-1">
+                        <span className="text-xs sm:text-sm font-black text-white drop-shadow-sm">{game.away}</span>
+                        <span className={`text-[9px] sm:text-[10px] font-black ${platform === "fanduel" ? "text-blue-300" : "text-emerald-300"}`}>VS</span>
+                        <span className="text-xs sm:text-sm font-black text-white drop-shadow-sm">{game.home}</span>
                       </div>
-                      <div className={`text-[11px] font-black py-1.5 text-center ${
+                      <div className={`text-[10px] sm:text-[11px] font-black py-1 sm:py-1.5 text-center ${
                         platform === "fanduel"
                           ? "bg-blue-500/30 text-blue-100 border-t border-blue-400/20"
                           : "bg-emerald-500/30 text-emerald-100 border-t border-emerald-400/20"
@@ -654,24 +659,24 @@ export default function Optimizer() {
         </div>
 
         {/* Filter Bar */}
-        <div className="px-4 py-3 border-b border-slate-800 bg-slate-900/20 flex flex-col md:flex-row gap-3 items-stretch md:items-center">
+        <div className="px-3 sm:px-4 py-2 sm:py-3 border-b border-slate-800 bg-slate-900/20 flex flex-col md:flex-row gap-2 sm:gap-3 items-stretch md:items-center">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
             <Input
               placeholder="Search players..."
-              className="bg-slate-900 border-slate-700 pl-10 h-9 text-sm"
+              className="bg-slate-900 border-slate-700 pl-10 h-8 sm:h-9 text-xs sm:text-sm"
               value={search}
               onChange={e => setSearch(e.target.value)}
               data-testid="player-search"
             />
           </div>
-          <div className="flex gap-1 bg-slate-900 rounded-lg p-0.5 border border-slate-800">
+          <div className="flex flex-wrap gap-0.5 sm:gap-1 bg-slate-900 rounded-lg p-0.5 border border-slate-800">
             {positions.map(pos => (
               <button
                 key={pos}
                 onClick={() => setPosFilter(pos)}
                 data-testid={`filter-${pos}`}
-                className={`px-3 py-1.5 rounded-md text-[11px] font-black transition-all ${
+                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-[11px] font-black transition-all ${
                   posFilter === pos
                     ? `${platform === "fanduel" ? "bg-blue-500 shadow-blue-500/20" : "bg-emerald-500 shadow-emerald-500/20"} text-white shadow-lg`
                     : "text-slate-500 hover:text-slate-300"
@@ -681,45 +686,34 @@ export default function Optimizer() {
               </button>
             ))}
           </div>
-          <div className="text-xs text-slate-500 font-bold ml-auto">
+          <div className="text-[10px] sm:text-xs text-slate-500 font-bold ml-auto">
             {filteredPlayers.length} players
           </div>
         </div>
 
         {/* Replacement/Swap Mode Banner */}
         {activeSwapSlot && (
-          <div className={`px-4 py-2.5 border-b flex items-center justify-between ${
+          <div className={`px-3 sm:px-4 py-2 sm:py-2.5 border-b flex items-center justify-between gap-2 ${
             activeSwapSlot
               ? "bg-amber-500/10 border-amber-500/30"
               : platform === "fanduel" ? "bg-blue-500/10 border-blue-500/30" : "bg-emerald-500/10 border-emerald-500/30"
           }`} data-testid="replacement-banner">
-            <div className="flex items-center gap-2">
-              {activeSwapSlot ? (
-                <ArrowLeftRight className="w-4 h-4 text-amber-400" />
-              ) : (
-                <UserPlus className={`w-4 h-4 ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`} />
-              )}
-              <span className="text-sm font-bold text-white">
-                {activeSwapSlot ? (
-                  <>Swap <span className="text-amber-400">{lineupSlots?.[activeSwapSlot]?.name}</span> — pick a <span className="text-amber-400">{getSlotDisplayName(activeSwapSlot)}</span></>
-                ) : (
-                  <>Select a <span className={platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}>{getSlotDisplayName(activeSwapSlot)}</span> replacement</>
-                )}
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
+              <ArrowLeftRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
+              <span className="text-xs sm:text-sm font-bold text-white truncate">
+                Swap <span className="text-amber-400">{lineupSlots?.[activeSwapSlot]?.name}</span>
+                <span className="hidden sm:inline"> — pick a <span className="text-amber-400">{getSlotDisplayName(activeSwapSlot)}</span></span>
               </span>
-              <Badge className={`text-[11px] font-black ${
-                activeSwapSlot
-                  ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
-                  : platform === "fanduel" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-              }`}>
-                Budget: ${(remainingSalary + swapBudget).toLocaleString()}
+              <Badge className="text-[10px] sm:text-[11px] font-black bg-amber-500/20 text-amber-400 border-amber-500/30 shrink-0">
+                ${(remainingSalary + swapBudget).toLocaleString()}
               </Badge>
-              <span className="text-[11px] font-bold text-slate-400">
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 shrink-0">
                 {replacementEligiblePlayers.length} eligible
               </span>
             </div>
             <button
               onClick={() => { setActiveSwapSlot(null); setActiveSwapSlot(null); }}
-              className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800 transition-all"
+              className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800 transition-all shrink-0"
               data-testid="cancel-replacement"
             >
               <X className="w-4 h-4" />
@@ -919,7 +913,7 @@ export default function Optimizer() {
         </div>
 
         {/* Player Cards - Mobile */}
-        <div className="flex-1 overflow-auto md:hidden p-2 space-y-1.5">
+        <div className="flex-1 overflow-auto md:hidden p-1.5 space-y-1">
           {filteredPlayers.map(player => {
             const isLocked = lockedIds.includes(player.id);
             const isExcluded = excludedIds.includes(player.id);
@@ -933,47 +927,35 @@ export default function Optimizer() {
               <div
                 key={player.id}
                 data-testid={`mobile-player-card-${player.id}`}
-                className={`rounded-lg border p-2.5 transition-all ${
+                className={`rounded-lg border px-2.5 py-2 transition-all ${
                   isIneligible ? "opacity-30 border-slate-800 bg-slate-900/30" :
-                  isEligibleReplacement ? `border-emerald-500/30 bg-emerald-500/5 cursor-pointer` :
-                  isLocked ? `border-emerald-500/30 bg-emerald-500/5` :
+                  isEligibleReplacement ? `${platform === "fanduel" ? "border-blue-500/30 bg-blue-500/5" : "border-emerald-500/30 bg-emerald-500/5"} cursor-pointer` :
+                  isLocked ? `${platform === "fanduel" ? "border-blue-500/30 bg-blue-500/5" : "border-emerald-500/30 bg-emerald-500/5"}` :
                   isExcluded ? "border-red-500/30 bg-red-500/5 opacity-50" :
                   isInLineup ? "border-slate-700 bg-slate-800/30" :
                   "border-slate-800 bg-slate-900/50"
                 }`}
                 onClick={isEligibleReplacement ? () => handleSelectReplacement(player) : undefined}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className={`font-mono text-[10px] font-bold px-1.5 py-0.5 rounded ${platform === "fanduel" ? "bg-blue-500/20 text-blue-400" : "bg-emerald-500/20 text-emerald-400"}`}>{player.position}</span>
-                      <span className="text-sm font-bold text-white truncate">{player.name}</span>
-                      {player.isConfirmedStarter && (
-                        <Badge variant="outline" className="text-[8px] font-bold py-0 px-1 border-emerald-500/50 text-emerald-400 bg-emerald-500/10">STARTER</Badge>
-                      )}
-                      {player.injuryStatus && player.injuryStatus !== "Healthy" && (
-                        <Badge variant="outline" className={`text-[8px] font-bold py-0 px-1 ${INJURY_COLORS[player.injuryStatus] || INJURY_COLORS["Day-to-Day"]}`}>
-                          {player.injuryStatus}
-                        </Badge>
-                      )}
-                      {isInLineup && <span className={`text-[9px] font-black ${platform === "fanduel" ? "text-blue-500" : "text-emerald-500"}`}>IN LINEUP</span>}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400">
-                      <span className="font-bold">{player.team}</span>
-                      {player.opponent && <span>vs {player.opponent}</span>}
-                      <span className="text-slate-600">{player.gameInfo}</span>
-                    </div>
-                    <div className="flex items-center gap-3 mt-1.5">
-                      <span className="text-sm font-mono font-bold text-white">${player.salary.toLocaleString()}</span>
-                      <span className={`text-sm font-mono font-bold ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>{Number(player.projectedPoints).toFixed(1)} pts</span>
-                      <span className="text-xs font-mono text-slate-400">FPPG {player.fppg}</span>
-                      <span className="text-xs font-mono font-bold text-blue-400">{player.value.toFixed(1)}x</span>
-                    </div>
+                {/* Row 1: Name + badges + actions */}
+                <div className="flex items-center justify-between gap-1.5">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                    <span className={`font-mono text-[9px] font-black px-1 py-0.5 rounded shrink-0 ${platform === "fanduel" ? "bg-blue-500/20 text-blue-400" : "bg-emerald-500/20 text-emerald-400"}`}>{player.position}</span>
+                    <span className="text-[13px] font-bold text-white truncate">{player.name}</span>
+                    {player.isConfirmedStarter && (
+                      <span className="text-[8px] font-black text-emerald-400 shrink-0">STR</span>
+                    )}
+                    {player.injuryStatus && player.injuryStatus !== "Healthy" && (
+                      <Badge variant="outline" className={`text-[7px] font-bold py-0 px-1 shrink-0 ${INJURY_COLORS[player.injuryStatus] || INJURY_COLORS["Day-to-Day"]}`}>
+                        {player.injuryStatus === "Questionable" ? "Q" : player.injuryStatus === "Probable" ? "P" : player.injuryStatus === "Doubtful" ? "D" : player.injuryStatus}
+                      </Badge>
+                    )}
+                    {isInLineup && <span className={`text-[8px] font-black shrink-0 ${platform === "fanduel" ? "text-blue-500" : "text-emerald-500"}`}>IN</span>}
                   </div>
-                  <div className="flex items-center gap-0.5 shrink-0">
+                  <div className="flex items-center gap-0 shrink-0">
                     {activeSwapSlot ? (
                       isEligibleReplacement ? (
-                        <button className={`p-1.5 rounded-md ${platform === "fanduel" ? "bg-blue-500/20 text-blue-400" : "bg-emerald-500/20 text-emerald-400"}`} data-testid={`mobile-select-replacement-${player.id}`}>
+                        <button className={`p-1 rounded-md ${platform === "fanduel" ? "bg-blue-500/20 text-blue-400" : "bg-emerald-500/20 text-emerald-400"}`} data-testid={`mobile-select-replacement-${player.id}`}>
                           <Plus className="w-4 h-4" />
                         </button>
                       ) : null
@@ -986,15 +968,15 @@ export default function Optimizer() {
                             setBoosts(updated);
                           }}
                           data-testid={`mobile-boost-${player.id}`}
-                          className={`relative p-1.5 rounded-md transition-all ${
+                          className={`relative p-1 rounded-md transition-all ${
                             currentBoost > 0
                               ? "bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/30"
-                              : "text-slate-600 hover:text-amber-400"
+                              : "text-slate-600 active:text-amber-400"
                           }`}
                         >
                           <Rocket className={`w-3.5 h-3.5 ${currentBoost > 0 ? "fill-amber-400" : ""}`} />
                           {currentBoost > 0 && (
-                            <span className="absolute -top-1 -right-1.5 text-[8px] font-black text-amber-300 bg-amber-950 rounded px-0.5">+{currentBoost}%</span>
+                            <span className="absolute -top-1 -right-1.5 text-[7px] font-black text-amber-300 bg-amber-950 rounded px-0.5">+{currentBoost}%</span>
                           )}
                         </button>
                         <button
@@ -1003,8 +985,8 @@ export default function Optimizer() {
                             setExcludedIds(prev => prev.filter(i => i !== player.id));
                           }}
                           data-testid={`mobile-lock-${player.id}`}
-                          className={`p-1.5 rounded-md transition-all ${
-                            isLocked ? `${platform === "fanduel" ? "bg-blue-500" : "bg-emerald-500"} text-white` : "text-slate-600 hover:text-emerald-400"
+                          className={`p-1 rounded-md transition-all ${
+                            isLocked ? `${platform === "fanduel" ? "bg-blue-500" : "bg-emerald-500"} text-white` : "text-slate-600 active:text-emerald-400"
                           }`}
                         >
                           {isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
@@ -1015,13 +997,21 @@ export default function Optimizer() {
                             setLockedIds(prev => prev.filter(i => i !== player.id));
                           }}
                           data-testid={`mobile-exclude-${player.id}`}
-                          className="p-1.5 rounded-md text-slate-600 hover:text-red-400"
+                          className="p-1 rounded-md text-slate-600 active:text-red-400"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
                       </>
                     )}
                   </div>
+                </div>
+                {/* Row 2: Stats row — compact single line */}
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase">{player.team}</span>
+                  <span className="text-[11px] font-mono font-bold text-white">${player.salary.toLocaleString()}</span>
+                  <span className={`text-[11px] font-mono font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>{Number(player.projectedPoints).toFixed(1)}</span>
+                  <span className="text-[10px] font-mono text-slate-500">{player.fppg}</span>
+                  <span className="text-[10px] font-mono font-bold text-blue-400 ml-auto">{player.value.toFixed(1)}x</span>
                 </div>
               </div>
             );
@@ -1030,8 +1020,8 @@ export default function Optimizer() {
 
         {/* Excluded Players Bar */}
         {excludedPlayers.length > 0 && (
-          <div className="border-t border-slate-800 bg-slate-900/60 px-4 py-2 flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] font-black text-red-400 uppercase tracking-widest">Excluded:</span>
+          <div className="border-t border-slate-800 bg-slate-900/60 px-2.5 sm:px-4 py-1.5 sm:py-2 flex items-center gap-1.5 sm:gap-2 flex-wrap">
+            <span className="text-[10px] sm:text-[11px] font-black text-red-400 uppercase tracking-widest">Excluded:</span>
             {excludedPlayers.map(p => (
               <Badge
                 key={p.id}
@@ -1050,44 +1040,44 @@ export default function Optimizer() {
       {/* RIGHT: Lineup Builder */}
       <div className={`w-full xl:w-[420px] flex flex-col bg-slate-900/30 border-l border-slate-800 overflow-hidden ${mobileView !== "lineup" ? "hidden xl:flex" : ""}`}>
         {/* Salary & Projection Bar */}
-        <div className="px-4 py-3 bg-slate-900/60 border-b border-slate-800">
-          <div className="grid grid-cols-4 gap-2 mb-2">
-            <div className="bg-slate-800/80 rounded-lg px-2 py-2 text-center border border-slate-700/50">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Salary Rem.</p>
-              <p data-testid="salary-remaining" className={`text-base font-black ${
+        <div className="px-3 sm:px-4 py-2 sm:py-3 bg-slate-900/60 border-b border-slate-800">
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-2 mb-2">
+            <div className="bg-slate-800/80 rounded-lg px-1.5 sm:px-2 py-1.5 sm:py-2 text-center border border-slate-700/50">
+              <p className="text-[8px] sm:text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Sal. Rem</p>
+              <p data-testid="salary-remaining" className={`text-sm sm:text-base font-black ${
                 currentLineup ? (config.salaryCap - totalSalary < 0 ? "text-red-400" : "text-white") : "text-slate-400"
               }`}>
                 ${currentLineup ? (config.salaryCap - totalSalary).toLocaleString() : config.salaryCap.toLocaleString()}
               </p>
             </div>
-            <div className="bg-slate-800/80 rounded-lg px-2 py-2 text-center border border-slate-700/50">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">FP Proj.</p>
-              <p data-testid="total-projection" className={`text-base font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>
+            <div className="bg-slate-800/80 rounded-lg px-1.5 sm:px-2 py-1.5 sm:py-2 text-center border border-slate-700/50">
+              <p className="text-[8px] sm:text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">FP Proj</p>
+              <p data-testid="total-projection" className={`text-sm sm:text-base font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>
                 {currentLineup ? totalProj.toFixed(1) : "0.0"}
               </p>
             </div>
-            <div className="bg-slate-800/80 rounded-lg px-2 py-2 text-center border border-slate-700/50">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Value</p>
-              <p data-testid="value-metric" className="text-base font-black text-blue-400">
+            <div className="bg-slate-800/80 rounded-lg px-1.5 sm:px-2 py-1.5 sm:py-2 text-center border border-slate-700/50">
+              <p className="text-[8px] sm:text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Value</p>
+              <p data-testid="value-metric" className="text-sm sm:text-base font-black text-blue-400">
                 {totalSalary > 0 ? (totalProj / (totalSalary / 1000)).toFixed(1) + "x" : "0.0x"}
               </p>
             </div>
-            <div className="bg-slate-800/80 rounded-lg px-2 py-2 text-center border border-slate-700/50">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Grade</p>
+            <div className="bg-slate-800/80 rounded-lg px-1.5 sm:px-2 py-1.5 sm:py-2 text-center border border-slate-700/50">
+              <p className="text-[8px] sm:text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Grade</p>
               {lineupGrade ? (
-                <div className={`inline-flex items-center gap-0.5 px-1.5 py-0 rounded text-base font-black ${GRADE_COLORS[lineupGrade.grade]?.text || "text-slate-400"}`} data-testid="lineup-grade">
+                <div className={`inline-flex items-center gap-0.5 px-1.5 py-0 rounded text-sm sm:text-base font-black ${GRADE_COLORS[lineupGrade.grade]?.text || "text-slate-400"}`} data-testid="lineup-grade">
                   {lineupGrade.grade === "S" && <Star className="w-3 h-3 fill-current" />}
                   {lineupGrade.grade}
                 </div>
               ) : (
-                <p className="text-base font-black text-slate-600">—</p>
+                <p className="text-sm sm:text-base font-black text-slate-600">—</p>
               )}
             </div>
           </div>
 
           {players && players.length > 0 && (
-            <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-3 py-1.5 border border-slate-700/50" data-testid="salary-range-section">
-              <DollarSign className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+            <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-800/60 rounded-lg px-2 sm:px-3 py-1.5 border border-slate-700/50" data-testid="salary-range-section">
+              <DollarSign className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400 flex-shrink-0" />
               <Slider
                 value={salaryRange || [salaryBounds.min, salaryBounds.max]}
                 onValueChange={(v) => setSalaryRange([v[0], v[1]])}
@@ -1097,9 +1087,9 @@ export default function Optimizer() {
                 className="flex-1"
                 data-testid="slider-salary-range"
               />
-              <span className={`text-[10px] font-black min-w-[80px] text-center tabular-nums ${salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) ? "text-emerald-400" : "text-slate-500"}`} data-testid="text-salary-min">
+              <span className={`text-[9px] sm:text-[10px] font-black min-w-[70px] sm:min-w-[80px] text-center tabular-nums ${salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) ? "text-emerald-400" : "text-slate-500"}`} data-testid="text-salary-min">
                 {salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max)
-                  ? `$${(salaryRange[0] / 1000).toFixed(1)}k – $${(salaryRange[1] / 1000).toFixed(1)}k`
+                  ? `$${(salaryRange[0] / 1000).toFixed(1)}k–$${(salaryRange[1] / 1000).toFixed(1)}k`
                   : "All Salaries"}
               </span>
               {salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) && (
@@ -1146,32 +1136,32 @@ export default function Optimizer() {
         </div>
 
         {/* Locked/cap info */}
-        <div className="px-4 py-2 border-b border-slate-800 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-slate-400">
+        <div className="px-3 sm:px-4 py-1.5 sm:py-2 border-b border-slate-800 flex items-center justify-between text-[10px] sm:text-[11px] font-black uppercase tracking-wider sm:tracking-widest text-slate-400">
           <span>${lockedSalary.toLocaleString()} Locked</span>
           <span>{lockedIds.length} / {config.rosterSize} Locked</span>
         </div>
 
         {/* Subscription badge */}
         {user && subData && (
-          <div className="px-4 py-2 border-b border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className="px-3 sm:px-4 py-1.5 sm:py-2 border-b border-slate-800 flex items-center justify-between">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               {subData.tier === "pro" ? (
-                <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[11px] font-black">
+                <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[10px] sm:text-[11px] font-black">
                   <Crown className="w-3 h-3 mr-1" /> PRO
                 </Badge>
               ) : (
-                <Badge variant="outline" className="border-slate-700 text-slate-400 text-[11px] font-black">BASIC</Badge>
+                <Badge variant="outline" className="border-slate-700 text-slate-400 text-[10px] sm:text-[11px] font-black">BASIC</Badge>
               )}
-              <span className="text-[11px] text-slate-400 font-bold">
+              <span className="text-[10px] sm:text-[11px] text-slate-400 font-bold">
                 {subData.tier === "pro" 
-                  ? `${subData.lineupCount}/20 lineups saved`
-                  : `${subData.sportCounts?.[sport] || 0}/1 ${sport} lineup saved`
+                  ? `${subData.lineupCount}/20 saved`
+                  : `${subData.sportCounts?.[sport] || 0}/1 ${sport} saved`
                 }
               </span>
             </div>
             {subData.tier === "free" && (
               <Link href="/pricing">
-                <span className="text-[11px] font-bold text-amber-400 hover:text-amber-300 cursor-pointer" data-testid="upgrade-link">
+                <span className="text-[10px] sm:text-[11px] font-bold text-amber-400 hover:text-amber-300 cursor-pointer" data-testid="upgrade-link">
                   Upgrade
                 </span>
               </Link>
@@ -1180,7 +1170,7 @@ export default function Optimizer() {
         )}
 
         {/* Lineup Slots */}
-        <div className="flex-1 overflow-auto p-4 space-y-2" data-testid="lineup-slots">
+        <div className="flex-1 overflow-auto p-2 sm:p-4 space-y-1.5 sm:space-y-2" data-testid="lineup-slots">
           {config.slots.map(slot => {
             const player = lineupSlots?.[slot] || null;
             const displaySlot = getSlotDisplayName(slot);
@@ -1196,7 +1186,7 @@ export default function Optimizer() {
                 }`}
                 data-testid={`slot-${slot}`}
               >
-                <div className={`w-12 h-12 flex items-center justify-center font-black text-xs rounded-l-lg ${
+                <div className={`w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center font-black text-[10px] sm:text-xs rounded-l-lg shrink-0 ${
                   player
                     ? activeSwapSlot === slot
                       ? "bg-amber-500/20 text-amber-400"
@@ -1206,21 +1196,21 @@ export default function Optimizer() {
                   {displaySlot}
                 </div>
                 {player ? (
-                  <div className="flex-1 flex items-center justify-between px-3 py-2">
+                  <div className="flex-1 flex items-center justify-between px-2 sm:px-3 py-1.5 sm:py-2 min-w-0">
                     <PlayerInfoHoverCard player={player} platform={platform}>
-                      <div className="cursor-pointer">
-                        <div className="text-sm font-bold text-white hover:underline decoration-dotted underline-offset-2">{player.name}</div>
-                        <div className="flex items-center gap-2 text-[11px] text-slate-400 font-bold uppercase">
+                      <div className="cursor-pointer min-w-0">
+                        <div className="text-xs sm:text-sm font-bold text-white hover:underline decoration-dotted underline-offset-2 truncate">{player.name}</div>
+                        <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] text-slate-400 font-bold uppercase">
                           <span>{player.team}</span>
-                          <span>vs {player.opponent}</span>
+                          <span className="hidden sm:inline">vs {player.opponent}</span>
                           <span className={`${platform === "fanduel" ? "text-blue-400/60" : "text-emerald-400/60"}`}>{player.position}</span>
                         </div>
                       </div>
                     </PlayerInfoHoverCard>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                       <div className="text-right">
-                        <div className={`text-sm font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>{Number(player.projectedPoints).toFixed(1)}</div>
-                        <div className="text-[11px] font-mono text-slate-400 font-bold">${player.salary.toLocaleString()}</div>
+                        <div className={`text-xs sm:text-sm font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>{Number(player.projectedPoints).toFixed(1)}</div>
+                        <div className="text-[10px] sm:text-[11px] font-mono text-slate-400 font-bold">${player.salary.toLocaleString()}</div>
                       </div>
                       <button
                         onClick={() => handleSwapFromSlot(slot)}
@@ -1232,20 +1222,20 @@ export default function Optimizer() {
                         data-testid={`swap-slot-${slot}`}
                         title="Swap player"
                       >
-                        <ArrowLeftRight className="w-3.5 h-3.5" />
+                        <ArrowLeftRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       </button>
                       <button
                         onClick={() => handleRemoveFromSlot(slot)}
                         className="p-1 rounded-md text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
                         data-testid={`remove-slot-${slot}`}
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <X className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       </button>
                     </div>
                   </div>
                 ) : (
                   <button
-                    className={`flex-1 px-3 py-3 text-left flex items-center gap-2 transition-all rounded-r-lg ${
+                    className={`flex-1 px-2 sm:px-3 py-2.5 sm:py-3 text-left flex items-center gap-2 transition-all rounded-r-lg ${
                       currentLineup?.lineup
                         ? `cursor-pointer ${
                             activeSwapSlot === slot
@@ -1262,8 +1252,8 @@ export default function Optimizer() {
                     }}
                     data-testid={`pick-slot-${slot}`}
                   >
-                    <Plus className={`w-4 h-4 ${activeSwapSlot === slot ? (platform === "fanduel" ? "text-blue-400" : "text-emerald-400") : "text-slate-600"}`} />
-                    <span className="text-sm font-bold">
+                    <Plus className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${activeSwapSlot === slot ? (platform === "fanduel" ? "text-blue-400" : "text-emerald-400") : "text-slate-600"}`} />
+                    <span className="text-xs sm:text-sm font-bold">
                       {activeSwapSlot === slot ? "Selecting..." : "Make a Pick"}
                     </span>
                   </button>
@@ -1274,7 +1264,7 @@ export default function Optimizer() {
         </div>
 
         {/* Bottom Actions */}
-        <div className="p-4 border-t border-slate-800 bg-slate-900/60 space-y-3">
+        <div className="p-2.5 sm:p-4 border-t border-slate-800 bg-slate-900/60 space-y-2 sm:space-y-3">
           {currentLineup?.lineup && (
             <>
               {(() => {
@@ -1283,24 +1273,24 @@ export default function Optimizer() {
                 const atLimit = sportCount >= maxPerSport;
                 if (atLimit) {
                   return (
-                    <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-3 space-y-2" data-testid="basic-limit-notice">
+                    <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-2.5 sm:p-3 space-y-2" data-testid="basic-limit-notice">
                       <div className="flex items-center gap-2">
                         <Lock className="w-4 h-4 text-amber-400 shrink-0" />
-                        <span className="text-sm font-bold text-amber-300">Vault Limit Reached</span>
+                        <span className="text-xs sm:text-sm font-bold text-amber-300">Vault Limit Reached</span>
                       </div>
-                      <p className="text-xs text-slate-300 leading-relaxed">
+                      <p className="text-[11px] sm:text-xs text-slate-300 leading-relaxed">
                         {subData?.tier === "free" ? (
-                          <>Contender accounts can save 1 team per sport. Delete your existing {sport} lineup from the <Link href="/lineups" className="underline text-emerald-400 font-bold">Saved Lineups</Link> page to save a new one, or upgrade to <span className="font-black text-emerald-400">Sharpshooter ($19.99/mo)</span> for 20 teams or <span className="font-black text-amber-400">Champion ($39.99/mo)</span> for 300 teams per sport.</>
+                          <>Contender accounts can save 1 team per sport. Delete your existing {sport} lineup from the <Link href="/lineups" className="underline text-emerald-400 font-bold">Saved Lineups</Link> page, or upgrade to <span className="font-black text-amber-400">Sharpshooter</span> for 20 teams.</>
                         ) : subData?.tier === "star" ? (
-                          <>Sharpshooter accounts can save 20 teams per sport. Upgrade to <span className="font-black text-amber-400">Champion ($39.99/mo)</span> for 300 teams per sport with AI boost analysis.</>
+                          <>Sharpshooter accounts can save 20 teams per sport. Upgrade to <span className="font-black text-amber-400">Champion ($39.99/mo)</span> for 300 teams per sport.</>
                         ) : (
                           <>You've reached the maximum of {maxPerSport} saved teams for {sport}.</>
                         )}
                       </p>
                       {subData?.tier !== "pro" && (
                         <Link href="/pricing">
-                          <Button className="w-full h-9 bg-amber-500 hover:bg-amber-600 text-black font-bold text-sm mt-1" data-testid="upgrade-from-save">
-                            <Crown className="w-4 h-4 mr-2" />
+                          <Button className="w-full h-8 sm:h-9 bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs sm:text-sm mt-1" data-testid="upgrade-from-save">
+                            <Crown className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5" />
                             View Plans
                           </Button>
                         </Link>
@@ -1313,7 +1303,7 @@ export default function Optimizer() {
                     <div className="flex gap-2">
                       <Input
                         placeholder="Lineup name (optional)"
-                        className="bg-slate-800 border-slate-700 text-sm h-9"
+                        className="bg-slate-800 border-slate-700 text-xs sm:text-sm h-8 sm:h-9"
                         value={lineupName}
                         onChange={e => setLineupName(e.target.value)}
                         data-testid="lineup-name-input"
@@ -1323,7 +1313,7 @@ export default function Optimizer() {
                       <Button
                         onClick={handleSave}
                         disabled={saveLineupMutation.isPending || !user}
-                        className={`flex-1 h-10 text-white font-bold text-sm ${
+                        className={`flex-1 h-9 sm:h-10 text-white font-bold text-xs sm:text-sm ${
                           platform === "fanduel"
                             ? "bg-blue-600 hover:bg-blue-700"
                             : "bg-blue-600 hover:bg-blue-700"
@@ -1339,26 +1329,26 @@ export default function Optimizer() {
               })()}
             </>
           )}
-          <div className="grid grid-cols-2 gap-3">
-            <div className={`rounded-lg p-3 ${totalSalary > config.salaryCap ? "bg-red-500/10 border border-red-500/30" : "bg-slate-800/80 border border-slate-700/50"}`}>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Salary</div>
-              <div className={`text-lg font-black tabular-nums ${totalSalary > config.salaryCap ? "text-red-400" : "text-white"}`}>
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
+            <div className={`rounded-lg p-2 sm:p-3 ${totalSalary > config.salaryCap ? "bg-red-500/10 border border-red-500/30" : "bg-slate-800/80 border border-slate-700/50"}`}>
+              <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5 sm:mb-1">Salary</div>
+              <div className={`text-base sm:text-lg font-black tabular-nums ${totalSalary > config.salaryCap ? "text-red-400" : "text-white"}`}>
                 ${totalSalary.toLocaleString()}
               </div>
-              <div className="w-full bg-slate-700/50 rounded-full h-1.5 mt-1.5">
+              <div className="w-full bg-slate-700/50 rounded-full h-1 sm:h-1.5 mt-1 sm:mt-1.5">
                 <div
-                  className={`h-1.5 rounded-full transition-all ${totalSalary > config.salaryCap ? "bg-red-500" : platform === "fanduel" ? "bg-blue-500" : "bg-emerald-500"}`}
+                  className={`h-1 sm:h-1.5 rounded-full transition-all ${totalSalary > config.salaryCap ? "bg-red-500" : platform === "fanduel" ? "bg-blue-500" : "bg-emerald-500"}`}
                   style={{ width: `${Math.min((totalSalary / config.salaryCap) * 100, 100)}%` }}
                 />
               </div>
-              <div className="text-[10px] text-slate-500 font-bold mt-1">${config.salaryCap.toLocaleString()} cap</div>
+              <div className="text-[9px] sm:text-[10px] text-slate-500 font-bold mt-0.5 sm:mt-1">${config.salaryCap.toLocaleString()} cap</div>
             </div>
-            <div className="rounded-lg bg-slate-800/80 border border-slate-700/50 p-3">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Projected</div>
-              <div className={`text-lg font-black tabular-nums ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>
+            <div className="rounded-lg bg-slate-800/80 border border-slate-700/50 p-2 sm:p-3">
+              <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5 sm:mb-1">Projected</div>
+              <div className={`text-base sm:text-lg font-black tabular-nums ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>
                 {totalProj.toFixed(1)}
               </div>
-              <div className="text-[10px] text-slate-500 font-bold mt-2.5">Fantasy Points</div>
+              <div className="text-[9px] sm:text-[10px] text-slate-500 font-bold mt-1.5 sm:mt-2.5">Fantasy Points</div>
             </div>
           </div>
         </div>
