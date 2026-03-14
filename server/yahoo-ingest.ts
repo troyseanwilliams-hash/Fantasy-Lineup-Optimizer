@@ -475,6 +475,10 @@ export async function ingestYahooSlate(sport: YahooSport): Promise<{
       boostScore: null,
       boostReason: null,
       draftKingsPlayerId: null,
+      fanDuelPlayerId: null,
+      yahooPlayerId: p.yahooPlayerId,
+      fanDuelSalary: null,
+      yahooSalary: null,
       isConfirmedStarter: false,
     } satisfies InsertPlayer));
 
@@ -546,6 +550,10 @@ export async function ingestYahooCSV(csvText: string, sport: YahooSport): Promis
       boostScore: null,
       boostReason: null,
       draftKingsPlayerId: null,
+      fanDuelPlayerId: null,
+      yahooPlayerId: p.yahooPlayerId,
+      fanDuelSalary: null,
+      yahooSalary: null,
       isConfirmedStarter: false,
     } satisfies InsertPlayer));
 

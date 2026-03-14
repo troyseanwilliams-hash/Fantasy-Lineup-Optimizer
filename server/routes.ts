@@ -3039,13 +3039,20 @@ function buildPositionVariables(position: string, sport: string): Record<string,
 
     case "NHL":
       if (positions.includes("C")) { vars.C = 1; vars.SKATER = 1; }
-      if (positions.includes("W") || positions.includes("LW") || positions.includes("RW")) { vars.W = 1; vars.SKATER = 1; }
+      if (positions.includes("W") || positions.includes("LW") || positions.includes("RW")) {
+        vars.W = 1; vars.SKATER = 1;
+        if (positions.includes("LW")) vars.LW = 1;
+        if (positions.includes("RW")) vars.RW = 1;
+      }
       if (positions.includes("D")) { vars.D = 1; vars.SKATER = 1; }
       if (positions.includes("G")) { vars.G = 1; }
       break;
 
     case "MLB":
-      if (positions.includes("P") || positions.includes("SP") || positions.includes("RP")) { vars.P = 1; }
+      if (positions.includes("P") || positions.includes("SP") || positions.includes("RP")) {
+        vars.P = 1;
+        vars.SP = 1;
+      }
       if (positions.includes("C")) { vars.C = 1; vars["C/1B"] = 1; vars.HITTER = 1; }
       if (positions.includes("1B")) { vars["1B"] = 1; vars["C/1B"] = 1; vars.HITTER = 1; }
       if (positions.includes("2B")) { vars["2B"] = 1; vars.HITTER = 1; }
@@ -3060,6 +3067,7 @@ function buildPositionVariables(position: string, sport: string): Record<string,
       if (positions.includes("WR")) { vars.WR = 1; vars.FLEX = 1; }
       if (positions.includes("TE")) { vars.TE = 1; vars.FLEX = 1; }
       if (positions.includes("DST") || positions.includes("DEF")) { vars.DST = 1; vars.DEF = 1; }
+      if (positions.includes("K") || positions.includes("PK")) { vars.K = 1; }
       break;
 
     case "GOLF":
@@ -3068,7 +3076,7 @@ function buildPositionVariables(position: string, sport: string): Record<string,
 
     case "SOCCER":
       if (positions.includes("F")) { vars.F = 1; vars.OUTFIELD = 1; }
-      if (positions.includes("M")) { vars.M = 1; vars.OUTFIELD = 1; }
+      if (positions.includes("M") || positions.includes("MF")) { vars.M = 1; vars.MF = 1; vars.OUTFIELD = 1; }
       if (positions.includes("D")) { vars.D = 1; vars.OUTFIELD = 1; }
       if (positions.includes("GK")) { vars.GK = 1; }
       break;
@@ -3178,6 +3186,11 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
 
   for (const [key, constraint] of Object.entries(config.positionConstraints)) {
     model.constraints[key] = constraint;
+  }
+  if (config.aggregateConstraints) {
+    for (const [key, constraint] of Object.entries(config.aggregateConstraints)) {
+      model.constraints[key] = constraint;
+    }
   }
 
   pool.forEach(p => {

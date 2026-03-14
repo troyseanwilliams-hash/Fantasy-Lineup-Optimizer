@@ -2,7 +2,7 @@ import solver from "javascript-lp-solver";
 import { storage } from "./storage";
 import { getEasternToday } from "./balldontlie";
 import { fetchActualPointsForDate } from "./actual-points";
-import { getPlatformConfig, ACTIVE_SPORTS } from "@shared/platform-config";
+import { getPlatformConfig, assignPlayersToSlots } from "@shared/platform-config";
 import { clearProfileCache } from "./historical-adjustments";
 import type { Player, InsertWinningLineup } from "@shared/schema";
 
@@ -60,14 +60,7 @@ function buildPositionVariables(position: string, sport: string): Record<string,
 }
 
 function normalizeName(name: string): string {
-  return name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/['']/g, "")
-    .replace(/[^a-z\s]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
+  return name.toLowerCase().replace(/['']/g, "").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
 }
 
 interface PlayerWithActual extends Player {
@@ -96,8 +89,10 @@ function solveOptimalLineup(pool: PlayerWithActual[], sport: string, platform: "
   for (const [key, constraint] of Object.entries(config.positionConstraints)) {
     model.constraints[key] = constraint;
   }
-  if (config.aggregateConstraints) {
-    for (const [key, constraint] of Object.entries(config.aggregateConstraints)) {
+  // Apply aggregate constraints (G/F for NBA, SKATER for NHL, HITTER for MLB etc.)
+  // These exist in config.aggregateConstraints in the extended platform-config
+  if ((config as any).aggregateConstraints) {
+    for (const [key, constraint] of Object.entries((config as any).aggregateConstraints as Record<string, any>)) {
       model.constraints[key] = constraint;
     }
   }
@@ -167,6 +162,7 @@ function computeInsights(lineup: PlayerWithActual[], pool: PlayerWithActual[], s
     pb.avgProjected = Math.round((pb.avgProjected / pb.count) * 100) / 100;
   }
 
+  // Salary tiers as % of cap — works across DK ($50K), FD ($35K-$60K), Yahoo ($200)
   const capQuarter = config.salaryCap / 4;
   const salaryRanges = { low: 0, mid: 0, high: 0, premium: 0 };
   for (const p of lineup) {
@@ -289,11 +285,6 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string, pl
         boostScore: "0",
         boostReason: null,
         draftKingsPlayerId: h.draftKingsPlayerId,
-        fanDuelPlayerId: null,
-        yahooPlayerId: null,
-        fanDuelSalary: null,
-        yahooSalary: null,
-        isConfirmedStarter: false,
         actualPoints: actualPts,
       });
     }
@@ -305,9 +296,8 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string, pl
       console.log(`[WinningAgent] ${sport} ${slateDate}: Updated ${batchUpdates.length} player history records with actual points`);
     }
 
-    const config = getPlatformConfig(sport, platform);
-    if (matchCount < config.rosterSize) {
-      return { success: false, message: `Only matched ${matchCount} players with actual data — need at least ${config.rosterSize} for ${sport}` };
+    if (matchCount < 10) {
+      return { success: false, message: `Only matched ${matchCount} players with actual data — not enough for analysis` };
     }
 
     const eligiblePool = pool.filter(p => p.actualPoints > 0);
@@ -330,6 +320,8 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string, pl
       boostScore: Number(p.boostScore) || 0,
     }));
 
+    const config = getPlatformConfig(sport, platform);
+
     const record: InsertWinningLineup = {
       sport,
       slateId: slatePlayers[0]?.slateId || null,
@@ -344,15 +336,9 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string, pl
 
     await storage.createWinningLineup(record);
     clearProfileCache(sport);
-    console.log(
-      `[WinningAgent] Stored optimal lineup for ${sport} ${slateDate}: ` +
-      `${result.totalActualPoints} pts, $${result.totalSalary} salary (historical profile cache cleared)`
-    );
+    console.log(`[WinningAgent] Stored optimal lineup for ${sport} ${slateDate}: ${result.totalActualPoints} pts, $${result.totalSalary} salary (historical profile cache cleared)`);
 
-    return {
-      success: true,
-      message: `Analyzed ${sport} ${slateDate}: ${result.totalActualPoints} pts optimal lineup (${matchCount} players matched)`,
-    };
+    return { success: true, message: `Analyzed ${sport} ${slateDate}: ${result.totalActualPoints} pts optimal lineup (${matchCount} players matched)` };
   } catch (err: any) {
     console.error(`[WinningAgent] Error analyzing ${sport} ${slateDate}:`, err);
     return { success: false, message: err.message || "Unknown error" };
@@ -361,22 +347,25 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string, pl
 
 export async function runNightlyAnalysis(): Promise<string[]> {
   const results: string[] = [];
-  const sports = ACTIVE_SPORTS;
+  const sports = ["NBA", "NHL", "MLB", "NFL"];
+  // Run analysis for all platforms that have slates
+  const platforms: Array<"draftkings" | "fanduel" | "yahoo"> = ["draftkings", "fanduel", "yahoo"];
 
   const todayET = getEasternToday();
-  const d = new Date(todayET + "T12:00:00Z");
-  d.setUTCDate(d.getUTCDate() - 1);
-  const dateStr = d.toISOString().split("T")[0];
+  const yesterdayDate = new Date(todayET + "T12:00:00Z");
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const dateStr = yesterdayDate.toISOString().split("T")[0];
 
   console.log(`[WinningAgent] Starting nightly analysis for ${dateStr}`);
-
-  const platforms: Array<"draftkings" | "fanduel" | "yahoo"> = ["draftkings", "fanduel", "yahoo"];
 
   for (const sport of sports) {
     for (const platform of platforms) {
       try {
         const result = await analyzeCompletedSlate(sport, dateStr, platform);
-        results.push(`${sport}/${platform}: ${result.message}`);
+        // Only record non-trivial results to avoid noise from platforms with no data
+        if (result.success || !result.message.includes("already analyzed")) {
+          results.push(`${sport}/${platform}: ${result.message}`);
+        }
       } catch (err: any) {
         results.push(`${sport}/${platform}: Error - ${err.message}`);
       }

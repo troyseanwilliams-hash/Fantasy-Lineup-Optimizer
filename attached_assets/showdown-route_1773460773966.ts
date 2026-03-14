@@ -19,6 +19,7 @@ showdownRouter.get("/api/showdown/slates", async (req, res) => {
   try {
     const sport = (req.query.sport as string || "NBA").toUpperCase();
     const allSlates = await storage.getSlates();
+    // Accept optional platform param so FD/Yahoo showdown slates are discoverable
     const requestedPlatform = (req.query.platform as string || "draftkings").toLowerCase();
     const filtered = allSlates.filter(s =>
       s.sport === sport &&
@@ -75,6 +76,13 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
     if (!slate) return res.status(404).json({ message: "Slate not found" });
 
     const config = getShowdownConfig(input.sport, input.platform as Platform);
+    // Attach aggregateConstraints from full platform config if available
+    const fullConfig = (() => {
+      try {
+        const { getPlatformConfig } = require("@shared/platform-config");
+        return getPlatformConfig(input.sport, input.platform);
+      } catch { return null; }
+    })();
     if (!config) return res.status(400).json({ message: `Showdown not supported for ${input.sport} on ${input.platform}` });
 
     const allPlayers = await storage.getPlayersBySlate(input.slateId);

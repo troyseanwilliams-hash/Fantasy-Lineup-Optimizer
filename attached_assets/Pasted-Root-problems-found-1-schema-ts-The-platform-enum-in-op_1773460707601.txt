@@ -1,0 +1,16 @@
+Root problems found
+1. schema.ts — The platform enum in optimizeResponseSchema and proOptimizationConstraintSchema only accepted "draftkings" | "fanduel". Yahoo lineups would fail Zod validation on save. The players table had no columns for FD/Yahoo player IDs or per-platform salaries, meaning you couldn't match FD/Yahoo players to DK players or show cross-platform price comparisons.
+2. winning-lineup-agent.ts — Every function (solveOptimalLineup, computeInsights, analyzeCompletedSlate, runNightlyAnalysis) was hardcoded to "draftkings". Running nightly analysis on an FD or Yahoo slate would silently use DK's $50K cap and DK's slot structure, making the LP infeasible or producing invalid results. The salary tier brackets ($4K/$6K/$8K) are DK-specific — meaningless on FD ($35K cap for MLB, $60K for NFL) and completely wrong on Yahoo ($200 cap).
+3. optimize-platform.ts (new file) — The existing optimizer route (not uploaded but implied) had no mechanism to detect the slate's platform and load the correct config. The aggregateConstraints from the extended platform-config.ts (G/F for NBA, SKATER for NHL, HITTER for MLB) were never applied to the LP model, meaning FD's 4-guard requirement or Yahoo's NHL SKATER minimum wouldn't be enforced.
+4. showdown-route.ts — Platform enum was ["draftkings", "fanduel"] only, blocking Yahoo showdown saves. The slates endpoint hardcoded platform === "draftkings", making FD and Yahoo showdown slates invisible.
+
+Changes made
+schema.ts — Added fanDuelPlayerId, yahooPlayerId, fanDuelSalary, yahooSalary to the players table. Expanded all platform enums to ["draftkings", "fanduel", "yahoo"].
+winning-lineup-agent.ts — All three functions now accept a platform parameter (defaulting to "draftkings" for backward compat). The salary tier buckets are now cap/4 intervals — $12.5K buckets on DK, $8.75K on FD MLB, $50 on Yahoo — and work correctly regardless of scale. runNightlyAnalysis now loops over all three platforms. The LP model now applies aggregateConstraints so multi-slot position totals (guards, forwards, skaters) are correctly enforced.
+optimize-platform.ts — New file that replaces the existing /api/optimize handler. Platform is detected from the slate record; the request body platform field overrides if provided. buildPositionVariables is extended to emit Yahoo-specific position keys (LW, RW, SP, K, MF). Both positionConstraints and aggregateConstraints are applied to the LP. applyLeverage scales correctly because it works as a percentage of salary cap, not absolute dollars. The pro multi-lineup route is included with proper exposure tracking.
+showdown-route.ts — Platform enum widened to include yahoo. Slates endpoint reads ?platform= query param so the frontend can request FD or Yahoo showdown slates by sport. Save endpoint accepts yahoo as a valid platform string.
+migration_platform_pricing.sql — Run this against your DB to add the four new columns. Includes an example cross-platform salary backfill query for linking the same player across DK/FD/Yahoo slates by normalized name + team.
+Wire up the new optimizer:
+ts// In your main server file, replace the old /api/optimize registration:
+import { optimizePlatformRouter } from "./routes/optimize-platform";
+app.use(optimizePlatformRouter);

@@ -416,6 +416,10 @@ export async function ingestFanDuelSlate(sport: FDSport): Promise<{
       boostScore: null,
       boostReason: null,
       draftKingsPlayerId: null,
+      fanDuelPlayerId: p.fanDuelPlayerId,
+      yahooPlayerId: null,
+      fanDuelSalary: null,
+      yahooSalary: null,
       isConfirmedStarter: false,
     } satisfies InsertPlayer));
 
