@@ -13,7 +13,14 @@ const ESPN_SUMMARY_URLS: Record<string, string> = {
 };
 
 function normalizeName(name: string): string {
-  return name.toLowerCase().replace(/['']/g, "").replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/['']/g, "")
+    .replace(/[^a-z\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 interface PlayerActualPoints {

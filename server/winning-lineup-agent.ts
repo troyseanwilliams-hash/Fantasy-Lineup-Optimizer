@@ -320,8 +320,14 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string, pl
 
       for (const [normalizedName, actual] of actualPointsMap) {
         const salaryInfo = salaryLookup.get(normalizedName);
-        const salary = salaryInfo?.salary ?? Math.round(config.salaryCap / config.rosterSize / 1000) * 1000;
-        const position = salaryInfo?.position ?? (sport === "NBA" ? "SF" : sport === "NHL" ? "W" : "UTIL");
+        const defaultSalary = platform === "yahoo"
+          ? Math.round(config.salaryCap / config.rosterSize)
+          : Math.round(config.salaryCap / config.rosterSize / 1000) * 1000;
+        const salary = salaryInfo?.salary ?? defaultSalary;
+        const defaultPositions: Record<string, string> = {
+          NBA: "SF", NHL: "W", MLB: "OF", NFL: "WR", GOLF: "G", SOCCER: "M",
+        };
+        const position = salaryInfo?.position ?? (defaultPositions[sport] || "UTIL");
 
         matchCount++;
         pool.push({
