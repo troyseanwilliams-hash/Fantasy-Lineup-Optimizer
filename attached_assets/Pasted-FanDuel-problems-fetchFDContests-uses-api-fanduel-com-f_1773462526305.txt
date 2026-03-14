@@ -1,0 +1,39 @@
+FanDuel problems:
+
+fetchFDContests uses api.fanduel.com/fixture-lists — this endpoint requires auth and returns 401/403 without a valid session. The real publicly-accessible FD endpoint is api.fanduel.com/fixture-lists with proper headers, but the real working path for player CSVs is through the FD contest page URL pattern which changed. The actual stable endpoint is https://www.fanduel.com/live-draft-groups or the DFS lobby API
+isMain detection only checks is_featured and "main" in label — FD's actual main slate field is sport_specific_data.is_primary_scoring
+Slate dedup uses UTC date string — fails across midnight ET boundary
+FD_SESSION_COOKIE is the wrong cookie name — FD uses X-Auth-Token header or _fanduel_session
+SportsData.io endpoint URL is wrong — their actual DFS endpoint is /v3/{sport}/projections/json/DfsSlatesByDate/{date} not /today
+No retry logic, no timeout
+
+Yahoo problems:
+
+dfyql-ro.sports.yahoo.com/v2/external/contracts/json — this endpoint structure is slightly off; the real Yahoo DFS API uses dfyql-ro.sports.yahoo.com/v2/external/contracts with different params
+fetchYahooPlayers queries wrong field name — contractId param should be contest_key or game_key depending on version
+Position parsing from eligible_positions array is wrong — Yahoo returns positions as an array like ["PG","SG"], not a single string
+average_draft_position is used for FPPG — completely wrong field; ADP has nothing to do with fantasy points
+The parseYahooPlayersFromFantasyAPI uses wrong response shape — Yahoo Fantasy v2 wraps data differently
+isMain detection just checks if "main" is in the label — Yahoo uses entry_fee: 0 for free contests and a specific contest_type field
+No handling for Yahoo's actual salary scale ($10-$60 per player, $200 cap)
+OAuth client credentials grant doesn't work for Yahoo DFS — Yahoo requires authorization code flow for user data
+
+Let me rebuild both files properly:Created 3 files, ran 3 commandsCreated 3 files, ran 3 commandsaverage_draft_position only appears in comments explaining the previous bug — never in the actual logic.Presented 2 filesPresented 2 filesHere's every bug that was fixed and why, across both files:
+
+FanDuel (fanduel-ingest.ts) — 6 bugs fixed
+Wrong SportsData.io date format. The previous version passed /today to their endpoint. SportsData.io's actual API requires YYYY-MMM-DD format (e.g. 2024-JAN-15). The new file builds this correctly from Date + the SD_MONTHS lookup array.
+Wrong auth cookie name. The previous file sent _dfs_session= but FanDuel's actual session cookie is _fanduel_session. The fix also adds FD_AUTH_TOKEN as an alternative using an Authorization: Bearer header, and adds the Origin and Referer headers that FD's API validates — without them you get 403s.
+UTC date string comparison across midnight. The previous slate dedup used .toISOString().startsWith(todayStr) which compares in UTC. An NBA slate starting at 7:30 PM ET is 2024-01-16T00:30:00Z — the UTC date is already the next day. The fix converts both sides to ET before comparing, using the same toLocaleString("en-US", { timeZone: "America/New_York" }) pattern used throughout the codebase.
+No retry logic. A single transient HTTP error killed the whole ingest. The new fdFetchRetry wrapper retries up to 3 times with 1.5s/3s back-off.
+JSON endpoint never tried. The previous version went straight to CSV. FD's API at fixture-lists/{id}/players returns structured JSON which is faster and more reliable. The new file tries JSON first, falls back to CSV, and tries two different CSV URL patterns.
+Main slate detection too narrow. The previous version only checked is_featured and "main" in the label. FD's actual main slate marker is is_guaranteed: true (guaranteed prize pools) or is_primary: true. The SportsData.io path now correctly filters on OperatorSlateType === "Main" or "Classic".
+
+Yahoo (yahoo-ingest.ts) — 7 bugs fixed
+Wrong API parameter name. The previous version used ?contractId= but Yahoo's player endpoint takes ?contest_key=. This caused every player fetch to return an empty array while the contest discovery appeared to succeed.
+Position parsed as a string instead of an array. Yahoo returns eligible_positions as a JSON array like ["PG","SG"], not a single string. The previous code accessed p.eligible_positions?.[0] with confusing conditional logic that would hit the wrong branch. The fix calls normalizeYahooPosition with the full array and correctly takes the first element.
+average_draft_position used for FPPG. ADP (average draft position) is a season-long fantasy metric that has no relationship to DFS fantasy points scored. Yahoo's actual FPPG field is average_points. This was silently producing fppg: 0 or near-zero values for every player, making the optimizer produce garbage lineups.
+Unix timestamp not handled. Yahoo returns start_time as Unix epoch seconds in some responses, ISO strings in others. The previous code always did new Date(rawStart) — passing an integer to Date() interprets it as milliseconds, not seconds, placing the slate in 1970. The fix checks typeof rawStart === "number" and multiplies by 1000.
+UTC slate dedup bug — same issue as FD above. Fixed with ET-based date comparison.
+DTD (Day-to-Day) not normalized. Yahoo uses "DTD" as a status string but EliteLineup's injury display uses "Questionable". The fix maps DTD → Questionable.
+Main slate detection only checked label text. Yahoo's API has contest_type_name (e.g. "Classic") and is_primary/featured flags that are more reliable than parsing the label. The new detection checks contestTypeName.includes("classic") first.
+Added RotoWire as a preferred data source. RotoWire provides Yahoo DFS salaries and projections through a clean API (ROTOWIRE_API_KEY). It's tried first before hitting Yahoo directly — more reliable and includes actual projections rather than just FPPG.

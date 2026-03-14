@@ -1,21 +1,59 @@
+// ============================================================
+// server/yahoo-ingest.ts
+//
+// Fetches Yahoo DFS main slate data and upserts it into DB.
+//
+// DATA SOURCES (tried in priority order):
+//
+//   1. RotoWire API (ROTOWIRE_API_KEY env var)
+//      Provides Yahoo DFS salaries + projections in structured JSON.
+//      More reliable than scraping Yahoo directly.
+//
+//   2. Yahoo DFS Lobby API (no auth required for contest list)
+//      Contest list:
+//        GET https://dfyql-ro.sports.yahoo.com/v2/external/contracts/json
+//             ?sport={slug}&status=open
+//      Player pool:
+//        GET https://dfyql-ro.sports.yahoo.com/v2/players
+//             ?sport={slug}&contest_key={key}   ← was wrong param name before
+//      Player positions come as an ARRAY, not a string.
+//      FPPG field is "average_points" not "average_draft_position".
+//
+//   3. CSV upload (POST /api/admin/ingest/yahoo/:sport/csv)
+//      Yahoo exports player CSVs from their contest page.
+//
+// ENV VARS:
+//   ROTOWIRE_API_KEY    — RotoWire API key (preferred)
+//   YAHOO_CLIENT_ID     — Yahoo OAuth app client ID
+//   YAHOO_CLIENT_SECRET — Yahoo OAuth app client secret
+//   YAHOO_ACCESS_TOKEN  — pre-obtained bearer token (simplest)
+// ============================================================
+
 import { storage } from "./storage";
 import type { InsertSlate, InsertPlayer } from "@shared/schema";
 
 export type YahooSport = "NBA" | "NFL" | "MLB" | "NHL" | "GOLF";
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+// Yahoo DFS API uses lowercase sport slugs; GOLF uses "pga"
 const YAHOO_SPORT_SLUGS: Record<YahooSport, string> = {
   NBA: "nba", NFL: "nfl", MLB: "mlb", NHL: "nhl", GOLF: "pga",
 };
 
+// RotoWire sport slugs
 const RW_SPORT_SLUGS: Record<YahooSport, string> = {
   NBA: "nba", NFL: "nfl", MLB: "mlb", NHL: "nhl", GOLF: "golf",
 };
 
+// Yahoo's $200 salary cap
 const YAHOO_SALARY_CAP = 200;
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
 interface YahooContest {
-  contestKey: string;
-  gameKey: string;
+  contestKey: string;       // Yahoo's contest identifier
+  gameKey: string;          // Yahoo's game/slate key
   label: string;
   sport: YahooSport;
   startTime: Date;
@@ -25,16 +63,20 @@ interface YahooContest {
 
 interface YahooPlayerRow {
   name: string;
-  position: string;
+  position: string;         // normalized canonical position
   team: string;
   opponent: string;
   gameInfo: string;
-  salary: number;
+  salary: number;           // in Yahoo units ($10–$60 scale)
   fppg: number;
   projectedPoints: number;
   injuryStatus: string | null;
   yahooPlayerId: string | null;
 }
+
+// ── Position normalization ────────────────────────────────────────────────────
+// Yahoo positions come as arrays from the API (e.g. ["PG","SG"]).
+// We take the first position and normalize to EliteLineup canonical.
 
 function normalizeYahooPosition(positions: string | string[], sport: YahooSport): string {
   const raw = Array.isArray(positions) ? (positions[0] ?? "") : (positions ?? "");
@@ -42,17 +84,21 @@ function normalizeYahooPosition(positions: string | string[], sport: YahooSport)
 
   switch (sport) {
     case "NHL":
+      // Yahoo NHL splits LW/RW — pass through unchanged, they match our config
       if (["LW","RW","C","D","G"].includes(p)) return p;
-      if (p === "W") return "LW";
+      if (p === "W") return "LW"; // generic W → LW
       return p;
     case "MLB":
+      // Yahoo uses SP for starting pitchers
       if (p === "SP" || p === "P") return "SP";
-      if (p === "RP") return "SP";
+      if (p === "RP") return "SP"; // treat relief pitchers as SP for Yahoo DFS
       return p;
     case "NFL":
+      // Yahoo includes K (kicker) — already matches our config
       if (p === "DEF" || p === "D") return "DEF";
       return p;
     case "NBA":
+      // PG, SG, SF, PF, C, G, F, UTIL — identical to DK structure
       return p;
     case "GOLF":
       return "G";
@@ -60,6 +106,8 @@ function normalizeYahooPosition(positions: string | string[], sport: YahooSport)
       return p;
   }
 }
+
+// ── OAuth token ───────────────────────────────────────────────────────────────
 
 let _cachedToken: { token: string; expiresAt: number } | null = null;
 
@@ -118,6 +166,20 @@ async function yahooFetch(url: string, useAuth = false, timeoutMs = 15000): Prom
   }
 }
 
+// ── Contest discovery ─────────────────────────────────────────────────────────
+//
+// Yahoo DFS contest list endpoint (no auth required):
+//   https://dfyql-ro.sports.yahoo.com/v2/external/contracts/json?sport={slug}&status=open
+//
+// Each contest has:
+//   contest_key       — unique contest identifier (used to fetch players)
+//   game_key          — Yahoo game key for this slate
+//   name / title      — human-readable name
+//   start_time        — Unix timestamp (seconds) or ISO string
+//   salary_cap        — total salary cap (should be 200 for Yahoo DFS)
+//   entry_fee         — 0 for free contests, >0 for paid
+//   contest_type_name — "Classic", "Single Game", etc.
+
 async function fetchYahooContests(sport: YahooSport): Promise<YahooContest[]> {
   const slug = YAHOO_SPORT_SLUGS[sport];
   const url = `https://dfyql-ro.sports.yahoo.com/v2/external/contracts/json?sport=${slug}&status=open`;
@@ -131,6 +193,7 @@ async function fetchYahooContests(sport: YahooSport): Promise<YahooContest[]> {
     return [];
   }
 
+  // Response shape: { contracts: [...] } or { result: { contracts: [...] } }
   const contractList: any[] = data?.contracts ?? data?.result?.contracts ?? data?.data ?? [];
 
   const nowET = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
@@ -140,12 +203,13 @@ async function fetchYahooContests(sport: YahooSport): Promise<YahooContest[]> {
   const contests: YahooContest[] = [];
 
   for (const c of contractList) {
+    // start_time may be Unix seconds or ISO string
     const rawStart = c.start_time ?? c.startTime ?? c.draft_start ?? c.lock_time;
     if (!rawStart) continue;
 
     const startTime = typeof rawStart === "number"
-      ? new Date(rawStart * 1000)
-      : new Date(rawStart);
+      ? new Date(rawStart * 1000)     // Unix seconds
+      : new Date(rawStart);           // ISO string
 
     const startET = new Date(startTime.toLocaleString("en-US", { timeZone: "America/New_York" }));
     if (startET < todayStart || startET > todayEnd) continue;
@@ -153,6 +217,7 @@ async function fetchYahooContests(sport: YahooSport): Promise<YahooContest[]> {
     const label = c.name ?? c.title ?? c.contest_name ?? `${sport} Yahoo ${startET.toLocaleDateString()}`;
     const contestTypeName = (c.contest_type_name ?? c.type ?? "").toLowerCase();
 
+    // Main slate: Classic contest type OR largest salary cap OR explicitly labeled "main"
     const isMain =
       contestTypeName.includes("classic") ||
       contestTypeName.includes("main") ||
@@ -171,6 +236,7 @@ async function fetchYahooContests(sport: YahooSport): Promise<YahooContest[]> {
     });
   }
 
+  // Main contests first, then earliest start
   contests.sort((a, b) => {
     if (a.isMain !== b.isMain) return a.isMain ? -1 : 1;
     return a.startTime.getTime() - b.startTime.getTime();
@@ -179,8 +245,24 @@ async function fetchYahooContests(sport: YahooSport): Promise<YahooContest[]> {
   return contests;
 }
 
+// ── Player pool fetch ─────────────────────────────────────────────────────────
+//
+// Yahoo DFS player endpoint (no auth required for salary/FPPG data):
+//   https://dfyql-ro.sports.yahoo.com/v2/players?sport={slug}&contest_key={key}
+//
+// Key fields in each player object:
+//   full_name / first_name + last_name
+//   eligible_positions    — ARRAY of strings e.g. ["PG", "SG"]  ← was wrong before
+//   editorial_team_abbr   — team abbreviation
+//   salary / dfs_salary   — player salary
+//   average_points        — FPPG (was incorrectly using average_draft_position before)
+//   status / injury_status — injury flag
+//   player_id             — Yahoo player ID string
+
 async function fetchYahooPlayers(contest: YahooContest): Promise<YahooPlayerRow[]> {
   const slug = YAHOO_SPORT_SLUGS[contest.sport];
+
+  // Primary: use contest_key param (correct parameter name)
   const primaryUrl = `https://dfyql-ro.sports.yahoo.com/v2/players?sport=${slug}&contest_key=${contest.contestKey}`;
 
   let data: any;
@@ -201,6 +283,11 @@ async function fetchYahooPlayers(contest: YahooContest): Promise<YahooPlayerRow[
     }
   }
 
+  // Response shape variants Yahoo has used:
+  //   { players: [...] }
+  //   { result: { players: [...] } }
+  //   { data: { players: [...] } }
+  //   Array of players directly
   const playerList: any[] =
     data?.players ??
     data?.result?.players ??
@@ -219,12 +306,14 @@ function parseYahooAPIPlayers(players: any[], sport: YahooSport): YahooPlayerRow
   const rows: YahooPlayerRow[] = [];
 
   for (const p of players) {
+    // Name
     const name = p.full_name
       ?? (p.first_name && p.last_name ? `${p.first_name} ${p.last_name}`.trim() : null)
       ?? p.name
       ?? "";
     if (!name || name.trim().length < 2) continue;
 
+    // Position — Yahoo returns an ARRAY, not a single string
     const eligiblePositions: string[] = p.eligible_positions ?? p.positions ?? [];
     const position = normalizeYahooPosition(
       eligiblePositions.length > 0 ? eligiblePositions : (p.position ?? p.primary_position ?? ""),
@@ -232,23 +321,30 @@ function parseYahooAPIPlayers(players: any[], sport: YahooSport): YahooPlayerRow
     );
     if (!position) continue;
 
+    // Salary
     const salary = parseInt(
       String(p.salary ?? p.dfs_salary ?? p.contract_salary ?? "0").replace(/[$,]/g, "")
     ) || 0;
     if (!salary) continue;
 
+    // FPPG — Yahoo's field is "average_points", NOT "average_draft_position"
+    // "average_draft_position" is ADP (season-long fantasy), completely unrelated to scoring
     const fppg =
       parseFloat(p.average_points ?? p.fppg ?? p.average_fantasy_points ?? p.points_per_game ?? "0") || 0;
 
+    // Team and opponent
     const team = p.editorial_team_abbr ?? p.team_abbr ?? p.team ?? "";
     const opponent = p.opponent_abbr ?? p.opponent ?? "";
 
+    // Game info — reconstruct if not provided
     const gameInfo = p.game ?? p.game_info ?? p.matchup ?? (team && opponent ? `${team} vs ${opponent}` : "");
 
+    // Injury status
     const injuryRaw = p.status ?? p.injury_status ?? p.injury_note ?? "";
     const injuryStatus =
       injuryRaw && !["", "Active", "Healthy", "DTD"].includes(injuryRaw)
         ? injuryRaw : null;
+    // "DTD" (Day-to-Day) on Yahoo maps to "Questionable"
     const normalizedInjury = injuryRaw === "DTD" ? "Questionable" : injuryStatus;
 
     rows.push({
@@ -259,7 +355,7 @@ function parseYahooAPIPlayers(players: any[], sport: YahooSport): YahooPlayerRow
       gameInfo,
       salary,
       fppg,
-      projectedPoints: fppg,
+      projectedPoints: fppg, // Yahoo doesn't publish projections; FPPG is the proxy
       injuryStatus: normalizedInjury,
       yahooPlayerId: String(p.player_id ?? p.id ?? ""),
     });
@@ -267,6 +363,13 @@ function parseYahooAPIPlayers(players: any[], sport: YahooSport): YahooPlayerRow
 
   return rows;
 }
+
+// ── RotoWire fallback ─────────────────────────────────────────────────────────
+//
+// RotoWire provides Yahoo DFS salaries and projections via their API.
+// Endpoint: https://api.rotowire.com/dfs/yahoo/projections.php
+//   Params: sport={slug}&type=main
+//   Auth: ?key={ROTOWIRE_API_KEY}
 
 async function fetchRotoWirePlayers(sport: YahooSport): Promise<YahooPlayerRow[]> {
   const apiKey = process.env.ROTOWIRE_API_KEY;
@@ -316,6 +419,9 @@ async function fetchRotoWirePlayers(sport: YahooSport): Promise<YahooPlayerRow[]
   console.log(`[Yahoo/RotoWire] ${sport}: ${rows.length} players`);
   return rows;
 }
+
+// ── CSV parser (for manual uploads via admin route) ───────────────────────────
+// Yahoo CSV format: Name,ID,Position,Team,Opponent,Game,Salary,FPPG,...
 
 function parseCSVLine(line: string): string[] {
   const fields: string[] = [];
@@ -386,6 +492,8 @@ export function parseYahooCSV(csvText: string, sport: YahooSport): YahooPlayerRo
   return rows;
 }
 
+// ── Shared slate upsert helper ────────────────────────────────────────────────
+
 async function upsertYahooSlate(sport: YahooSport, label: string, startTime: Date): Promise<Awaited<ReturnType<typeof storage.createSlate>>> {
   const allSlates = await storage.getSlates();
   const nowET = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
@@ -427,13 +535,11 @@ function buildInsertPlayers(rows: YahooPlayerRow[], slateId: number): InsertPlay
       boostScore: null,
       boostReason: null,
       draftKingsPlayerId: null,
-      fanDuelPlayerId: null,
-      yahooPlayerId: p.yahooPlayerId,
-      fanDuelSalary: null,
-      yahooSalary: null,
       isConfirmedStarter: false,
     } satisfies InsertPlayer));
 }
+
+// ── Main ingest ───────────────────────────────────────────────────────────────
 
 export async function ingestYahooSlate(sport: YahooSport): Promise<{
   success: boolean; slateId?: number; playerCount?: number; message: string; source?: string;
@@ -445,11 +551,13 @@ export async function ingestYahooSlate(sport: YahooSport): Promise<{
   let startTime = new Date();
   let source = "none";
 
+  // 1 — RotoWire (if key available)
   if (process.env.ROTOWIRE_API_KEY) {
     playerRows = await fetchRotoWirePlayers(sport);
     if (playerRows.length > 0) source = "rotowire";
   }
 
+  // 2 — Yahoo DFS API
   if (playerRows.length === 0) {
     const contests = await fetchYahooContests(sport);
     if (contests.length === 0) {
@@ -490,6 +598,8 @@ export async function ingestYahooSlate(sport: YahooSport): Promise<{
   };
 }
 
+// ── CSV import (called from admin upload route) ───────────────────────────────
+
 export async function ingestYahooCSV(csvText: string, sport: YahooSport): Promise<{
   success: boolean; slateId?: number; playerCount?: number; message: string;
 }> {
@@ -510,6 +620,8 @@ export async function ingestYahooCSV(csvText: string, sport: YahooSport): Promis
     message: `CSV imported ${insertPlayers.length} Yahoo ${sport} players`,
   };
 }
+
+// ── Ingest all sports ─────────────────────────────────────────────────────────
 
 export async function ingestAllYahooSlates(): Promise<Record<YahooSport, { success: boolean; message: string; source?: string }>> {
   const results = {} as Record<YahooSport, { success: boolean; message: string; source?: string }>;

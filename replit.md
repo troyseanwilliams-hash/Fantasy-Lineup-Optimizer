@@ -48,8 +48,8 @@ Preferred communication style: Simple, everyday language.
 - **Track Record**: Shows user's overall DFS history and performance summary.
 - **GatedContent Component**: Manages access to features based on user subscription tier.
 - **Showdown Builder**: Single-game DFS lineup optimization for CPT/FLEX or MVP/FLEX formats.
-- **FanDuel Ingest** (`server/fanduel-ingest.ts`): Fetches FD slates/players via FD CSV export (needs `FD_SESSION_COOKIE`) or SportsData.io fallback (needs `SPORTSDATA_API_KEY`). Normalizes positions per sport.
-- **Yahoo Ingest** (`server/yahoo-ingest.ts`): Fetches Yahoo DFS slates/players via Yahoo readonly DFS API (no auth for contest list) with OAuth fallback (`YAHOO_CLIENT_ID`/`YAHOO_CLIENT_SECRET` or `YAHOO_ACCESS_TOKEN`). Supports CSV upload for manual import. Yahoo salary cap is $200.
+- **FanDuel Ingest** (`server/fanduel-ingest.ts`): Fetches FD slates/players via three sources in priority order: (1) SportsData.io with correct `YYYY-MMM-DD` date format (`SPORTSDATA_API_KEY`), (2) FD JSON API, (3) FD CSV download. Auth uses `_fanduel_session` cookie (`FD_SESSION_COOKIE`) or Bearer token (`FD_AUTH_TOKEN`) with proper Origin/Referer headers. Includes retry logic (3 attempts with backoff), request timeouts, ET-based date filtering, and improved main slate detection (`is_guaranteed`, `is_primary`, label regex).
+- **Yahoo Ingest** (`server/yahoo-ingest.ts`): Fetches Yahoo DFS slates/players via three sources: (1) RotoWire API (`ROTOWIRE_API_KEY`), (2) Yahoo DFS Lobby API using correct `contest_key` parameter and `average_points` for FPPG (not `average_draft_position`), (3) CSV upload. Handles Unix timestamp start times, position arrays (not strings), DTD→Questionable injury mapping. OAuth via `YAHOO_CLIENT_ID`/`YAHOO_CLIENT_SECRET` with client_credentials grant and token caching. Yahoo salary cap is $200.
 - **Ingest Routes** (`server/routes/ingest.ts`): Admin-only API at `/api/ingest` for triggering FD/Yahoo data ingestion per sport or all sports. Auth via session admin or `ADMIN_INGEST_KEY` header. Includes daily 5 AM ET cron scheduler. Yahoo CSV upload via multipart POST.
 
 ### Platform Configuration

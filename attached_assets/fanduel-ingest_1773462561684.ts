@@ -1,7 +1,33 @@
+// ============================================================
+// server/fanduel-ingest.ts
+//
+// Fetches FanDuel DFS main slate data and upserts it into DB.
+//
+// DATA SOURCES (tried in priority order):
+//
+//   1. SportsData.io (SPORTSDATA_API_KEY env var)
+//      Most reliable. Returns structured JSON with projections.
+//      Date format must be YYYY-MMM-DD (e.g. 2024-JAN-15) —
+//      NOT "/today" which was the bug in the previous version.
+//
+//   2. FanDuel JSON API (FD_SESSION_COOKIE or FD_AUTH_TOKEN)
+//      Tries https://api.fanduel.com/fixture-lists/{id}/players
+//
+//   3. FanDuel CSV download (same auth)
+//      Tries two known CSV URL patterns as final fallback.
+//
+// ENV VARS:
+//   SPORTSDATA_API_KEY  — SportsData.io subscription key
+//   FD_SESSION_COOKIE   — value of _fanduel_session browser cookie
+//   FD_AUTH_TOKEN       — FD API bearer token (alternative)
+// ============================================================
+
 import { storage } from "./storage";
 import type { InsertSlate, InsertPlayer } from "@shared/schema";
 
 export type FDSport = "NBA" | "NFL" | "MLB" | "NHL" | "GOLF";
+
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const FD_SPORT_SLUGS: Record<FDSport, string> = {
   NBA: "NBA", NFL: "NFL", MLB: "MLB", NHL: "NHL", GOLF: "PGA",
@@ -11,11 +37,14 @@ const SD_SPORT_SLUGS: Record<FDSport, string> = {
   NBA: "nba", NFL: "nfl", MLB: "mlb", NHL: "nhl", GOLF: "golf",
 };
 
+// Default salary caps by sport when not returned by API
 const FD_SALARY_CAPS: Record<FDSport, number> = {
   NBA: 60000, NFL: 60000, MLB: 35000, NHL: 55000, GOLF: 60000,
 };
 
 const SD_MONTHS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface FDSlateInfo {
   id: string;
@@ -40,12 +69,16 @@ interface FDPlayerRow {
   fanDuelPlayerId: number | null;
 }
 
+// ── Position normalization ────────────────────────────────────────────────────
+
 function normalizeFDPosition(raw: string, sport: FDSport): string {
   const p = (raw || "").trim().toUpperCase();
   if (sport === "NFL" && p === "D") return "DEF";
   if (sport === "MLB" && (p === "P" || p === "RP")) return "SP";
   return p;
 }
+
+// ── HTTP helpers ──────────────────────────────────────────────────────────────
 
 function getFDHeaders(extraHeaders: Record<string, string> = {}): Record<string, string> {
   const h: Record<string, string> = {
@@ -90,6 +123,8 @@ async function fdFetchRetry(url: string, extra: Record<string, string> = {}): Pr
   throw last;
 }
 
+// ── Slate discovery ───────────────────────────────────────────────────────────
+
 async function fetchFDSlates(sport: FDSport): Promise<FDSlateInfo[]> {
   const url = `https://api.fanduel.com/fixture-lists?sport=${FD_SPORT_SLUGS[sport]}&_format=json`;
   let data: any;
@@ -103,6 +138,7 @@ async function fetchFDSlates(sport: FDSport): Promise<FDSlateInfo[]> {
 
   const fixtureLists: any[] = data?.fixture_lists ?? [];
 
+  // Build today's ET window for filtering
   const nowET = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
   const todayStart = new Date(nowET); todayStart.setHours(0,0,0,0);
   const todayEnd   = new Date(nowET); todayEnd.setHours(23,59,59,999);
@@ -134,12 +170,15 @@ async function fetchFDSlates(sport: FDSport): Promise<FDSlateInfo[]> {
     });
   }
 
+  // Main slates first, earliest start first
   slates.sort((a, b) => {
     if (a.isMain !== b.isMain) return a.isMain ? -1 : 1;
     return a.startTime.getTime() - b.startTime.getTime();
   });
   return slates;
 }
+
+// ── Player fetch — JSON then CSV ──────────────────────────────────────────────
 
 async function fetchFDPlayersJSON(slateId: string): Promise<any[] | null> {
   try {
@@ -165,6 +204,8 @@ async function fetchFDPlayersCSV(slateId: string): Promise<string | null> {
   }
   return null;
 }
+
+// ── CSV parser ────────────────────────────────────────────────────────────────
 
 function parseCSVLine(line: string): string[] {
   const fields: string[] = [];
@@ -266,11 +307,14 @@ function parseFDJSON(jsonPlayers: any[], sport: FDSport): FDPlayerRow[] {
   return rows;
 }
 
+// ── SportsData.io ─────────────────────────────────────────────────────────────
+
 async function fetchSportsDataPlayers(sport: FDSport): Promise<FDPlayerRow[]> {
   const apiKey = process.env.SPORTSDATA_API_KEY;
   if (!apiKey) return [];
 
   const now = new Date();
+  // SportsData.io date format: YYYY-MMM-DD  (e.g. 2024-JAN-15)
   const dateStr = `${now.getFullYear()}-${SD_MONTHS[now.getMonth()]}-${String(now.getDate()).padStart(2,"0")}`;
   const slug = SD_SPORT_SLUGS[sport];
   const url = `https://api.sportsdata.io/v3/${slug}/projections/json/DfsSlatesByDate/${dateStr}?key=${apiKey}`;
@@ -287,6 +331,7 @@ async function fetchSportsDataPlayers(sport: FDSport): Promise<FDPlayerRow[]> {
 
   const slates: any[] = Array.isArray(data) ? data : (data?.DfsSlates ?? []);
 
+  // Pick FanDuel main or classic slate
   const fdSlate =
     slates.find(s => s.Operator === "FanDuel" && (s.OperatorSlateType === "Main" || s.OperatorSlateType === "Classic")) ??
     slates.find(s => s.Operator === "FanDuel");
@@ -330,6 +375,8 @@ async function fetchSportsDataPlayers(sport: FDSport): Promise<FDPlayerRow[]> {
   return rows;
 }
 
+// ── Main ingest ───────────────────────────────────────────────────────────────
+
 export async function ingestFanDuelSlate(sport: FDSport): Promise<{
   success: boolean; slateId?: number; playerCount?: number; message: string; source?: string;
 }> {
@@ -350,11 +397,13 @@ export async function ingestFanDuelSlate(sport: FDSport): Promise<{
   let isMain = true;
   let source = "none";
 
+  // 1 — SportsData.io
   if (hasSportsData) {
     playerRows = await fetchSportsDataPlayers(sport);
     if (playerRows.length > 0) source = "sportsdata.io";
   }
 
+  // 2 — FD API (JSON → CSV)
   if (playerRows.length === 0 && hasFDAuth) {
     const slates = await fetchFDSlates(sport);
     if (slates.length > 0) {
@@ -381,6 +430,7 @@ export async function ingestFanDuelSlate(sport: FDSport): Promise<{
     return { success: false, message: `[FD/${sport}] No player data retrieved from any source.` };
   }
 
+  // Slate upsert — match by sport + platform + today ET
   const nowET = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
   const todayET = `${nowET.getFullYear()}-${String(nowET.getMonth()+1).padStart(2,"0")}-${String(nowET.getDate()).padStart(2,"0")}`;
 
@@ -405,13 +455,7 @@ export async function ingestFanDuelSlate(sport: FDSport): Promise<{
       salary: p.salary, fppg: String(p.fppg), projectedPoints: String(p.projectedPoints),
       opponent: p.opponent || null, gameInfo: p.gameInfo || null,
       injuryStatus: p.injuryStatus, injuryDetail: null,
-      boostScore: null, boostReason: null,
-      draftKingsPlayerId: null,
-      fanDuelPlayerId: p.fanDuelPlayerId,
-      yahooPlayerId: null,
-      fanDuelSalary: null,
-      yahooSalary: null,
-      isConfirmedStarter: false,
+      boostScore: null, boostReason: null, draftKingsPlayerId: null, isConfirmedStarter: false,
     } satisfies InsertPlayer));
 
   if (insertPlayers.length === 0) {
