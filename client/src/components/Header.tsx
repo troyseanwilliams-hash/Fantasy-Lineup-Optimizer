@@ -155,7 +155,7 @@ export function Header() {
                               <div className="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center mr-2 shrink-0">
                                 <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
                               </div>
-                              <span className="text-sm font-bold text-emerald-300">{sport} Advanced DK</span>
+                              <span className="text-sm font-bold text-emerald-300">{sport} Pro Optimizer</span>
                               <Trophy className="w-3.5 h-3.5 text-emerald-400 ml-auto" />
                             </DropdownMenuItem>
                           </Link>
@@ -165,7 +165,7 @@ export function Header() {
                               <div className="w-6 h-6 rounded bg-emerald-500/10 flex items-center justify-center mr-2 shrink-0">
                                 <Lock className="w-3 h-3 text-emerald-500/50" />
                               </div>
-                              <span className="text-sm font-bold text-slate-500">{sport} Advanced DK</span>
+                              <span className="text-sm font-bold text-slate-500">{sport} Pro Optimizer</span>
                               <Trophy className="w-3.5 h-3.5 text-emerald-500/40 ml-auto" />
                             </DropdownMenuItem>
                           </Link>
@@ -177,7 +177,7 @@ export function Header() {
                               <div className="w-6 h-6 rounded bg-amber-500/20 flex items-center justify-center mr-2 shrink-0">
                                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                               </div>
-                              <span className="text-sm font-bold text-amber-300">{sport} Advanced DK</span>
+                              <span className="text-sm font-bold text-amber-300">{sport} Pro Optimizer</span>
                               <Crown className="w-3.5 h-3.5 text-amber-400 ml-auto" />
                             </DropdownMenuItem>
                           </Link>
@@ -187,7 +187,7 @@ export function Header() {
                               <div className="w-6 h-6 rounded bg-amber-500/10 flex items-center justify-center mr-2 shrink-0">
                                 <Lock className="w-3 h-3 text-amber-500/50" />
                               </div>
-                              <span className="text-sm font-bold text-slate-500">{sport} Advanced DK</span>
+                              <span className="text-sm font-bold text-slate-500">{sport} Pro Optimizer</span>
                               <Crown className="w-3.5 h-3.5 text-amber-500/40 ml-auto" />
                             </DropdownMenuItem>
                           </Link>
@@ -729,7 +729,7 @@ export function Header() {
                             data-testid={`mobile-sport-${sport.toLowerCase()}-pro`}
                           >
                             <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-                            <span>Advanced DK {sport}</span>
+                            <span>Pro Optimizer {sport}</span>
                             <Crown className="w-3.5 h-3.5 text-amber-400 ml-auto" />
                           </button>
                         ) : isStar && dkSlate ? (
@@ -739,7 +739,7 @@ export function Header() {
                             data-testid={`mobile-sport-${sport.toLowerCase()}-star`}
                           >
                             <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-                            <span>Advanced DK {sport}</span>
+                            <span>Pro Optimizer {sport}</span>
                             <Trophy className="w-3.5 h-3.5 text-emerald-400 ml-auto" />
                           </button>
                         ) : (
@@ -748,7 +748,7 @@ export function Header() {
                             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-slate-600 hover:bg-slate-800 transition-colors"
                           >
                             <Lock className="w-4 h-4 shrink-0" />
-                            <span>Advanced DK {sport}</span>
+                            <span>Pro Optimizer {sport}</span>
                           </button>
                         )}
                       </div>
