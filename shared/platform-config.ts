@@ -372,6 +372,114 @@ export function positionFitsSlot(position: string, slot: string, sport?: string)
   }
 }
 
+// --- SHOWDOWN CONFIG ---
+export interface ShowdownSlot {
+  key: string;
+  label: string;
+  isCaptain: boolean;
+}
+
+export interface ShowdownConfig {
+  platform: Platform;
+  sport: string;
+  salaryCap: number;
+  rosterSize: number;
+  captainMultiplier: number;
+  captainSalaryMultiplier: number;
+  captainLabel: string;
+  flexLabel: string;
+  slots: ShowdownSlot[];
+}
+
+export const SHOWDOWN_CONFIGS: Record<string, Record<Platform, ShowdownConfig>> = {
+  NBA: {
+    draftkings: {
+      platform: "draftkings",
+      sport: "NBA",
+      salaryCap: 50000,
+      rosterSize: 6,
+      captainMultiplier: 1.5,
+      captainSalaryMultiplier: 1.5,
+      captainLabel: "CPT",
+      flexLabel: "FLEX",
+      slots: [
+        { key: "CPT", label: "CPT", isCaptain: true },
+        { key: "FLEX1", label: "FLEX", isCaptain: false },
+        { key: "FLEX2", label: "FLEX", isCaptain: false },
+        { key: "FLEX3", label: "FLEX", isCaptain: false },
+        { key: "FLEX4", label: "FLEX", isCaptain: false },
+        { key: "FLEX5", label: "FLEX", isCaptain: false },
+      ],
+    },
+    fanduel: {
+      platform: "fanduel",
+      sport: "NBA",
+      salaryCap: 60000,
+      rosterSize: 5,
+      captainMultiplier: 2.0,
+      captainSalaryMultiplier: 1.0,
+      captainLabel: "MVP",
+      flexLabel: "FLEX",
+      slots: [
+        { key: "MVP", label: "MVP", isCaptain: true },
+        { key: "FLEX1", label: "FLEX", isCaptain: false },
+        { key: "FLEX2", label: "FLEX", isCaptain: false },
+        { key: "FLEX3", label: "FLEX", isCaptain: false },
+        { key: "FLEX4", label: "FLEX", isCaptain: false },
+      ],
+    },
+  },
+  NFL: {
+    draftkings: {
+      platform: "draftkings",
+      sport: "NFL",
+      salaryCap: 50000,
+      rosterSize: 6,
+      captainMultiplier: 1.5,
+      captainSalaryMultiplier: 1.5,
+      captainLabel: "CPT",
+      flexLabel: "FLEX",
+      slots: [
+        { key: "CPT", label: "CPT", isCaptain: true },
+        { key: "FLEX1", label: "FLEX", isCaptain: false },
+        { key: "FLEX2", label: "FLEX", isCaptain: false },
+        { key: "FLEX3", label: "FLEX", isCaptain: false },
+        { key: "FLEX4", label: "FLEX", isCaptain: false },
+        { key: "FLEX5", label: "FLEX", isCaptain: false },
+      ],
+    },
+    fanduel: {
+      platform: "fanduel",
+      sport: "NFL",
+      salaryCap: 60000,
+      rosterSize: 5,
+      captainMultiplier: 2.0,
+      captainSalaryMultiplier: 1.0,
+      captainLabel: "MVP",
+      flexLabel: "FLEX",
+      slots: [
+        { key: "MVP", label: "MVP", isCaptain: true },
+        { key: "FLEX1", label: "FLEX", isCaptain: false },
+        { key: "FLEX2", label: "FLEX", isCaptain: false },
+        { key: "FLEX3", label: "FLEX", isCaptain: false },
+        { key: "FLEX4", label: "FLEX", isCaptain: false },
+      ],
+    },
+  },
+};
+
+export function getShowdownConfig(sport: string, platform: Platform): ShowdownConfig | null {
+  return SHOWDOWN_CONFIGS[sport]?.[platform] || null;
+}
+
+export function getEffectiveSalary(baseSalary: number, isCaptain: boolean, config: ShowdownConfig): number {
+  return isCaptain ? Math.round(baseSalary * config.captainSalaryMultiplier) : baseSalary;
+}
+
+export function getShowdownProjectedPoints(baseProj: number, isCaptain: boolean, config: ShowdownConfig): number {
+  return isCaptain ? Math.round(baseProj * config.captainMultiplier * 100) / 100 : baseProj;
+}
+
 // Determines whether a slot is a flex-type slot (fills after specific slots).
 // Only NBA's G and F slots are treated as flex — all other sports use named slots only.
 function isFlexSlot(base: string, sport?: string): boolean {

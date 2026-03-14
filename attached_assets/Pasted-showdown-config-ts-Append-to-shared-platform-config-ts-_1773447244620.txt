@@ -1,0 +1,39 @@
+showdown-config.ts
+Append to shared/platform-config.ts. Defines ShowdownConfig, ShowdownSlot, and SHOWDOWN_CONFIGS for all four combinations (NBA/NFL × DK/FD). Key rules encoded:
+
+DraftKings: CPT scores 1.5×, CPT salary is 1.5× base — 6 players, $50K cap
+FanDuel: MVP scores 2×, MVP salary is standard — 5 players, $60K cap
+
+Also exports getEffectiveSalary() and getProjectedPoints() helpers used by both the backend and frontend.
+
+showdown-route.ts
+Mount in Express: app.use(showdownRouter). Three endpoints:
+
+GET /api/showdown/slates — slates for a given sport
+GET /api/showdown/players/:slateId — players grouped by game matchup (for the game picker)
+POST /api/showdown/optimize — generates 1–20 showdown lineups. If a captain is locked it explores flex variations; if no captain is locked it tries every player as captain and returns the highest-projected unique lineups
+POST /api/showdown/save — saves to the existing lineups table with the player snapshot
+
+
+ShowdownBuilder.tsx
+Add to your router at /showdown. The layout is a dense two-panel split matching the regular Optimizer's feel but built for showdown context:
+Left panel — Player Pool:
+
+Three-column lock system: Crown button locks as CPT/MVP (gold), lock icon locks as FLEX (blue), X excludes
+Columns show both base salary/projection AND the captain-effective values side by side so users can immediately see what each player costs/scores in the premium slot
+Game picker at the top filters the pool to only the selected matchup's players
+Position and team dropdowns filter further
+
+Right panel — Lineup:
+
+Captain slot gets a gold glow treatment with the multiplier badge
+FLEX slots are clean cards below
+Totals bar shows projected points, salary used vs cap, and captain name
+Multiple lineup tabs if count > 1
+CSV export follows DraftKings upload format (CPT + 5 FLEX headers)
+Saves to vault using the existing lineups table and save infrastructure
+
+To add to navigation:
+tsx<Route path="/showdown" component={ShowdownBuilder} />
+// Nav link:
+{ href: "/showdown", label: "Showdown", icon: Swords }
