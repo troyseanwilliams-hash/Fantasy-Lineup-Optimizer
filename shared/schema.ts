@@ -347,7 +347,7 @@ export type InsertPerformanceSnapshot = z.infer<typeof insertPerformanceSnapshot
 // --- OPTIMIZATION TYPES ---
 export const optimizationConstraintSchema = z.object({
   slateId: z.number(),
-  platform: z.enum(["draftkings", "fanduel"]).optional(),
+  platform: z.enum(["draftkings", "fanduel", "yahoo"]).optional(),
   lockedPlayerIds: z.array(z.number()).default([]),
   excludedPlayerIds: z.array(z.number()).default([]),
   // Total lineup salary bounds (applied to the sum of all player salaries).
@@ -365,7 +365,7 @@ export const optimizeResponseSchema = z.object({
   lineup: z.array(z.custom<Player>()),
   totalSalary: z.number(),
   totalProjectedPoints: z.number(),
-  platform: z.enum(["draftkings", "fanduel"]).optional(),
+  platform: z.enum(["draftkings", "fanduel", "yahoo"]).optional(),
   error: z.string().optional(),
 });
 

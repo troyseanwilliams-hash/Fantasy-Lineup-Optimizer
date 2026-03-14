@@ -4,7 +4,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { buildUrl } from "@shared/routes";
 import type { Player, Slate, ProOptimizeResponse } from "@shared/schema";
-import { getPlatformConfig, assignPlayersToSlots, getSlotDisplayName, positionFitsSlot, type Platform } from "@shared/platform-config";
+import { getPlatformConfig, assignPlayersToSlots, getSlotDisplayName, positionFitsSlot, PLATFORM_COLORS, type Platform, type Sport } from "@shared/platform-config";
+import { PlatformSelector } from "@/components/PlatformSelector";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,16 @@ const INJURY_COLORS: Record<string, string> = {
   Probable: "bg-green-500/20 text-green-400 border-green-500/30",
   "Day-to-Day": "bg-blue-500/20 text-blue-400 border-blue-500/30",
 };
+
+function formatSalary(salary: number, plat: Platform): string {
+  if (plat === "yahoo") return `$${salary}`;
+  return `$${(salary / 1000).toFixed(1)}K`;
+}
+
+function formatCap(cap: number, plat: Platform): string {
+  if (plat === "yahoo") return `$${cap}`;
+  return `$${cap.toLocaleString()}`;
+}
 
 function getPlayerStarCount(projectedPoints: number): number {
   if (projectedPoints >= 45) return 5;
@@ -103,10 +114,11 @@ export default function ProOptimizer() {
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
   const [mobileView, setMobileView] = useState<"players" | "lineup">("players");
 
+  const [platform, setPlatform] = useState<Platform>("draftkings");
+
   const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"], refetchInterval: 300000 });
   const slate = useMemo(() => slates?.find(s => s.id === slateId), [slates, slateId]);
-  const platform = (slate?.platform || "draftkings") as Platform;
-  const sport = slate?.sport || "NBA";
+  const sport = (slate?.sport || "NBA") as Sport;
 
   const config = useMemo(() => {
     try { return getPlatformConfig(sport, platform); }
@@ -553,11 +565,6 @@ export default function ProOptimizer() {
 
   const handleExportCSV = () => {
     if (generatedLineups.length === 0) return;
-    if (platform !== "draftkings") {
-      toast({ title: "Export Unavailable", description: "CSV export is only available for DraftKings lineups.", variant: "destructive" });
-      return;
-    }
-    // Use outer config (from useMemo) — no need to re-call getPlatformConfig here
     const headers = config.slots.map(slot => getSlotDisplayName(slot));
     let missingIdCount = 0;
     const rows = generatedLineups.map(lineupData => {
@@ -566,9 +573,14 @@ export default function ProOptimizer() {
       return config.slots.map(slot => {
         const p = slotAssignments[slot];
         if (!p) return "";
-        const dkId = (p as any).draftKingsPlayerId;
-        if (!dkId) missingIdCount++;
-        return dkId ? `${p.name} (${dkId})` : p.name;
+        if (platform === "draftkings") {
+          const dkId = (p as any).draftKingsPlayerId;
+          if (!dkId) missingIdCount++;
+          return dkId ? `${p.name} (${dkId})` : p.name;
+        } else if (platform === "fanduel") {
+          return `${(p as any).draftKingsPlayerId || p.id}:${p.name}`;
+        }
+        return p.name;
       });
     });
     const csv = [headers.join(","), ...rows.map(r => r.map(cell => `"${cell}"`).join(","))].join("\n");
@@ -576,13 +588,13 @@ export default function ProOptimizer() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `elitelineup_${sport}_${generatedLineups.length}_lineups.csv`;
+    a.download = `elitelineup_${config.shortLabel}_${sport}_${generatedLineups.length}_lineups.csv`;
     a.click();
     URL.revokeObjectURL(url);
     if (missingIdCount > 0) {
-      toast({ title: "CSV Exported (Partial IDs)", description: `${missingIdCount} player(s) missing DraftKings IDs. These entries may need manual editing before upload.`, variant: "destructive" });
+      toast({ title: "CSV Exported (Partial IDs)", description: `${missingIdCount} player(s) missing platform IDs. These entries may need manual editing before upload.`, variant: "destructive" });
     } else {
-      toast({ title: "CSV Exported", description: `${generatedLineups.length} lineup${generatedLineups.length > 1 ? "s" : ""} exported for DraftKings upload.` });
+      toast({ title: "CSV Exported", description: `${generatedLineups.length} lineup${generatedLineups.length > 1 ? "s" : ""} exported for ${config.label} upload.` });
     }
   };
 
@@ -602,9 +614,27 @@ export default function ProOptimizer() {
     setSalaryRange(null);
     setLineupSwaps({});
     setSwappingTarget(null);
-    setUseBoostsUserOverride(null); // reset to subscription-derived default
+    setUseBoostsUserOverride(null);
     optimizeMutation.reset();
   };
+
+  useEffect(() => { setPlatform("draftkings"); }, [slateId]);
+
+  const handlePlatformChange = (newPlatform: Platform) => {
+    const tier = subData?.tier || "free";
+    if (newPlatform !== "draftkings" && tier === "free" && !userIsAdmin) {
+      toast({
+        title: "Paid Feature",
+        description: `${newPlatform === "fanduel" ? "FanDuel" : "Yahoo"} optimization requires a Sharpshooter or Champion subscription.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    setPlatform(newPlatform);
+    handleReset();
+  };
+
+  const pColors = PLATFORM_COLORS[platform];
 
   const positions = ["ALL", ...(config.positionFilters || ["PG", "SG", "SF", "PF", "C"])];
 
@@ -662,9 +692,17 @@ export default function ProOptimizer() {
         <div className="flex flex-col gap-2 md:gap-0">
           {/* Row 1: Slate info + selector */}
           <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide">
-            <Badge className={`text-[11px] font-black flex-shrink-0 ${platform === "fanduel" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"}`} data-testid="badge-platform">
+            <Badge className={`text-[11px] font-black flex-shrink-0 ${pColors.bg} ${pColors.text} ${pColors.border}`} data-testid="badge-platform">
               {config.shortLabel} {sport}
             </Badge>
+
+            <PlatformSelector
+              sport={sport}
+              value={platform}
+              onChange={handlePlatformChange}
+              showProBadge
+              tier={subData?.tier || "free"}
+            />
 
             {slate && (
               <span className="text-xs font-black text-amber-400/70 flex-shrink-0" data-testid="pro-slate-date">
@@ -778,9 +816,9 @@ export default function ProOptimizer() {
                     className="w-32"
                     data-testid="slider-salary-range"
                   />
-                  <span className={`text-[10px] font-black min-w-[70px] text-center tabular-nums ${salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) ? "text-emerald-400" : "text-slate-500"}`} data-testid="text-salary-range">
+                  <span className={`text-[10px] font-black min-w-[70px] text-center tabular-nums ${salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) ? pColors.text : "text-slate-500"}`} data-testid="text-salary-range">
                     {salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max)
-                      ? `$${(salaryRange[0] / 1000).toFixed(1)}k-$${(salaryRange[1] / 1000).toFixed(1)}k`
+                      ? `${formatSalary(salaryRange[0], platform)}-${formatSalary(salaryRange[1], platform)}`
                       : "All"}
                   </span>
                   {salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) && (
@@ -860,9 +898,9 @@ export default function ProOptimizer() {
                     className="w-24"
                     data-testid="slider-salary-range-mobile"
                   />
-                  <span className={`text-[10px] font-black min-w-[60px] text-center tabular-nums ${salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) ? "text-emerald-400" : "text-slate-500"}`}>
+                  <span className={`text-[10px] font-black min-w-[60px] text-center tabular-nums ${salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) ? pColors.text : "text-slate-500"}`}>
                     {salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max)
-                      ? `$${(salaryRange[0] / 1000).toFixed(1)}k-$${(salaryRange[1] / 1000).toFixed(1)}k`
+                      ? `${formatSalary(salaryRange[0], platform)}-${formatSalary(salaryRange[1], platform)}`
                       : "All"}
                   </span>
                 </div>
@@ -888,7 +926,7 @@ export default function ProOptimizer() {
               </div>
               {players && players.length > 0 && (
                 <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
-                  <span className="text-[10px] font-black text-emerald-400 uppercase whitespace-nowrap">Salary</span>
+                  <span className={`text-[10px] font-black ${pColors.text} uppercase whitespace-nowrap`}>Salary</span>
                   <Slider
                     value={salaryRange || [salaryBounds.min, salaryBounds.max]}
                     onValueChange={(v) => setSalaryRange([v[0], v[1]])}
@@ -898,9 +936,9 @@ export default function ProOptimizer() {
                     className="w-24"
                     data-testid="slider-salary-range-basic-mobile"
                   />
-                  <span className={`text-[10px] font-black min-w-[60px] text-center tabular-nums ${salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) ? "text-emerald-400" : "text-slate-500"}`}>
+                  <span className={`text-[10px] font-black min-w-[60px] text-center tabular-nums ${salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) ? pColors.text : "text-slate-500"}`}>
                     {salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max)
-                      ? `$${(salaryRange[0] / 1000).toFixed(1)}k-$${(salaryRange[1] / 1000).toFixed(1)}k`
+                      ? `${formatSalary(salaryRange[0], platform)}-${formatSalary(salaryRange[1], platform)}`
                       : "All"}
                   </span>
                 </div>
@@ -1251,7 +1289,7 @@ export default function ProOptimizer() {
                         )}
                       </td>
                       <td className="px-3 py-2 text-[11px] font-bold text-slate-400 uppercase" data-testid={`text-team-${player.id}`}>{player.team}</td>
-                      <td className="px-3 py-2 font-mono text-sm font-bold text-white" data-testid={`text-salary-${player.id}`}>${player.salary.toLocaleString()}</td>
+                      <td className="px-3 py-2 font-mono text-sm font-bold text-white" data-testid={`text-salary-${player.id}`}>{platform === "yahoo" ? `$${player.salary}` : `$${player.salary.toLocaleString()}`}</td>
                       <td className="px-3 py-2 font-mono text-sm text-slate-400" data-testid={`text-base-proj-${player.id}`}>
                         {player.baseProj.toFixed(1)}
                       </td>

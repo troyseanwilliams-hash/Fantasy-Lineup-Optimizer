@@ -2,7 +2,7 @@
 
 ## Overview
 
-EliteLineup AI is a web application designed for Daily Fantasy Sports (DFS) players on platforms like DraftKings and FanDuel, offering advanced tools for lineup optimization, prop betting, parlay building, and PrizePicks entry optimization across NBA, NHL, GOLF, MLB, NFL, and SOCCER. It leverages Linear Programming based on player projections to create optimal lineups. The project aims to provide a comprehensive, data-driven platform that empowers users to enhance their DFS strategies and improve their success rates.
+EliteLineup AI is a web application designed for Daily Fantasy Sports (DFS) players on DraftKings, FanDuel, and Yahoo, offering advanced tools for lineup optimization, prop betting, parlay building, and PrizePicks entry optimization across NBA, NHL, GOLF, MLB, NFL, and SOCCER. It leverages Linear Programming based on player projections to create optimal lineups. The project aims to provide a comprehensive, data-driven platform that empowers users to enhance their DFS strategies and improve their success rates.
 
 ## User Preferences
 
@@ -51,6 +51,11 @@ Preferred communication style: Simple, everyday language.
 
 ### Platform Configuration
 - Shared configuration in `shared/platform-config.ts` for sport-specific roster slots, salary caps, and position constraints.
+- **Multi-Platform Support**: DraftKings, FanDuel, and Yahoo platform configs. Yahoo uses $200 salary cap (not $50K). Soccer excluded from Yahoo.
+- **PlatformSelector Component**: `client/src/components/PlatformSelector.tsx` — tab bar for switching DK/FD/YH with platform colors and tier gating.
+- **Platform Colors**: DraftKings=emerald, FanDuel=blue, Yahoo=purple. Exported as `PLATFORM_COLORS`.
+- **Salary Formatting**: Yahoo salaries display as `$XX` (not `$XX,XXX`). Use `formatSalary()`/`formatCap()` helpers in optimizer pages.
+- **CSV Export**: Platform-aware CSV format — DK uses `Name (ID)`, FD uses `ID:Name`, Yahoo uses `Name`.
 
 ### Data Storage
 - **Database**: PostgreSQL.

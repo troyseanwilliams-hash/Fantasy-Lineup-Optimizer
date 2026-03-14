@@ -4,7 +4,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { buildUrl } from "@shared/routes";
 import type { Player, Slate, OptimizeResponse } from "@shared/schema";
-import { getPlatformConfig, assignPlayersToSlots, getSlotDisplayName, positionFitsSlot, type Platform } from "@shared/platform-config";
+import { getPlatformConfig, assignPlayersToSlots, getSlotDisplayName, positionFitsSlot, PLATFORM_COLORS, type Platform, type Sport } from "@shared/platform-config";
+import { PlatformSelector } from "@/components/PlatformSelector";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { PlayerHistoryCard } from "@/components/PlayerHistoryCard";
 import {
-  Lock, Unlock, X, Zap, RefreshCw, Save, Search,
+  Lock, Unlock, X, Zap, RefreshCw, Save, Search, Download,
   ChevronDown, ChevronUp, ArrowUpDown, Heart, Loader2,
   DollarSign, Target, TrendingUp, RotateCcw, Crown, Plus, UserPlus, Activity, Flag,
   Trophy, Star, MapPin, Users, Flame, Award, Rocket, ArrowLeftRight
@@ -31,6 +32,16 @@ const INJURY_COLORS: Record<string, string> = {
   Probable: "bg-green-500/20 text-green-400 border-green-500/30",
   "Day-to-Day": "bg-blue-500/20 text-blue-400 border-blue-500/30",
 };
+
+function formatSalary(salary: number, plat: Platform): string {
+  if (plat === "yahoo") return `$${salary}`;
+  return `$${(salary / 1000).toFixed(1)}K`;
+}
+
+function formatCap(cap: number, plat: Platform): string {
+  if (plat === "yahoo") return `$${cap}`;
+  return `$${cap.toLocaleString()}`;
+}
 
 export default function Optimizer() {
   const [, params] = useRoute("/optimizer/:id");
@@ -59,11 +70,14 @@ export default function Optimizer() {
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
   const [mobileView, setMobileView] = useState<"players" | "lineup">("players");
 
+  const [platform, setPlatform] = useState<Platform>("draftkings");
+
   const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"], refetchInterval: 300000 });
   const slate = useMemo(() => slates?.find(s => s.id === slateId), [slates, slateId]);
-  const platform = (slate?.platform || "draftkings") as Platform;
-  const sport = slate?.sport || "NBA";
+  const sport = (slate?.sport || "NBA") as Sport;
   const slateHasStarted = slate ? new Date(slate.startTime) <= new Date() : false;
+
+  useEffect(() => { setPlatform("draftkings"); }, [slateId]);
 
   const config = useMemo(() => {
     try { return getPlatformConfig(sport, platform); }
@@ -425,8 +439,53 @@ export default function Optimizer() {
     );
   }
 
+  const handlePlatformChange = (newPlatform: Platform) => {
+    const tier = subData?.tier || "free";
+    if (newPlatform !== "draftkings" && tier === "free" && !userIsAdmin) {
+      toast({
+        title: "Paid Feature",
+        description: `${newPlatform === "fanduel" ? "FanDuel" : "Yahoo"} optimization requires a Sharpshooter or Champion subscription.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    setPlatform(newPlatform);
+    handleReset();
+  };
+
+  const handleExportCSV = () => {
+    if (!activeLineupPlayers.length || !lineupSlots) return;
+    let csv = "";
+    if (platform === "draftkings") {
+      csv = config.slots.map(s => getSlotDisplayName(s)).join(",") + "\n";
+      csv += config.slots.map(s => {
+        const p = lineupSlots[s];
+        return p ? `"${p.name} (${(p as any).draftKingsPlayerId || p.id})"` : "";
+      }).join(",");
+    } else if (platform === "fanduel") {
+      csv = config.slots.map(s => getSlotDisplayName(s)).join(",") + "\n";
+      csv += config.slots.map(s => {
+        const p = lineupSlots[s];
+        return p ? `"${(p as any).draftKingsPlayerId || p.id}:${p.name}"` : "";
+      }).join(",");
+    } else {
+      csv = config.slots.map(s => getSlotDisplayName(s)).join(",") + "\n";
+      csv += config.slots.map(s => {
+        const p = lineupSlots[s];
+        return p ? `"${p.name}"` : "";
+      }).join(",");
+    }
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${config.shortLabel}_${sport}_lineup.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const positions = ["ALL", ...(config.positionFilters || ["PG", "SG", "SF", "PF", "C"])];
-  const platformColor = platform === "fanduel" ? "blue" : "emerald";
+  const pColors = PLATFORM_COLORS[platform];
 
   const sportImages: Record<string, string> = {
     NBA: "/images/sport-nba.png", NHL: "/images/sport-nhl.png",
@@ -443,7 +502,7 @@ export default function Optimizer() {
           data-testid="mobile-tab-players"
           className={`flex-1 px-3 py-2 text-[11px] font-black uppercase tracking-wider transition-all ${
             mobileView === "players"
-              ? `${platform === "fanduel" ? "text-blue-400 border-b-2 border-blue-400" : "text-emerald-400 border-b-2 border-emerald-400"} bg-slate-800/50`
+              ? `${pColors.text} border-b-2 ${pColors.border} bg-slate-800/50`
               : "text-slate-500 hover:text-slate-300"
           }`}
         >
@@ -455,14 +514,14 @@ export default function Optimizer() {
           data-testid="mobile-tab-lineup"
           className={`flex-1 px-3 py-2 text-[11px] font-black uppercase tracking-wider transition-all relative ${
             mobileView === "lineup"
-              ? `${platform === "fanduel" ? "text-blue-400 border-b-2 border-blue-400" : "text-emerald-400 border-b-2 border-emerald-400"} bg-slate-800/50`
+              ? `${pColors.text} border-b-2 ${pColors.border} bg-slate-800/50`
               : "text-slate-500 hover:text-slate-300"
           }`}
         >
           <Target className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />
           Lineup {currentLineup ? `(${totalProj.toFixed(0)} pts)` : ""}
           {currentLineup && mobileView !== "lineup" && (
-            <span className={`absolute top-1 right-2 w-2 h-2 rounded-full animate-pulse ${platform === "fanduel" ? "bg-blue-400" : "bg-emerald-400"}`} />
+            <span className={`absolute top-1 right-2 w-2 h-2 rounded-full animate-pulse ${pColors.bg}`} />
           )}
         </button>
       </div>
@@ -477,19 +536,26 @@ export default function Optimizer() {
               alt=""
               className="w-full h-full object-cover opacity-15"
             />
-            <div className={`absolute inset-0 bg-gradient-to-r ${platform === "fanduel" ? "from-blue-950/90 via-slate-900/95 to-slate-900" : "from-emerald-950/90 via-slate-900/95 to-slate-900"}`} />
+            <div className={`absolute inset-0 bg-gradient-to-r ${platform === "fanduel" ? "from-blue-950/90" : platform === "yahoo" ? "from-purple-950/90" : "from-emerald-950/90"} via-slate-900/95 to-slate-900`} />
           </div>
           <div className="relative px-3 sm:px-4 py-2 sm:py-3 flex flex-wrap items-center gap-2 sm:gap-3">
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <Zap className={`w-4 h-4 sm:w-5 sm:h-5 fill-current ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`} />
+              <Zap className={`w-4 h-4 sm:w-5 sm:h-5 fill-current ${pColors.text}`} />
               <span className="text-sm sm:text-lg font-black text-white tracking-tight">{sport} OPTIMIZER</span>
-              <Badge className={`text-[10px] sm:text-[11px] font-black ${platform === "fanduel" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"}`} data-testid="platform-badge">
+              <Badge className={`text-[10px] sm:text-[11px] font-black ${pColors.bg} ${pColors.text} ${pColors.border}`} data-testid="platform-badge">
                 {config.shortLabel}
               </Badge>
             </div>
+            <PlatformSelector
+              sport={sport}
+              value={platform}
+              onChange={handlePlatformChange}
+              showProBadge
+              tier={subData?.tier || "free"}
+            />
             {slate && (
               <div className="hidden sm:flex items-center gap-2" data-testid="slate-date">
-                <span className={`text-xs font-black ${platform === "fanduel" ? "text-blue-400/70" : "text-emerald-400/70"}`}>
+                <span className={`text-xs font-black ${pColors.text} opacity-70`}>
                   {new Date(slate.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
                 </span>
               </div>
@@ -527,7 +593,7 @@ export default function Optimizer() {
           </div>
 
           {/* Game Scoreboard Cards / Golf Tournament Cards */}
-          <div className={`relative z-10 px-3 sm:px-4 pb-2 sm:pb-3 pt-2 sm:pt-3 border-b bg-slate-950 ${platform === "fanduel" ? "border-blue-500/20" : "border-emerald-500/20"}`}>
+          <div className={`relative z-10 px-3 sm:px-4 pb-2 sm:pb-3 pt-2 sm:pt-3 border-b bg-slate-950 ${pColors.border}`}>
             {isGolf && golfAnalysis ? (
               <>
                 <div className="flex items-center gap-2 mb-2 sm:mb-3">
@@ -1008,7 +1074,7 @@ export default function Optimizer() {
                 {/* Row 2: Stats row — compact single line */}
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-[11px] font-bold text-slate-500 uppercase">{player.team}</span>
-                  <span className="text-[11px] font-mono font-bold text-white">${player.salary.toLocaleString()}</span>
+                  <span className="text-[11px] font-mono font-bold text-white">{platform === "yahoo" ? `$${player.salary}` : `$${player.salary.toLocaleString()}`}</span>
                   <span className={`text-[11px] font-mono font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>{Number(player.projectedPoints).toFixed(1)}</span>
                   <span className="text-[10px] font-mono text-slate-500">{player.fppg}</span>
                   <span className="text-[10px] font-mono font-bold text-blue-400 ml-auto">{player.value.toFixed(1)}x</span>
@@ -1047,12 +1113,12 @@ export default function Optimizer() {
               <p data-testid="salary-remaining" className={`text-sm sm:text-base font-black ${
                 currentLineup ? (config.salaryCap - totalSalary < 0 ? "text-red-400" : "text-white") : "text-slate-400"
               }`}>
-                ${currentLineup ? (config.salaryCap - totalSalary).toLocaleString() : config.salaryCap.toLocaleString()}
+                {formatCap(currentLineup ? config.salaryCap - totalSalary : config.salaryCap, platform)}
               </p>
             </div>
             <div className="bg-slate-800/80 rounded-lg px-1.5 sm:px-2 py-1.5 sm:py-2 text-center border border-slate-700/50">
               <p className="text-[8px] sm:text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">FP Proj</p>
-              <p data-testid="total-projection" className={`text-sm sm:text-base font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>
+              <p data-testid="total-projection" className={`text-sm sm:text-base font-black ${pColors.text}`}>
                 {currentLineup ? totalProj.toFixed(1) : "0.0"}
               </p>
             </div>
@@ -1087,9 +1153,9 @@ export default function Optimizer() {
                 className="flex-1"
                 data-testid="slider-salary-range"
               />
-              <span className={`text-[9px] sm:text-[10px] font-black min-w-[70px] sm:min-w-[80px] text-center tabular-nums ${salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) ? "text-emerald-400" : "text-slate-500"}`} data-testid="text-salary-min">
+              <span className={`text-[9px] sm:text-[10px] font-black min-w-[70px] sm:min-w-[80px] text-center tabular-nums ${salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) ? pColors.text : "text-slate-500"}`} data-testid="text-salary-min">
                 {salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max)
-                  ? `$${(salaryRange[0] / 1000).toFixed(1)}k–$${(salaryRange[1] / 1000).toFixed(1)}k`
+                  ? `${formatSalary(salaryRange[0], platform)}–${formatSalary(salaryRange[1], platform)}`
                   : "All Salaries"}
               </span>
               {salaryRange && (salaryRange[0] > salaryBounds.min || salaryRange[1] < salaryBounds.max) && (
@@ -1113,6 +1179,8 @@ export default function Optimizer() {
               className={`flex-1 h-10 text-white font-black text-sm shadow-lg ${
                 platform === "fanduel"
                   ? "bg-blue-500 hover:bg-blue-600 shadow-blue-500/20"
+                  : platform === "yahoo"
+                  ? "bg-purple-500 hover:bg-purple-600 shadow-purple-500/20"
                   : "bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20"
               }`}
               data-testid="optimize-btn"
@@ -1137,7 +1205,7 @@ export default function Optimizer() {
 
         {/* Locked/cap info */}
         <div className="px-3 sm:px-4 py-1.5 sm:py-2 border-b border-slate-800 flex items-center justify-between text-[10px] sm:text-[11px] font-black uppercase tracking-wider sm:tracking-widest text-slate-400">
-          <span>${lockedSalary.toLocaleString()} Locked</span>
+          <span>{formatCap(lockedSalary, platform)} Locked</span>
           <span>{lockedIds.length} / {config.rosterSize} Locked</span>
         </div>
 
@@ -1210,7 +1278,7 @@ export default function Optimizer() {
                     <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                       <div className="text-right">
                         <div className={`text-xs sm:text-sm font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>{Number(player.projectedPoints).toFixed(1)}</div>
-                        <div className="text-[10px] sm:text-[11px] font-mono text-slate-400 font-bold">${player.salary.toLocaleString()}</div>
+                        <div className="text-[10px] sm:text-[11px] font-mono text-slate-400 font-bold">{platform === "yahoo" ? `$${player.salary}` : `$${player.salary.toLocaleString()}`}</div>
                       </div>
                       <button
                         onClick={() => handleSwapFromSlot(slot)}
@@ -1313,15 +1381,20 @@ export default function Optimizer() {
                       <Button
                         onClick={handleSave}
                         disabled={saveLineupMutation.isPending || !user}
-                        className={`flex-1 h-9 sm:h-10 text-white font-bold text-xs sm:text-sm ${
-                          platform === "fanduel"
-                            ? "bg-blue-600 hover:bg-blue-700"
-                            : "bg-blue-600 hover:bg-blue-700"
-                        }`}
+                        className="flex-1 h-9 sm:h-10 text-white font-bold text-xs sm:text-sm bg-blue-600 hover:bg-blue-700"
                         data-testid="save-lineup-btn"
                       >
                         {saveLineupMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Heart className="w-4 h-4 mr-2" />}
                         Save Lineup
+                      </Button>
+                      <Button
+                        onClick={handleExportCSV}
+                        variant="outline"
+                        className="h-9 sm:h-10 border-slate-700 text-slate-400 hover:text-white"
+                        data-testid="export-csv-btn"
+                        title="Export CSV"
+                      >
+                        <Download className="w-4 h-4" />
                       </Button>
                     </div>
                   </>
@@ -1333,19 +1406,19 @@ export default function Optimizer() {
             <div className={`rounded-lg p-2 sm:p-3 ${totalSalary > config.salaryCap ? "bg-red-500/10 border border-red-500/30" : "bg-slate-800/80 border border-slate-700/50"}`}>
               <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5 sm:mb-1">Salary</div>
               <div className={`text-base sm:text-lg font-black tabular-nums ${totalSalary > config.salaryCap ? "text-red-400" : "text-white"}`}>
-                ${totalSalary.toLocaleString()}
+                {formatCap(totalSalary, platform)}
               </div>
               <div className="w-full bg-slate-700/50 rounded-full h-1 sm:h-1.5 mt-1 sm:mt-1.5">
                 <div
-                  className={`h-1 sm:h-1.5 rounded-full transition-all ${totalSalary > config.salaryCap ? "bg-red-500" : platform === "fanduel" ? "bg-blue-500" : "bg-emerald-500"}`}
+                  className={`h-1 sm:h-1.5 rounded-full transition-all ${totalSalary > config.salaryCap ? "bg-red-500" : platform === "fanduel" ? "bg-blue-500" : platform === "yahoo" ? "bg-purple-500" : "bg-emerald-500"}`}
                   style={{ width: `${Math.min((totalSalary / config.salaryCap) * 100, 100)}%` }}
                 />
               </div>
-              <div className="text-[9px] sm:text-[10px] text-slate-500 font-bold mt-0.5 sm:mt-1">${config.salaryCap.toLocaleString()} cap</div>
+              <div className="text-[9px] sm:text-[10px] text-slate-500 font-bold mt-0.5 sm:mt-1">{formatCap(config.salaryCap, platform)} cap</div>
             </div>
             <div className="rounded-lg bg-slate-800/80 border border-slate-700/50 p-2 sm:p-3">
               <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5 sm:mb-1">Projected</div>
-              <div className={`text-base sm:text-lg font-black tabular-nums ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>
+              <div className={`text-base sm:text-lg font-black tabular-nums ${pColors.text}`}>
                 {totalProj.toFixed(1)}
               </div>
               <div className="text-[9px] sm:text-[10px] text-slate-500 font-bold mt-1.5 sm:mt-2.5">Fantasy Points</div>
