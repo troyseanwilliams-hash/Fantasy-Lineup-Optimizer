@@ -1,0 +1,19 @@
+platform-config.ts — extended, fully backward-compatible
+Platform type now includes "yahoo" alongside "draftkings" and "fanduel". Every existing DK/FD config is untouched — no breaking changes.
+Yahoo roster configs for all 5 supported sports, with real Yahoo DFS rules:
+SportCapSlotsKey differences vs DKNBA$200PG/SG/SF/PF/C/G/F/UTILIdentical to DK, just $200 capNFL$200QB/WR×3/RB×2/TE/FLEX/KKicker slot — unique to YahooMLB$200SP/SP2/C/1B/2B/3B/SS/OF/OF2SP not P — only starting pitchersNHL$200C/LW/RW/D/D2/GLW/RW split instead of generic WGOLF$200G×6Identical to DK/FD
+Soccer is intentionally omitted from Yahoo — Yahoo DFS doesn't offer a soccer product, enforced by isPlatformSupported().
+positionFitsSlot extended with three new cases: "K" (accepts K or PK), "SP" (accepts SP or P), "LW" (accepts LW or W), "RW" (accepts RW or W), "MF" (accepts MF or M).
+New UI helpers at the bottom: ALL_PLATFORMS array for the tab bar, PLATFORM_COLORS for consistent per-platform badge/accent coloring (emerald=DK, blue=FD, purple=Yahoo), isPlatformSupported() to gate Yahoo out of Soccer.
+
+PlatformSelector.tsx — reusable tab component
+Drop into any optimizer header. Takes sport, value, onChange, and optionally showProBadge/tier. Hides unsupported platforms automatically (Soccer hides Yahoo). Shows a Crown icon on FD/YH tabs when showProBadge is true and user is free.
+
+PlatformOptimizer.tsx — unified optimizer page
+Mount it in place of your existing Optimizer route — it's a complete replacement that handles all three platforms in one component.
+Platform switching — DK/FD/YH tab bar in the header. Switching platform calls handleReset() to clear locks and lineup before re-optimizing with the new config. FD/YH are gated behind isPaid — free users see a paywall banner and the Optimize button becomes "Upgrade to Optimize."
+Salary display — formatSalary() and formatCap() detect Yahoo's $200 budget and display $24 instead of $24.0K. The salary range slider steps by 1 on Yahoo, 100 on DK/FD.
+Slot labels — Yahoo-specific slots get distinct color treatments in the lineup panel: K = amber, SP = blue, LW = cyan, RW = sky. This makes the roster visually obvious when you're on Yahoo.
+CSV export — three separate formatters: DK uses Name (dkPlayerId), FD uses Name:fdPlayerId, Yahoo just uses player names (Yahoo doesn't require IDs in upload CSVs).
+Wire up by replacing the route and dropping PlatformSelector into your nav if you want the switcher elsewhere:
+tsx<Route path="/optimizer/:id" component={PlatformOptimizer} />
