@@ -330,6 +330,59 @@ async function fetchSportsDataPlayers(sport: FDSport): Promise<FDPlayerRow[]> {
   return rows;
 }
 
+const DK_SALARY_CAP = 50000;
+
+const DK_TO_FD_POSITION: Record<string, Record<string, string>> = {
+  NHL: { C: "C", W: "W", D: "D", G: "G", LW: "W", RW: "W", UTIL: "UTIL" },
+};
+
+function mapDKPositionToFD(pos: string, sport: FDSport): string {
+  const mapping = DK_TO_FD_POSITION[sport];
+  if (mapping && mapping[pos]) return mapping[pos];
+  return pos;
+}
+
+function scaleSalary(dkSalary: number, sport: FDSport): number {
+  const ratio = FD_SALARY_CAPS[sport] / DK_SALARY_CAP;
+  return Math.round((dkSalary * ratio) / 100) * 100;
+}
+
+async function deriveFDFromDK(sport: FDSport): Promise<{ rows: FDPlayerRow[]; dkSlate: any | null }> {
+  const allSlates = await storage.getSlates();
+  const dkMainSlates = allSlates
+    .filter(s => s.sport === sport && s.platform === "draftkings" && s.isMain)
+    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+  const dkSlate = dkMainSlates[0] ?? null;
+  if (!dkSlate) {
+    console.log(`[FD Ingest] No DK ${sport} slate to derive from`);
+    return { rows: [], dkSlate: null };
+  }
+
+  const dkPlayers = await storage.getPlayersBySlate(dkSlate.id);
+  if (dkPlayers.length === 0) {
+    console.log(`[FD Ingest] DK ${sport} slate has no players`);
+    return { rows: [], dkSlate: null };
+  }
+
+  const rows: FDPlayerRow[] = dkPlayers
+    .filter(p => p.salary > 0 && p.name.length > 1)
+    .map(p => ({
+      name: p.name,
+      position: mapDKPositionToFD(p.position, sport),
+      team: p.team ?? "",
+      opponent: p.opponent ?? "",
+      gameInfo: p.gameInfo ?? "",
+      salary: scaleSalary(p.salary, sport),
+      fppg: parseFloat(p.fppg ?? "0") || 0,
+      projectedPoints: parseFloat(p.projectedPoints ?? "0") || 0,
+      injuryStatus: p.injuryStatus ?? null,
+      fanDuelPlayerId: null,
+    }));
+
+  console.log(`[FD Ingest] Derived ${rows.length} FD ${sport} players from DK data (salary scaled ${DK_SALARY_CAP} → ${FD_SALARY_CAPS[sport]})`);
+  return { rows, dkSlate };
+}
+
 export async function ingestFanDuelSlate(sport: FDSport): Promise<{
   success: boolean; slateId?: number; playerCount?: number; message: string; source?: string;
 }> {
@@ -337,10 +390,6 @@ export async function ingestFanDuelSlate(sport: FDSport): Promise<{
 
   const hasSportsData = !!process.env.SPORTSDATA_API_KEY;
   const hasFDAuth = !!(process.env.FD_SESSION_COOKIE || process.env.FD_AUTH_TOKEN);
-
-  if (!hasSportsData && !hasFDAuth) {
-    return { success: false, message: "Set SPORTSDATA_API_KEY or FD_SESSION_COOKIE to enable FanDuel ingestion." };
-  }
 
   let playerRows: FDPlayerRow[] = [];
   let slateLabel = `${sport} FanDuel Main — ${new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" })}`;
@@ -373,6 +422,18 @@ export async function ingestFanDuelSlate(sport: FDSport): Promise<{
       if (playerRows.length === 0) {
         const csv = await fetchFDPlayersCSV(main.id);
         if (csv) { playerRows = parseFDCSV(csv, sport); source = "fd-csv"; }
+      }
+    }
+  }
+
+  if (playerRows.length === 0) {
+    const derived = await deriveFDFromDK(sport);
+    if (derived.rows.length > 0) {
+      playerRows = derived.rows;
+      source = "dk-crossplatform";
+      if (derived.dkSlate) {
+        startTime = derived.dkSlate.startTime;
+        slateLabel = `${sport} FanDuel Main — ${new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" })}`;
       }
     }
   }

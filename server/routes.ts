@@ -344,7 +344,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No players found for this slate" });
       }
 
-      allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
+      if (slate.platform === "draftkings") {
+        allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
+      }
 
       let userOverrides: any[] = [];
       if (isLoggedIn(req)) {
@@ -2321,7 +2323,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No players found for this slate" });
       }
 
-      allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
+      if (slate.platform === "draftkings") {
+        allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
+      }
 
       const proUserOverrides = await storage.getPlayerOverrides(userId, constraints.slateId);
       const proOverrideMap = new Map(proUserOverrides.map(o => [o.playerId, o]));
