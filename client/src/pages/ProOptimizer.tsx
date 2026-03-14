@@ -127,8 +127,8 @@ export default function ProOptimizer() {
 
   const sportSlates = useMemo(() => {
     if (!slates) return [];
-    return slates.filter(s => s.sport === sport);
-  }, [slates, sport]);
+    return slates.filter(s => s.sport === sport && s.platform === platform);
+  }, [slates, sport, platform]);
 
   const playerUrl = buildUrl("/api/slates/:id/players", { id: slateId });
   const { data: players, isLoading } = useQuery<PlayerWithOwnership[]>({
@@ -618,7 +618,11 @@ export default function ProOptimizer() {
     optimizeMutation.reset();
   };
 
-  useEffect(() => { setPlatform("draftkings"); }, [slateId]);
+  useEffect(() => {
+    if (slate?.platform) {
+      setPlatform(slate.platform as Platform);
+    }
+  }, [slateId, slate?.platform]);
 
   const handlePlatformChange = (newPlatform: Platform) => {
     if (newPlatform !== "draftkings" && !userIsAdmin) {
@@ -631,6 +635,13 @@ export default function ProOptimizer() {
     }
     setPlatform(newPlatform);
     handleReset();
+    if (slates) {
+      const match = slates.find(s => s.sport === sport && s.platform === newPlatform && s.isMain)
+        || slates.find(s => s.sport === sport && s.platform === newPlatform);
+      if (match && match.id !== slateId) {
+        setLocation(`/optimizer-pro/${match.id}`);
+      }
+    }
   };
 
   const pColors = PLATFORM_COLORS[platform];

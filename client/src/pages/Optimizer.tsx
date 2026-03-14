@@ -77,7 +77,11 @@ export default function Optimizer() {
   const sport = (slate?.sport || "NBA") as Sport;
   const slateHasStarted = slate ? new Date(slate.startTime) <= new Date() : false;
 
-  useEffect(() => { setPlatform("draftkings"); }, [slateId]);
+  useEffect(() => {
+    if (slate?.platform) {
+      setPlatform(slate.platform as Platform);
+    }
+  }, [slateId, slate?.platform]);
 
   const config = useMemo(() => {
     try { return getPlatformConfig(sport, platform); }
@@ -86,8 +90,8 @@ export default function Optimizer() {
 
   const sportSlates = useMemo(() => {
     if (!slates) return [];
-    return slates.filter(s => s.sport === sport);
-  }, [slates, sport]);
+    return slates.filter(s => s.sport === sport && s.platform === platform);
+  }, [slates, sport, platform]);
 
   const playerUrl = buildUrl("/api/slates/:id/players", { id: slateId });
   const { data: players, isLoading } = useQuery<Player[]>({
@@ -450,6 +454,13 @@ export default function Optimizer() {
     }
     setPlatform(newPlatform);
     handleReset();
+    if (slates) {
+      const match = slates.find(s => s.sport === sport && s.platform === newPlatform && s.isMain)
+        || slates.find(s => s.sport === sport && s.platform === newPlatform);
+      if (match && match.id !== slateId) {
+        setLocation(`/optimizer/${match.id}`);
+      }
+    }
   };
 
   const handleExportCSV = () => {
