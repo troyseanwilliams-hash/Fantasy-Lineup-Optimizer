@@ -362,7 +362,7 @@ export async function registerRoutes(
       const mergedLocked = [...new Set([...constraints.lockedPlayerIds, ...overrideLocked])];
 
       const autoExcluded = allPlayers
-        .filter(p => (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") && !mergedLocked.includes(p.id))
+        .filter(p => p.injuryStatus === "OUT" && !mergedLocked.includes(p.id))
         .map(p => p.id);
       const { inactiveIds: inactiveExcluded } = await getInactivePlayerIds(allPlayers, slate.sport);
       const filteredInactive = inactiveExcluded.filter(id => !mergedLocked.includes(id));
@@ -379,7 +379,9 @@ export async function registerRoutes(
         if (p.isConfirmedStarter) {
           proj = Math.round(proj * 1.05 * 10) / 10;
         }
-        if (p.injuryStatus === "Doubtful") proj = proj * 0.3;
+        if (p.injuryStatus === "OUT") proj = 0;
+        else if (p.injuryStatus === "Doubtful") proj = proj * 0.3;
+        else if (p.injuryStatus === "Questionable") proj = proj * 0.75;
         else if (p.injuryStatus === "Probable") proj = proj * 0.9;
         return { ...p, projectedPoints: proj.toString() };
       });
@@ -2342,10 +2344,12 @@ export async function registerRoutes(
           boostedPoints = Math.round(boostedPoints * (1 + boostPct) * 10) / 10;
         }
 
-        if (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") {
+        if (p.injuryStatus === "OUT") {
           boostedPoints = 0;
         } else if (p.injuryStatus === "Doubtful") {
           boostedPoints *= 0.3;
+        } else if (p.injuryStatus === "Questionable") {
+          boostedPoints *= 0.75;
         } else if (p.injuryStatus === "Probable") {
           boostedPoints *= 0.9;
         }
@@ -2383,7 +2387,7 @@ export async function registerRoutes(
 
       const baseExcluded = [...constraints.excludedPlayerIds];
       allPlayers.forEach(p => {
-        if ((p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") && !baseExcluded.includes(p.id)) {
+        if (p.injuryStatus === "OUT" && !baseExcluded.includes(p.id)) {
           baseExcluded.push(p.id);
         }
       });
