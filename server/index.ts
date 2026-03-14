@@ -13,6 +13,7 @@ import { db } from "./db";
 import { users } from "@shared/models/auth";
 import { subscriptions } from "@shared/schema";
 import { eq, and, ne, isNull, isNotNull } from "drizzle-orm";
+import { showdownRouter } from "./showdown-route";
 
 async function seedDefaultUser() {
   const email = "troy.sean.williams@gmail.com";
@@ -104,6 +105,7 @@ app.use((req, res, next) => {
 
 (async () => {
   await registerRoutes(httpServer, app);
+  app.use(showdownRouter);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

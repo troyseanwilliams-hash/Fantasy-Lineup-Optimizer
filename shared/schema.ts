@@ -137,9 +137,7 @@ export const props = pgTable("props", {
   confidence: numeric("confidence").notNull(),
   gameInfo: text("game_info"),
   isLocked: boolean("is_locked").notNull().default(false),
-  // Changed from date to timestamp: prop lines can move multiple times per day,
-  // so date-only precision is insufficient for ordering or deduplication.
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdDate: date("created_date").notNull().defaultNow(),
 });
 
 export const insertPropSchema = createInsertSchema(props).omit({ id: true });

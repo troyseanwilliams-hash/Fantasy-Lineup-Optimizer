@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Users, Settings2, BarChart3, Award } from "lucide-react";
+import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Users, Settings2, BarChart3, Award, Swords } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 import { LogoBanner } from "@/components/Logo";
@@ -220,6 +220,14 @@ export function Header() {
               }`} data-testid="nav-prizepicks">
                 <Zap className="w-4 h-4" />
                 <span>PrizePicks</span>
+              </div>
+            </Link>
+            <Link href="/showdown">
+              <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
+                location === "/showdown" ? "text-amber-400" : "text-slate-400 hover:text-white"
+              }`} data-testid="nav-showdown">
+                <Swords className="w-4 h-4" />
+                <span>Showdown</span>
               </div>
             </Link>
             <Link href="/lineups">
@@ -531,6 +539,17 @@ export function Header() {
               <Zap className="w-5 h-5 shrink-0" />
               <span>PrizePicks Builder</span>
               <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[9px] font-bold px-1.5 py-0 ml-auto">CHAMPION</Badge>
+            </button>
+
+            <button
+              onClick={() => mobileNav("/showdown")}
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                location === "/showdown" ? "bg-amber-500/10 text-amber-400" : "text-white hover:bg-slate-800"
+              }`}
+              data-testid="mobile-nav-showdown"
+            >
+              <Swords className="w-5 h-5 shrink-0" />
+              <span>Showdown</span>
             </button>
 
             <button
