@@ -34,6 +34,15 @@ interface LineupWithPlayers {
   allPlayers: Player[];
 }
 
+// ── How long vault data stays fresh before a background refetch is allowed.
+// Lineups change only when the user explicitly mutates them (save/delete/swap),
+// so we can safely hold them for 30 minutes without a network hit.
+// refetchOnWindowFocus: false prevents the entire vault list from re-fetching
+// every time the user alt-tabs back — which was causing the expanded/swap state
+// to be disrupted mid-session.
+const VAULT_STALE_TIME = 1000 * 60 * 30;     // 30 minutes
+const DETAIL_STALE_TIME = 1000 * 60 * 15;    // 15 minutes — expanded lineup detail
+
 export default function SavedLineups() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -52,6 +61,12 @@ export default function SavedLineups() {
 
   const { data: lineups, isLoading } = useQuery<any[]>({
     queryKey: ["/api/lineups"],
+    // Lineups only change when the user mutates them — all mutations call
+    // queryClient.invalidateQueries so fresh data is always fetched after a write.
+    // Background refetches on window focus were causing the vault list to
+    // re-render mid-session, closing the expanded card and interrupting swaps.
+    staleTime: VAULT_STALE_TIME,
+    refetchOnWindowFocus: false,
   });
 
   const lineupGrades = useMemo(() => {
@@ -89,6 +104,8 @@ export default function SavedLineups() {
 
   const { data: subscription } = useQuery<any>({
     queryKey: ["/api/subscription"],
+    staleTime: VAULT_STALE_TIME,
+    refetchOnWindowFocus: false,
   });
 
   const tier = subscription?.tier || "free";
@@ -98,6 +115,10 @@ export default function SavedLineups() {
   const { data: reviewLineups, isLoading: reviewLoading } = useQuery<any[]>({
     queryKey: ["/api/lineups/review"],
     enabled: activeTab === "review" && isPaid,
+    // Review lineups are read-only historical data — no need to ever
+    // refetch them on window focus. They only change at the 3 AM ET reset.
+    staleTime: VAULT_STALE_TIME,
+    refetchOnWindowFocus: false,
   });
 
   const deleteMutation = useMutation({
@@ -162,6 +183,10 @@ export default function SavedLineups() {
 
   const { data: slates } = useQuery<any[]>({
     queryKey: ["/api/slates"],
+    // Slate list is only needed for DK import sport-matching.
+    // Doesn't need to refetch on every window focus.
+    staleTime: VAULT_STALE_TIME,
+    refetchOnWindowFocus: false,
   });
 
   const importMutation = useMutation({
@@ -860,7 +885,8 @@ function ReviewTabContent({
         </div>
         <h5 className="text-xl font-black text-white mb-2" data-testid="no-review-lineups">No Review Lineups</h5>
         <p className="text-slate-400 max-w-sm mx-auto">
-          Expired lineups are moved here at 2 AM ET for review. They are kept for 24 hours before being removed.
+          {/* Fixed: was "2 AM ET" — must match the actual 3 AM ET nightly reset */}
+          Expired lineups are moved here at 3 AM ET for review. They are kept for 24 hours before being removed.
         </p>
       </div>
     );
@@ -1129,6 +1155,10 @@ function LineupCard({
   const { data: lineupDetail, isLoading: detailLoading } = useQuery<LineupWithPlayers>({
     queryKey: ["/api/lineups", lineup.id],
     enabled: isExpanded,
+    // Don't refetch expanded lineup detail on window focus — it interrupts
+    // the swap panel and causes the replacement list to flash or close.
+    staleTime: DETAIL_STALE_TIME,
+    refetchOnWindowFocus: false,
   });
 
   const isFD = lineup.platform === "fanduel";
