@@ -14,6 +14,7 @@ import { users } from "@shared/models/auth";
 import { subscriptions } from "@shared/schema";
 import { eq, and, ne, isNull, isNotNull } from "drizzle-orm";
 import { showdownRouter } from "./showdown-route";
+import { ingestRouter, startIngestScheduler } from "./routes/ingest";
 
 async function seedDefaultUser() {
   const email = "troy.sean.williams@gmail.com";
@@ -106,6 +107,7 @@ app.use((req, res, next) => {
 (async () => {
   await registerRoutes(httpServer, app);
   app.use(showdownRouter);
+  app.use("/api/ingest", ingestRouter);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -426,6 +428,8 @@ app.use((req, res, next) => {
         timezone: "America/New_York",
       });
       log("Scheduled 4 AM ET player history cleanup cron job", "cron");
+
+      startIngestScheduler();
     },
   );
 })();

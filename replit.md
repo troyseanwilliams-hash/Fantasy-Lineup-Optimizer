@@ -48,6 +48,9 @@ Preferred communication style: Simple, everyday language.
 - **Track Record**: Shows user's overall DFS history and performance summary.
 - **GatedContent Component**: Manages access to features based on user subscription tier.
 - **Showdown Builder**: Single-game DFS lineup optimization for CPT/FLEX or MVP/FLEX formats.
+- **FanDuel Ingest** (`server/fanduel-ingest.ts`): Fetches FD slates/players via FD CSV export (needs `FD_SESSION_COOKIE`) or SportsData.io fallback (needs `SPORTSDATA_API_KEY`). Normalizes positions per sport.
+- **Yahoo Ingest** (`server/yahoo-ingest.ts`): Fetches Yahoo DFS slates/players via Yahoo readonly DFS API (no auth for contest list) with OAuth fallback (`YAHOO_CLIENT_ID`/`YAHOO_CLIENT_SECRET` or `YAHOO_ACCESS_TOKEN`). Supports CSV upload for manual import. Yahoo salary cap is $200.
+- **Ingest Routes** (`server/routes/ingest.ts`): Admin-only API at `/api/ingest` for triggering FD/Yahoo data ingestion per sport or all sports. Auth via session admin or `ADMIN_INGEST_KEY` header. Includes daily 5 AM ET cron scheduler. Yahoo CSV upload via multipart POST.
 
 ### Platform Configuration
 - Shared configuration in `shared/platform-config.ts` for sport-specific roster slots, salary caps, and position constraints.
