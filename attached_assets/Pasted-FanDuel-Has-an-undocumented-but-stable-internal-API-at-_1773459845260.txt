@@ -1,0 +1,30 @@
+FanDuel: Has an undocumented but stable internal API at api.fanduel.com/fixture-lists that returns today's contests without auth. The player CSV is downloadable per-contest at fanduel.com/contests/{id}/download-csv — this requires a valid session cookie (_dfs_session). As a more reliable alternative, SportsData.io has a licensed data feed that includes FD salaries; if SPORTSDATA_API_KEY is in env, that path is used instead.
+Yahoo: Exposes a readonly DFS contest API at dfyql-ro.sports.yahoo.com/v2/ — the same endpoints their lobby page calls. These return JSON without auth. For full salary data, OAuth 2.0 via developer.yahoo.com is used as a fallback. Yahoo also supports exporting player CSVs from their contest page, so a CSV upload path is included.
+
+fanduel-ingest.ts
+Contest discovery — fetchFDContests() hits the FD fixture-list API, filters to today only (ET timezone aware), and identifies the main/feature slate. CSV download — fetchFDPlayerCSV() downloads the per-contest CSV and parses it. The FD CSV format is Nickname,FPPG,Played,Salary,Game,Team,Position,Injury Indicator,Id. SportsData.io path — if SPORTSDATA_API_KEY is set, fetchSportsDataFDPlayers() uses their /v3/{sport}/projections/json/DfsSlatesByDate/today endpoint instead, which is more reliable than scraping. Position normalization — FD uses D for NFL defense (we need DEF) and P for MLB pitchers (we need SP). Slate upsert — checks for an existing today's FD slate before inserting, then deletePlayersBySlate + bulkCreatePlayers.
+
+yahoo-ingest.ts
+OAuth token cache — getYahooAccessToken() exchanges client credentials for a bearer token and caches it with expiry. If YAHOO_ACCESS_TOKEN is set directly, it's used as-is. Contest discovery — fetchYahooContests() hits the unauthenticated dfyql-ro API, filters to today ET, picks the main/featured contest. Player fetch — fetchYahooPlayers() tries the unauthenticated DFS player endpoint first; if it returns empty it falls back to the authenticated Fantasy Sports API. Two separate parsers (parseYahooPlayersFromDFSAPI and parseYahooPlayersFromFantasyAPI) handle the different response shapes. Position normalization — Yahoo NFL passes K through unchanged (our config handles it), Yahoo NHL uses native LW/RW (which already matches our config), Yahoo MLB uses SP natively, Yahoo Soccer uses MF (mapped to MF). CSV import — parseYahooCSV() and ingestYahooCSV() handle manual uploads from the Yahoo contest page as a reliable fallback when the API returns no data.
+
+ingest-routes.ts
+7 endpoints total: single-sport and all-sport variants for FD and Yahoo, a CSV upload endpoint for Yahoo, an all-platforms trigger, and a status endpoint. Auth — all routes require either session admin or Bearer {ADMIN_INGEST_KEY} header, so cron jobs can call them without a session. In-memory status log — every run updates a IngestStatus[] array that GET /api/admin/ingest/status exposes, letting you see at a glance which sports succeeded and which failed without querying the DB. Scheduler — startIngestScheduler() auto-runs every 4 hours between 6 AM and midnight ET. Off-hours calls are skipped to avoid unnecessary API hits. The interval is tunable via INGEST_INTERVAL_MS env var.
+Wire it up in your main Express app:
+tsimport { ingestRouter, startIngestScheduler } from "./routes/ingest";
+app.use(ingestRouter);
+startIngestScheduler(); // call once after app.listen()
+```
+
+**Required env vars:**
+```
+# FanDuel (at least one)
+FD_SESSION_COOKIE=your_fd_dfs_session_cookie_value
+SPORTSDATA_API_KEY=your_sportsdata_io_key
+
+# Yahoo (at least one)
+YAHOO_CLIENT_ID=your_yahoo_app_client_id
+YAHOO_CLIENT_SECRET=your_yahoo_app_client_secret
+YAHOO_ACCESS_TOKEN=pre_obtained_token  # simpler alternative
+
+# Ingest security
+ADMIN_INGEST_KEY=your_secret_key_for_cron_calls
