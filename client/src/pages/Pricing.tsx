@@ -195,6 +195,14 @@ export default function Pricing() {
               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
               <span>2 AI prop picks per sport</span>
             </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>Showdown Builder (1 lineup)</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>Track Record</span>
+            </li>
             <li className="flex items-center gap-3 text-sm text-slate-400">
               <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
               <span>No CSV export</span>
@@ -206,6 +214,10 @@ export default function Pricing() {
             <li className="flex items-center gap-3 text-sm text-slate-400">
               <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
               <span>No AI boost analysis</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-400">
+              <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
+              <span>No Live Scores or Performance</span>
             </li>
             
           </ul>
@@ -278,7 +290,26 @@ export default function Pricing() {
               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
               <span className="font-bold">Multi-lineup generation (up to 5)</span>
             </li>
-            
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span className="font-bold">Showdown Builder (up to 5)</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span className="font-bold">Player Config overrides</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span className="font-bold">Live Score Tracker</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span className="font-bold">Performance Dashboard</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>Track Record</span>
+            </li>
             <li className="flex items-center gap-3 text-sm text-slate-400">
               <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
               <span>No AI boost analysis</span>
