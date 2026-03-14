@@ -19,10 +19,20 @@ showdownRouter.get("/api/showdown/slates", async (req, res) => {
   try {
     const sport = (req.query.sport as string || "NBA").toUpperCase();
     const allSlates = await storage.getSlates();
-    const filtered = allSlates.filter(s =>
-      s.sport === sport &&
-      s.platform === "draftkings"
-    );
+
+    // Only return slates for today (ET). Showdown is single-game so
+    // yesterday's slates are irrelevant and future slates aren't ready.
+    const nowET = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+    const todayStart = new Date(nowET.getFullYear(), nowET.getMonth(), nowET.getDate(), 0, 0, 0);
+    const todayEnd   = new Date(nowET.getFullYear(), nowET.getMonth(), nowET.getDate(), 23, 59, 59);
+
+    const filtered = allSlates.filter(s => {
+      if (s.sport !== sport) return false;
+      if (s.platform !== "draftkings") return false;
+      const slateTime = new Date(s.startTime);
+      return slateTime >= todayStart && slateTime <= todayEnd;
+    });
+
     res.json(filtered);
   } catch (err) {
     console.error("Showdown slates error:", err);
@@ -38,16 +48,59 @@ showdownRouter.get("/api/showdown/players/:slateId", async (req, res) => {
 
     const players = await storage.getPlayersBySlate(slateId);
 
-    const gameMap: Record<string, Player[]> = {};
+    // Build structured game objects. Each game key is the canonical gameInfo string.
+    // We parse away/home teams from the gameInfo format: "AWAY @ HOME TIME" or "HOME vs AWAY TIME"
+    const gameMap: Record<string, {
+      key: string;
+      away: string;
+      home: string;
+      time: string;
+      players: Player[];
+    }> = {};
+
     for (const p of players) {
-      const game = p.gameInfo || p.opponent || "Unknown";
-      if (!gameMap[game]) gameMap[game] = [];
-      gameMap[game].push(p);
+      const gameKey = p.gameInfo || p.opponent || "Unknown";
+      if (!gameMap[gameKey]) {
+        let away = "";
+        let home = "";
+        let time = "";
+        const info = p.gameInfo || "";
+        // Parse "AWAY @ HOME TIME" pattern
+        const atMatch = info.match(/^(.+?)\s*@\s*(.+?)\s+(\d+:\d+(?:AM|PM)\s*ET)$/i);
+        // Parse "HOME vs AWAY TIME" pattern
+        const vsMatch = info.match(/^(.+?)\s+vs\s+(.+?)\s+(\d+:\d+(?:AM|PM)\s*ET)$/i);
+        if (atMatch) {
+          away = atMatch[1].trim().split(" ").pop() || atMatch[1].trim();
+          home = atMatch[2].trim().split(" ")[0] || atMatch[2].trim();
+          time = atMatch[3].trim();
+        } else if (vsMatch) {
+          home = vsMatch[1].trim().split(" ").pop() || vsMatch[1].trim();
+          away = vsMatch[2].trim().split(" ")[0] || vsMatch[2].trim();
+          time = vsMatch[3].trim();
+        } else {
+          away = p.opponent || "";
+          home = p.team;
+          time = "";
+        }
+        gameMap[gameKey] = { key: gameKey, away, home, time, players: [] };
+      }
+      gameMap[gameKey].players.push(p);
     }
+
+    // Build summary list of games (without the full player arrays, to keep response lean)
+    const games = Object.values(gameMap).map(g => ({
+      key: g.key,
+      away: g.away,
+      home: g.home,
+      time: g.time,
+      playerCount: g.players.length,
+    }));
 
     res.json({
       slate: { id: slate.id, sport: slate.sport, platform: slate.platform, startTime: slate.startTime },
-      games: gameMap,
+      games,
+      // Keep legacy gameMap structure for backward compat
+      gameMap: Object.fromEntries(Object.entries(gameMap).map(([k, v]) => [k, v.players])),
       players,
     });
   } catch (err) {

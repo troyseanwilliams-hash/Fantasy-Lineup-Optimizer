@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Swords, Crown, Lock, X, Search, Download, Save, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+import { Loader2, Swords, Crown, Lock, X, Search, Download, Save, ChevronLeft, ChevronRight, RefreshCw, Shield, Activity, Star, AlertTriangle, Zap } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Slate, Player } from "@shared/schema";
 
@@ -41,6 +41,20 @@ export default function ShowdownBuilder() {
   const { user } = useAuth();
   const { toast } = useToast();
 
+  const userId = (user as any)?.id as string | undefined;
+  const userIsAdmin = (user as any)?.isAdmin === true;
+
+  const { data: subscription } = useQuery<{ tier: string }>({
+    queryKey: ["/api/subscription"],
+    enabled: !!user,
+  });
+
+  // Tier-based lineup limits
+  // Free: 1  |  Sharpshooter (star): 5  |  Champion (pro): 20
+  const tier = subscription?.tier || "free";
+  const maxLineups = userIsAdmin ? 20 : tier === "pro" ? 20 : tier === "star" ? 5 : 1;
+  const tierLabel = userIsAdmin ? "Champion" : tier === "pro" ? "Champion" : tier === "star" ? "Sharpshooter" : "Free";
+
   const [sport, setSport] = useState("NBA");
   const [platform] = useState<"draftkings" | "fanduel">("draftkings");
   const [selectedSlateId, setSelectedSlateId] = useState<number | null>(null);
@@ -72,7 +86,12 @@ export default function ShowdownBuilder() {
     },
   });
 
-  const { data: playerData, isLoading: playersLoading } = useQuery<{ slate: any; games: Record<string, Player[]>; players: Player[] }>({
+  const { data: playerData, isLoading: playersLoading } = useQuery<{
+    slate: any;
+    games: Array<{ key: string; away: string; home: string; time: string; playerCount: number }>;
+    gameMap: Record<string, Player[]>;
+    players: Player[];
+  }>({
     queryKey: ["/api/showdown/players", selectedSlateId],
     queryFn: async () => {
       const res = await fetch(`/api/showdown/players/${selectedSlateId}`, { credentials: "include" });
@@ -91,7 +110,8 @@ export default function ShowdownBuilder() {
         lockedCaptainId: captainId || undefined,
         lockedFlexIds,
         excludedPlayerIds: excludedIds,
-        lineupCount,
+        // Enforce tier limit client-side — server also validates via auth
+        lineupCount: Math.min(lineupCount, maxLineups),
         gameFilter: gameFilter || undefined,
       });
       return res.json();
@@ -135,8 +155,8 @@ export default function ShowdownBuilder() {
   });
 
   const players = playerData?.players || [];
-  const games = playerData?.games || {};
-  const gameKeys = Object.keys(games);
+  const games = playerData?.games || [];   // structured array: { key, away, home, time, playerCount }
+  const gameKeys = games.map(g => g.key);
 
   const teams = useMemo(() => {
     const t = new Set(players.map(p => p.team));
@@ -148,9 +168,19 @@ export default function ShowdownBuilder() {
     return ["ALL", ...Array.from(p).sort()];
   }, [players]);
 
+  // Derive team set for the active game so player filter is team-based, not string-match
+  const activeGameTeams = useMemo(() => {
+    if (!gameFilter) return null;
+    const game = games.find(g => g.key === gameFilter);
+    if (!game) return null;
+    return new Set([game.away, game.home]);
+  }, [gameFilter, games]);
+
   const filteredPlayers = useMemo(() => {
     let pool = players;
-    if (gameFilter) pool = pool.filter(p => p.gameInfo === gameFilter);
+    // Filter to only players from the selected game's two teams
+    if (activeGameTeams) pool = pool.filter(p => activeGameTeams.has(p.team));
+    else if (gameFilter) pool = pool.filter(p => p.gameInfo === gameFilter || p.opponent === gameFilter);
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
       pool = pool.filter(p => p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q));
@@ -164,6 +194,18 @@ export default function ShowdownBuilder() {
   const salaryMultiplier = platform === "fanduel" ? 1.0 : 1.5;
   const captainLabel = showdownConfig?.captainLabel || (platform === "fanduel" ? "MVP" : "CPT");
   const flexLabel = showdownConfig?.flexLabel || "FLEX";
+
+  // Auto-select first game when player data loads
+  useEffect(() => {
+    if (gameKeys.length > 0 && !gameFilter) {
+      setGameFilter(gameKeys[0]);
+    }
+  }, [gameKeys.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clamp lineupCount to tier max when tier changes
+  useEffect(() => {
+    if (lineupCount > maxLineups) setLineupCount(maxLineups);
+  }, [maxLineups]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const activeLineup = generatedLineups[activeLineupIdx];
 
@@ -267,31 +309,127 @@ export default function ShowdownBuilder() {
             </SelectContent>
           </Select>
 
-          {gameKeys.length > 0 && (
-            <Select value={gameFilter || "all"} onValueChange={v => setGameFilter(v === "all" ? "" : v)}>
-              <SelectTrigger className="bg-slate-800 border-slate-600 text-white sm:max-w-xs" data-testid="select-game">
-                <SelectValue placeholder="All games" />
+          {games.length > 0 && (
+            <Select value={gameFilter || ""} onValueChange={v => { setGameFilter(v); setGeneratedLineups([]); setCaptainId(null); setLockedFlexIds([]); }}>
+              <SelectTrigger className="bg-slate-800 border-slate-600 text-white sm:max-w-[220px]" data-testid="select-game">
+                <SelectValue placeholder="Select a game" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Games</SelectItem>
-                {gameKeys.map(g => (
-                  <SelectItem key={g} value={g}>{g}</SelectItem>
+                {games.map(g => (
+                  <SelectItem key={g.key} value={g.key}>
+                    {g.away} @ {g.home} {g.time && `· ${g.time}`}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           )}
 
-          <Select value={lineupCount.toString()} onValueChange={v => setLineupCount(Number(v))}>
-            <SelectTrigger className="bg-slate-800 border-slate-600 text-white w-28" data-testid="select-lineup-count">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {[1, 3, 5, 10, 20].map(n => (
-                <SelectItem key={n} value={n.toString()}>{n} lineup{n > 1 ? "s" : ""}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col gap-0.5">
+            <Select value={lineupCount.toString()} onValueChange={v => setLineupCount(Number(v))}>
+              <SelectTrigger className="bg-slate-800 border-slate-600 text-white w-32" data-testid="select-lineup-count">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[1, 5, 20].filter(n => n <= maxLineups).map(n => (
+                  <SelectItem key={n} value={n.toString()}>
+                    {n} lineup{n > 1 ? "s" : ""}
+                    {n === 5 && tier === "free" ? " 🔒" : ""}
+                    {n === 20 && tier !== "pro" && !userIsAdmin ? " 🔒" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {/* Tier badge */}
+            <div className={`text-[9px] font-black text-center uppercase tracking-wider ${
+              tier === "pro" || userIsAdmin ? "text-amber-400" :
+              tier === "star" ? "text-purple-400" : "text-slate-500"
+            }`}>
+              {tierLabel} · max {maxLineups}
+            </div>
+          </div>
         </div>
+
+        {/* ── Game Card ── */}
+        {gameFilter && (() => {
+          const game = games.find(g => g.key === gameFilter);
+          if (!game) return null;
+          const sportColors: Record<string, { accent: string; border: string; bg: string }> = {
+            NBA: { accent: "text-orange-400", border: "border-orange-500/25", bg: "from-orange-500/10" },
+            NFL: { accent: "text-green-400",  border: "border-green-500/25",  bg: "from-green-500/10"  },
+          };
+          const sc = sportColors[sport] || sportColors.NBA;
+          const awayPlayers = players.filter(p => p.team === game.away);
+          const homePlayers = players.filter(p => p.team === game.home);
+          const awayAvgProj = awayPlayers.length > 0
+            ? awayPlayers.reduce((s, p) => s + toNum(p.projectedPoints), 0) / awayPlayers.length
+            : 0;
+          const homeAvgProj = homePlayers.length > 0
+            ? homePlayers.reduce((s, p) => s + toNum(p.projectedPoints), 0) / homePlayers.length
+            : 0;
+          const totalProjAvg = (awayAvgProj + homeAvgProj) / 2;
+          const gameTotal = awayAvgProj + homeAvgProj;
+
+          return (
+            <div className={`mb-4 rounded-xl border ${sc.border} bg-gradient-to-r ${sc.bg} to-slate-900/60 overflow-hidden`} data-testid="game-card">
+              <div className="px-4 py-3 flex items-center gap-4 flex-wrap">
+                {/* Away team */}
+                <div className="flex-1 min-w-[80px]">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-lg font-black text-white">{game.away}</span>
+                    <Badge variant="outline" className="border-slate-600 text-slate-400 text-[9px] font-bold">AWAY</Badge>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Activity className="w-3 h-3 text-slate-500" />
+                    <span className="text-xs text-slate-400 font-bold">{awayPlayers.length} players</span>
+                    <span className="text-slate-600 text-xs">·</span>
+                    <span className={`text-xs font-bold ${sc.accent}`}>{awayAvgProj.toFixed(1)} avg</span>
+                  </div>
+                </div>
+
+                {/* VS divider */}
+                <div className="text-center shrink-0 px-2">
+                  <div className="text-xs font-black text-slate-500 uppercase tracking-widest">vs</div>
+                  {game.time && (
+                    <div className="text-[10px] text-slate-500 mt-0.5 font-bold">{game.time}</div>
+                  )}
+                  <div className="mt-1 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                    {gameTotal > 0 && `${gameTotal.toFixed(0)} proj total`}
+                  </div>
+                </div>
+
+                {/* Home team */}
+                <div className="flex-1 min-w-[80px] text-right">
+                  <div className="flex items-center justify-end gap-2 mb-1">
+                    <Badge variant="outline" className="border-slate-600 text-slate-400 text-[9px] font-bold">HOME</Badge>
+                    <span className="text-lg font-black text-white">{game.home}</span>
+                  </div>
+                  <div className="flex items-center justify-end gap-1.5">
+                    <span className={`text-xs font-bold ${sc.accent}`}>{homeAvgProj.toFixed(1)} avg</span>
+                    <span className="text-slate-600 text-xs">·</span>
+                    <span className="text-xs text-slate-400 font-bold">{homePlayers.length} players</span>
+                    <Activity className="w-3 h-3 text-slate-500" />
+                  </div>
+                </div>
+
+                {/* Salary cap & captain info */}
+                <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-700/50 sm:border-l sm:border-slate-700/50 sm:pl-4">
+                  <div className="text-center">
+                    <div className="text-sm font-black text-white">${(showdownConfig?.salaryCap || 50000).toLocaleString()}</div>
+                    <div className="text-[9px] text-slate-500 font-bold uppercase">Salary Cap</div>
+                  </div>
+                  <div className="text-center">
+                    <div className={`text-sm font-black ${sc.accent}`}>{captainLabel} {captainMultiplier}×</div>
+                    <div className="text-[9px] text-slate-500 font-bold uppercase">Capt. Mult.</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm font-black text-white">{showdownConfig?.rosterSize || 6}</div>
+                    <div className="text-[9px] text-slate-500 font-bold uppercase">Roster Size</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {!selectedSlateId ? (
           <Card className="bg-slate-900 border-slate-700">
@@ -430,10 +568,41 @@ export default function ShowdownBuilder() {
                 </CardContent>
               </Card>
 
+              {/* Tier access notice */}
+              {(tier === "free" || tier === "star") && !userIsAdmin && (
+                <div className={`mt-3 rounded-lg border px-3 py-2 flex items-start gap-2 ${
+                  tier === "free"
+                    ? "bg-slate-800/50 border-slate-700/50"
+                    : "bg-purple-500/5 border-purple-500/20"
+                }`} data-testid="tier-notice">
+                  {tier === "free"
+                    ? <Shield className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                    : <Star className="w-4 h-4 text-purple-400 shrink-0 mt-0.5 fill-purple-400" />
+                  }
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-[11px] font-black ${tier === "free" ? "text-slate-300" : "text-purple-300"}`}>
+                      {tier === "free"
+                        ? "Free plan: 1 lineup per session"
+                        : "Sharpshooter plan: up to 5 lineups"}
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      {tier === "free"
+                        ? "Upgrade to Sharpshooter for 5 lineups or Champion for 20"
+                        : "Upgrade to Champion for 20 lineups with full AI optimization"}
+                    </p>
+                  </div>
+                  <a href="/pricing" className={`text-[10px] font-black shrink-0 ${
+                    tier === "free" ? "text-amber-400 hover:text-amber-300" : "text-purple-400 hover:text-purple-300"
+                  }`}>
+                    Upgrade →
+                  </a>
+                </div>
+              )}
+
               <div className="mt-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <Button
                   onClick={() => optimizeMut.mutate()}
-                  disabled={optimizeMut.isPending}
+                  disabled={optimizeMut.isPending || !gameFilter}
                   className="bg-amber-600 hover:bg-amber-700 font-bold flex-1 sm:flex-none"
                   data-testid="btn-optimize-showdown"
                 >
