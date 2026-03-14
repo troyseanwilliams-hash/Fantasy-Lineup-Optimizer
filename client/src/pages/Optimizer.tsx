@@ -444,10 +444,20 @@ export default function Optimizer() {
   }
 
   const handlePlatformChange = (newPlatform: Platform) => {
-    if (newPlatform !== "draftkings" && !userIsAdmin) {
+    const userTier = subData?.tier || "free";
+    const isPaidUser = userTier === "star" || userTier === "pro" || userIsAdmin;
+    if (newPlatform === "fanduel" && !userIsAdmin) {
       toast({
         title: "Coming Soon",
-        description: `${newPlatform === "fanduel" ? "FanDuel" : "Yahoo"} optimization is coming soon.`,
+        description: "FanDuel optimization is coming soon.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (newPlatform === "yahoo" && !isPaidUser) {
+      toast({
+        title: "Upgrade Required",
+        description: "Yahoo optimization requires a Sharpshooter or Champion subscription.",
         variant: "destructive",
       });
       return;
@@ -565,6 +575,7 @@ export default function Optimizer() {
             />
             {slate && (
               <div className="hidden sm:flex items-center gap-2" data-testid="slate-date">
+
                 <span className={`text-xs font-black ${pColors.text} opacity-70`}>
                   {new Date(slate.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
                 </span>

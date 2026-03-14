@@ -19,6 +19,7 @@ export function PlatformSelector({
   className = "",
 }: PlatformSelectorProps) {
   const isAdmin = tier === "admin";
+  const isPaid = tier === "star" || tier === "pro" || isAdmin;
 
   return (
     <div
@@ -30,7 +31,9 @@ export function PlatformSelector({
 
         const colors = PLATFORM_COLORS[p];
         const isActive = value === p;
-        const isLocked = showProBadge && p !== "draftkings" && !isAdmin;
+        const isYahooUnlocked = p === "yahoo" && isPaid;
+        const isFanDuelUnlocked = p === "fanduel" && isAdmin;
+        const isLocked = showProBadge && p !== "draftkings" && !isYahooUnlocked && !isFanDuelUnlocked;
 
         return (
           <button

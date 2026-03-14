@@ -625,10 +625,20 @@ export default function ProOptimizer() {
   }, [slateId, slate?.platform]);
 
   const handlePlatformChange = (newPlatform: Platform) => {
-    if (newPlatform !== "draftkings" && !userIsAdmin) {
+    const userTier = subData?.tier || "free";
+    const isPaidUser = userTier === "star" || userTier === "pro" || userIsAdmin;
+    if (newPlatform === "fanduel" && !userIsAdmin) {
       toast({
         title: "Coming Soon",
-        description: `${newPlatform === "fanduel" ? "FanDuel" : "Yahoo"} optimization is coming soon.`,
+        description: "FanDuel optimization is coming soon.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (newPlatform === "yahoo" && !isPaidUser) {
+      toast({
+        title: "Upgrade Required",
+        description: "Yahoo optimization requires a Sharpshooter or Champion subscription.",
         variant: "destructive",
       });
       return;
