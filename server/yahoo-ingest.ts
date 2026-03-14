@@ -37,10 +37,8 @@ interface YahooPlayerRow {
   yahooPlayerId: string | null;
 }
 
-function normalizeYahooPosition(positions: string | string[], sport: YahooSport): string {
-  const raw = Array.isArray(positions) ? (positions[0] ?? "") : (positions ?? "");
+function normalizeSinglePosition(raw: string, sport: YahooSport): string {
   const p = raw.toUpperCase().trim();
-
   switch (sport) {
     case "NHL":
       if (["LW","RW","C","D","G"].includes(p)) return p;
@@ -60,6 +58,17 @@ function normalizeYahooPosition(positions: string | string[], sport: YahooSport)
     default:
       return p;
   }
+}
+
+function normalizeYahooPosition(positions: string | string[], sport: YahooSport): string {
+  if (Array.isArray(positions) && positions.length > 1) {
+    const normalized = positions.map(p => normalizeSinglePosition(p, sport)).filter(Boolean);
+    const unique = [...new Set(normalized)];
+    if (unique.length > 1) return unique.slice(0, 2).join("/");
+    return unique[0] || "";
+  }
+  const raw = Array.isArray(positions) ? (positions[0] ?? "") : (positions ?? "");
+  return normalizeSinglePosition(raw, sport);
 }
 
 let _cachedToken: { token: string; expiresAt: number } | null = null;
