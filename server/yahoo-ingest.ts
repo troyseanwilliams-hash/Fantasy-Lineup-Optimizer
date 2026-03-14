@@ -1,5 +1,6 @@
 import { storage } from "./storage";
 import type { InsertSlate, InsertPlayer } from "@shared/schema";
+import crypto from "crypto";
 
 export type YahooSport = "NBA" | "NFL" | "MLB" | "NHL" | "GOLF";
 
@@ -63,36 +64,119 @@ function normalizeYahooPosition(positions: string | string[], sport: YahooSport)
 
 let _cachedToken: { token: string; expiresAt: number } | null = null;
 
+function buildJwtAssertion(clientId: string, clientSecret: string): string {
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+  const now = Math.floor(Date.now() / 1000);
+  const payload = Buffer.from(JSON.stringify({
+    iss: clientId,
+    sub: clientId,
+    aud: "https://api.login.yahoo.com/oauth2/get_token",
+    iat: now,
+    exp: now + 600,
+    nonce: crypto.randomBytes(16).toString("hex"),
+    jti: crypto.randomUUID(),
+  })).toString("base64url");
+
+  const signature = crypto
+    .createHmac("sha256", clientSecret)
+    .update(`${header}.${payload}`)
+    .digest("base64url");
+
+  return `${header}.${payload}.${signature}`;
+}
+
 async function getYahooToken(): Promise<string | null> {
   const staticToken = process.env.YAHOO_ACCESS_TOKEN;
   if (staticToken) return staticToken;
 
   const clientId = process.env.YAHOO_CLIENT_ID;
   const clientSecret = process.env.YAHOO_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return null;
-
-  if (_cachedToken && _cachedToken.expiresAt > Date.now() + 300_000) {
-    return _cachedToken.token;
-  }
-
-  try {
-    const creds = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-    const res = await fetch("https://api.login.yahoo.com/oauth2/get_token", {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${creds}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({ grant_type: "client_credentials" }).toString(),
-    });
-    if (!res.ok) { console.error(`[Yahoo] Token request ${res.status}`); return null; }
-    const d = await res.json();
-    _cachedToken = { token: d.access_token, expiresAt: Date.now() + (d.expires_in || 3600) * 1000 };
-    return _cachedToken.token;
-  } catch (err: any) {
-    console.error("[Yahoo] OAuth error:", err.message);
+  if (!clientId || !clientSecret) {
+    console.warn("[Yahoo] No YAHOO_CLIENT_ID/YAHOO_CLIENT_SECRET set — skipping OAuth");
     return null;
   }
+
+  if (_cachedToken && _cachedToken.expiresAt > Date.now() + 300_000) {
+    console.log("[Yahoo] Using cached OAuth token");
+    return _cachedToken.token;
+  }
+
+  const methods = [
+    async () => {
+      console.log("[Yahoo] Trying OAuth: JWT client_assertion…");
+      const assertion = buildJwtAssertion(clientId, clientSecret);
+      const res = await fetch("https://api.login.yahoo.com/oauth2/get_token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "client_credentials",
+          client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+          client_assertion: assertion,
+          client_id: clientId,
+        }).toString(),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(`JWT assertion ${res.status}: ${body.slice(0, 200)}`);
+      }
+      return res;
+    },
+    async () => {
+      console.log("[Yahoo] Trying OAuth: Basic auth…");
+      const creds = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+      const res = await fetch("https://api.login.yahoo.com/oauth2/get_token", {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${creds}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          grant_type: "client_credentials",
+          client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+          client_assertion: buildJwtAssertion(clientId, clientSecret),
+        }).toString(),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(`Basic auth ${res.status}: ${body.slice(0, 200)}`);
+      }
+      return res;
+    },
+    async () => {
+      console.log("[Yahoo] Trying OAuth: POST body credentials…");
+      const res = await fetch("https://api.login.yahoo.com/oauth2/get_token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "client_credentials",
+          client_id: clientId,
+          client_secret: clientSecret,
+        }).toString(),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(`POST body ${res.status}: ${body.slice(0, 200)}`);
+      }
+      return res;
+    },
+  ];
+
+  for (const method of methods) {
+    try {
+      const res = await method();
+      const d = await res.json();
+      if (d.access_token) {
+        _cachedToken = { token: d.access_token, expiresAt: Date.now() + (d.expires_in || 3600) * 1000 };
+        console.log(`[Yahoo] OAuth token obtained (expires in ${d.expires_in || 3600}s)`);
+        return _cachedToken.token;
+      }
+    } catch (err: any) {
+      console.warn(`[Yahoo] OAuth attempt failed: ${err.message}`);
+    }
+  }
+
+  console.error("[Yahoo] All OAuth methods failed");
+  return null;
 }
 
 async function yahooFetch(url: string, useAuth = false, timeoutMs = 15000): Promise<Response> {
@@ -120,35 +204,119 @@ async function yahooFetch(url: string, useAuth = false, timeoutMs = 15000): Prom
 
 async function fetchYahooContests(sport: YahooSport): Promise<YahooContest[]> {
   const slug = YAHOO_SPORT_SLUGS[sport];
-  const url = `https://dfyql-ro.sports.yahoo.com/v2/external/contracts/json?sport=${slug}&status=open`;
+  const hasCredentials = !!(process.env.YAHOO_CLIENT_ID && process.env.YAHOO_CLIENT_SECRET);
 
-  let data: any;
-  try {
-    const res = await yahooFetch(url, false);
-    data = await res.json();
-  } catch (err: any) {
-    console.error(`[Yahoo Ingest] Contest fetch failed for ${sport}: ${err.message}`);
+  const contestUrls = [
+    `https://dfyql-ro.sports.yahoo.com/v2/contests?sport=${slug}&status=open`,
+    `https://dfyql-ro.sports.yahoo.com/v2/external/contests?sport=${slug}&status=open`,
+    `https://dfyql-ro.sports.yahoo.com/v2/external/contracts/json?sport=${slug}&status=open`,
+    `https://dfyql-ro.sports.yahoo.com/v2/contestList?sport=${slug}`,
+    `https://fantasysports.yahooapis.com/fantasy/v2/game/${slug}/contests?format=json`,
+  ];
+
+  let data: any = null;
+
+  for (const url of contestUrls) {
+    for (const useAuth of (hasCredentials ? [true, false] : [false])) {
+      try {
+        console.log(`[Yahoo Ingest] Trying contest URL: ${url} (auth=${useAuth})`);
+        const res = await yahooFetch(url, useAuth);
+        const raw = await res.text();
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          if (raw.includes("<?xml")) {
+            console.warn(`[Yahoo Ingest] Got XML response from ${url}, skipping`);
+            continue;
+          }
+          throw new Error("Non-JSON response");
+        }
+        if (data) {
+          console.log(`[Yahoo Ingest] ${sport}: Got response from ${url} (auth=${useAuth})`);
+          break;
+        }
+      } catch (err: any) {
+        console.warn(`[Yahoo Ingest] ${url} (auth=${useAuth}): ${err.message}`);
+      }
+    }
+    if (data) break;
+  }
+
+  if (!data) {
+    console.error(`[Yahoo Ingest] All contest endpoints failed for ${sport}`);
     return [];
   }
 
-  const contractList: any[] = data?.contracts ?? data?.result?.contracts ?? data?.data ?? [];
+  let contractList: any[] = [];
+
+  if (Array.isArray(data)) {
+    contractList = data;
+  } else if (data && typeof data === "object") {
+    console.log(`[Yahoo Ingest] ${sport}: Response keys: ${Object.keys(data).join(", ")}`);
+
+    const candidates = [
+      data.contests?.result,
+      data.contestsData?.result,
+      data.contests,
+      data.contestsData,
+      data.contracts,
+      data.result?.contests,
+      data.result?.contracts,
+      data.fantasy_content?.contests,
+      data.data?.contests,
+      data.data?.contracts,
+      data.data,
+    ];
+
+    for (const c of candidates) {
+      if (Array.isArray(c) && c.length > 0) {
+        contractList = c;
+        break;
+      }
+    }
+
+    if (contractList.length === 0) {
+      for (const c of candidates) {
+        if (Array.isArray(c)) {
+          contractList = c;
+          break;
+        }
+      }
+    }
+
+    if (contractList.length === 0 && data.contests && typeof data.contests === "object" && !Array.isArray(data.contests)) {
+      const vals = Object.values(data.contests);
+      if (vals.length > 0 && typeof vals[0] === "object") {
+        contractList = vals as any[];
+      }
+    }
+  }
+
+  console.log(`[Yahoo Ingest] ${sport}: Found ${contractList.length} raw contests/contracts`);
 
   const nowET = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
   const todayStart = new Date(nowET); todayStart.setHours(0,0,0,0);
-  const todayEnd   = new Date(nowET); todayEnd.setHours(23,59,59,999);
+  const tomorrowEnd = new Date(nowET); tomorrowEnd.setDate(tomorrowEnd.getDate() + 1); tomorrowEnd.setHours(23,59,59,999);
 
   const contests: YahooContest[] = [];
 
   for (const c of contractList) {
-    const rawStart = c.start_time ?? c.startTime ?? c.draft_start ?? c.lock_time;
+    if (!c || typeof c !== "object") continue;
+    const rawStart = c.start_time ?? c.startTime ?? c.draft_start ?? c.lock_time
+      ?? c.contestStartTime ?? c.startDate ?? c.lockTime ?? c.draftStartTime
+      ?? c.contestLockTime ?? c.openTime ?? c.closeTime;
     if (!rawStart) continue;
 
-    const startTime = typeof rawStart === "number"
-      ? new Date(rawStart * 1000)
-      : new Date(rawStart);
+    let startTime: Date;
+    const numericStart = typeof rawStart === "number" ? rawStart : (typeof rawStart === "string" && /^\d+$/.test(rawStart) ? parseInt(rawStart, 10) : NaN);
+    if (!isNaN(numericStart)) {
+      startTime = numericStart > 1e12 ? new Date(numericStart) : new Date(numericStart * 1000);
+    } else {
+      startTime = new Date(rawStart);
+    }
 
     const startET = new Date(startTime.toLocaleString("en-US", { timeZone: "America/New_York" }));
-    if (startET < todayStart || startET > todayEnd) continue;
+    if (startET < todayStart || startET > tomorrowEnd) continue;
 
     const label = c.name ?? c.title ?? c.contest_name ?? `${sport} Yahoo ${startET.toLocaleDateString()}`;
     const contestTypeName = (c.contest_type_name ?? c.type ?? "").toLowerCase();
@@ -166,7 +334,7 @@ async function fetchYahooContests(sport: YahooSport): Promise<YahooContest[]> {
       label,
       sport,
       startTime,
-      salaryCap: c.salary_cap ?? YAHOO_SALARY_CAP,
+      salaryCap: c.salaryCap ?? c.salary_cap ?? YAHOO_SALARY_CAP,
       isMain,
     });
   }
@@ -181,34 +349,62 @@ async function fetchYahooContests(sport: YahooSport): Promise<YahooContest[]> {
 
 async function fetchYahooPlayers(contest: YahooContest): Promise<YahooPlayerRow[]> {
   const slug = YAHOO_SPORT_SLUGS[contest.sport];
-  const primaryUrl = `https://dfyql-ro.sports.yahoo.com/v2/players?sport=${slug}&contest_key=${contest.contestKey}`;
+  const hasCredentials = !!(process.env.YAHOO_CLIENT_ID && process.env.YAHOO_CLIENT_SECRET);
 
-  let data: any;
+  const playerUrls = [
+    `https://dfyql-ro.sports.yahoo.com/v2/contestPlayers?contestId=${contest.contestKey}`,
+    `https://dfyql-ro.sports.yahoo.com/v2/players?sport=${slug}&contestId=${contest.contestKey}`,
+    `https://dfyql-ro.sports.yahoo.com/v2/players?sport=${slug}&contest_key=${contest.contestKey}`,
+    `https://dfyql-ro.sports.yahoo.com/v2/contestPlayers?contest_key=${contest.contestKey}&sport=${slug}`,
+  ];
+
+  let data: any = null;
   let usedAuth = false;
 
-  try {
-    const res = await yahooFetch(primaryUrl, false);
-    data = await res.json();
-  } catch (err: any) {
-    console.warn(`[Yahoo Ingest] Unauthenticated player fetch failed: ${err.message}, trying auth…`);
-    try {
-      const res = await yahooFetch(primaryUrl, true);
-      data = await res.json();
-      usedAuth = true;
-    } catch (err2: any) {
-      console.error(`[Yahoo Ingest] Auth player fetch also failed: ${err2.message}`);
-      return [];
+  for (const url of playerUrls) {
+    for (const useAuth of (hasCredentials ? [true, false] : [false])) {
+      try {
+        console.log(`[Yahoo Ingest] Trying player URL: ${url} (auth=${useAuth})`);
+        const res = await yahooFetch(url, useAuth);
+        data = await res.json();
+        usedAuth = useAuth;
+        if (data) {
+          console.log(`[Yahoo Ingest] Got player response from ${url}`);
+          break;
+        }
+      } catch (err: any) {
+        console.warn(`[Yahoo Ingest] ${url} (auth=${useAuth}): ${err.message}`);
+      }
     }
+    if (data) break;
   }
 
-  const playerList: any[] =
-    data?.players ??
-    data?.result?.players ??
-    data?.data?.players ??
-    (Array.isArray(data) ? data : []);
+  if (!data) {
+    console.error(`[Yahoo Ingest] All player endpoints failed for contest ${contest.contestKey}`);
+    return [];
+  }
+
+  let playerList: any[] = [];
+  const plCandidates = [
+    data?.players?.result,
+    data?.players,
+    data?.contestPlayers?.result,
+    data?.contestPlayers,
+    data?.result?.players,
+    data?.data?.players,
+  ];
+  for (const c of plCandidates) {
+    if (Array.isArray(c) && c.length > 0) { playerList = c; break; }
+  }
+  if (playerList.length === 0 && Array.isArray(data) && data.length > 0) {
+    playerList = data;
+  }
 
   if (playerList.length === 0) {
-    console.warn(`[Yahoo Ingest] No players in response for contest ${contest.contestKey}${usedAuth ? " (with auth)" : ""}`);
+    console.warn(`[Yahoo Ingest] No players in response for contest ${contest.contestKey}${usedAuth ? " (with auth)" : ""}. Response keys: ${data ? Object.keys(data).join(", ") : "null"}`);
+    if (data?.players && !Array.isArray(data.players)) {
+      console.warn(`[Yahoo Ingest] data.players type: ${typeof data.players}, keys: ${Object.keys(data.players).slice(0, 5).join(", ")}`);
+    }
     return [];
   }
 
@@ -220,14 +416,15 @@ function parseYahooAPIPlayers(players: any[], sport: YahooSport): YahooPlayerRow
 
   for (const p of players) {
     const name = p.full_name
+      ?? (p.firstName && p.lastName ? `${p.firstName} ${p.lastName}`.trim() : null)
       ?? (p.first_name && p.last_name ? `${p.first_name} ${p.last_name}`.trim() : null)
       ?? p.name
       ?? "";
     if (!name || name.trim().length < 2) continue;
 
-    const eligiblePositions: string[] = p.eligible_positions ?? p.positions ?? [];
+    const eligiblePositions: string[] = p.eligiblePositions ?? p.eligible_positions ?? p.positions ?? [];
     const position = normalizeYahooPosition(
-      eligiblePositions.length > 0 ? eligiblePositions : (p.position ?? p.primary_position ?? ""),
+      eligiblePositions.length > 0 ? eligiblePositions : (p.primaryPosition ?? p.position ?? p.primary_position ?? ""),
       sport
     );
     if (!position) continue;
@@ -238,18 +435,35 @@ function parseYahooAPIPlayers(players: any[], sport: YahooSport): YahooPlayerRow
     if (!salary) continue;
 
     const fppg =
-      parseFloat(p.average_points ?? p.fppg ?? p.average_fantasy_points ?? p.points_per_game ?? "0") || 0;
+      parseFloat(p.fantasyPointsPerGame ?? p.average_points ?? p.fppg ?? p.average_fantasy_points ?? p.points_per_game ?? "0") || 0;
 
-    const team = p.editorial_team_abbr ?? p.team_abbr ?? p.team ?? "";
-    const opponent = p.opponent_abbr ?? p.opponent ?? "";
+    const team = p.teamAbbr ?? p.team?.abbr ?? p.editorial_team_abbr ?? p.team_abbr ?? (typeof p.team === "string" ? p.team : "");
 
-    const gameInfo = p.game ?? p.game_info ?? p.matchup ?? (team && opponent ? `${team} vs ${opponent}` : "");
+    const game = p.game ?? {};
+    const homeAbbr = game.homeTeam?.abbr ?? "";
+    const awayAbbr = game.awayTeam?.abbr ?? "";
+    const opponent = team === homeAbbr ? awayAbbr : (team === awayAbbr ? homeAbbr : (p.opponent_abbr ?? p.opponent ?? ""));
 
-    const injuryRaw = p.status ?? p.injury_status ?? p.injury_note ?? "";
+    let gameInfo = p.game_info ?? p.matchup ?? "";
+    if (!gameInfo && homeAbbr && awayAbbr) {
+      const rawGS = game.startTime;
+      const numGS = typeof rawGS === "number" ? rawGS : (typeof rawGS === "string" && /^\d+$/.test(rawGS) ? parseInt(rawGS, 10) : NaN);
+      const gameStart = rawGS
+        ? new Date(!isNaN(numGS) ? (numGS > 1e12 ? numGS : numGS * 1000) : rawGS)
+        : null;
+      const timeStr = gameStart
+        ? gameStart.toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", hour12: true })
+        : "";
+      gameInfo = `${awayAbbr} @ ${homeAbbr}${timeStr ? " " + timeStr + " ET" : ""}`;
+    }
+
+    const injuryRaw = p.status ?? p.injury_status ?? p.injury_note ?? p.extendedStatus ?? "";
     const injuryStatus =
-      injuryRaw && !["", "Active", "Healthy", "DTD"].includes(injuryRaw)
+      injuryRaw && !["", "Active", "Healthy", "DTD", "N/A", "unknown"].includes(injuryRaw)
         ? injuryRaw : null;
     const normalizedInjury = injuryRaw === "DTD" ? "Questionable" : injuryStatus;
+
+    const playerId = p.code ?? p.player_id ?? p.id ?? p.playerSalaryId ?? "";
 
     rows.push({
       name: name.trim(),
@@ -261,7 +475,7 @@ function parseYahooAPIPlayers(players: any[], sport: YahooSport): YahooPlayerRow
       fppg,
       projectedPoints: fppg,
       injuryStatus: normalizedInjury,
-      yahooPlayerId: String(p.player_id ?? p.id ?? ""),
+      yahooPlayerId: String(playerId),
     });
   }
 
@@ -438,7 +652,8 @@ function buildInsertPlayers(rows: YahooPlayerRow[], slateId: number): InsertPlay
 export async function ingestYahooSlate(sport: YahooSport): Promise<{
   success: boolean; slateId?: number; playerCount?: number; message: string; source?: string;
 }> {
-  console.log(`[Yahoo Ingest] Starting ${sport}…`);
+  const hasYahooCredentials = !!(process.env.YAHOO_CLIENT_ID && process.env.YAHOO_CLIENT_SECRET);
+  console.log(`[Yahoo Ingest] Starting ${sport}… (credentials: ${hasYahooCredentials ? "YES" : "NO"}, rotowire: ${!!process.env.ROTOWIRE_API_KEY})`);
 
   let playerRows: YahooPlayerRow[] = [];
   let slateLabel = `${sport} Yahoo Main — ${new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" })}`;
