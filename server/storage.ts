@@ -2,6 +2,7 @@ import { db } from "./db";
 import { eq, and, inArray, lt, gte, desc, isNull, isNotNull, ne, sql } from "drizzle-orm";
 import {
   slates, players, lineups, subscriptions, props, alerts, prizePicksEntries, playerHistory, winningLineups, playerOverrides,
+  lineupScores, alertDeliveries, notificationPreferences, performanceSnapshots,
   type Slate, type InsertSlate,
   type Player, type InsertPlayer,
   type Lineup, type InsertLineup,
@@ -12,6 +13,10 @@ import {
   type PlayerHistory, type InsertPlayerHistory,
   type WinningLineup, type InsertWinningLineup,
   type PlayerOverride, type InsertPlayerOverride,
+  type LineupScore, type InsertLineupScore,
+  type AlertDelivery, type InsertAlertDelivery,
+  type NotificationPreference, type InsertNotificationPreference,
+  type PerformanceSnapshot, type InsertPerformanceSnapshot,
 } from "@shared/schema";
 
 import { authStorage, type IAuthStorage } from "./replit_integrations/auth/storage";
@@ -88,6 +93,27 @@ export interface IStorage extends IAuthStorage {
   deletePlayerOverride(userId: string, slateId: number, playerId: number): Promise<void>;
   deletePlayerOverridesBySlate(slateId: number): Promise<void>;
   deletePlayerOverridesByUser(userId: string, slateId: number): Promise<void>;
+
+  getAllLineups(userId: string): Promise<Lineup[]>;
+  getLineupScores(userId: string): Promise<LineupScore[]>;
+  getLineupScore(lineupId: number): Promise<LineupScore | undefined>;
+  upsertLineupScore(data: InsertLineupScore): Promise<LineupScore>;
+
+  getNotificationPreferences(userId: string): Promise<NotificationPreference | undefined>;
+  upsertNotificationPreferences(data: InsertNotificationPreference): Promise<NotificationPreference>;
+
+  createAlertDelivery(data: InsertAlertDelivery): Promise<AlertDelivery>;
+  getAlertDeliveries(alertId: number): Promise<AlertDelivery[]>;
+
+  getPerformanceSnapshots(userId: string, sport?: string): Promise<PerformanceSnapshot[]>;
+  createPerformanceSnapshot(data: InsertPerformanceSnapshot): Promise<PerformanceSnapshot>;
+  getAggregatePerformance(userId: string): Promise<{
+    totalSlates: number;
+    avgVsOptimal: number;
+    avgVsField: number;
+    avgAccuracy: number;
+    sportBreakdown: Record<string, { slates: number; avgVsOptimal: number; avgVsField: number; avgAccuracy: number }>;
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -649,6 +675,135 @@ export class DatabaseStorage implements IStorage {
   async deletePlayerOverridesByUser(userId: string, slateId: number): Promise<void> {
     await db.delete(playerOverrides)
       .where(and(eq(playerOverrides.userId, userId), eq(playerOverrides.slateId, slateId)));
+  }
+
+  async getAllLineups(userId: string): Promise<Lineup[]> {
+    return await db.select().from(lineups)
+      .where(eq(lineups.userId, userId))
+      .orderBy(desc(lineups.id));
+  }
+
+  async getLineupScores(userId: string): Promise<LineupScore[]> {
+    return await db.select().from(lineupScores)
+      .where(eq(lineupScores.userId, userId))
+      .orderBy(desc(lineupScores.lastUpdated));
+  }
+
+  async getLineupScore(lineupId: number): Promise<LineupScore | undefined> {
+    const [result] = await db.select().from(lineupScores)
+      .where(eq(lineupScores.lineupId, lineupId)).limit(1);
+    return result;
+  }
+
+  async upsertLineupScore(data: InsertLineupScore): Promise<LineupScore> {
+    const existing = await this.getLineupScore(data.lineupId);
+    if (existing) {
+      const [updated] = await db.update(lineupScores)
+        .set({ ...data, lastUpdated: new Date() })
+        .where(eq(lineupScores.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(lineupScores).values(data).returning();
+    return created;
+  }
+
+  async getNotificationPreferences(userId: string): Promise<NotificationPreference | undefined> {
+    const [result] = await db.select().from(notificationPreferences)
+      .where(eq(notificationPreferences.userId, userId)).limit(1);
+    return result;
+  }
+
+  async upsertNotificationPreferences(data: InsertNotificationPreference): Promise<NotificationPreference> {
+    const existing = await this.getNotificationPreferences(data.userId);
+    if (existing) {
+      const [updated] = await db.update(notificationPreferences)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(notificationPreferences.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(notificationPreferences).values(data).returning();
+    return created;
+  }
+
+  async createAlertDelivery(data: InsertAlertDelivery): Promise<AlertDelivery> {
+    const [created] = await db.insert(alertDeliveries).values(data).returning();
+    return created;
+  }
+
+  async getAlertDeliveries(alertId: number): Promise<AlertDelivery[]> {
+    return await db.select().from(alertDeliveries)
+      .where(eq(alertDeliveries.alertId, alertId));
+  }
+
+  async getPerformanceSnapshots(userId: string, sport?: string): Promise<PerformanceSnapshot[]> {
+    if (sport) {
+      return await db.select().from(performanceSnapshots)
+        .where(and(eq(performanceSnapshots.userId, userId), eq(performanceSnapshots.sport, sport)))
+        .orderBy(desc(performanceSnapshots.slateDate));
+    }
+    return await db.select().from(performanceSnapshots)
+      .where(eq(performanceSnapshots.userId, userId))
+      .orderBy(desc(performanceSnapshots.slateDate));
+  }
+
+  async createPerformanceSnapshot(data: InsertPerformanceSnapshot): Promise<PerformanceSnapshot> {
+    const [created] = await db.insert(performanceSnapshots).values(data).returning();
+    return created;
+  }
+
+  async getAggregatePerformance(userId: string): Promise<{
+    totalSlates: number;
+    avgVsOptimal: number;
+    avgVsField: number;
+    avgAccuracy: number;
+    sportBreakdown: Record<string, { slates: number; avgVsOptimal: number; avgVsField: number; avgAccuracy: number }>;
+  }> {
+    const snapshots = await this.getPerformanceSnapshots(userId);
+    if (snapshots.length === 0) {
+      return { totalSlates: 0, avgVsOptimal: 0, avgVsField: 0, avgAccuracy: 0, sportBreakdown: {} };
+    }
+
+    const toN = (v: string | null | undefined) => v != null && v !== "" ? parseFloat(v) : 0;
+    let totalVsOpt = 0, totalVsField = 0, totalAcc = 0, accCount = 0;
+    const bySport: Record<string, { slates: number; vsOpt: number; vsField: number; acc: number; accCount: number }> = {};
+
+    for (const s of snapshots) {
+      const optScore = toN(s.optimalScore);
+      const vsOpt = optScore > 0 ? (toN(s.userScore) / optScore) * 100 : 0;
+      const fieldAvg = toN(s.fieldAvgScore);
+      const vsField = fieldAvg > 0 ? (toN(s.userScore) / fieldAvg) * 100 : 0;
+      const acc = toN(s.projectionAccuracy);
+
+      totalVsOpt += vsOpt;
+      totalVsField += vsField;
+      if (acc > 0) { totalAcc += acc; accCount++; }
+
+      if (!bySport[s.sport]) bySport[s.sport] = { slates: 0, vsOpt: 0, vsField: 0, acc: 0, accCount: 0 };
+      bySport[s.sport].slates++;
+      bySport[s.sport].vsOpt += vsOpt;
+      bySport[s.sport].vsField += vsField;
+      if (acc > 0) { bySport[s.sport].acc += acc; bySport[s.sport].accCount++; }
+    }
+
+    const sportBreakdown: Record<string, { slates: number; avgVsOptimal: number; avgVsField: number; avgAccuracy: number }> = {};
+    for (const [sport, d] of Object.entries(bySport)) {
+      sportBreakdown[sport] = {
+        slates: d.slates,
+        avgVsOptimal: d.slates > 0 ? Math.round((d.vsOpt / d.slates) * 10) / 10 : 0,
+        avgVsField: d.slates > 0 ? Math.round((d.vsField / d.slates) * 10) / 10 : 0,
+        avgAccuracy: d.accCount > 0 ? Math.round((d.acc / d.accCount) * 10) / 10 : 0,
+      };
+    }
+
+    return {
+      totalSlates: snapshots.length,
+      avgVsOptimal: Math.round((totalVsOpt / snapshots.length) * 10) / 10,
+      avgVsField: Math.round((totalVsField / snapshots.length) * 10) / 10,
+      avgAccuracy: accCount > 0 ? Math.round((totalAcc / accCount) * 10) / 10 : 0,
+      sportBreakdown,
+    };
   }
 }
 

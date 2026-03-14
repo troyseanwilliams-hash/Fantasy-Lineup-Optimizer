@@ -2563,6 +2563,159 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/lineup-scores", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    try {
+      const scores = await storage.getLineupScores(userId);
+      res.json(scores);
+    } catch (err) {
+      console.error("Lineup scores error:", err);
+      res.status(500).json({ message: "Failed to fetch lineup scores" });
+    }
+  });
+
+  app.get("/api/lineup-scores/:lineupId", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    try {
+      const score = await storage.getLineupScore(Number(req.params.lineupId));
+      if (!score) return res.status(404).json({ message: "Score not found" });
+      if (score.userId !== userId) return res.sendStatus(403);
+      res.json(score);
+    } catch (err) {
+      console.error("Lineup score error:", err);
+      res.status(500).json({ message: "Failed to fetch lineup score" });
+    }
+  });
+
+  app.get("/api/notification-preferences", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    try {
+      const prefs = await storage.getNotificationPreferences(userId);
+      res.json(prefs || {
+        emailEnabled: true,
+        smsEnabled: false,
+        phoneNumber: null,
+        injuryAlerts: true,
+        scoringMilestones: true,
+        preGameReminders: true,
+        preGameMinutes: 60,
+      });
+    } catch (err) {
+      console.error("Notification prefs error:", err);
+      res.status(500).json({ message: "Failed to fetch notification preferences" });
+    }
+  });
+
+  app.put("/api/notification-preferences", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    try {
+      const { emailEnabled, smsEnabled, phoneNumber, injuryAlerts, scoringMilestones, preGameReminders, preGameMinutes } = req.body;
+      const result = await storage.upsertNotificationPreferences({
+        userId,
+        emailEnabled: emailEnabled ?? true,
+        smsEnabled: smsEnabled ?? false,
+        phoneNumber: phoneNumber || null,
+        injuryAlerts: injuryAlerts ?? true,
+        scoringMilestones: scoringMilestones ?? true,
+        preGameReminders: preGameReminders ?? true,
+        preGameMinutes: preGameMinutes ?? 60,
+      });
+      res.json(result);
+    } catch (err) {
+      console.error("Notification prefs update error:", err);
+      res.status(500).json({ message: "Failed to update notification preferences" });
+    }
+  });
+
+  app.get("/api/performance", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    try {
+      const sport = req.query.sport as string | undefined;
+      const snapshots = await storage.getPerformanceSnapshots(userId, sport);
+      res.json(snapshots);
+    } catch (err) {
+      console.error("Performance error:", err);
+      res.status(500).json({ message: "Failed to fetch performance data" });
+    }
+  });
+
+  app.get("/api/performance/aggregate", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    try {
+      const aggregate = await storage.getAggregatePerformance(userId);
+      res.json(aggregate);
+    } catch (err) {
+      console.error("Aggregate performance error:", err);
+      res.status(500).json({ message: "Failed to fetch aggregate performance" });
+    }
+  });
+
+  app.get("/api/track-record", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    try {
+      const sub = await storage.getSubscription(userId);
+      const trackUser = await storage.getUser(userId);
+      const tier = trackUser?.isAdmin ? "pro" : (sub?.tier || "free");
+
+      const allLineups = await storage.getAllLineups(userId);
+      const savedCount = allLineups.length;
+      const vaultLineups = allLineups.filter(l => l.status === "active" || l.status === "review");
+      const sportCounts: Record<string, number> = {};
+      for (const l of allLineups) {
+        sportCounts[l.sport] = (sportCounts[l.sport] || 0) + 1;
+      }
+
+      const aggregate = await storage.getAggregatePerformance(userId);
+      const snapshots = await storage.getPerformanceSnapshots(userId);
+      const recentSnapshots = snapshots.slice(0, 10);
+
+      res.json({
+        tier,
+        totalLineups: savedCount,
+        activeLineups: vaultLineups.length,
+        sportBreakdown: sportCounts,
+        performance: aggregate,
+        recentPerformance: recentSnapshots,
+      });
+    } catch (err) {
+      console.error("Track record error:", err);
+      res.status(500).json({ message: "Failed to fetch track record" });
+    }
+  });
+
+  app.get("/api/content-access", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    try {
+      const sub = await storage.getSubscription(userId);
+      const contentUser = await storage.getUser(userId);
+      const tier = contentUser?.isAdmin ? "pro" : (sub?.tier || "free");
+      const features: Record<string, { unlocked: boolean; requiredTier: string }> = {
+        standardOptimizer: { unlocked: true, requiredTier: "free" },
+        proOptimizer: { unlocked: tier === "star" || tier === "pro", requiredTier: "star" },
+        bulkRegenerate: { unlocked: tier === "star" || tier === "pro", requiredTier: "star" },
+        playerConfig: { unlocked: tier === "star" || tier === "pro", requiredTier: "star" },
+        ownershipHeatmap: { unlocked: tier === "star" || tier === "pro", requiredTier: "star" },
+        winningLineupAgent: { unlocked: tier === "pro", requiredTier: "pro" },
+        dkImport: { unlocked: tier === "pro", requiredTier: "pro" },
+        liveScoreTracker: { unlocked: tier === "star" || tier === "pro", requiredTier: "star" },
+        performanceDashboard: { unlocked: tier === "star" || tier === "pro", requiredTier: "star" },
+        notificationPreferences: { unlocked: tier === "star" || tier === "pro", requiredTier: "star" },
+      };
+      res.json({ tier, features });
+    } catch (err) {
+      console.error("Content access error:", err);
+      res.status(500).json({ message: "Failed to fetch content access" });
+    }
+  });
+
   app.get("/api/props", async (req, res) => {
     const validSports = ACTIVE_SPORTS as readonly string[];
     const rawSport = req.query.sport as string | undefined;

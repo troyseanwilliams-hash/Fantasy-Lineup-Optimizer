@@ -260,6 +260,92 @@ export const insertPlayerOverrideSchema = createInsertSchema(playerOverrides).om
 export type PlayerOverride = typeof playerOverrides.$inferSelect;
 export type InsertPlayerOverride = z.infer<typeof insertPlayerOverrideSchema>;
 
+// --- LINEUP SCORES (live scoring per lineup) ---
+export const lineupScores = pgTable("lineup_scores", {
+  id: serial("id").primaryKey(),
+  lineupId: integer("lineup_id").notNull().references(() => lineups.id),
+  userId: text("user_id").notNull().references(() => users.id),
+  sport: text("sport").notNull(),
+  totalLivePoints: numeric("total_live_points").notNull().default("0"),
+  totalProjectedPoints: numeric("total_projected_points").notNull().default("0"),
+  percentComplete: integer("percent_complete").notNull().default(0),
+  playerScores: jsonb("player_scores").$type<Array<{
+    playerId: number;
+    playerName: string;
+    position: string;
+    team: string;
+    salary: number;
+    livePoints: number;
+    projectedPoints: number;
+    gameStatus: string;
+    gameStartTime: string;
+  }>>(),
+  contestRank: integer("contest_rank"),
+  contestEntries: integer("contest_entries"),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertLineupScoreSchema = createInsertSchema(lineupScores).omit({ id: true, createdAt: true, lastUpdated: true });
+export type LineupScore = typeof lineupScores.$inferSelect;
+export type InsertLineupScore = z.infer<typeof insertLineupScoreSchema>;
+
+// --- ALERT DELIVERIES (tracks SMS/email sends to prevent duplicates) ---
+export const alertDeliveries = pgTable("alert_deliveries", {
+  id: serial("id").primaryKey(),
+  alertId: integer("alert_id").notNull().references(() => alerts.id),
+  userId: text("user_id").notNull().references(() => users.id),
+  channel: text("channel").notNull(),
+  status: text("status").notNull().default("pending"),
+  externalId: text("external_id"),
+  errorMessage: text("error_message"),
+  sentAt: timestamp("sent_at").defaultNow(),
+});
+
+export const insertAlertDeliverySchema = createInsertSchema(alertDeliveries).omit({ id: true, sentAt: true });
+export type AlertDelivery = typeof alertDeliveries.$inferSelect;
+export type InsertAlertDelivery = z.infer<typeof insertAlertDeliverySchema>;
+
+// --- NOTIFICATION PREFERENCES (per-user channel and alert type settings) ---
+export const notificationPreferences = pgTable("notification_preferences", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id).unique(),
+  emailEnabled: boolean("email_enabled").notNull().default(true),
+  smsEnabled: boolean("sms_enabled").notNull().default(false),
+  phoneNumber: text("phone_number"),
+  injuryAlerts: boolean("injury_alerts").notNull().default(true),
+  scoringMilestones: boolean("scoring_milestones").notNull().default(true),
+  preGameReminders: boolean("pre_game_reminders").notNull().default(true),
+  preGameMinutes: integer("pre_game_minutes").notNull().default(60),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertNotificationPreferenceSchema = createInsertSchema(notificationPreferences).omit({ id: true, updatedAt: true });
+export type NotificationPreference = typeof notificationPreferences.$inferSelect;
+export type InsertNotificationPreference = z.infer<typeof insertNotificationPreferenceSchema>;
+
+// --- PERFORMANCE SNAPSHOTS (daily per-user lineup vs optimal vs field stats) ---
+export const performanceSnapshots = pgTable("performance_snapshots", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  sport: text("sport").notNull(),
+  slateId: integer("slate_id").references(() => slates.id),
+  slateDate: date("slate_date").notNull(),
+  userScore: numeric("user_score").notNull().default("0"),
+  optimalScore: numeric("optimal_score").notNull().default("0"),
+  fieldAvgScore: numeric("field_avg_score").notNull().default("0"),
+  projectionAccuracy: numeric("projection_accuracy"),
+  salaryUtilization: numeric("salary_utilization"),
+  boostHitRate: numeric("boost_hit_rate"),
+  lineupCount: integer("lineup_count").notNull().default(0),
+  bestLineupId: integer("best_lineup_id").references(() => lineups.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertPerformanceSnapshotSchema = createInsertSchema(performanceSnapshots).omit({ id: true, createdAt: true });
+export type PerformanceSnapshot = typeof performanceSnapshots.$inferSelect;
+export type InsertPerformanceSnapshot = z.infer<typeof insertPerformanceSnapshotSchema>;
+
 // --- OPTIMIZATION TYPES ---
 export const optimizationConstraintSchema = z.object({
   slateId: z.number(),

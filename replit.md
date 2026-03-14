@@ -44,6 +44,12 @@ Preferred communication style: Simple, everyday language.
 - **Inactive Player Filter**: Async `getInactivePlayerIds()` auto-refreshes ESPN recently-played cache if expired for NBA/NHL/MLB/NFL. Excludes all players not in recent ESPN boxscores (no FPPG bypass). Applied in GET players, standard optimizer, pro optimizer, bulk regenerate, and dashboard trending/top scorers. Players not in ESPN boxscores with value ≥7.0 pts/$1K are auto-excluded (catches ghost players like bench-warmers inheriting starters' projections). Players in 6.0-7.0 range excluded unless they have an OUT teammate at same position. Returns `{ inactiveIds, zeroPointCount }`. Zero-point history filter queries `player_history` for players with ≥2 appearances and no productive actual points.
 - **Player Configuration (Sharpshooter/Champion)**: Per-user, per-slate player overrides stored in `player_overrides` table. Users can set custom projections, boost projections (0/5/10/15/20%), lock players into lineups, or exclude players. Overrides are automatically applied in both Standard and Pro Optimizers (merged with manual optimizer controls). Overrides are cleared when slates refresh. Page at `/player-config` with sport tabs, search/filter, inline editing, rocket boost cycling. Files: `client/src/pages/PlayerConfig.tsx`, API routes in `server/routes.ts`.
 - **Lineup Grading**: Client-side grading engine (`client/src/lib/lineup-grader.ts`) assigns letter grades (S/A+/A/B+/B/C/D/F) to all lineups based on 5 weighted criteria: Projected Score (35%), Salary Efficiency (20%), Roster Construction (20%), Ceiling Potential (15%), and Player Health (10%). Sport-specific thresholds and stacking pattern recognition (NFL QB-WR correlation, MLB team stacks, NBA/NHL game stacks). Grades displayed in Vault lineup cards (with expandable breakdown), Standard Optimizer stat bar, and Pro Optimizer generated lineup badges. Vault supports sorting by grade.
+- **Live Score Tracker (Sharpshooter+)**: Page at `/live-scores` tracks lineup performance in real-time. Displays active lineups with live points, projected points, completion percentage, and expandable per-player scoring breakdowns. Auto-refreshes every 60 seconds. Files: `client/src/pages/LiveScoreTracker.tsx`, `lineup_scores` table.
+- **Notification Preferences (Sharpshooter+)**: Page at `/notifications` allows users to configure email/SMS delivery channels and alert types (injury alerts, scoring milestones, pre-game reminders with configurable timing). Files: `client/src/pages/NotificationPreferences.tsx`, `notification_preferences` table.
+- **Performance Dashboard (Sharpshooter+)**: Page at `/performance` shows aggregate performance stats (vs. optimal, vs. field, projection accuracy) with sport breakdown and per-slate history. Files: `client/src/pages/PerformanceDashboard.tsx`, `performance_snapshots` table.
+- **Track Record (All tiers)**: Page at `/track-record` shows user's overall DFS history including total lineups, sport breakdown, and performance summary. Files: `client/src/pages/TrackRecord.tsx`.
+- **GatedContent Component**: Reusable component (`client/src/components/GatedContent.tsx`) that checks feature access via `/api/content-access` endpoint and renders upgrade prompts for locked features.
+- **Content Access API**: `GET /api/content-access` returns per-feature unlock status based on user tier, used by GatedContent component.
 
 ### Platform Configuration
 - Shared configuration in `shared/platform-config.ts` defines sport-specific roster slots, salary caps, and position constraints for DraftKings and FanDuel across all supported sports.
@@ -51,7 +57,7 @@ Preferred communication style: Simple, everyday language.
 ### Data Storage
 - **Database**: PostgreSQL.
 - **ORM**: Drizzle ORM with `drizzle-zod`.
-- **Key Tables**: `users`, `sessions`, `slates`, `players`, `lineups`, `subscriptions`, `props`, `prizepicks_entries`, `playerHistory`, `winning_lineups`, `player_overrides`.
+- **Key Tables**: `users`, `sessions`, `slates`, `players`, `lineups`, `subscriptions`, `props`, `prizepicks_entries`, `playerHistory`, `winning_lineups`, `player_overrides`, `lineup_scores`, `alert_deliveries`, `notification_preferences`, `performance_snapshots`.
 
 ### Ownership Projection Engine
 - **Modular, multi-sport engine** utilizing softmax-based probability distribution.

@@ -27,6 +27,10 @@ import PropInsightsInfo from "@/pages/PropInsightsInfo";
 import OwnershipHeatmap from "@/pages/OwnershipHeatmap";
 import WinningLineups from "@/pages/WinningLineups";
 import PlayerConfig from "@/pages/PlayerConfig";
+import LiveScoreTracker from "@/pages/LiveScoreTracker";
+import NotificationPreferences from "@/pages/NotificationPreferences";
+import PerformanceDashboard from "@/pages/PerformanceDashboard";
+import TrackRecord from "@/pages/TrackRecord";
 
 import NotFound from "@/pages/not-found";
 import { Header } from "@/components/Header";
@@ -84,6 +88,10 @@ function Router() {
           <Route path="/ownership" component={OwnershipHeatmap} />
           <Route path="/player-config" component={PlayerConfig} />
           <Route path="/winning-lineups" component={WinningLineups} />
+          <Route path="/live-scores" component={LiveScoreTracker} />
+          <Route path="/notifications" component={NotificationPreferences} />
+          <Route path="/performance" component={PerformanceDashboard} />
+          <Route path="/track-record" component={TrackRecord} />
           <Route path="/admin" component={Admin} />
           <Route component={NotFound} />
         </Switch>

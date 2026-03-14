@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Users, Settings2 } from "lucide-react";
+import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Users, Settings2, BarChart3, Award } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 import { LogoBanner } from "@/components/Logo";
@@ -258,6 +258,36 @@ export function Header() {
                 }`} data-testid="nav-pricing">
                   <Crown className="w-4 h-4" />
                   <span>Pricing</span>
+                </div>
+              </Link>
+            )}
+            {(isPaid || user?.isAdmin) && (
+              <Link href="/live-scores">
+                <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
+                  location === "/live-scores" ? "text-emerald-400" : "text-slate-400 hover:text-white"
+                }`} data-testid="nav-live-scores">
+                  <Activity className="w-4 h-4" />
+                  <span>Live Scores</span>
+                </div>
+              </Link>
+            )}
+            {(isPaid || user?.isAdmin) && (
+              <Link href="/performance">
+                <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
+                  location === "/performance" ? "text-emerald-400" : "text-slate-400 hover:text-white"
+                }`} data-testid="nav-performance">
+                  <BarChart3 className="w-4 h-4" />
+                  <span>Performance</span>
+                </div>
+              </Link>
+            )}
+            {user && (
+              <Link href="/track-record">
+                <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
+                  location === "/track-record" ? "text-emerald-400" : "text-slate-400 hover:text-white"
+                }`} data-testid="nav-track-record">
+                  <Award className="w-4 h-4" />
+                  <span>Track Record</span>
                 </div>
               </Link>
             )}
@@ -537,6 +567,55 @@ export function Header() {
                 <Users className="w-5 h-5 shrink-0" />
                 <span>Proj. Ownership</span>
                 <Crown className="w-3 h-3 text-amber-400 ml-auto" />
+              </button>
+            )}
+
+            {(isPaid || user?.isAdmin) && (
+              <button
+                onClick={() => mobileNav("/live-scores")}
+                className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                  location === "/live-scores" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                }`}
+                data-testid="mobile-nav-live-scores"
+              >
+                <Activity className="w-5 h-5 shrink-0" />
+                <span>Live Scores</span>
+              </button>
+            )}
+            {(isPaid || user?.isAdmin) && (
+              <button
+                onClick={() => mobileNav("/performance")}
+                className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                  location === "/performance" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                }`}
+                data-testid="mobile-nav-performance"
+              >
+                <BarChart3 className="w-5 h-5 shrink-0" />
+                <span>Performance</span>
+              </button>
+            )}
+            {user && (
+              <button
+                onClick={() => mobileNav("/track-record")}
+                className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                  location === "/track-record" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                }`}
+                data-testid="mobile-nav-track-record"
+              >
+                <Award className="w-5 h-5 shrink-0" />
+                <span>Track Record</span>
+              </button>
+            )}
+            {(isPaid || user?.isAdmin) && (
+              <button
+                onClick={() => mobileNav("/notifications")}
+                className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                  location === "/notifications" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                }`}
+                data-testid="mobile-nav-notifications"
+              >
+                <Bell className="w-5 h-5 shrink-0" />
+                <span>Notifications</span>
               </button>
             )}
 
