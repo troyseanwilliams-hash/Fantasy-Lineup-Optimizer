@@ -18,7 +18,7 @@ export function PlatformSelector({
   tier = "free",
   className = "",
 }: PlatformSelectorProps) {
-  const isPaid = tier === "pro" || tier === "premium" || tier === "star";
+  const isAdmin = tier === "admin";
 
   return (
     <div
@@ -30,7 +30,7 @@ export function PlatformSelector({
 
         const colors = PLATFORM_COLORS[p];
         const isActive = value === p;
-        const isLocked = showProBadge && p !== "draftkings" && !isPaid;
+        const isLocked = showProBadge && p !== "draftkings" && !isAdmin;
 
         return (
           <button
@@ -40,7 +40,7 @@ export function PlatformSelector({
               onChange(p);
             }}
             data-testid={`platform-tab-${p}`}
-            title={isLocked ? `${label} requires a paid plan` : label}
+            title={isLocked ? `${label} coming soon` : label}
             className={`
               relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black
               transition-all select-none

@@ -621,11 +621,10 @@ export default function ProOptimizer() {
   useEffect(() => { setPlatform("draftkings"); }, [slateId]);
 
   const handlePlatformChange = (newPlatform: Platform) => {
-    const tier = subData?.tier || "free";
-    if (newPlatform !== "draftkings" && tier === "free" && !userIsAdmin) {
+    if (newPlatform !== "draftkings" && !userIsAdmin) {
       toast({
-        title: "Paid Feature",
-        description: `${newPlatform === "fanduel" ? "FanDuel" : "Yahoo"} optimization requires a Sharpshooter or Champion subscription.`,
+        title: "Coming Soon",
+        description: `${newPlatform === "fanduel" ? "FanDuel" : "Yahoo"} optimization is coming soon.`,
         variant: "destructive",
       });
       return;
@@ -701,7 +700,7 @@ export default function ProOptimizer() {
               value={platform}
               onChange={handlePlatformChange}
               showProBadge
-              tier={subData?.tier || "free"}
+              tier={userIsAdmin ? "admin" : (subData?.tier || "free")}
             />
 
             {slate && (
