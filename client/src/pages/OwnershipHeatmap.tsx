@@ -1,8 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
-import { Crown, Lock, TrendingUp, TrendingDown, Users, Flame, Loader2, ChevronDown, ArrowDownUp } from "lucide-react";
+import { Crown, Lock, TrendingUp, TrendingDown, Users, Flame, Loader2, ChevronDown, ArrowDownUp, DollarSign, Target, BarChart3, Zap, ShieldAlert } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,356 @@ function getOwnershipBarColor(own: number): string {
   return "bg-slate-500";
 }
 
+
+// ── Ownership tier config ─────────────────────────────────────────────────────
+function getOwnershipTier(own: number): {
+  label: string;
+  color: string;
+  bg: string;
+  border: string;
+  description: string;
+} {
+  if (own >= 25) return {
+    label: "Chalk",
+    color: "text-red-400",
+    bg: "bg-red-500/10",
+    border: "border-red-500/25",
+    description: "High ownership — risky in GPP, safer in cash",
+  };
+  if (own >= 15) return {
+    label: "Popular",
+    color: "text-amber-400",
+    bg: "bg-amber-500/10",
+    border: "border-amber-500/25",
+    description: "Above-average ownership — moderate GPP risk",
+  };
+  if (own >= 8) return {
+    label: "Mid",
+    color: "text-emerald-400",
+    bg: "bg-emerald-500/10",
+    border: "border-emerald-500/25",
+    description: "Moderate ownership — balanced risk/reward",
+  };
+  if (own >= 3) return {
+    label: "Low",
+    color: "text-blue-400",
+    bg: "bg-blue-500/10",
+    border: "border-blue-500/25",
+    description: "Low ownership — solid GPP leverage play",
+  };
+  return {
+    label: "Contrarian",
+    color: "text-purple-400",
+    bg: "bg-purple-500/10",
+    border: "border-purple-500/25",
+    description: "Very low ownership — high upside GPP dart",
+  };
+}
+
+// ── Value score ───────────────────────────────────────────────────────────────
+function getValueScore(proj: number, salary: number): number {
+  return salary > 0 ? Math.round((proj / (salary / 1000)) * 10) / 10 : 0;
+}
+
+function getValueLabel(score: number): { label: string; color: string } {
+  if (score >= 6)   return { label: "Elite Value",  color: "text-emerald-400" };
+  if (score >= 4.5) return { label: "Good Value",   color: "text-lime-400"    };
+  if (score >= 3.5) return { label: "Fair Value",   color: "text-amber-400"   };
+  return                    { label: "Poor Value",  color: "text-red-400"     };
+}
+
+// ── Portal-based hover card — renders into document.body to escape overflow:hidden ──
+interface HoverCardPortalProps {
+  player: OwnershipPlayer;
+  anchorRect: DOMRect;
+  sport: string;
+  onClose: () => void;
+}
+
+function HoverCardPortal({ player, anchorRect, sport, onClose }: HoverCardPortalProps) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const tier = getOwnershipTier(player.ownershipProjection);
+  const proj = Number(player.projectedPoints);
+  const valueScore = getValueScore(proj, player.salary);
+  const valueLabel = getValueLabel(valueScore);
+
+  // Compute position: prefer right of anchor, flip left if off-screen
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    const CARD_W = 280;
+    const CARD_H = 260;
+    const GAP = 8;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let left = anchorRect.right + GAP;
+    let top = anchorRect.top + anchorRect.height / 2 - CARD_H / 2;
+
+    // Flip left if would overflow right
+    if (left + CARD_W > vw - 12) {
+      left = anchorRect.left - CARD_W - GAP;
+    }
+    // Clamp vertically
+    top = Math.max(8, Math.min(top, vh - CARD_H - 8));
+
+    setPos({ top, left });
+  }, [anchorRect]);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (cardRef.current && !cardRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", handler, true);
+    return () => document.removeEventListener("mousedown", handler, true);
+  }, [onClose]);
+
+  const SPORT_ACCENT: Record<string, string> = {
+    NBA: "text-orange-400", NHL: "text-cyan-400", MLB: "text-red-400",
+    NFL: "text-green-400", GOLF: "text-lime-400", SOCCER: "text-teal-400",
+  };
+  const accentColor = SPORT_ACCENT[sport] || "text-amber-400";
+
+  return (
+    <div
+      ref={cardRef}
+      className="fixed z-[9999] pointer-events-auto"
+      style={{ top: pos.top, left: pos.left, width: 280 }}
+      data-testid={`ownership-hover-card-${player.id}`}
+    >
+      {/* Card */}
+      <div className="bg-[#0F172A] border border-slate-700/80 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden">
+        {/* Header stripe */}
+        <div className={`px-4 py-3 ${tier.bg} border-b ${tier.border}`}>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-sm font-black text-white leading-tight truncate">{player.name}</p>
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                <span className={`text-[10px] font-black ${accentColor} uppercase tracking-wider`}>
+                  {player.position}
+                </span>
+                <span className="text-slate-600 text-[10px]">·</span>
+                <span className="text-[10px] font-bold text-slate-300">{player.team}</span>
+                {player.opponent && (
+                  <>
+                    <span className="text-slate-600 text-[10px]">vs</span>
+                    <span className="text-[10px] font-bold text-slate-400">{player.opponent}</span>
+                  </>
+                )}
+              </div>
+            </div>
+            {/* Ownership tier badge */}
+            <span className={`text-[10px] font-black px-2 py-1 rounded-lg border shrink-0 ${tier.color} ${tier.bg} ${tier.border}`}>
+              {tier.label}
+            </span>
+          </div>
+        </div>
+
+        {/* Stats grid */}
+        <div className="grid grid-cols-3 divide-x divide-slate-800/60 border-b border-slate-800/60">
+          {/* Ownership */}
+          <div className="px-3 py-3 text-center">
+            <p className={`text-xl font-black tabular-nums ${tier.color}`}>
+              {player.ownershipProjection.toFixed(1)}%
+            </p>
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider mt-0.5">Proj. Own</p>
+          </div>
+          {/* Projection */}
+          <div className="px-3 py-3 text-center">
+            <p className="text-xl font-black text-emerald-400 tabular-nums">
+              {proj.toFixed(1)}
+            </p>
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider mt-0.5">Proj Pts</p>
+          </div>
+          {/* Salary */}
+          <div className="px-3 py-3 text-center">
+            <p className="text-xl font-black text-white tabular-nums">
+              ${(player.salary / 1000).toFixed(1)}K
+            </p>
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider mt-0.5">Salary</p>
+          </div>
+        </div>
+
+        {/* Value + analysis */}
+        <div className="px-4 py-3 space-y-2.5">
+          {/* Value score */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5 text-slate-500" />
+              <span className="text-[11px] font-bold text-slate-400">Value Score</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className={`text-[11px] font-black ${valueLabel.color}`}>{valueScore}×</span>
+              <span className={`text-[10px] font-bold ${valueLabel.color}`}>{valueLabel.label}</span>
+            </div>
+          </div>
+
+          {/* Pts per ownership — GPP leverage metric */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Target className="w-3.5 h-3.5 text-slate-500" />
+              <span className="text-[11px] font-bold text-slate-400">GPP Leverage</span>
+            </div>
+            <span className="text-[11px] font-black text-white tabular-nums">
+              {player.ownershipProjection > 0
+                ? (proj / player.ownershipProjection).toFixed(2)
+                : "—"} pts/%
+            </span>
+          </div>
+
+          {/* Ownership bar */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-bold text-slate-500">vs Field</span>
+              <span className="text-[10px] font-bold text-slate-500">
+                {player.ownershipProjection >= 25
+                  ? "Chalk — bring in cash, fade in GPP"
+                  : player.ownershipProjection >= 15
+                  ? "Popular — use selectively"
+                  : player.ownershipProjection >= 8
+                  ? "Mid — fine across formats"
+                  : "Low — ideal GPP pivot"}
+              </span>
+            </div>
+            <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${
+                  player.ownershipProjection >= 25 ? "bg-red-500" :
+                  player.ownershipProjection >= 15 ? "bg-amber-500" :
+                  player.ownershipProjection >= 8  ? "bg-emerald-500" :
+                  "bg-blue-500"
+                }`}
+                style={{ width: `${Math.min(100, player.ownershipProjection * 2.5)}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Game info */}
+          {player.gameInfo && (
+            <div className="pt-1 border-t border-slate-800/50">
+              <p className="text-[10px] text-slate-500 font-bold">{player.gameInfo}</p>
+            </div>
+          )}
+        </div>
+      </div>
+      {/* Arrow pointer — points toward the row */}
+    </div>
+  );
+}
+
+// ── Wrapper: manages hover state per player row ───────────────────────────────
+interface PlayerRowWithHoverProps {
+  player: OwnershipPlayer;
+  idx: number;
+  maxOwn: number;
+  sport: string;
+}
+
+function PlayerRowWithHover({ player, idx, maxOwn, sport }: PlayerRowWithHoverProps) {
+  const [showCard, setShowCard] = useState(false);
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleMouseEnter = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      if (rowRef.current) {
+        setAnchorRect(rowRef.current.getBoundingClientRect());
+        setShowCard(true);
+      }
+    }, 180); // small delay prevents flicker on fast mouse moves
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setShowCard(false), 120);
+  }, []);
+
+  // Keep card open when mouse moves onto it
+  const handleCardMouseEnter = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  }, []);
+
+  const handleCardMouseLeave = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setShowCard(false), 120);
+  }, []);
+
+  useEffect(() => {
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, []);
+
+  return (
+    <>
+      <div
+        ref={rowRef}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className="px-5 py-3 flex items-center gap-3 hover:bg-slate-800/30 transition-colors cursor-default"
+        data-testid={`ownership-player-${player.id}`}
+      >
+        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 ${
+          idx === 0 ? "bg-amber-500/20 text-amber-400" : "bg-slate-800 text-slate-500"
+        }`}>
+          {idx + 1}
+        </span>
+
+        <div className="flex-1 min-w-0">
+          <p
+            className="text-sm font-bold text-white truncate"
+            data-testid={`ownership-player-name-${player.id}`}
+          >
+            {player.name}
+          </p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-[11px] text-slate-400 font-bold">{player.team}</span>
+            <span className="text-[11px] text-slate-600">·</span>
+            <span className="text-[11px] text-slate-400">${player.salary.toLocaleString()}</span>
+            <span className="text-[11px] text-slate-600">·</span>
+            <span className="text-[11px] text-emerald-400 font-bold">
+              {Number(player.projectedPoints).toFixed(1)}pts
+            </span>
+          </div>
+        </div>
+
+        <div className="text-right shrink-0 w-20">
+          <p
+            className={`text-sm font-black tabular-nums ${getOwnershipColor(player.ownershipProjection)}`}
+            data-testid={`ownership-pct-${player.id}`}
+          >
+            {player.ownershipProjection.toFixed(1)}%
+          </p>
+          <div className="w-full h-1.5 bg-slate-800 rounded-full mt-1 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${getOwnershipBarColor(player.ownershipProjection)}`}
+              style={{ width: `${Math.min(100, (player.ownershipProjection / maxOwn) * 100)}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Portal card — rendered outside the card's overflow:hidden container */}
+      {showCard && anchorRect && (
+        <div
+          onMouseEnter={handleCardMouseEnter}
+          onMouseLeave={handleCardMouseLeave}
+        >
+          <HoverCardPortal
+            player={player}
+            anchorRect={anchorRect}
+            sport={sport}
+            onClose={() => setShowCard(false)}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function OwnershipHeatmap() {
   const { user } = useAuth();
 
@@ -69,8 +419,10 @@ export default function OwnershipHeatmap() {
     enabled: !!user,
   });
 
+  // Type-safe isAdmin accessor — avoids (user as any) cast
   const isAdmin = (user as any)?.isAdmin === true;
   const tier = subscription?.tier || "free";
+  // Mirror access pattern from ProOptimizer — pro, premium, and star all have paid access
   const hasAccess = isAdmin || tier === "pro" || tier === "premium" || tier === "star";
   const mainSlates = slates?.filter(s => s.isMain && s.platform === "draftkings") || [];
   const availableSports = ACTIVE_SPORTS.filter(s => mainSlates.some(sl => sl.sport === s));
@@ -89,6 +441,9 @@ export default function OwnershipHeatmap() {
       return res.json();
     },
     enabled: !!activeSlate && hasAccess,
+    // Refresh every 5 minutes — ownership projections update as slates get new data.
+    // Previously stopped refreshing permanently once data loaded, meaning stale
+    // projections were shown for the rest of the session.
     refetchInterval: 300000,
     staleTime: 60000,
   });
@@ -110,9 +465,13 @@ export default function OwnershipHeatmap() {
 
   const sportColors = SPORT_COLORS[activeSport] || SPORT_COLORS.NBA;
 
+  // Build a sport-aware position order from platform-config slot definitions.
+  // This shows positions in the same order as the lineup builder rather than
+  // alphabetically (which put C before PG in NBA, etc.).
   const positionOrder = useMemo(() => {
     try {
       const config = getPlatformConfig(activeSport, "draftkings");
+      // Deduplicate slot base names while preserving order
       const seen = new Set<string>();
       const order: string[] = [];
       for (const slot of config.slots) {
@@ -129,6 +488,8 @@ export default function OwnershipHeatmap() {
     if (!ownershipData) return [];
     const entries = Object.entries(ownershipData.positions);
 
+    // Sort position cards using slot order from platform-config, falling back to
+    // alphabetical for any position not in the config (e.g. UTIL, FLEX)
     entries.sort(([a], [b]) => {
       const ai = positionOrder.indexOf(a);
       const bi = positionOrder.indexOf(b);
@@ -148,13 +509,20 @@ export default function OwnershipHeatmap() {
     ] as [string, OwnershipPlayer[]]);
   }, [ownershipData, sortDirection, positionOrder]);
 
+  // Derive a meaningful contrarian pick client-side: the player with the best
+  // projected points per unit of ownership (high value, low ownership).
+  // The server's contrarianPlayer is just the lowest-ownership player which is
+  // often a bad player no one wants — not a useful contrarian recommendation.
   const derivedContrarianPlayer = useMemo(() => {
     if (!ownershipData) return null;
     const allPlayers = Object.values(ownershipData.positions).flat();
+    // Only consider players with meaningful ownership (> 1%) and projection (> 0)
+    // to filter out DNPs and truly unrosterable players
     const eligible = allPlayers.filter(
       p => p.ownershipProjection > 1 && Number(p.projectedPoints) > 0
     );
     if (eligible.length === 0) return null;
+    // Score = projected points per ownership % — rewards high value at low ownership
     return eligible.reduce((best, p) => {
       const score = Number(p.projectedPoints) / p.ownershipProjection;
       const bestScore = Number(best.projectedPoints) / best.ownershipProjection;
@@ -295,37 +663,15 @@ export default function OwnershipHeatmap() {
                     {(() => {
                       const maxOwn = Math.max(...players.map(p => p.ownershipProjection), 1);
                       return players.map((player, idx) => (
-                      <div key={player.id} className="px-5 py-3 flex items-center gap-3 hover:bg-slate-800/30 transition-colors" data-testid={`ownership-player-${player.id}`}>
-                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 ${
-                          idx === 0 ? "bg-amber-500/20 text-amber-400" : "bg-slate-800 text-slate-500"
-                        }`}>
-                          {idx + 1}
-                        </span>
-
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-white truncate" data-testid={`ownership-player-name-${player.id}`}>{player.name}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[11px] text-slate-400 font-bold">{player.team}</span>
-                            <span className="text-[11px] text-slate-600">·</span>
-                            <span className="text-[11px] text-slate-400">${player.salary.toLocaleString()}</span>
-                            <span className="text-[11px] text-slate-600">·</span>
-                            <span className="text-[11px] text-emerald-400 font-bold">{Number(player.projectedPoints).toFixed(1)}pts</span>
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0 w-20">
-                          <p className={`text-sm font-black tabular-nums ${getOwnershipColor(player.ownershipProjection)}`} data-testid={`ownership-pct-${player.id}`}>
-                            {player.ownershipProjection.toFixed(1)}%
-                          </p>
-                          <div className="w-full h-1.5 bg-slate-800 rounded-full mt-1 overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all ${getOwnershipBarColor(player.ownershipProjection)}`}
-                              style={{ width: `${Math.min(100, (player.ownershipProjection / maxOwn) * 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ));})()}
+                        <PlayerRowWithHover
+                          key={player.id}
+                          player={player}
+                          idx={idx}
+                          maxOwn={maxOwn}
+                          sport={activeSport}
+                        />
+                      ));
+                    })()}
                   </div>
                 </Card>
               ))}
