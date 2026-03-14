@@ -206,59 +206,124 @@ export function Header() {
               </DropdownMenu>
             )}
 
-            <Link href="/props">
-              <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                location === "/props" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
-              }`} data-testid="nav-props">
-                <TrendingUp className="w-4 h-4" />
-                <span>Props</span>
-              </div>
-            </Link>
-            <Link href="/prizepicks">
-              <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                location === "/prizepicks" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
-              }`} data-testid="nav-prizepicks">
-                <Zap className="w-4 h-4" />
-                <span>PrizePicks</span>
-              </div>
-            </Link>
-            <Link href="/showdown">
-              <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                location === "/showdown" ? "text-amber-400" : "text-slate-400 hover:text-white"
-              }`} data-testid="nav-showdown">
-                <Swords className="w-4 h-4" />
-                <span>Showdown</span>
-              </div>
-            </Link>
-            <Link href="/lineups">
-              <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                location === "/lineups" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
-              }`} data-testid="nav-vault">
-                <Archive className="w-4 h-4" />
-                <span>Vault</span>
-              </div>
-            </Link>
-            {(isPaid || user?.isAdmin) && (
-              <Link href="/player-config">
-                <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                  location === "/player-config" ? "text-amber-400" : "text-slate-400 hover:text-white"
-                }`} data-testid="nav-player-config">
-                  <Settings2 className="w-4 h-4" />
-                  <span>Player Config</span>
-                </div>
-              </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer outline-none ${
+                    ["/props", "/prizepicks", "/showdown", "/player-config", "/ownership"].includes(location)
+                      ? "text-[#10B981]"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                  data-testid="nav-tools"
+                >
+                  <Layers className="w-4 h-4" />
+                  <span>Tools</span>
+                  <ChevronDown className="w-3 h-3 opacity-50" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56 bg-[#1E293B] border-border">
+                <Link href="/props">
+                  <DropdownMenuItem className="cursor-pointer" data-testid="nav-props">
+                    <TrendingUp className="w-4 h-4 mr-2 text-purple-400" />
+                    <span className="text-sm font-bold text-slate-300">Prop Bets</span>
+                  </DropdownMenuItem>
+                </Link>
+                <Link href="/prizepicks">
+                  <DropdownMenuItem className="cursor-pointer" data-testid="nav-prizepicks">
+                    <Zap className="w-4 h-4 mr-2 text-emerald-400" />
+                    <span className="text-sm font-bold text-slate-300">PrizePicks</span>
+                  </DropdownMenuItem>
+                </Link>
+                <Link href="/showdown">
+                  <DropdownMenuItem className="cursor-pointer" data-testid="nav-showdown">
+                    <Swords className="w-4 h-4 mr-2 text-amber-400" />
+                    <span className="text-sm font-bold text-slate-300">Showdown</span>
+                  </DropdownMenuItem>
+                </Link>
+                {(isPaid || user?.isAdmin) && (
+                  <>
+                    <DropdownMenuSeparator className="bg-slate-800" />
+                    <Link href="/player-config">
+                      <DropdownMenuItem className="cursor-pointer" data-testid="nav-player-config">
+                        <Settings2 className="w-4 h-4 mr-2 text-slate-400" />
+                        <span className="text-sm font-bold text-slate-300">Player Config</span>
+                      </DropdownMenuItem>
+                    </Link>
+                  </>
+                )}
+                {user?.isAdmin && (
+                  <Link href="/ownership">
+                    <DropdownMenuItem className="cursor-pointer" data-testid="nav-ownership">
+                      <Users className="w-4 h-4 mr-2 text-amber-400" />
+                      <span className="text-sm font-bold text-slate-300">Proj. Ownership</span>
+                    </DropdownMenuItem>
+                  </Link>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {user && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer outline-none ${
+                      ["/lineups", "/live-scores", "/performance", "/track-record", "/winning-lineups"].includes(location)
+                        ? "text-emerald-400"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                    data-testid="nav-my-dfs"
+                  >
+                    <Archive className="w-4 h-4" />
+                    <span>My DFS</span>
+                    <ChevronDown className="w-3 h-3 opacity-50" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56 bg-[#1E293B] border-border">
+                  <Link href="/lineups">
+                    <DropdownMenuItem className="cursor-pointer" data-testid="nav-vault">
+                      <Archive className="w-4 h-4 mr-2 text-slate-400" />
+                      <span className="text-sm font-bold text-slate-300">Saved Lineups</span>
+                    </DropdownMenuItem>
+                  </Link>
+                  <Link href="/track-record">
+                    <DropdownMenuItem className="cursor-pointer" data-testid="nav-track-record">
+                      <Award className="w-4 h-4 mr-2 text-emerald-400" />
+                      <span className="text-sm font-bold text-slate-300">Track Record</span>
+                    </DropdownMenuItem>
+                  </Link>
+                  {(isPaid || user?.isAdmin) && (
+                    <>
+                      <DropdownMenuSeparator className="bg-slate-800" />
+                      <Link href="/live-scores">
+                        <DropdownMenuItem className="cursor-pointer" data-testid="nav-live-scores">
+                          <Activity className="w-4 h-4 mr-2 text-emerald-400" />
+                          <span className="text-sm font-bold text-slate-300">Live Scores</span>
+                        </DropdownMenuItem>
+                      </Link>
+                      <Link href="/performance">
+                        <DropdownMenuItem className="cursor-pointer" data-testid="nav-performance">
+                          <BarChart3 className="w-4 h-4 mr-2 text-emerald-400" />
+                          <span className="text-sm font-bold text-slate-300">Performance</span>
+                        </DropdownMenuItem>
+                      </Link>
+                    </>
+                  )}
+                  {(isPro || user?.isAdmin) && (
+                    <>
+                      <DropdownMenuSeparator className="bg-slate-800" />
+                      <Link href="/winning-lineups">
+                        <DropdownMenuItem className="cursor-pointer" data-testid="nav-winning-lineups">
+                          <Trophy className="w-4 h-4 mr-2 text-amber-400" />
+                          <span className="text-sm font-bold text-amber-300">Win Agent</span>
+                          <Crown className="w-3 h-3 text-amber-400 ml-auto" />
+                        </DropdownMenuItem>
+                      </Link>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
-            {user?.isAdmin && (
-              <Link href="/ownership">
-                <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                  location === "/ownership" ? "text-amber-400" : "text-slate-400 hover:text-white"
-                }`} data-testid="nav-ownership">
-                  <Users className="w-4 h-4" />
-                  <span>Proj. Ownership</span>
-                  <Crown className="w-3 h-3 text-amber-400" />
-                </div>
-              </Link>
-            )}
+
             {!user && (
               <Link href="/pricing">
                 <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
@@ -266,47 +331,6 @@ export function Header() {
                 }`} data-testid="nav-pricing">
                   <Crown className="w-4 h-4" />
                   <span>Pricing</span>
-                </div>
-              </Link>
-            )}
-            {(isPaid || user?.isAdmin) && (
-              <Link href="/live-scores">
-                <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                  location === "/live-scores" ? "text-emerald-400" : "text-slate-400 hover:text-white"
-                }`} data-testid="nav-live-scores">
-                  <Activity className="w-4 h-4" />
-                  <span>Live Scores</span>
-                </div>
-              </Link>
-            )}
-            {(isPaid || user?.isAdmin) && (
-              <Link href="/performance">
-                <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                  location === "/performance" ? "text-emerald-400" : "text-slate-400 hover:text-white"
-                }`} data-testid="nav-performance">
-                  <BarChart3 className="w-4 h-4" />
-                  <span>Performance</span>
-                </div>
-              </Link>
-            )}
-            {user && (
-              <Link href="/track-record">
-                <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                  location === "/track-record" ? "text-emerald-400" : "text-slate-400 hover:text-white"
-                }`} data-testid="nav-track-record">
-                  <Award className="w-4 h-4" />
-                  <span>Track Record</span>
-                </div>
-              </Link>
-            )}
-            {(isPro || user?.isAdmin) && (
-              <Link href="/winning-lineups">
-                <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                  location === "/winning-lineups" ? "text-amber-400" : "text-slate-400 hover:text-white"
-                }`} data-testid="nav-winning-lineups">
-                  <Trophy className="w-4 h-4" />
-                  <span>Win Agent</span>
-                  <Crown className="w-3 h-3 text-amber-400" />
                 </div>
               </Link>
             )}
