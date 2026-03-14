@@ -198,33 +198,36 @@ ingestRouter.get("/status", async (_req: Request, res: Response) => {
 
 // ── Cron Scheduler ──────────────────────────────────────────────────────────
 
+async function runFullIngest(label: string) {
+  console.log(`[${label}] Starting FD + Yahoo ingestion…`);
+
+  try {
+    const fdResults = await ingestAllFanDuelSlates();
+    for (const [sport, result] of Object.entries(fdResults)) {
+      console.log(`[${label}] FD ${sport}: ${result.message}`);
+    }
+  } catch (err: any) {
+    console.error(`[${label}] FD ingestion failed:`, err.message);
+  }
+
+  try {
+    const yahooResults = await ingestAllYahooSlates();
+    for (const [sport, result] of Object.entries(yahooResults)) {
+      console.log(`[${label}] Yahoo ${sport}: ${result.message}`);
+    }
+  } catch (err: any) {
+    console.error(`[${label}] Yahoo ingestion failed:`, err.message);
+  }
+
+  console.log(`[${label}] Ingestion complete.`);
+}
+
 export function startIngestScheduler() {
-  // Daily at 5 AM Eastern — ingest FD + Yahoo data for all sports
-  cron.schedule("0 5 * * *", async () => {
-    console.log("[Ingest Cron] Starting daily FD + Yahoo ingestion…");
-
-    try {
-      const fdResults = await ingestAllFanDuelSlates();
-      for (const [sport, result] of Object.entries(fdResults)) {
-        console.log(`[Ingest Cron] FD ${sport}: ${result.message}`);
-      }
-    } catch (err: any) {
-      console.error("[Ingest Cron] FD ingestion failed:", err.message);
-    }
-
-    try {
-      const yahooResults = await ingestAllYahooSlates();
-      for (const [sport, result] of Object.entries(yahooResults)) {
-        console.log(`[Ingest Cron] Yahoo ${sport}: ${result.message}`);
-      }
-    } catch (err: any) {
-      console.error("[Ingest Cron] Yahoo ingestion failed:", err.message);
-    }
-
-    console.log("[Ingest Cron] Daily ingestion complete.");
-  }, {
+  cron.schedule("0 5 * * *", () => runFullIngest("Ingest Cron"), {
     timezone: "America/New_York",
   });
 
   console.log("[Ingest Cron] Scheduled daily FD + Yahoo ingestion at 5 AM ET");
+
+  setTimeout(() => runFullIngest("Ingest Startup"), 15000);
 }
