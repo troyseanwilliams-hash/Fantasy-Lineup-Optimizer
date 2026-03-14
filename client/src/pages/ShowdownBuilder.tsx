@@ -37,7 +37,7 @@ interface ShowdownConfig {
   rosterSize: number;
 }
 
-const SHOWDOWN_SPORTS = ["NBA", "NFL"];
+const SHOWDOWN_SPORTS = ["NBA", "NFL"].filter(s => ACTIVE_SPORTS.includes(s as any));
 
 export default function ShowdownBuilder() {
   const { user } = useAuth();
