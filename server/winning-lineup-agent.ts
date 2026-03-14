@@ -238,20 +238,6 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string, pl
     const history = await storage.getPlayerHistoryBySport(sport, 10000);
     const allSlateRecords = history.filter(h => h.slateDate === slateDate);
 
-    if (allSlateRecords.length === 0) {
-      return { success: false, message: `No player history found for ${sport} on ${slateDate}` };
-    }
-
-    const deduped = new Map<string, typeof allSlateRecords[0]>();
-    for (const h of allSlateRecords) {
-      const key = `${h.playerName}_${h.team}_${h.position}`;
-      if (!deduped.has(key) || h.id > deduped.get(key)!.id) {
-        deduped.set(key, h);
-      }
-    }
-    const slatePlayers = Array.from(deduped.values());
-    console.log(`[WinningAgent] ${sport} ${slateDate}: ${allSlateRecords.length} total records, ${slatePlayers.length} unique players after dedup`);
-
     const actualPointsMap = await fetchActualPointsForDate(sport, slateDate);
 
     if (actualPointsMap.size === 0) {
@@ -261,48 +247,109 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string, pl
     const pool: PlayerWithActual[] = [];
     let matchCount = 0;
 
-    const batchUpdates: Array<{ playerName: string; actualPoints: string }> = [];
+    if (allSlateRecords.length > 0) {
+      const deduped = new Map<string, typeof allSlateRecords[0]>();
+      for (const h of allSlateRecords) {
+        const key = `${h.playerName}_${h.team}_${h.position}`;
+        if (!deduped.has(key) || h.id > deduped.get(key)!.id) {
+          deduped.set(key, h);
+        }
+      }
+      const slatePlayers = Array.from(deduped.values());
+      console.log(`[WinningAgent] ${sport} ${slateDate}: ${allSlateRecords.length} total records, ${slatePlayers.length} unique players after dedup`);
 
-    for (const h of slatePlayers) {
-      const normalized = normalizeName(h.playerName);
-      const actual = actualPointsMap.get(normalized);
-      const actualPts = actual ? actual.points : 0;
+      const batchUpdates: Array<{ playerName: string; actualPoints: string }> = [];
 
-      if (actual) {
-        matchCount++;
-        batchUpdates.push({ playerName: h.playerName, actualPoints: String(actualPts) });
+      for (const h of slatePlayers) {
+        const normalized = normalizeName(h.playerName);
+        const actual = actualPointsMap.get(normalized);
+        const actualPts = actual ? actual.points : 0;
+
+        if (actual) {
+          matchCount++;
+          batchUpdates.push({ playerName: h.playerName, actualPoints: String(actualPts) });
+        }
+
+        pool.push({
+          id: h.id,
+          slateId: h.slateId || 0,
+          name: h.playerName,
+          team: h.team,
+          position: h.position,
+          salary: h.salary,
+          fppg: h.projectedPoints,
+          projectedPoints: h.projectedPoints,
+          opponent: "",
+          gameInfo: "",
+          injuryStatus: null,
+          injuryDetail: null,
+          boostScore: "0",
+          boostReason: null,
+          draftKingsPlayerId: h.draftKingsPlayerId,
+          fanDuelPlayerId: null,
+          yahooPlayerId: null,
+          fanDuelSalary: null,
+          yahooSalary: null,
+          isConfirmedStarter: false,
+          actualPoints: actualPts,
+        });
       }
 
-      pool.push({
-        id: h.id,
-        slateId: h.slateId || 0,
-        name: h.playerName,
-        team: h.team,
-        position: h.position,
-        salary: h.salary,
-        fppg: h.projectedPoints,
-        projectedPoints: h.projectedPoints,
-        opponent: "",
-        gameInfo: "",
-        injuryStatus: null,
-        injuryDetail: null,
-        boostScore: "0",
-        boostReason: null,
-        draftKingsPlayerId: h.draftKingsPlayerId,
-        fanDuelPlayerId: null,
-        yahooPlayerId: null,
-        fanDuelSalary: null,
-        yahooSalary: null,
-        isConfirmedStarter: false,
-        actualPoints: actualPts,
-      });
-    }
+      console.log(`[WinningAgent] ${sport} ${slateDate}: Matched ${matchCount}/${slatePlayers.length} players with actual points`);
 
-    console.log(`[WinningAgent] ${sport} ${slateDate}: Matched ${matchCount}/${slatePlayers.length} players with actual points`);
+      if (batchUpdates.length > 0) {
+        await storage.batchUpdatePlayerHistoryActualPoints(sport, slateDate, batchUpdates);
+        console.log(`[WinningAgent] ${sport} ${slateDate}: Updated ${batchUpdates.length} player history records with actual points`);
+      }
+    } else {
+      console.log(`[WinningAgent] ${sport} ${slateDate}: No player history — building pool from ESPN box scores + current slate salaries`);
 
-    if (batchUpdates.length > 0) {
-      await storage.batchUpdatePlayerHistoryActualPoints(sport, slateDate, batchUpdates);
-      console.log(`[WinningAgent] ${sport} ${slateDate}: Updated ${batchUpdates.length} player history records with actual points`);
+      const allSlates = await storage.getSlates();
+      const currentSlate = allSlates.find(s => s.sport === sport && s.platform === platform && s.isMain);
+      const salaryLookup = new Map<string, { salary: number; position: string; fppg: string }>();
+
+      if (currentSlate) {
+        const currentPlayers = await storage.getPlayersBySlate(currentSlate.id);
+        for (const p of currentPlayers) {
+          salaryLookup.set(normalizeName(p.name), { salary: p.salary, position: p.position, fppg: p.fppg ?? "0" });
+        }
+      }
+
+      const config = getPlatformConfig(sport, platform);
+      let autoId = 900000;
+
+      for (const [normalizedName, actual] of actualPointsMap) {
+        const salaryInfo = salaryLookup.get(normalizedName);
+        const salary = salaryInfo?.salary ?? Math.round(config.salaryCap / config.rosterSize / 1000) * 1000;
+        const position = salaryInfo?.position ?? (sport === "NBA" ? "SF" : sport === "NHL" ? "W" : "UTIL");
+
+        matchCount++;
+        pool.push({
+          id: autoId++,
+          slateId: currentSlate?.id || 0,
+          name: actual.playerName,
+          team: actual.team,
+          position,
+          salary,
+          fppg: salaryInfo?.fppg ?? String(actual.points),
+          projectedPoints: salaryInfo?.fppg ?? String(actual.points),
+          opponent: "",
+          gameInfo: "",
+          injuryStatus: null,
+          injuryDetail: null,
+          boostScore: "0",
+          boostReason: null,
+          draftKingsPlayerId: null,
+          fanDuelPlayerId: null,
+          yahooPlayerId: null,
+          fanDuelSalary: null,
+          yahooSalary: null,
+          isConfirmedStarter: false,
+          actualPoints: actual.points,
+        });
+      }
+
+      console.log(`[WinningAgent] ${sport} ${slateDate}: Built ESPN-based pool with ${matchCount} players (${salaryLookup.size} salary matches from current slate)`);
     }
 
     const config = getPlatformConfig(sport, platform);
@@ -332,7 +379,7 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string, pl
 
     const record: InsertWinningLineup = {
       sport,
-      slateId: slatePlayers[0]?.slateId || null,
+      slateId: (allSlateRecords.length > 0 ? allSlateRecords[0]?.slateId : null) || null,
       slateDate,
       draftGroupId: null,
       totalActualPoints: String(result.totalActualPoints),
