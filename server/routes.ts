@@ -154,14 +154,15 @@ export async function registerRoutes(
        return res.status(404).json({ message: "Slate not found" });
     }
     const slate = await storage.getSlate(slateId);
-    if (slate) {
+    const isDK = !slate || slate.platform === "draftkings";
+    if (slate && isDK) {
       players = await applyLiveDKStatuses(players, slate.draftGroupId, slate.sport);
     }
     players = players.filter(p => {
       const status = (p.injuryStatus || "").toUpperCase();
       return status !== "OUT" && status !== "IR" && status !== "QUESTIONABLE";
     });
-    if (slate) {
+    if (slate && isDK) {
       await refreshRecentlyPlayed(slate.sport);
       const { inactiveIds: inactiveIdList } = await getInactivePlayerIds(players, slate.sport);
       const inactiveIds = new Set(inactiveIdList);
@@ -364,7 +365,8 @@ export async function registerRoutes(
       const autoExcluded = allPlayers
         .filter(p => p.injuryStatus === "OUT" && !mergedLocked.includes(p.id))
         .map(p => p.id);
-      const { inactiveIds: inactiveExcluded } = await getInactivePlayerIds(allPlayers, slate.sport);
+      const isDKOpt = slate.platform === "draftkings";
+      const { inactiveIds: inactiveExcluded } = isDKOpt ? await getInactivePlayerIds(allPlayers, slate.sport) : { inactiveIds: [] };
       const filteredInactive = inactiveExcluded.filter(id => !mergedLocked.includes(id));
       const mergedExclusions = [...new Set([...constraints.excludedPlayerIds, ...autoExcluded, ...filteredInactive, ...overrideExcluded])];
 
@@ -841,7 +843,9 @@ export async function registerRoutes(
           continue;
         }
 
-        allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
+        if (slate.platform === "draftkings") {
+          allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
+        }
 
         const useBoosts = req.body.useBoosts !== false;
         const useCeilingMode = req.body.ceilingMode === true;
@@ -882,7 +886,8 @@ export async function registerRoutes(
         }
 
         const baseExcluded = allPlayers.filter(p => p.injuryStatus === "OUT" || p.injuryStatus === "Questionable").map(p => p.id);
-        const { inactiveIds: bulkInactiveExcluded } = await getInactivePlayerIds(allPlayers, slate.sport);
+        const isDKBulk = slate.platform === "draftkings";
+        const { inactiveIds: bulkInactiveExcluded } = isDKBulk ? await getInactivePlayerIds(allPlayers, slate.sport) : { inactiveIds: [] };
         const filteredBulkInactive = bulkInactiveExcluded.filter(id => !baseExcluded.includes(id));
         baseExcluded.push(...filteredBulkInactive);
 
@@ -2391,7 +2396,8 @@ export async function registerRoutes(
           baseExcluded.push(p.id);
         }
       });
-      const { inactiveIds: proInactiveExcluded } = await getInactivePlayerIds(allPlayers, slate.sport);
+      const isDKPro = slate.platform === "draftkings";
+      const { inactiveIds: proInactiveExcluded } = isDKPro ? await getInactivePlayerIds(allPlayers, slate.sport) : { inactiveIds: [] };
       const filteredProInactive = proInactiveExcluded.filter(id => !constraints.lockedPlayerIds.includes(id) && !baseExcluded.includes(id));
       baseExcluded.push(...filteredProInactive);
 
