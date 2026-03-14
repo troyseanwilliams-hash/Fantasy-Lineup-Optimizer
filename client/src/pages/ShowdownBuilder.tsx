@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Swords, Crown, Lock, X, Search, Download, Save, ChevronLeft, ChevronRight, RefreshCw, Shield, Activity, Star, AlertTriangle, Zap } from "lucide-react";
+import { Loader2, Swords, Crown, Lock, X, Search, Download, Save, ChevronLeft, ChevronRight, RefreshCw, Zap, Target, Sliders, ChevronDown, ChevronUp, DollarSign, BarChart3, Shuffle } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import type { Slate, Player } from "@shared/schema";
 
 function toNum(v: string | number | null | undefined): number {
@@ -35,25 +37,11 @@ interface ShowdownConfig {
   rosterSize: number;
 }
 
-const SHOWDOWN_SPORTS = ["NBA", "NFL"].filter(s => ACTIVE_SPORTS.includes(s as any));
+const SHOWDOWN_SPORTS = ["NBA", "NFL"];
 
 export default function ShowdownBuilder() {
   const { user } = useAuth();
   const { toast } = useToast();
-
-  const userId = (user as any)?.id as string | undefined;
-  const userIsAdmin = (user as any)?.isAdmin === true;
-
-  const { data: subscription } = useQuery<{ tier: string }>({
-    queryKey: ["/api/subscription"],
-    enabled: !!user,
-  });
-
-  // Tier-based lineup limits
-  // Free: 1  |  Sharpshooter (star): 5  |  Champion (pro): 20
-  const tier = subscription?.tier || "free";
-  const maxLineups = userIsAdmin ? 20 : tier === "pro" ? 20 : tier === "star" ? 5 : 1;
-  const tierLabel = userIsAdmin ? "Champion" : tier === "pro" ? "Champion" : tier === "star" ? "Sharpshooter" : "Free";
 
   const [sport, setSport] = useState("NBA");
   const [platform] = useState<"draftkings" | "fanduel">("draftkings");
@@ -71,6 +59,27 @@ export default function ShowdownBuilder() {
   const [generatedLineups, setGeneratedLineups] = useState<ShowdownLineup[]>([]);
   const [showdownConfig, setShowdownConfig] = useState<ShowdownConfig | null>(null);
   const [activeLineupIdx, setActiveLineupIdx] = useState(0);
+  const [savedLineupIndices, setSavedLineupIndices] = useState<Set<number>>(new Set());
+
+  // ── Config options ────────────────────────────────────────────────────────
+  const [projectionMode, setProjectionMode] = useState<"balanced" | "ceiling">("balanced");
+  const [leverageMode, setLeverageMode] = useState(false);
+  const [useBoosts, setUseBoosts] = useState(false);
+  const [globalMaxExposure, setGlobalMaxExposure] = useState<number | null>(null);
+  const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
+  const [customProjections, setCustomProjections] = useState<Record<string, number>>({});
+  const [showConfig, setShowConfig] = useState(false);
+  const [sortKey, setSortKey] = useState<"proj" | "salary" | "value" | "name">("proj");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const { data: subscription } = useQuery<{ tier: string }>({
+    queryKey: ["/api/subscription"],
+    enabled: !!user,
+  });
+  const userIsAdmin = (user as any)?.isAdmin === true;
+  const tier = subscription?.tier || "free";
+  const maxLineups = userIsAdmin ? 20 : tier === "pro" ? 20 : tier === "star" ? 5 : 1;
+  const isPaidUser = userIsAdmin || tier === "pro" || tier === "star";
 
   const { data: slates, isLoading: slatesLoading } = useQuery<Slate[]>({
     queryKey: ["/api/showdown/slates", sport],
@@ -86,12 +95,7 @@ export default function ShowdownBuilder() {
     },
   });
 
-  const { data: playerData, isLoading: playersLoading } = useQuery<{
-    slate: any;
-    games: Array<{ key: string; away: string; home: string; time: string; playerCount: number }>;
-    gameMap: Record<string, Player[]>;
-    players: Player[];
-  }>({
+  const { data: playerData, isLoading: playersLoading } = useQuery<{ slate: any; games: Record<string, Player[]>; players: Player[] }>({
     queryKey: ["/api/showdown/players", selectedSlateId],
     queryFn: async () => {
       const res = await fetch(`/api/showdown/players/${selectedSlateId}`, { credentials: "include" });
@@ -110,9 +114,15 @@ export default function ShowdownBuilder() {
         lockedCaptainId: captainId || undefined,
         lockedFlexIds,
         excludedPlayerIds: excludedIds,
-        // Enforce tier limit client-side — server also validates via auth
         lineupCount: Math.min(lineupCount, maxLineups),
         gameFilter: gameFilter || undefined,
+        projectionMode,
+        leverageMode,
+        useBoosts,
+        globalMaxExposure: globalMaxExposure ?? undefined,
+        playerProjections: Object.keys(customProjections).length > 0 ? customProjections : undefined,
+        playerMinSalary: salaryRange?.[0] ?? undefined,
+        playerMaxSalary: salaryRange?.[1] ?? undefined,
       });
       return res.json();
     },
@@ -120,6 +130,7 @@ export default function ShowdownBuilder() {
       setGeneratedLineups(data.lineups);
       setShowdownConfig(data.config);
       setActiveLineupIdx(0);
+      setSavedLineupIndices(new Set());
       toast({ title: `${data.lineups.length} lineup${data.lineups.length > 1 ? "s" : ""} generated!` });
     },
     onError: (err: any) => {
@@ -147,6 +158,7 @@ export default function ShowdownBuilder() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
+      setSavedLineupIndices(prev => new Set(prev).add(activeLineupIdx));
       toast({ title: "Lineup saved to vault!" });
     },
     onError: (err: any) => {
@@ -155,8 +167,17 @@ export default function ShowdownBuilder() {
   });
 
   const players = playerData?.players || [];
-  const games = playerData?.games || [];   // structured array: { key, away, home, time, playerCount }
-  const gameKeys = games.map(g => g.key);
+  const games = playerData?.games || {};
+  const gameKeys = Object.keys(games);
+
+  const salaryBounds = useMemo(() => {
+    const pool = gameFilter ? players.filter(p => p.gameInfo === gameFilter) : players;
+    if (pool.length === 0) return { min: 3000, max: 11000, step: 100 };
+    const sals = pool.map(p => p.salary).filter(s => !isNaN(s));
+    return { min: Math.min(...sals), max: Math.max(...sals), step: 100 };
+  }, [players, gameFilter]);
+
+  useEffect(() => { setSalaryRange(null); }, [selectedSlateId, gameFilter]);
 
   const teams = useMemo(() => {
     const t = new Set(players.map(p => p.team));
@@ -168,44 +189,34 @@ export default function ShowdownBuilder() {
     return ["ALL", ...Array.from(p).sort()];
   }, [players]);
 
-  // Derive team set for the active game so player filter is team-based, not string-match
-  const activeGameTeams = useMemo(() => {
-    if (!gameFilter) return null;
-    const game = games.find(g => g.key === gameFilter);
-    if (!game) return null;
-    return new Set([game.away, game.home]);
-  }, [gameFilter, games]);
-
   const filteredPlayers = useMemo(() => {
     let pool = players;
-    // Filter to only players from the selected game's two teams
-    if (activeGameTeams) pool = pool.filter(p => activeGameTeams.has(p.team));
-    else if (gameFilter) pool = pool.filter(p => p.gameInfo === gameFilter || p.opponent === gameFilter);
+    if (gameFilter) pool = pool.filter(p => p.gameInfo === gameFilter);
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
       pool = pool.filter(p => p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q));
     }
     if (posFilter !== "ALL") pool = pool.filter(p => p.position.split("/").includes(posFilter));
     if (teamFilter !== "ALL") pool = pool.filter(p => p.team === teamFilter);
-    return pool.sort((a, b) => toNum(b.projectedPoints) - toNum(a.projectedPoints));
-  }, [players, gameFilter, searchTerm, posFilter, teamFilter]);
+    if (salaryRange) pool = pool.filter(p => p.salary >= salaryRange[0] && p.salary <= salaryRange[1]);
+    return pool
+      .map(p => ({
+        ...p,
+        _effProj: customProjections[p.id] ?? toNum(p.projectedPoints),
+        _value: (customProjections[p.id] ?? toNum(p.projectedPoints)) / Math.max(p.salary / 1000, 0.1),
+      }))
+      .sort((a, b) => {
+        if (sortKey === "salary") return sortDir === "asc" ? a.salary - b.salary : b.salary - a.salary;
+        if (sortKey === "value")  return sortDir === "asc" ? a._value - b._value : b._value - a._value;
+        if (sortKey === "name")   return sortDir === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+        return sortDir === "asc" ? a._effProj - b._effProj : b._effProj - a._effProj;
+      });
+  }, [players, gameFilter, searchTerm, posFilter, teamFilter, salaryRange, customProjections, sortKey, sortDir]);
 
   const captainMultiplier = showdownConfig?.captainMultiplier || (platform === "fanduel" ? 2.0 : 1.5);
   const salaryMultiplier = platform === "fanduel" ? 1.0 : 1.5;
   const captainLabel = showdownConfig?.captainLabel || (platform === "fanduel" ? "MVP" : "CPT");
   const flexLabel = showdownConfig?.flexLabel || "FLEX";
-
-  // Auto-select first game when player data loads
-  useEffect(() => {
-    if (gameKeys.length > 0 && !gameFilter) {
-      setGameFilter(gameKeys[0]);
-    }
-  }, [gameKeys.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Clamp lineupCount to tier max when tier changes
-  useEffect(() => {
-    if (lineupCount > maxLineups) setLineupCount(maxLineups);
-  }, [maxLineups]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const activeLineup = generatedLineups[activeLineupIdx];
 
@@ -309,127 +320,31 @@ export default function ShowdownBuilder() {
             </SelectContent>
           </Select>
 
-          {games.length > 0 && (
-            <Select value={gameFilter || ""} onValueChange={v => { setGameFilter(v); setGeneratedLineups([]); setCaptainId(null); setLockedFlexIds([]); }}>
-              <SelectTrigger className="bg-slate-800 border-slate-600 text-white sm:max-w-[220px]" data-testid="select-game">
-                <SelectValue placeholder="Select a game" />
+          {gameKeys.length > 0 && (
+            <Select value={gameFilter || "all"} onValueChange={v => setGameFilter(v === "all" ? "" : v)}>
+              <SelectTrigger className="bg-slate-800 border-slate-600 text-white sm:max-w-xs" data-testid="select-game">
+                <SelectValue placeholder="All games" />
               </SelectTrigger>
               <SelectContent>
-                {games.map(g => (
-                  <SelectItem key={g.key} value={g.key}>
-                    {g.away} @ {g.home} {g.time && `· ${g.time}`}
-                  </SelectItem>
+                <SelectItem value="all">All Games</SelectItem>
+                {gameKeys.map(g => (
+                  <SelectItem key={g} value={g}>{g}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           )}
 
-          <div className="flex flex-col gap-0.5">
-            <Select value={lineupCount.toString()} onValueChange={v => setLineupCount(Number(v))}>
-              <SelectTrigger className="bg-slate-800 border-slate-600 text-white w-32" data-testid="select-lineup-count">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[1, 5, 20].filter(n => n <= maxLineups).map(n => (
-                  <SelectItem key={n} value={n.toString()}>
-                    {n} lineup{n > 1 ? "s" : ""}
-                    {n === 5 && tier === "free" ? " 🔒" : ""}
-                    {n === 20 && tier !== "pro" && !userIsAdmin ? " 🔒" : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {/* Tier badge */}
-            <div className={`text-[9px] font-black text-center uppercase tracking-wider ${
-              tier === "pro" || userIsAdmin ? "text-amber-400" :
-              tier === "star" ? "text-purple-400" : "text-slate-500"
-            }`}>
-              {tierLabel} · max {maxLineups}
-            </div>
-          </div>
+          <Select value={lineupCount.toString()} onValueChange={v => setLineupCount(Number(v))}>
+            <SelectTrigger className="bg-slate-800 border-slate-600 text-white w-28" data-testid="select-lineup-count">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[1, 3, 5, 10, 20].map(n => (
+                <SelectItem key={n} value={n.toString()}>{n} lineup{n > 1 ? "s" : ""}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-
-        {/* ── Game Card ── */}
-        {gameFilter && (() => {
-          const game = games.find(g => g.key === gameFilter);
-          if (!game) return null;
-          const sportColors: Record<string, { accent: string; border: string; bg: string }> = {
-            NBA: { accent: "text-orange-400", border: "border-orange-500/25", bg: "from-orange-500/10" },
-            NFL: { accent: "text-green-400",  border: "border-green-500/25",  bg: "from-green-500/10"  },
-          };
-          const sc = sportColors[sport] || sportColors.NBA;
-          const awayPlayers = players.filter(p => p.team === game.away);
-          const homePlayers = players.filter(p => p.team === game.home);
-          const awayAvgProj = awayPlayers.length > 0
-            ? awayPlayers.reduce((s, p) => s + toNum(p.projectedPoints), 0) / awayPlayers.length
-            : 0;
-          const homeAvgProj = homePlayers.length > 0
-            ? homePlayers.reduce((s, p) => s + toNum(p.projectedPoints), 0) / homePlayers.length
-            : 0;
-          const totalProjAvg = (awayAvgProj + homeAvgProj) / 2;
-          const gameTotal = awayAvgProj + homeAvgProj;
-
-          return (
-            <div className={`mb-4 rounded-xl border ${sc.border} bg-gradient-to-r ${sc.bg} to-slate-900/60 overflow-hidden`} data-testid="game-card">
-              <div className="px-4 py-3 flex items-center gap-4 flex-wrap">
-                {/* Away team */}
-                <div className="flex-1 min-w-[80px]">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-lg font-black text-white">{game.away}</span>
-                    <Badge variant="outline" className="border-slate-600 text-slate-400 text-[9px] font-bold">AWAY</Badge>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Activity className="w-3 h-3 text-slate-500" />
-                    <span className="text-xs text-slate-400 font-bold">{awayPlayers.length} players</span>
-                    <span className="text-slate-600 text-xs">·</span>
-                    <span className={`text-xs font-bold ${sc.accent}`}>{awayAvgProj.toFixed(1)} avg</span>
-                  </div>
-                </div>
-
-                {/* VS divider */}
-                <div className="text-center shrink-0 px-2">
-                  <div className="text-xs font-black text-slate-500 uppercase tracking-widest">vs</div>
-                  {game.time && (
-                    <div className="text-[10px] text-slate-500 mt-0.5 font-bold">{game.time}</div>
-                  )}
-                  <div className="mt-1 text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                    {gameTotal > 0 && `${gameTotal.toFixed(0)} proj total`}
-                  </div>
-                </div>
-
-                {/* Home team */}
-                <div className="flex-1 min-w-[80px] text-right">
-                  <div className="flex items-center justify-end gap-2 mb-1">
-                    <Badge variant="outline" className="border-slate-600 text-slate-400 text-[9px] font-bold">HOME</Badge>
-                    <span className="text-lg font-black text-white">{game.home}</span>
-                  </div>
-                  <div className="flex items-center justify-end gap-1.5">
-                    <span className={`text-xs font-bold ${sc.accent}`}>{homeAvgProj.toFixed(1)} avg</span>
-                    <span className="text-slate-600 text-xs">·</span>
-                    <span className="text-xs text-slate-400 font-bold">{homePlayers.length} players</span>
-                    <Activity className="w-3 h-3 text-slate-500" />
-                  </div>
-                </div>
-
-                {/* Salary cap & captain info */}
-                <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-700/50 sm:border-l sm:border-slate-700/50 sm:pl-4">
-                  <div className="text-center">
-                    <div className="text-sm font-black text-white">${(showdownConfig?.salaryCap || 50000).toLocaleString()}</div>
-                    <div className="text-[9px] text-slate-500 font-bold uppercase">Salary Cap</div>
-                  </div>
-                  <div className="text-center">
-                    <div className={`text-sm font-black ${sc.accent}`}>{captainLabel} {captainMultiplier}×</div>
-                    <div className="text-[9px] text-slate-500 font-bold uppercase">Capt. Mult.</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-sm font-black text-white">{showdownConfig?.rosterSize || 6}</div>
-                    <div className="text-[9px] text-slate-500 font-bold uppercase">Roster Size</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
 
         {!selectedSlateId ? (
           <Card className="bg-slate-900 border-slate-700">
@@ -489,16 +404,25 @@ export default function ShowdownBuilder() {
                   <div className="max-h-[55vh] overflow-y-auto">
                     <table className="w-full text-xs">
                       <thead className="sticky top-0 bg-slate-800 z-10">
-                        <tr className="text-slate-400 uppercase">
+                        <tr className="text-slate-400 uppercase text-[10px]">
                           <th className="text-left px-2 py-2 w-8"></th>
-                          <th className="text-left px-1 py-2">Player</th>
+                          <th onClick={() => { setSortKey("name"); setSortDir(d => d === "asc" ? "desc" : "asc"); }} className="text-left px-1 py-2 cursor-pointer hover:text-white select-none">
+                            Player {sortKey === "name" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+                          </th>
                           <th className="text-left px-1 py-2">Pos</th>
                           <th className="text-left px-1 py-2 hidden sm:table-cell">Team</th>
-                          <th className="text-right px-1 py-2">Sal</th>
-                          <th className="text-right px-1 py-2 text-amber-400">{captainLabel} Sal</th>
-                          <th className="text-right px-1 py-2">Proj</th>
-                          <th className="text-right px-1 py-2 text-amber-400">{captainLabel} Proj</th>
-                          <th className="text-center px-1 py-2 w-16">Actions</th>
+                          <th onClick={() => { setSortKey("salary"); setSortDir(d => d === "asc" ? "desc" : "asc"); }} className="text-right px-1 py-2 cursor-pointer hover:text-white select-none">
+                            Sal {sortKey === "salary" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+                          </th>
+                          <th className="text-right px-1 py-2 text-amber-400">{captainLabel} $</th>
+                          <th onClick={() => { setSortKey("proj"); setSortDir(d => d === "asc" ? "desc" : "asc"); }} className="text-right px-1 py-2 cursor-pointer hover:text-white select-none">
+                            Proj {sortKey === "proj" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+                          </th>
+                          <th className="text-right px-1 py-2 text-amber-400">{captainLabel}</th>
+                          <th onClick={() => { setSortKey("value"); setSortDir(d => d === "asc" ? "desc" : "asc"); }} className="text-right px-1 py-2 cursor-pointer hover:text-white select-none hidden sm:table-cell" title="Pts/$1K">
+                            Val {sortKey === "value" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+                          </th>
+                          <th className="text-center px-1 py-2 w-20">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -529,8 +453,28 @@ export default function ShowdownBuilder() {
                               <td className="px-1 py-1.5 text-slate-400 hidden sm:table-cell">{player.team}</td>
                               <td className="px-1 py-1.5 text-slate-300 text-right">${player.salary.toLocaleString()}</td>
                               <td className="px-1 py-1.5 text-amber-400 text-right font-medium">${cptSal.toLocaleString()}</td>
-                              <td className="px-1 py-1.5 text-slate-300 text-right">{toNum(player.projectedPoints).toFixed(1)}</td>
+                              <td className="px-1 py-1.5 text-right">
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  value={customProjections[player.id] !== undefined ? customProjections[player.id] : toNum(player.projectedPoints).toFixed(1)}
+                                  onChange={e => {
+                                    const val = parseFloat(e.target.value);
+                                    if (!isNaN(val) && val >= 0) setCustomProjections(prev => ({ ...prev, [player.id]: val }));
+                                    else if (e.target.value === "") setCustomProjections(prev => { const n = { ...prev }; delete n[player.id]; return n; });
+                                  }}
+                                  className={`w-12 text-right bg-transparent border-0 focus:outline-none focus:bg-slate-700/60 focus:rounded px-0.5 text-xs tabular-nums ${customProjections[player.id] !== undefined ? "text-purple-400 font-bold" : "text-slate-300"}`}
+                                  title="Click to override projection"
+                                  data-testid={`custom-proj-${player.id}`}
+                                />
+                              </td>
                               <td className="px-1 py-1.5 text-amber-400 text-right font-bold">{cptProj.toFixed(1)}</td>
+                              <td className="px-1 py-1.5 text-right hidden sm:table-cell">
+                                <span className={`text-[10px] font-bold tabular-nums ${(player as any)._value >= 5 ? "text-emerald-400" : (player as any)._value >= 3.5 ? "text-slate-300" : "text-slate-500"}`}>
+                                  {((player as any)._value ?? 0).toFixed(1)}x
+                                </span>
+                              </td>
                               <td className="px-1 py-1.5">
                                 <div className="flex items-center justify-center gap-0.5">
                                   <button
@@ -568,41 +512,155 @@ export default function ShowdownBuilder() {
                 </CardContent>
               </Card>
 
-              {/* Tier access notice */}
-              {(tier === "free" || tier === "star") && !userIsAdmin && (
-                <div className={`mt-3 rounded-lg border px-3 py-2 flex items-start gap-2 ${
-                  tier === "free"
-                    ? "bg-slate-800/50 border-slate-700/50"
-                    : "bg-purple-500/5 border-purple-500/20"
-                }`} data-testid="tier-notice">
-                  {tier === "free"
-                    ? <Shield className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-                    : <Star className="w-4 h-4 text-purple-400 shrink-0 mt-0.5 fill-purple-400" />
-                  }
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-[11px] font-black ${tier === "free" ? "text-slate-300" : "text-purple-300"}`}>
-                      {tier === "free"
-                        ? "Free plan: 1 lineup per session"
-                        : "Sharpshooter plan: up to 5 lineups"}
-                    </p>
-                    <p className="text-[10px] text-slate-500 mt-0.5">
-                      {tier === "free"
-                        ? "Upgrade to Sharpshooter for 5 lineups or Champion for 20"
-                        : "Upgrade to Champion for 20 lineups with full AI optimization"}
-                    </p>
-                  </div>
-                  <a href="/pricing" className={`text-[10px] font-black shrink-0 ${
-                    tier === "free" ? "text-amber-400 hover:text-amber-300" : "text-purple-400 hover:text-purple-300"
-                  }`}>
-                    Upgrade →
-                  </a>
+              {/* ── Optimizer Config Panel ── */}
+              <Card className="bg-slate-900/60 border-slate-700/50 mt-3">
+                <CardContent className="p-3">
+                  {/* Collapsible header */}
+                  <button
+                    onClick={() => setShowConfig(c => !c)}
+                    className="w-full flex items-center justify-between text-sm font-bold text-slate-300 hover:text-white transition-colors"
+                    data-testid="toggle-config"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Sliders className="w-3.5 h-3.5 text-amber-400/70" />
+                      <span className="text-xs">Optimizer Settings</span>
+                      {(projectionMode !== "balanced" || leverageMode || useBoosts || globalMaxExposure || salaryRange || Object.keys(customProjections).length > 0) && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                      )}
+                    </div>
+                    {showConfig ? <ChevronUp className="w-3.5 h-3.5 text-slate-500" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-500" />}
+                  </button>
+
+                  {showConfig && (
+                    <div className="space-y-4 mt-3 pt-3 border-t border-slate-800/60">
+
+                      {/* Projection Mode */}
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <BarChart3 className="w-3.5 h-3.5 text-slate-500" />
+                          <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Projection Mode</span>
+                        </div>
+                        <div className="flex gap-1.5">
+                          {(["balanced", "ceiling"] as const).map(mode => (
+                            <button
+                              key={mode}
+                              onClick={() => setProjectionMode(mode)}
+                              data-testid={`projection-mode-${mode}`}
+                              className={`flex-1 py-1.5 rounded-lg text-[11px] font-black transition-all border ${
+                                projectionMode === mode
+                                  ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                                  : "bg-slate-800/60 text-slate-400 border-slate-700/40 hover:text-white"
+                              }`}
+                            >
+                              {mode === "balanced" ? "⚖️ Balanced" : "🚀 Ceiling"}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-1">
+                          {projectionMode === "ceiling" ? "High-upside GPP — targets boom-or-bust plays" : "Safer floor — better for cash games"}
+                        </p>
+                      </div>
+
+                      {/* Toggles */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between bg-slate-800/40 rounded-lg px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <Target className="w-3.5 h-3.5 text-amber-400" />
+                            <div>
+                              <p className="text-xs font-bold text-white">Leverage Mode</p>
+                              <p className="text-[10px] text-slate-500">Down-weights chalk, boosts low-ownership plays</p>
+                            </div>
+                          </div>
+                          <Switch checked={leverageMode} onCheckedChange={setLeverageMode} data-testid="toggle-leverage" />
+                        </div>
+
+                        <div className={`flex items-center justify-between rounded-lg px-3 py-2 ${isPaidUser ? "bg-slate-800/40" : "bg-slate-800/20 opacity-60"}`}>
+                          <div className="flex items-center gap-2">
+                            <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-xs font-bold text-white">AI Boosts</p>
+                                {!isPaidUser && <span className="text-[9px] font-black text-amber-400/80 bg-amber-500/10 px-1 py-0.5 rounded">PRO</span>}
+                              </div>
+                              <p className="text-[10px] text-slate-500">Historical pattern adjustments on projections</p>
+                            </div>
+                          </div>
+                          <Switch checked={useBoosts} onCheckedChange={isPaidUser ? setUseBoosts : undefined} disabled={!isPaidUser} data-testid="toggle-boosts" />
+                        </div>
+                      </div>
+
+                      {/* Salary Range */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <DollarSign className="w-3.5 h-3.5 text-slate-500" />
+                            <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Player Salary Range</span>
+                          </div>
+                          {salaryRange && (
+                            <button onClick={() => setSalaryRange(null)} className="text-[10px] text-slate-500 hover:text-slate-300" data-testid="reset-salary-range">
+                              Reset
+                            </button>
+                          )}
+                        </div>
+                        <Slider
+                          value={salaryRange || [salaryBounds.min, salaryBounds.max]}
+                          onValueChange={v => setSalaryRange([v[0], v[1]])}
+                          min={salaryBounds.min}
+                          max={salaryBounds.max}
+                          step={salaryBounds.step}
+                          data-testid="salary-range-slider"
+                        />
+                        <div className="flex justify-between mt-1 text-[10px] font-bold">
+                          <span className={salaryRange ? "text-emerald-400" : "text-slate-500"}>${((salaryRange?.[0] ?? salaryBounds.min) / 1000).toFixed(1)}K</span>
+                          <span className={salaryRange ? "text-emerald-400" : "text-slate-500"}>${((salaryRange?.[1] ?? salaryBounds.max) / 1000).toFixed(1)}K</span>
+                        </div>
+                      </div>
+
+                      {/* Max Exposure — only visible for multi-lineup */}
+                      {lineupCount > 1 && (
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <Shuffle className="w-3.5 h-3.5 text-slate-500" />
+                              <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Max Player Exposure</span>
+                            </div>
+                            <span className={`text-[11px] font-black ${globalMaxExposure ? "text-cyan-400" : "text-slate-500"}`}>
+                              {globalMaxExposure ? `${globalMaxExposure}%` : "Off"}
+                            </span>
+                          </div>
+                          <Slider
+                            value={[globalMaxExposure ?? 100]}
+                            onValueChange={v => setGlobalMaxExposure(v[0] === 100 ? null : v[0])}
+                            min={10} max={100} step={5}
+                            data-testid="exposure-slider"
+                          />
+                          <p className="text-[10px] text-slate-500 mt-1">
+                            {globalMaxExposure ? `No player appears in more than ${globalMaxExposure}% of lineups` : "Drag left to cap player frequency across lineups"}
+                          </p>
+                        </div>
+                      )}
+
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Active config chips */}
+              {(projectionMode !== "balanced" || leverageMode || useBoosts || globalMaxExposure || salaryRange || Object.keys(customProjections).length > 0) && (
+                <div className="flex flex-wrap gap-1.5 mt-2" data-testid="active-config-chips">
+                  {projectionMode === "ceiling" && <span className="text-[10px] font-black bg-purple-500/15 border border-purple-500/25 text-purple-300 px-2 py-1 rounded-lg">🚀 Ceiling</span>}
+                  {leverageMode && <span className="text-[10px] font-black bg-amber-500/15 border border-amber-500/25 text-amber-300 px-2 py-1 rounded-lg flex items-center gap-1"><Target className="w-3 h-3" />Leverage</span>}
+                  {useBoosts && <span className="text-[10px] font-black bg-emerald-500/15 border border-emerald-500/25 text-emerald-300 px-2 py-1 rounded-lg flex items-center gap-1"><Zap className="w-3 h-3" />AI Boosts</span>}
+                  {globalMaxExposure && <span className="text-[10px] font-black bg-cyan-500/15 border border-cyan-500/25 text-cyan-300 px-2 py-1 rounded-lg flex items-center gap-1"><Shuffle className="w-3 h-3" />Max {globalMaxExposure}%</span>}
+                  {salaryRange && <span className="text-[10px] font-black bg-slate-700/60 border border-slate-600/40 text-slate-300 px-2 py-1 rounded-lg flex items-center gap-1"><DollarSign className="w-3 h-3" />${(salaryRange[0]/1000).toFixed(1)}K–${(salaryRange[1]/1000).toFixed(1)}K</span>}
+                  {Object.keys(customProjections).length > 0 && <span className="text-[10px] font-black bg-purple-500/15 border border-purple-500/25 text-purple-300 px-2 py-1 rounded-lg">✏️ {Object.keys(customProjections).length} custom</span>}
                 </div>
               )}
 
               <div className="mt-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <Button
                   onClick={() => optimizeMut.mutate()}
-                  disabled={optimizeMut.isPending || !gameFilter}
+                  disabled={optimizeMut.isPending}
                   className="bg-amber-600 hover:bg-amber-700 font-bold flex-1 sm:flex-none"
                   data-testid="btn-optimize-showdown"
                 >
@@ -612,11 +670,11 @@ export default function ShowdownBuilder() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => { setCaptainId(null); setLockedFlexIds([]); setExcludedIds([]); }}
+                  onClick={() => { setCaptainId(null); setLockedFlexIds([]); setExcludedIds([]); setCustomProjections({}); setSalaryRange(null); setProjectionMode("balanced"); setLeverageMode(false); setUseBoosts(false); setGlobalMaxExposure(null); }}
                   className="border-slate-600 text-slate-300 hover:bg-slate-800"
                   data-testid="btn-clear-locks"
                 >
-                  <RefreshCw className="w-4 h-4 mr-1" /> Clear Locks
+                  <RefreshCw className="w-4 h-4 mr-1" /> Reset All
                 </Button>
               </div>
             </div>
@@ -659,6 +717,36 @@ export default function ShowdownBuilder() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-2">
+                    {generatedLineups.length > 1 && (() => {
+                      const apps: Record<number, { name: string; count: number }> = {};
+                      for (const lu of generatedLineups) {
+                        for (const p of [lu.captain, ...lu.flexPlayers]) {
+                          if (!apps[p.id]) apps[p.id] = { name: p.name, count: 0 };
+                          apps[p.id].count++;
+                        }
+                      }
+                      return (
+                        <div className="bg-slate-800/40 rounded-lg p-2.5" data-testid="exposure-panel">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Exposure — {generatedLineups.length} lineups</p>
+                          <div className="space-y-1.5">
+                            {Object.entries(apps).sort(([,a],[,b]) => b.count - a.count).slice(0, 6).map(([id, d]) => {
+                              const pct = Math.round((d.count / generatedLineups.length) * 100);
+                              const over = globalMaxExposure !== null && pct > globalMaxExposure;
+                              return (
+                                <div key={id} className="flex items-center gap-2">
+                                  <span className="text-[10px] text-white font-bold flex-1 truncate">{d.name}</span>
+                                  <span className="text-[10px] font-mono text-slate-500">{d.count}/{generatedLineups.length}</span>
+                                  <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                    <div className={`h-full rounded-full ${over ? "bg-red-400" : "bg-cyan-500"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                                  </div>
+                                  <span className={`text-[10px] font-black w-8 text-right ${over ? "text-red-400" : "text-cyan-400"}`}>{pct}%</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <div className="rounded-lg border-2 border-amber-500/40 bg-amber-500/5 p-3" data-testid="captain-slot">
                       <div className="flex items-center gap-2 mb-1">
                         <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-[10px] font-black">
@@ -728,12 +816,11 @@ export default function ShowdownBuilder() {
                     <div className="flex gap-2 pt-2">
                       <Button
                         onClick={() => saveMut.mutate(activeLineup)}
-                        disabled={saveMut.isPending}
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 font-bold"
+                        disabled={saveMut.isPending || savedLineupIndices.has(activeLineupIdx)}
+                        className={`flex-1 font-bold ${savedLineupIndices.has(activeLineupIdx) ? "bg-emerald-700/30 border border-emerald-500/30 text-emerald-400" : "bg-emerald-600 hover:bg-emerald-700"}`}
                         data-testid="btn-save-showdown"
                       >
-                        {saveMut.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
-                        Save
+                        {saveMut.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : savedLineupIndices.has(activeLineupIdx) ? "✓ Saved" : <><Save className="w-4 h-4 mr-1" />Save</>}
                       </Button>
                       <Button
                         variant="outline"
