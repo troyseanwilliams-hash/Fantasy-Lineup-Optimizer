@@ -358,10 +358,6 @@ export default function SavedLineups() {
       toast({ title: "Paid Feature", description: "Upgrade to Sharpshooter or Champion to export lineups.", variant: "destructive" });
       return;
     }
-    if (lineup.platform !== "draftkings") {
-      toast({ title: "Export Unavailable", description: "CSV export is only available for DraftKings lineups.", variant: "destructive" });
-      return;
-    }
     const csv = buildLineupCSV(lineup);
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
