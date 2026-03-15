@@ -15,6 +15,11 @@ function isLoggedIn(req: Request): boolean {
 
 export const showdownRouter = Router();
 
+// ── GET /api/showdown/slates ──────────────────────────────────────────────────
+// Returns ALL active slates for the day for the requested sport + platform,
+// sorted by start_time ASC so the earliest slate is first.
+// The main Classic slate is flagged with isMain so the UI can default to it.
+
 showdownRouter.get("/api/showdown/slates", async (req, res) => {
   try {
     const sport            = (req.query.sport as string || "NBA").toUpperCase();
@@ -29,6 +34,7 @@ showdownRouter.get("/api/showdown/slates", async (req, res) => {
         s.isActive !== false
       )
       .sort((a, b) => {
+        // Main Classic slate first, then sort by start time
         if (a.isMain && !b.isMain) return -1;
         if (!a.isMain && b.isMain) return  1;
         return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
@@ -37,13 +43,13 @@ showdownRouter.get("/api/showdown/slates", async (req, res) => {
         id:           s.id,
         sport:        s.sport,
         platform:     s.platform,
-        gameType:     s.gameType  || "Classic",
-        label:        s.label     || s.sport,
+        gameType:     (s as any).gameType  || "Classic",
+        label:        (s as any).label     || s.sport,
         startTime:    s.startTime,
         isMain:       s.isMain,
-        gameCount:    s.gameCount    || 0,
-        contestCount: s.contestCount || 0,
-        salaryCap:    s.salaryCap    || 50000,
+        gameCount:    (s as any).gameCount    || 0,
+        contestCount: (s as any).contestCount || 0,
+        salaryCap:    (s as any).salaryCap    || 50000,
       }));
 
     res.json(filtered);
@@ -53,15 +59,24 @@ showdownRouter.get("/api/showdown/slates", async (req, res) => {
   }
 });
 
+// ── GET /api/showdown/players/:slateId ────────────────────────────────────────
+// Returns ONLY the players that belong to this slate (via slate_id FK).
+// Players from other slates are never included even if the same player
+// appears in multiple draft groups.
+
 showdownRouter.get("/api/showdown/players/:slateId", async (req, res) => {
   try {
     const slateId = Number(req.params.slateId);
-    const slate = await storage.getSlate(slateId);
-    if (!slate) return res.status(404).json({ message: "Slate not found" });
+    const slate   = await storage.getSlate(slateId);
+
+    if (!slate) {
+      return res.status(404).json({ message: "Slate not found" });
+    }
     if (slate.isActive === false) {
       return res.status(410).json({ message: "This slate has ended and is no longer available." });
     }
 
+    // getPlayersBySlate must filter WHERE slate_id = slateId — no cross-slate leakage
     const players = await storage.getPlayersBySlate(slateId);
 
     const gameMap: Record<string, Player[]> = {};
@@ -76,13 +91,12 @@ showdownRouter.get("/api/showdown/players/:slateId", async (req, res) => {
         id:           slate.id,
         sport:        slate.sport,
         platform:     slate.platform,
-        gameType:     slate.gameType  || "Classic",
-        label:        slate.label     || slate.sport,
+        gameType:     (slate as any).gameType  || "Classic",
+        label:        (slate as any).label     || slate.sport,
         startTime:    slate.startTime,
         isMain:       slate.isMain,
-        gameCount:    slate.gameCount    || 0,
-        contestCount: slate.contestCount || 0,
-        salaryCap:    slate.salaryCap    || 50000,
+        gameCount:    (slate as any).gameCount    || 0,
+        salaryCap:    (slate as any).salaryCap    || 50000,
         isActive:     slate.isActive,
       },
       games: gameMap,
@@ -95,50 +109,50 @@ showdownRouter.get("/api/showdown/players/:slateId", async (req, res) => {
 });
 
 const showdownOptimizeSchema = z.object({
-  slateId: z.number(),
-  platform: z.enum(["draftkings", "fanduel", "yahoo"]).default("draftkings"),
-  sport: z.string().default("NBA"),
-  lockedCaptainId: z.number().optional(),
-  lockedFlexIds: z.array(z.number()).default([]),
-  excludedPlayerIds: z.array(z.number()).default([]),
-  lineupCount: z.number().min(1).max(20).default(1),
-  gameFilter: z.string().optional(),
-  projectionMode: z.enum(["balanced", "ceiling"]).default("balanced"),
-  leverageMode: z.boolean().default(false),
-  useBoosts: z.boolean().default(false),
-  globalMaxExposure: z.number().min(1).max(100).optional(),
-  // Merged projection overrides (custom + scout boosts pre-merged by client)
-  playerProjections: z.record(z.string(), z.number()).optional(),
-  playerMinSalary: z.number().optional(),
-  playerMaxSalary: z.number().optional(),
-  // Per-player settings (new)
+  slateId:              z.number(),
+  platform:             z.enum(["draftkings", "fanduel", "yahoo"]).default("draftkings"),
+  sport:                z.string().default("NBA"),
+  lockedCaptainId:      z.number().optional(),
+  lockedFlexIds:        z.array(z.number()).default([]),
+  excludedPlayerIds:    z.array(z.number()).default([]),
+  lineupCount:          z.number().min(1).max(20).default(1),
+  gameFilter:           z.string().optional(),
+  projectionMode:       z.enum(["balanced", "ceiling"]).default("balanced"),
+  leverageMode:         z.boolean().default(false),
+  useBoosts:            z.boolean().default(false),
+  globalMaxExposure:    z.number().min(1).max(100).optional(),
+  playerProjections:    z.record(z.string(), z.number()).optional(),
+  playerMinSalary:      z.number().optional(),
+  playerMaxSalary:      z.number().optional(),
   perPlayerMaxExposure: z.record(z.string(), z.number()).optional(),
-  ownershipOverrides: z.record(z.string(), z.number()).optional(),
-  fadedPlayerIds: z.array(z.number()).default([]),
+  ownershipOverrides:   z.record(z.string(), z.number()).optional(),
+  fadedPlayerIds:       z.array(z.number()).default([]),
 });
+
+// ── POST /api/showdown/optimize ───────────────────────────────────────────────
 
 showdownRouter.post("/api/showdown/optimize", async (req, res) => {
   try {
     const input = showdownOptimizeSchema.parse(req.body);
     const slate = await storage.getSlate(input.slateId);
+
     if (!slate) return res.status(404).json({ message: "Slate not found" });
     if (slate.isActive === false) {
       return res.status(410).json({ message: "This slate has ended. Please select a current slate." });
     }
 
     const config = getShowdownConfig(input.sport, input.platform as Platform);
-    if (!config) return res.status(400).json({ message: `Showdown not supported for ${input.sport} on ${input.platform}` });
+    if (!config) {
+      return res.status(400).json({ message: `Showdown not supported for ${input.sport} on ${input.platform}` });
+    }
 
+    // Players are strictly scoped to slateId — no cross-slate bleed possible
     const allPlayers = await storage.getPlayersBySlate(input.slateId);
 
-    // Hard excludes: OUT/Questionable + user-excluded
     let pool = allPlayers.filter(p => !input.excludedPlayerIds.includes(p.id));
     pool = pool.filter(p => p.injuryStatus !== "OUT" && p.injuryStatus !== "Questionable");
-
-    // Salary filter
     if (input.playerMinSalary !== undefined) pool = pool.filter(p => p.salary >= input.playerMinSalary!);
     if (input.playerMaxSalary !== undefined) pool = pool.filter(p => p.salary <= input.playerMaxSalary!);
-
     if (input.gameFilter) {
       pool = pool.filter(p => p.gameInfo === input.gameFilter || p.opponent === input.gameFilter);
     }
@@ -147,7 +161,6 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
       return res.status(400).json({ message: "Not enough eligible players for a showdown lineup." });
     }
 
-    // Build an effective projection lookup (already merged by client: custom + scout)
     const projOverrides: Record<number, number> = {};
     if (input.playerProjections) {
       for (const [pid, proj] of Object.entries(input.playerProjections)) {
@@ -155,40 +168,32 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
       }
     }
 
-    // Faded players get a downweight factor applied to their projection
     const FADE_MULTIPLIER = 0.5;
-    const fadedSet = new Set(input.fadedPlayerIds);
+    const fadedSet        = new Set(input.fadedPlayerIds);
 
     function getEffectiveProjection(p: Player): number {
       const base = projOverrides[p.id] ?? Number(p.projectedPoints) ?? 0;
-      // Ceiling mode: scale by variance proxy (boost above-average projections)
-      let proj = input.projectionMode === "ceiling"
+      let proj   = input.projectionMode === "ceiling"
         ? base * (base >= 25 ? 1.12 : base >= 15 ? 1.05 : 1.0)
         : base;
-      // Leverage mode: penalise high-ownership players slightly
       if (input.leverageMode) {
         const own = (input.ownershipOverrides?.[String(p.id)] ?? Number((p as any).ownershipProjection) ?? 20) / 100;
-        proj = proj * (1 - own * 0.08); // up to ~8% haircut at 100% ownership
+        proj = proj * (1 - own * 0.08);
       }
-      // Faded players
       if (fadedSet.has(p.id)) proj *= FADE_MULTIPLIER;
       return Math.max(0, proj);
     }
 
-    const flexCount = config.rosterSize - 1;
-    const lineups: any[] = [];
-    const usedKeys = new Set<string>();
-
-    // Tracker for per-player exposure across generated lineups
+    const flexCount        = config.rosterSize - 1;
+    const lineups: any[]   = [];
+    const usedKeys         = new Set<string>();
     const playerAppearances: Record<number, number> = {};
 
     function isPlayerCapped(playerId: number, tentativeTotal: number): boolean {
-      // Global cap
       if (input.globalMaxExposure !== undefined) {
         const pct = ((playerAppearances[playerId] || 0) + 1) / tentativeTotal * 100;
         if (pct > input.globalMaxExposure) return true;
       }
-      // Per-player cap
       const perCap = input.perPlayerMaxExposure?.[String(playerId)];
       if (perCap !== undefined) {
         const pct = ((playerAppearances[playerId] || 0) + 1) / tentativeTotal * 100;
@@ -206,11 +211,10 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
       const captain = pool.find(p => p.id === captainId);
       if (!captain) return null;
 
-      const captainSalary = getEffectiveSalary(captain.salary, true, config);
-      const captainProj   = getShowdownProjectedPoints(getEffectiveProjection(captain), true, config);
+      const captainSalary   = getEffectiveSalary(captain.salary, true, config);
+      const captainProj     = getShowdownProjectedPoints(getEffectiveProjection(captain), true, config);
       const remainingSalary = config.salaryCap - captainSalary;
 
-      // Flex pool: exclude captain, hard-excluded, and exposure-capped players
       const flexPool = pool.filter(p => {
         if (p.id === captainId) return false;
         if (input.globalMaxExposure !== undefined && isPlayerCapped(p.id, targetLineupIndex)) return false;
@@ -233,15 +237,14 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
         const vName = `p${p.id}`;
         model.variables[vName] = {
           projectedPoints: getEffectiveProjection(p),
-          salary: p.salary,
-          rosterSize: 1,
+          salary:          p.salary,
+          rosterSize:      1,
           [`bound_${vName}`]: 1,
         };
-        model.ints[vName] = 1;
-        model.constraints[`bound_${vName}`] = { max: 1 };
-
+        model.ints[vName]                        = 1;
+        model.constraints[`bound_${vName}`]      = { max: 1 };
         if (lockedFlexIds.includes(p.id)) {
-          model.constraints[`lock_${vName}`] = { equal: 1 };
+          model.constraints[`lock_${vName}`]     = { equal: 1 };
           model.variables[vName][`lock_${vName}`] = 1;
         }
       });
@@ -249,10 +252,9 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
       const result: any = solver.Solve(model);
       if (!result.feasible) return null;
 
-      const flexIds = Object.keys(result)
+      const flexIds     = Object.keys(result)
         .filter(k => k.startsWith("p") && result[k] > 0.5)
         .map(k => Number(k.substring(1)));
-
       const flexPlayers = flexPool.filter(p => flexIds.includes(p.id));
       if (flexPlayers.length !== flexCount) return null;
 
@@ -263,18 +265,8 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
       const totalProj   = captainProj   + flexPlayers.reduce((s, p) => s + getEffectiveProjection(p), 0);
 
       return {
-        captain: {
-          ...captain,
-          effectiveSalary: captainSalary,
-          effectiveProjection: captainProj,
-          isCaptain: true,
-        },
-        flexPlayers: flexPlayers.map(p => ({
-          ...p,
-          effectiveSalary: p.salary,
-          effectiveProjection: getEffectiveProjection(p),
-          isCaptain: false,
-        })),
+        captain:     { ...captain,     effectiveSalary: captainSalary, effectiveProjection: captainProj,             isCaptain: true  },
+        flexPlayers: flexPlayers.map(p => ({ ...p, effectiveSalary: p.salary,         effectiveProjection: getEffectiveProjection(p), isCaptain: false })),
         totalSalary,
         totalProjectedPoints: Math.round(totalProj * 100) / 100,
         key,
@@ -291,13 +283,8 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
     if (input.lockedCaptainId) {
       for (let i = 0; i < input.lineupCount && i < 20; i++) {
         const result = solveShowdown(input.lockedCaptainId, input.lockedFlexIds, usedKeys, i + 1);
-        if (result) {
-          lineups.push(result);
-          usedKeys.add(result.key);
-          recordAppearances(result);
-        } else {
-          break;
-        }
+        if (result) { lineups.push(result); usedKeys.add(result.key); recordAppearances(result); }
+        else break;
       }
     } else {
       const candidates = [...pool]
@@ -307,11 +294,7 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
       for (const candidate of candidates) {
         if (lineups.length >= input.lineupCount) break;
         const result = solveShowdown(candidate.id, input.lockedFlexIds, usedKeys, lineups.length + 1);
-        if (result) {
-          lineups.push(result);
-          usedKeys.add(result.key);
-          recordAppearances(result);
-        }
+        if (result) { lineups.push(result); usedKeys.add(result.key); recordAppearances(result); }
       }
 
       lineups.sort((a, b) => b.totalProjectedPoints - a.totalProjectedPoints);
@@ -325,21 +308,21 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
     res.json({
       lineups,
       config: {
-        captainLabel: config.captainLabel,
-        flexLabel: config.flexLabel,
+        captainLabel:      config.captainLabel,
+        flexLabel:         config.flexLabel,
         captainMultiplier: config.captainMultiplier,
-        salaryCap: config.salaryCap,
-        rosterSize: config.rosterSize,
+        salaryCap:         config.salaryCap,
+        rosterSize:        config.rosterSize,
       },
     });
   } catch (err) {
-    if (err instanceof z.ZodError) {
-      return res.status(400).json({ message: err.errors[0].message });
-    }
+    if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
     console.error("Showdown optimize error:", err);
     res.status(500).json({ message: "Showdown optimizer failed" });
   }
 });
+
+// ── POST /api/showdown/save ───────────────────────────────────────────────────
 
 showdownRouter.post("/api/showdown/save", async (req, res) => {
   if (!isLoggedIn(req)) return res.sendStatus(401);
@@ -348,13 +331,13 @@ showdownRouter.post("/api/showdown/save", async (req, res) => {
   try {
     const { slateId, sport, platform, captainId, flexIds, totalSalary, totalProjectedPoints, playerSnapshot } = req.body;
 
-    const sub = await storage.getSubscription(userId);
-    const dbUser = await storage.getUser(userId);
+    const sub     = await storage.getSubscription(userId);
+    const dbUser  = await storage.getUser(userId);
     const isAdmin = dbUser?.isAdmin === true;
-    const tier = isAdmin ? "pro" : (sub?.tier || "free");
+    const tier    = isAdmin ? "pro" : (sub?.tier || "free");
 
     const maxPerSport = isAdmin ? 500 : tier === "pro" ? 300 : tier === "star" ? 20 : 1;
-    const sportCount = await storage.getLineupCountBySport(userId, sport);
+    const sportCount  = await storage.getLineupCountBySport(userId, sport);
     if (sportCount >= maxPerSport) {
       return res.status(403).json({
         message: `You've reached the maximum of ${maxPerSport} saved lineups per sport.`,
@@ -362,17 +345,16 @@ showdownRouter.post("/api/showdown/save", async (req, res) => {
       });
     }
 
-    const allPlayerIds = [captainId, ...flexIds];
     const lineup = await storage.createLineup({
       userId,
       slateId,
       sport,
-      platform: (["draftkings","fanduel","yahoo"].includes(platform) ? platform : "draftkings") as string,
-      playerIds: allPlayerIds,
-      totalSalary: totalSalary.toString(),
+      platform: (["draftkings", "fanduel", "yahoo"].includes(platform) ? platform : "draftkings") as string,
+      playerIds:            [captainId, ...flexIds],
+      totalSalary:          totalSalary.toString(),
       totalProjectedPoints: totalProjectedPoints.toString(),
-      status: "active",
-      playerSnapshot: playerSnapshot || null,
+      status:               "active",
+      playerSnapshot:       playerSnapshot || null,
     });
 
     res.status(201).json(lineup);

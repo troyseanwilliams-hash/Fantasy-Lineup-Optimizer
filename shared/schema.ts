@@ -38,6 +38,11 @@ export const slates = pgTable("slates", {
   isMain: boolean("is_main").notNull().default(true),
   isActive: boolean("is_active").notNull().default(true),
   draftGroupId: integer("draft_group_id"),
+  gameType: text("game_type"),
+  label: text("label"),
+  gameCount: integer("game_count").notNull().default(0),
+  contestCount: integer("contest_count").notNull().default(0),
+  salaryCap: integer("salary_cap"),
 });
 
 export const insertSlateSchema = createInsertSchema(slates).omit({ id: true });

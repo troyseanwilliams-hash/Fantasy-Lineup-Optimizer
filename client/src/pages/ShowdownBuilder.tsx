@@ -215,19 +215,56 @@ export default function ShowdownBuilder() {
     return map;
   }, [scoutSignals]);
 
+  // ── Reset helper — clears ALL player-specific state on slate switch ──────
+  function resetForSlate(newSlateId: number | null) {
+    setCaptainId(null);
+    setLockedFlexIds([]);
+    setExcludedIds([]);
+    setGameFilter("");
+    setSearchTerm("");
+    setPosFilter("ALL");
+    setTeamFilter("ALL");
+    setSalaryRange(null);
+    setPlayerSettings({});
+    setExpandedSettingsId(null);
+    setGeneratedLineups([]);
+    setShowdownConfig(null);
+    setSavedLineupIndices(new Set());
+    setActiveLineupIdx(0);
+    setSelectedSlateId(newSlateId);
+  }
+
   // ── Slates ─────────────────────────────────────────────────────────────────
-  const { data: slates, isLoading: slatesLoading } = useQuery<Slate[]>({
-    queryKey: ["/api/showdown/slates", sport],
+  interface SlateOption {
+    id:           number;
+    sport:        string;
+    platform:     string;
+    gameType:     string;
+    label:        string;
+    startTime:    string;
+    isMain:       boolean;
+    gameCount:    number;
+    contestCount: number;
+    salaryCap:    number;
+  }
+
+  const { data: slates, isLoading: slatesLoading } = useQuery<SlateOption[]>({
+    queryKey: ["/api/showdown/slates", sport, platform],
     queryFn: async () => {
-      const res = await fetch(`/api/showdown/slates?sport=${sport}`, { credentials: "include" });
+      const res = await fetch(
+        `/api/showdown/slates?sport=${sport}&platform=${platform}`,
+        { credentials: "include" },
+      );
       if (!res.ok) throw new Error("Failed to fetch slates");
-      const data = await res.json();
+      const data: SlateOption[] = await res.json();
       if (data.length > 0 && !selectedSlateId) {
-        const main = data.find((s: Slate) => s.isMain) || data[data.length - 1];
+        const main = data.find(s => s.isMain) ?? data[0];
         setSelectedSlateId(main.id);
       }
       return data;
     },
+    refetchOnWindowFocus: true,
+    staleTime: 5 * 60 * 1000,
   });
 
   // ── Players ────────────────────────────────────────────────────────────────
@@ -505,7 +542,7 @@ export default function ShowdownBuilder() {
                 key={s}
                 variant={sport === s ? "default" : "outline"}
                 size="sm"
-                onClick={() => { setSport(s); setSelectedSlateId(null); setGeneratedLineups([]); setCaptainId(null); setLockedFlexIds([]); setExcludedIds([]); setGameFilter(""); }}
+                onClick={() => { setSport(s); resetForSlate(null); }}
                 className={sport === s ? "bg-amber-600 hover:bg-amber-700 h-8" : "border-slate-600 text-slate-300 h-8"}
                 data-testid={`showdown-sport-${s.toLowerCase()}`}
               >
@@ -519,15 +556,25 @@ export default function ShowdownBuilder() {
         <div className="flex flex-col sm:flex-row gap-2 mb-4">
           <Select
             value={selectedSlateId?.toString() || ""}
-            onValueChange={v => { setSelectedSlateId(Number(v)); setGeneratedLineups([]); setCaptainId(null); setLockedFlexIds([]); setExcludedIds([]); setGameFilter(""); }}
+            onValueChange={v => resetForSlate(Number(v))}
           >
-            <SelectTrigger className="bg-slate-800 border-slate-600 text-white sm:max-w-xs" data-testid="select-slate">
+            <SelectTrigger className="bg-slate-800 border-slate-600 text-white sm:max-w-sm" data-testid="select-slate">
               <SelectValue placeholder={slatesLoading ? "Loading slates..." : "Select a slate"} />
             </SelectTrigger>
             <SelectContent>
               {(slates || []).map(s => (
                 <SelectItem key={s.id} value={s.id.toString()}>
-                  {s.sport} - {new Date(s.startTime).toLocaleDateString()} {new Date(s.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  <div className="flex items-center gap-2">
+                    {s.isMain && (
+                      <span className="text-amber-400 text-[10px] font-black">★</span>
+                    )}
+                    <span>{s.label}</span>
+                    {s.gameCount > 0 && !s.label.includes("game") && (
+                      <span className="text-slate-500 text-[11px]">
+                        · {s.gameCount}G
+                      </span>
+                    )}
+                  </div>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -563,7 +610,16 @@ export default function ShowdownBuilder() {
             <CardContent className="p-12 text-center" data-testid="showdown-select-slate">
               <Swords className="w-16 h-16 text-slate-600 mx-auto mb-4" />
               <h3 className="text-lg font-bold text-white mb-2">Select a Slate</h3>
-              <p className="text-slate-400">Choose a {sport} slate above to start building showdown lineups.</p>
+              <p className="text-slate-400">
+                {slates && slates.length > 0
+                  ? `${slates.length} ${sport} slate${slates.length > 1 ? "s" : ""} available — pick one above.`
+                  : `Choose a ${sport} slate above to start building showdown lineups.`}
+              </p>
+              {slates && slates.length > 1 && (
+                <p className="text-slate-500 text-xs mt-2">
+                  ★ marks the main Classic slate
+                </p>
+              )}
             </CardContent>
           </Card>
         ) : playersLoading ? (
