@@ -66,6 +66,18 @@ const showdownOptimizeSchema = z.object({
   excludedPlayerIds: z.array(z.number()).default([]),
   lineupCount: z.number().min(1).max(20).default(1),
   gameFilter: z.string().optional(),
+  projectionMode: z.enum(["balanced", "ceiling"]).default("balanced"),
+  leverageMode: z.boolean().default(false),
+  useBoosts: z.boolean().default(false),
+  globalMaxExposure: z.number().min(1).max(100).optional(),
+  // Merged projection overrides (custom + scout boosts pre-merged by client)
+  playerProjections: z.record(z.string(), z.number()).optional(),
+  playerMinSalary: z.number().optional(),
+  playerMaxSalary: z.number().optional(),
+  // Per-player settings (new)
+  perPlayerMaxExposure: z.record(z.string(), z.number()).optional(),
+  ownershipOverrides: z.record(z.string(), z.number()).optional(),
+  fadedPlayerIds: z.array(z.number()).default([]),
 });
 
 showdownRouter.post("/api/showdown/optimize", async (req, res) => {
@@ -79,8 +91,13 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
 
     const allPlayers = await storage.getPlayersBySlate(input.slateId);
 
+    // Hard excludes: OUT/Questionable + user-excluded
     let pool = allPlayers.filter(p => !input.excludedPlayerIds.includes(p.id));
     pool = pool.filter(p => p.injuryStatus !== "OUT" && p.injuryStatus !== "Questionable");
+
+    // Salary filter
+    if (input.playerMinSalary !== undefined) pool = pool.filter(p => p.salary >= input.playerMinSalary!);
+    if (input.playerMaxSalary !== undefined) pool = pool.filter(p => p.salary <= input.playerMaxSalary!);
 
     if (input.gameFilter) {
       pool = pool.filter(p => p.gameInfo === input.gameFilter || p.opponent === input.gameFilter);
@@ -90,19 +107,76 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
       return res.status(400).json({ message: "Not enough eligible players for a showdown lineup." });
     }
 
+    // Build an effective projection lookup (already merged by client: custom + scout)
+    const projOverrides: Record<number, number> = {};
+    if (input.playerProjections) {
+      for (const [pid, proj] of Object.entries(input.playerProjections)) {
+        projOverrides[Number(pid)] = proj;
+      }
+    }
+
+    // Faded players get a downweight factor applied to their projection
+    const FADE_MULTIPLIER = 0.5;
+    const fadedSet = new Set(input.fadedPlayerIds);
+
+    function getEffectiveProjection(p: Player): number {
+      const base = projOverrides[p.id] ?? Number(p.projectedPoints) ?? 0;
+      // Ceiling mode: scale by variance proxy (boost above-average projections)
+      let proj = input.projectionMode === "ceiling"
+        ? base * (base >= 25 ? 1.12 : base >= 15 ? 1.05 : 1.0)
+        : base;
+      // Leverage mode: penalise high-ownership players slightly
+      if (input.leverageMode) {
+        const own = (input.ownershipOverrides?.[String(p.id)] ?? Number((p as any).ownershipProjection) ?? 20) / 100;
+        proj = proj * (1 - own * 0.08); // up to ~8% haircut at 100% ownership
+      }
+      // Faded players
+      if (fadedSet.has(p.id)) proj *= FADE_MULTIPLIER;
+      return Math.max(0, proj);
+    }
+
     const flexCount = config.rosterSize - 1;
     const lineups: any[] = [];
     const usedKeys = new Set<string>();
 
-    function solveShowdown(captainId: number, lockedFlexIds: number[], excludeFromResult: Set<string>): any | null {
+    // Tracker for per-player exposure across generated lineups
+    const playerAppearances: Record<number, number> = {};
+
+    function isPlayerCapped(playerId: number, tentativeTotal: number): boolean {
+      // Global cap
+      if (input.globalMaxExposure !== undefined) {
+        const pct = ((playerAppearances[playerId] || 0) + 1) / tentativeTotal * 100;
+        if (pct > input.globalMaxExposure) return true;
+      }
+      // Per-player cap
+      const perCap = input.perPlayerMaxExposure?.[String(playerId)];
+      if (perCap !== undefined) {
+        const pct = ((playerAppearances[playerId] || 0) + 1) / tentativeTotal * 100;
+        if (pct > perCap) return true;
+      }
+      return false;
+    }
+
+    function solveShowdown(
+      captainId: number,
+      lockedFlexIds: number[],
+      excludeFromResult: Set<string>,
+      targetLineupIndex: number,
+    ): any | null {
       const captain = pool.find(p => p.id === captainId);
       if (!captain) return null;
 
       const captainSalary = getEffectiveSalary(captain.salary, true, config);
-      const captainProj = getShowdownProjectedPoints(Number(captain.projectedPoints), true, config);
+      const captainProj   = getShowdownProjectedPoints(getEffectiveProjection(captain), true, config);
       const remainingSalary = config.salaryCap - captainSalary;
 
-      const flexPool = pool.filter(p => p.id !== captainId);
+      // Flex pool: exclude captain, hard-excluded, and exposure-capped players
+      const flexPool = pool.filter(p => {
+        if (p.id === captainId) return false;
+        if (input.globalMaxExposure !== undefined && isPlayerCapped(p.id, targetLineupIndex)) return false;
+        if (input.perPlayerMaxExposure?.[String(p.id)] !== undefined && isPlayerCapped(p.id, targetLineupIndex)) return false;
+        return true;
+      });
 
       const model: any = {
         optimize: "projectedPoints",
@@ -118,7 +192,7 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
       flexPool.forEach(p => {
         const vName = `p${p.id}`;
         model.variables[vName] = {
-          projectedPoints: Number(p.projectedPoints),
+          projectedPoints: getEffectiveProjection(p),
           salary: p.salary,
           rosterSize: 1,
           [`bound_${vName}`]: 1,
@@ -146,7 +220,7 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
       if (excludeFromResult.has(key)) return null;
 
       const totalSalary = captainSalary + flexPlayers.reduce((s, p) => s + p.salary, 0);
-      const totalProj = captainProj + flexPlayers.reduce((s, p) => s + Number(p.projectedPoints), 0);
+      const totalProj   = captainProj   + flexPlayers.reduce((s, p) => s + getEffectiveProjection(p), 0);
 
       return {
         captain: {
@@ -158,7 +232,7 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
         flexPlayers: flexPlayers.map(p => ({
           ...p,
           effectiveSalary: p.salary,
-          effectiveProjection: Number(p.projectedPoints),
+          effectiveProjection: getEffectiveProjection(p),
           isCaptain: false,
         })),
         totalSalary,
@@ -167,33 +241,36 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
       };
     }
 
+    function recordAppearances(lineup: any) {
+      playerAppearances[lineup.captain.id] = (playerAppearances[lineup.captain.id] || 0) + 1;
+      for (const p of lineup.flexPlayers) {
+        playerAppearances[p.id] = (playerAppearances[p.id] || 0) + 1;
+      }
+    }
+
     if (input.lockedCaptainId) {
       for (let i = 0; i < input.lineupCount && i < 20; i++) {
-        const result = solveShowdown(input.lockedCaptainId, input.lockedFlexIds, usedKeys);
+        const result = solveShowdown(input.lockedCaptainId, input.lockedFlexIds, usedKeys, i + 1);
         if (result) {
           lineups.push(result);
           usedKeys.add(result.key);
-          if (lineups.length < input.lineupCount) {
-            input.excludedPlayerIds.push(
-              result.flexPlayers[result.flexPlayers.length - 1].id
-            );
-            pool = pool.filter(p => !input.excludedPlayerIds.includes(p.id));
-          }
+          recordAppearances(result);
         } else {
           break;
         }
       }
     } else {
       const candidates = [...pool]
-        .sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints))
+        .sort((a, b) => getEffectiveProjection(b) - getEffectiveProjection(a))
         .slice(0, Math.min(pool.length, 30));
 
       for (const candidate of candidates) {
         if (lineups.length >= input.lineupCount) break;
-        const result = solveShowdown(candidate.id, input.lockedFlexIds, usedKeys);
+        const result = solveShowdown(candidate.id, input.lockedFlexIds, usedKeys, lineups.length + 1);
         if (result) {
           lineups.push(result);
           usedKeys.add(result.key);
+          recordAppearances(result);
         }
       }
 
@@ -205,7 +282,16 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
       return res.status(400).json({ message: "Could not generate any feasible showdown lineups." });
     }
 
-    res.json({ lineups, config: { captainLabel: config.captainLabel, flexLabel: config.flexLabel, captainMultiplier: config.captainMultiplier, salaryCap: config.salaryCap, rosterSize: config.rosterSize } });
+    res.json({
+      lineups,
+      config: {
+        captainLabel: config.captainLabel,
+        flexLabel: config.flexLabel,
+        captainMultiplier: config.captainMultiplier,
+        salaryCap: config.salaryCap,
+        rosterSize: config.rosterSize,
+      },
+    });
   } catch (err) {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ message: err.errors[0].message });

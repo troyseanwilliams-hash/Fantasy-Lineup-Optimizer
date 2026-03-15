@@ -8,6 +8,7 @@ import { getEasternToday } from "./balldontlie";
 import { fetchPrizePicksProjections, getSupportedPPSports } from "./prizepicks";
 import { refreshRecentlyPlayed } from "./espn-activity";
 import { runNightlyAnalysis } from "./winning-lineup-agent";
+import { runScoutForAllSports } from "./ai-scout";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { users } from "@shared/models/auth";
@@ -281,6 +282,27 @@ app.use((req, res, next) => {
             } catch {}
           }
           log("PrizePicks cache pre-warm completed", "cron");
+
+          try {
+            await runScoutForAllSports(async (sport: string) => {
+              const allSlates = await storage.getSlates();
+              const sportSlates = allSlates.filter(
+                (s: any) => s.sport?.toUpperCase() === sport && s.platform === "draftkings"
+              );
+              if (sportSlates.length === 0) return [];
+              const slatePlayers = await storage.getPlayersBySlate(sportSlates[0].id);
+              return slatePlayers.map((p: any) => ({
+                name: p.name,
+                team: p.team || "",
+                position: p.position || "",
+                salary: p.salary || 0,
+                fppg: p.projectedPoints || null,
+              }));
+            });
+            log("AI Scout startup refresh completed", "cron");
+          } catch (err) {
+            console.error("AI Scout startup refresh failed:", err);
+          }
         } catch (err) {
           console.error("Startup initialization failed:", err);
         }
@@ -306,7 +328,28 @@ app.use((req, res, next) => {
               if (projs.length > 0) log(`PrizePicks ${sport}: refreshed ${projs.length} projections`, "cron");
             } catch {}
           }
-          log("Scheduled seed data refresh + props + PrizePicks completed", "cron");
+          try {
+            await runScoutForAllSports(async (sport: string) => {
+              const allSlates = await storage.getSlates();
+              const sportSlates = allSlates.filter(
+                (s: any) => s.sport?.toUpperCase() === sport && s.platform === "draftkings"
+              );
+              if (sportSlates.length === 0) return [];
+              const slatePlayers = await storage.getPlayersBySlate(sportSlates[0].id);
+              return slatePlayers.map((p: any) => ({
+                name: p.name,
+                team: p.team || "",
+                position: p.position || "",
+                salary: p.salary || 0,
+                fppg: p.projectedPoints || null,
+              }));
+            });
+            log("AI Scout hourly refresh completed", "cron");
+          } catch (err) {
+            console.error("AI Scout hourly refresh failed:", err);
+          }
+
+          log("Scheduled seed data refresh + props + PrizePicks + Scout completed", "cron");
         } catch (err) {
           console.error("Scheduled seed refresh failed:", err);
         }
