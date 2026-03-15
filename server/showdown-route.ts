@@ -5,6 +5,7 @@ import { z } from "zod";
 import solver from "javascript-lp-solver";
 import { getShowdownConfig, getEffectiveSalary, getShowdownProjectedPoints, type Platform } from "@shared/platform-config";
 import type { Player } from "@shared/schema";
+import { getCachedSignals } from "./ai-scout";
 
 function getSessionUserId(req: Request): string | null {
   return (req.session as any)?.userId || null;
@@ -153,7 +154,6 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
       return res.status(400).json({ message: "Not enough eligible players for a showdown lineup." });
     }
 
-    // Build an effective projection lookup (already merged by client: custom + scout)
     const projOverrides: Record<number, number> = {};
     if (input.playerProjections) {
       for (const [pid, proj] of Object.entries(input.playerProjections)) {
@@ -161,12 +161,28 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
       }
     }
 
-    // Faded players get a downweight factor applied to their projection
+    const scoutSignals = getCachedSignals(input.sport);
+    const scoutMap = new Map<string, number>();
+    for (const sig of scoutSignals) {
+      const key = sig.player_name.toLowerCase();
+      if (!scoutMap.has(key) || Math.abs(sig.boost_weight) > Math.abs(scoutMap.get(key)!)) {
+        scoutMap.set(key, sig.boost_weight);
+      }
+    }
+
     const FADE_MULTIPLIER = 0.5;
     const fadedSet = new Set(input.fadedPlayerIds);
 
     function getEffectiveProjection(p: Player): number {
-      const base = projOverrides[p.id] ?? Number(p.projectedPoints) ?? 0;
+      const hasCustom = projOverrides[p.id] !== undefined;
+      let base = projOverrides[p.id] ?? Number(p.projectedPoints) ?? 0;
+      if (!hasCustom) {
+        const scoutWeight = scoutMap.get(p.name.toLowerCase());
+        if (scoutWeight !== undefined) {
+          const pct = Math.max(-0.15, Math.min(0.15, scoutWeight * 0.015));
+          base = Math.round(base * (1 + pct) * 10) / 10;
+        }
+      }
       // Ceiling mode: scale by variance proxy (boost above-average projections)
       let proj = input.projectionMode === "ceiling"
         ? base * (base >= 25 ? 1.12 : base >= 15 ? 1.05 : 1.0)

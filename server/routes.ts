@@ -44,6 +44,31 @@ function isPlayerUnavailable(injuryStatus: string | null): boolean {
   return isPlayerOut(injuryStatus) || s === "QUESTIONABLE" || s === "GTD";
 }
 
+type ScoutSignalMap = Map<string, { signal_type: string; boost_weight: number }>;
+
+function buildScoutMap(sport: string): ScoutSignalMap {
+  const signals = getCachedSignals(sport);
+  const map: ScoutSignalMap = new Map();
+  for (const sig of signals) {
+    const key = sig.player_name.toLowerCase();
+    const existing = map.get(key);
+    if (!existing || Math.abs(sig.boost_weight) > Math.abs(existing.boost_weight)) {
+      map.set(key, { signal_type: sig.signal_type, boost_weight: sig.boost_weight });
+    }
+  }
+  return map;
+}
+
+function applyScoutToProjection(pts: number, playerName: string, scoutMap: ScoutSignalMap, hasCustomProjection?: boolean): number {
+  if (hasCustomProjection) return pts;
+  const sig = scoutMap.get(playerName.toLowerCase());
+  if (!sig) return pts;
+  if (sig.signal_type === "out") return 0;
+  const pct = sig.boost_weight * 0.015;
+  const clamped = Math.max(-0.15, Math.min(0.15, pct));
+  return Math.round(pts * (1 + clamped) * 10) / 10;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -406,6 +431,9 @@ export async function registerRoutes(
       const filteredInactive = inactiveExcluded.filter(id => !mergedLocked.includes(id));
       const mergedExclusions = [...new Set([...constraints.excludedPlayerIds, ...autoExcluded, ...filteredInactive, ...overrideExcluded])];
 
+      const scoutMap = buildScoutMap(slate.sport);
+      const useBoosts = constraints.useBoosts !== false;
+
       let pool = allPlayers.map(p => {
         const override = overrideMap.get(p.id);
         const customProj = constraints.playerProjections?.[p.id.toString()]
@@ -417,8 +445,12 @@ export async function registerRoutes(
         if (p.isConfirmedStarter) {
           proj = Math.round(proj * 1.05 * 10) / 10;
         }
+        if (useBoosts && p.boostScore) {
+          const boostPct = Math.max(-0.15, Math.min(0.15, Number(p.boostScore) * 0.015));
+          proj = Math.round(proj * (1 + boostPct) * 10) / 10;
+        }
+        proj = applyScoutToProjection(proj, p.name, scoutMap, customProj !== undefined);
         if (isPlayerOut(p.injuryStatus)) proj = 0;
-        else if (p.injuryStatus === "Doubtful") proj = proj * 0.3;
         else if (p.injuryStatus === "Questionable" || p.injuryStatus === "GTD") proj = proj * 0.75;
         else if (p.injuryStatus === "Probable" || p.injuryStatus === "DTD") proj = proj * 0.9;
         return { ...p, projectedPoints: proj.toString() };
@@ -896,6 +928,7 @@ export async function registerRoutes(
         const useBoosts = req.body.useBoosts !== false;
         const useCeilingMode = req.body.ceilingMode === true;
         const useLeverageMode = req.body.leverageMode === true;
+        const regenScoutMap = buildScoutMap(slate.sport);
 
         let pool = allPlayers.map(p => {
           let pts = Number(p.projectedPoints);
@@ -906,8 +939,8 @@ export async function registerRoutes(
             const boostPct = Math.max(-0.15, Math.min(0.15, Number(p.boostScore) * 0.015));
             pts = Math.round(pts * (1 + boostPct) * 10) / 10;
           }
+          pts = applyScoutToProjection(pts, p.name, regenScoutMap);
           if (isPlayerOut(p.injuryStatus) || p.injuryStatus === "Questionable" || p.injuryStatus === "GTD") pts = 0;
-          else if (p.injuryStatus === "Doubtful") pts *= 0.3;
           else if (p.injuryStatus === "Probable" || p.injuryStatus === "DTD") pts *= 0.9;
           return { ...p, projectedPoints: pts.toString() };
         });
@@ -2548,6 +2581,8 @@ export async function registerRoutes(
       constraints.lockedPlayerIds = [...new Set([...constraints.lockedPlayerIds, ...proOverrideLocked])];
       constraints.excludedPlayerIds = [...new Set([...constraints.excludedPlayerIds, ...proOverrideExcluded])];
 
+      const proScoutMap = buildScoutMap(slate.sport);
+
       let pool = allPlayers.map(p => {
         const override = proOverrideMap.get(p.id);
         const customProj = constraints.playerProjections?.[p.id.toString()]
@@ -2566,11 +2601,10 @@ export async function registerRoutes(
           const boostPct = Math.max(-0.15, Math.min(0.15, Number(p.boostScore) * 0.015));
           boostedPoints = Math.round(boostedPoints * (1 + boostPct) * 10) / 10;
         }
+        boostedPoints = applyScoutToProjection(boostedPoints, p.name, proScoutMap, customProj !== undefined);
 
         if (isPlayerOut(p.injuryStatus)) {
           boostedPoints = 0;
-        } else if (p.injuryStatus === "Doubtful") {
-          boostedPoints *= 0.3;
         } else if (p.injuryStatus === "Questionable" || p.injuryStatus === "GTD") {
           boostedPoints *= 0.75;
         } else if (p.injuryStatus === "Probable" || p.injuryStatus === "DTD") {
