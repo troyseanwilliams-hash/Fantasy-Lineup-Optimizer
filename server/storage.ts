@@ -86,6 +86,7 @@ export interface IStorage extends IAuthStorage {
 
   createWinningLineup(data: InsertWinningLineup): Promise<WinningLineup>;
   getWinningLineups(sport?: string, limit?: number): Promise<WinningLineup[]>;
+  getWinningLineupsBySport(sport: string): Promise<WinningLineup[]>;
   getWinningLineupBySlateDate(sport: string, slateDate: string, platform?: string): Promise<WinningLineup | undefined>;
   deleteWinningLineup(id: number): Promise<void>;
 
@@ -629,6 +630,12 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(winningLineups)
       .orderBy(desc(winningLineups.slateDate))
       .limit(limit);
+  }
+
+  async getWinningLineupsBySport(sport: string): Promise<WinningLineup[]> {
+    return await db.select().from(winningLineups)
+      .where(eq(winningLineups.sport, sport))
+      .orderBy(desc(winningLineups.slateDate));
   }
 
   async getWinningLineupBySlateDate(sport: string, slateDate: string, platform?: string): Promise<WinningLineup | undefined> {

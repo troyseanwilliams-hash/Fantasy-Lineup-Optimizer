@@ -1,0 +1,16 @@
+Feature 1 — Line Movement Tracking
+prizepicks.ts: A lineHistory map stores up to 24 snapshots per projection (≈2 hours at 5-min polling). recordLineSnapshot() is called after every fresh API fetch, recording only when the line actually changes. getLineMovements(sport) returns a Map<projectionId, LineMovement> with delta, direction, minutesAgo, and totalMoves. Line movement is now a scoring signal in scoreWithData — a ≥2.5 point drop earns +12 to confidence and sets direction to LESS (sharp money signal). Both buildAIEntries and analyzeManualPicks receive and surface movement data, tagging picks with [Line] in the data source indicator.
+PrizePicksBuilder.tsx: ▼ / ▲ badges appear inline next to line numbers on both desktop and mobile cards, colored green for drops (LESS edge) and red for rises (MORE edge). A "▲▼ Moved Lines" filter chip shows only projections with line movement. The movedOnly state is wired into filteredProjections alongside the existing stat and search filters.
+
+Feature 2 — Historical Projection Accuracy
+projection-accuracy-route.ts (new file): buildAccuracyIndex(sport) scans all stored winning_lineups records, extracts insights.projectionAccuracy from each, and aggregates per player: hitRate (% of slates they beat their projection), avgDelta (avg actual − projected in FP), avgRatio, and slatesAnalyzed. Results are cached 10 minutes. Three endpoints: GET /api/projection-accuracy/:sport (full index), GET /api/projection-accuracy/:sport/:playerName (single-player hover), POST /api/projection-accuracy/cache/clear (admin reset). Register it with app.use(projectionAccuracyRouter).
+Optimizer.tsx: Fetches the accuracy index when players load. hitRateMap normalizes names for fuzzy lookup. A Hit% column appears in the desktop table header. Each row shows a color-coded badge — green (≥60%), neutral (45–59%), red (<45%) — with a full tooltip showing slates analyzed and average delta.
+
+Feature 3 — Cash/GPP Optimizer Toggle
+optimizer-route.ts: contestType: z.enum(["cash", "gpp"]).default("cash") added to both schemas. getEffectiveProjection now branches on contest type: Cash rewards players whose projection ≥ FPPG with a small floor bonus (+3%) and skips ceiling multipliers entirely, keeping the solver focused on safe, consistent picks. GPP applies the existing ceiling multiplier (up to 1.12×) and doubles the leverage penalty (0.12× vs 0.05×) to more aggressively down-weight chalk. Both POST handlers pass contestType through to solveLineup.
+Optimizer.tsx: A two-button toggle (💵 Cash / 🏆 GPP) sits above the Optimize button with a contextual description line below it. contestType state is included in the optimize payload, cleared on slate change and handleReset.
+
+One integration step needed: register the new route in your server entry file:
+tsimport { projectionAccuracyRouter } from "./projection-accuracy-route";
+app.use(projectionAccuracyRouter);
+And add getWinningLineupsBySport(sport: string) to your storage layer if it doesn't already exist — it should return all winning lineup records for that sport, which buildAccuracyIndex iterates over.

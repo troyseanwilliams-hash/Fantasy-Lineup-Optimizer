@@ -13,6 +13,66 @@ export function getSupportedPPSports(): string[] {
   return Object.keys(PP_SPORTS);
 }
 
+const cache = new Map<string, { data: any[]; timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000;
+const MAX_HISTORY = 24;
+const lineHistory = new Map<string, Array<{ line: number; timestamp: number }>>();
+
+export interface LineMovement {
+  projectionId: string;
+  currentLine: number;
+  previousLine: number;
+  delta: number;
+  direction: "up" | "down";
+  minutesAgo: number;
+  totalMoves: number;
+}
+
+function recordLineSnapshot(projections: any[]): void {
+  const now = Date.now();
+  for (const proj of projections) {
+    const history = lineHistory.get(proj.id) || [];
+    const last = history[history.length - 1];
+    if (!last || last.line !== proj.line) {
+      history.push({ line: proj.line, timestamp: now });
+      if (history.length > MAX_HISTORY) history.shift();
+      lineHistory.set(proj.id, history);
+    }
+  }
+}
+
+export function getLineMovements(sport: string): Map<string, LineMovement> {
+  const cacheKey = `pp_${sport}`;
+  const cached = cache.get(cacheKey);
+  if (!cached) return new Map();
+
+  const movements = new Map<string, LineMovement>();
+  const now = Date.now();
+
+  for (const proj of cached.data) {
+    const history = lineHistory.get(proj.id);
+    if (!history || history.length < 2) continue;
+    let prevIdx = history.length - 2;
+    while (prevIdx >= 0 && history[prevIdx].line === proj.line) prevIdx--;
+    if (prevIdx < 0) continue;
+    const previousLine = history[prevIdx].line;
+    const delta = Math.round((proj.line - previousLine) * 10) / 10;
+    if (delta === 0) continue;
+    const minutesAgo = Math.round((now - history[prevIdx + 1].timestamp) / 60000);
+    const totalMoves = history.filter((h, i) => i > 0 && h.line !== history[i - 1].line).length;
+    movements.set(proj.id, {
+      projectionId: proj.id,
+      currentLine: proj.line,
+      previousLine,
+      delta,
+      direction: delta > 0 ? "up" : "down",
+      minutesAgo,
+      totalMoves,
+    });
+  }
+  return movements;
+}
+
 const SPORT_STAT_TYPES: Record<string, Array<{ stat: string; fraction: number; variance: number }>> = {
   NBA: [
     { stat: "Points", fraction: 0.40, variance: 0.15 },

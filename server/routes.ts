@@ -28,6 +28,7 @@ import { fetchBDLStats, type PlayerStatsMap, normalizeName } from "./balldontlie
 import { refreshRecentlyPlayed, getRecentlyPlayedCache, normalizePlayerName } from "./espn-activity";
 import { calculateOwnership, computeOwnershipForPlayers, type ContestType } from "./ownership-engine";
 import { getCachedSignals, getScoutStatus, refreshAll, forceRefreshAll, secondsUntilRefresh } from "./ai-scout";
+import { projectionAccuracyRouter } from "./projection-accuracy-route";
 
 
 const YAHOO_OUT_STATUSES = new Set(["INJ", "O", "OUT", "IR", "SUS", "NA"]);
@@ -434,7 +435,8 @@ export async function registerRoutes(
           })
         : pool;
 
-      const result = solveLineup(salaryFilteredPool, { ...constraints, lockedPlayerIds: mergedLocked, excludedPlayerIds: mergedExclusions }, slate.sport, platform);
+      const contestType = constraints.contestType || "cash";
+      const result = solveLineup(salaryFilteredPool, { ...constraints, lockedPlayerIds: mergedLocked, excludedPlayerIds: mergedExclusions, contestType }, slate.sport, platform);
 
       if (result.error) {
         if (constraints.projectedPointsFloor) {
@@ -2987,6 +2989,8 @@ export async function registerRoutes(
     }
   });
 
+  app.use(projectionAccuracyRouter);
+
   return httpServer;
 }
 
@@ -3371,6 +3375,7 @@ async function getInactivePlayerIds(players: Player[], sport: string): Promise<{
 
 function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport: string, platform: Platform) {
   const config = getPlatformConfig(sport, platform);
+  const contestType = (constraints as any).contestType || "cash";
   
   const model: any = {
     optimize: "projectedPoints",
@@ -3402,8 +3407,20 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
     const isLocked = constraints.lockedPlayerIds.includes(p.id);
     const variableName = `p${p.id}`;
     
+    let projectedPoints = Number(p.projectedPoints);
+    if (contestType === "cash") {
+      const fppg = Number((p as any).fppg) || projectedPoints;
+      if (fppg > 0 && projectedPoints >= fppg) {
+        projectedPoints = projectedPoints * 1.03;
+      }
+    } else if (contestType === "gpp") {
+      if (projectedPoints >= 30) projectedPoints = projectedPoints * 1.12;
+      else if (projectedPoints >= 20) projectedPoints = projectedPoints * 1.06;
+      else if (projectedPoints > 0) projectedPoints = projectedPoints * 1.02;
+    }
+    
     const variable: any = {
-      projectedPoints: Number(p.projectedPoints),
+      projectedPoints,
       salary: p.salary,
       rosterSize: 1,
       ...buildPositionVariables(p.position, sport),
