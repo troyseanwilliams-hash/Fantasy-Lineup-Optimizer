@@ -2798,8 +2798,17 @@ export async function registerRoutes(
     res.json({ props: visibleProps, tier, totalCount: sorted.length, lockedCount, maxPerSport });
   });
 
-  app.get("/api/scout/status", async (_req, res) => {
+  app.get("/api/scout/status", async (req, res) => {
     try {
+      const userId = getSessionUserId(req);
+      if (!userId) return res.status(401).json({ error: "Authentication required" });
+      const dbUser = await storage.getUser(userId);
+      const isAdmin = dbUser?.isAdmin === true;
+      const sub = await storage.getSubscription(userId);
+      const tier = isAdmin ? "pro" : (sub?.tier || "free");
+      if (!isAdmin && tier !== "star" && tier !== "pro") {
+        return res.status(403).json({ message: "AI Scout is a Sharpshooter / Champion feature.", requiresUpgrade: true });
+      }
       res.json(getScoutStatus());
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -2808,6 +2817,16 @@ export async function registerRoutes(
 
   app.get("/api/scout/signals/:sport", async (req, res) => {
     try {
+      const userId = getSessionUserId(req);
+      if (!userId) return res.status(401).json({ error: "Authentication required" });
+      const dbUser = await storage.getUser(userId);
+      const isAdmin = dbUser?.isAdmin === true;
+      const sub = await storage.getSubscription(userId);
+      const tier = isAdmin ? "pro" : (sub?.tier || "free");
+      if (!isAdmin && tier !== "star" && tier !== "pro") {
+        return res.status(403).json({ message: "AI Scout is a Sharpshooter / Champion feature.", requiresUpgrade: true });
+      }
+
       const sport = (req.params.sport || "NBA").toUpperCase();
       const signals = getCachedSignals(sport);
       res.json({
@@ -2824,9 +2843,11 @@ export async function registerRoutes(
 
   app.post("/api/scout/refresh", async (req, res) => {
     try {
-      if (!isLoggedIn(req)) {
-        return res.status(401).json({ error: "Login required" });
-      }
+      const userId = getSessionUserId(req);
+      if (!userId) return res.status(401).json({ error: "Authentication required" });
+      const dbUser = await storage.getUser(userId);
+      const isAdmin = dbUser?.isAdmin === true;
+      if (!isAdmin) return res.status(403).json({ error: "Admin only" });
 
       forceRefreshAll();
 
