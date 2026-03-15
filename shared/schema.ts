@@ -368,6 +368,7 @@ export const optimizationConstraintSchema = z.object({
   playerMaxSalary: z.number().optional(),
   playerProjections: z.record(z.string(), z.number()).optional(),
   projectedPointsFloor: z.number().min(0).optional(),
+  contestType: z.enum(["cash", "gpp"]).default("cash"),
 });
 
 export type OptimizationConstraints = z.infer<typeof optimizationConstraintSchema>;

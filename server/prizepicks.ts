@@ -165,6 +165,8 @@ export function generateProjectionsFromPlayers(players: Player[], sport: string)
     }
   }
 
+  recordLineSnapshot(projections);
+  cache.set(`pp_${sport}`, { data: projections, timestamp: Date.now() });
   return projections;
 }
 
@@ -230,6 +232,8 @@ export async function fetchPrizePicksProjections(sport: string): Promise<PPProje
       });
     }
     if (projections.length > 0) {
+      recordLineSnapshot(projections);
+      cache.set(`pp_${sport}`, { data: projections, timestamp: Date.now() });
       console.log(`[PrizePicks] Got ${projections.length} live projections for ${sport}`);
     }
     return projections;

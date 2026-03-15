@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -44,9 +44,20 @@ interface PrizePicksProjection {
   status: string;
 }
 
+interface LineMovement {
+  projectionId: string;
+  currentLine: number;
+  previousLine: number;
+  delta: number;
+  direction: "up" | "down";
+  minutesAgo: number;
+  totalMoves: number;
+}
+
 interface PrizePicksResponse {
   sport: string;
   projections: PrizePicksProjection[];
+  lineMovements?: Record<string, LineMovement>;
 }
 
 interface PPEntry {
@@ -273,7 +284,9 @@ export default function PrizePicksBuilder() {
   const [aiBuilding, setAiBuilding] = useState(false);
   const [aiEntriesBySport, setAiEntriesBySport] = useState<Record<string, AIBuiltEntry[]>>({});
   const [sortMode, setSortMode] = useState<"time" | "line-high" | "line-low" | "confidence">("confidence");
+  const [movedOnly, setMovedOnly] = useState(false);
   const [activeTab, setActiveTab] = useState<"builder" | "vault">("builder");
+  useEffect(() => { setMovedOnly(false); }, [selectedSport]);
   const [expandedVaultEntry, setExpandedVaultEntry] = useState<number | null>(null);
   const [swappingProjId, setSwappingProjId] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -350,6 +363,7 @@ export default function PrizePicksBuilder() {
   const [aiError, setAiError] = useState<string | null>(null);
 
   const projections = ppData?.projections || [];
+  const lineMovements = ppData?.lineMovements || {};
 
   const availableStats = useMemo(() => {
     const stats = new Set(projections.map(p => p.statType));
@@ -368,12 +382,14 @@ export default function PrizePicksBuilder() {
     if (statFilter !== "ALL") {
       filtered = filtered.filter(p => p.statType === statFilter);
     }
+    if (movedOnly) {
+      filtered = filtered.filter(p => lineMovements[p.id]);
+    }
     if (sortMode === "line-high") filtered = [...filtered].sort((a, b) => b.line - a.line);
     else if (sortMode === "line-low") filtered = [...filtered].sort((a, b) => a.line - b.line);
     else if (sortMode === "confidence") filtered = [...filtered].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-    // "time" is default (already sorted by startTime from the API)
     return filtered;
-  }, [projections, searchQuery, statFilter, sortMode]);
+  }, [projections, searchQuery, statFilter, sortMode, movedOnly, lineMovements]);
 
   const entrySports = useMemo(() => {
     const sports = new Set(entries.map(e => e.projection.league));
@@ -1081,6 +1097,15 @@ export default function PrizePicksBuilder() {
                     {stat}
                   </Button>
                 ))}
+                <Button
+                  size="sm"
+                  variant={movedOnly ? "default" : "ghost"}
+                  className={movedOnly ? "bg-amber-500 text-black font-bold text-xs" : "text-slate-400 font-bold text-xs border border-slate-700/50"}
+                  onClick={() => setMovedOnly(!movedOnly)}
+                  data-testid="pp-builder-filter-moved"
+                >
+                  <ArrowLeftRight className="w-3 h-3 mr-1" /> Moved Lines
+                </Button>
               </div>
             </div>
 
@@ -1140,7 +1165,22 @@ export default function PrizePicksBuilder() {
                           <Badge className={`${getStatColor(proj.statType)} text-[9px] font-bold border px-1.5 py-0 mb-1`}>
                             {proj.statType}
                           </Badge>
-                          <div className="text-lg font-black text-white">{proj.line}</div>
+                          <div className="flex items-center justify-center gap-1">
+                            <span className="text-lg font-black text-white">{proj.line}</span>
+                            {lineMovements[proj.id] && (
+                              <Badge
+                                className={`text-[8px] font-black px-1 py-0 ${
+                                  lineMovements[proj.id].direction === "down"
+                                    ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                                    : "text-red-400 bg-red-500/10 border-red-500/20"
+                                }`}
+                                title={`Line moved ${lineMovements[proj.id].delta > 0 ? "+" : ""}${lineMovements[proj.id].delta} (${lineMovements[proj.id].minutesAgo}m ago, ${lineMovements[proj.id].totalMoves} total moves)`}
+                                data-testid={`line-movement-${proj.id}`}
+                              >
+                                {lineMovements[proj.id].direction === "down" ? "▼" : "▲"} {Math.abs(lineMovements[proj.id].delta)}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                         <div className="flex flex-col gap-1 shrink-0">
                           {inEntry ? (
@@ -1230,6 +1270,18 @@ export default function PrizePicksBuilder() {
                               {proj.statType}
                             </Badge>
                             <span className="text-lg font-black text-white">{proj.line}</span>
+                            {lineMovements[proj.id] && (
+                              <Badge
+                                className={`text-[8px] font-black px-1 py-0 ${
+                                  lineMovements[proj.id].direction === "down"
+                                    ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                                    : "text-red-400 bg-red-500/10 border-red-500/20"
+                                }`}
+                                data-testid={`line-movement-mobile-${proj.id}`}
+                              >
+                                {lineMovements[proj.id].direction === "down" ? "▼" : "▲"} {Math.abs(lineMovements[proj.id].delta)}
+                              </Badge>
+                            )}
                           </div>
                           <div className="flex gap-1.5">
                             {inEntry ? (

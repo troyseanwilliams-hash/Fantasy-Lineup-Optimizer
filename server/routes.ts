@@ -23,7 +23,7 @@ import { type OptimizationConstraints, type ProOptimizationConstraints, type Pla
 import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus, fetchLivePlayerStatuses, fetchAvailableDKSlates, fetchDKSlateByDraftGroup, fetchDraftables, isPlayerConfirmedStarter, parseEasternTime, getEasternToday } from "./balldontlie";
 import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
 import { getLiveScores, getAllLiveScores, fetchESPNStarters } from "./espn-scores";
-import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analyzeManualPicks, generateProjectionsFromPlayers } from "./prizepicks";
+import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analyzeManualPicks, generateProjectionsFromPlayers, getLineMovements } from "./prizepicks";
 import { fetchBDLStats, type PlayerStatsMap, normalizeName } from "./balldontlie-stats";
 import { refreshRecentlyPlayed, getRecentlyPlayedCache, normalizePlayerName } from "./espn-activity";
 import { calculateOwnership, computeOwnershipForPlayers, type ContestType } from "./ownership-engine";
@@ -2120,10 +2120,15 @@ export async function registerRoutes(
           console.log(`[PrizePicks] Generated ${projections.length} projections from ${dbPlayers.length} DB players for ${sport}`);
         }
       }
-      res.json({ sport, projections });
+      const movements = getLineMovements(sport);
+      const lineMovements: Record<string, any> = {};
+      for (const [id, m] of movements) {
+        lineMovements[id] = m;
+      }
+      res.json({ sport, projections, lineMovements });
     } catch (err) {
       console.error(`[PrizePicks] Error in route for ${req.params.sport}:`, err);
-      res.json({ sport: req.params.sport.toUpperCase(), projections: [] });
+      res.json({ sport: req.params.sport.toUpperCase(), projections: [], lineMovements: {} });
     }
   });
 

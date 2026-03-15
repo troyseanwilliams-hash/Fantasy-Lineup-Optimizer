@@ -86,6 +86,7 @@ export default function Optimizer() {
   const [manualReplacements, setManualReplacements] = useState<Record<string, Player>>({});
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
   const [projectedPointsFloor, setProjectedPointsFloor] = useState<number | null>(null);
+  const [contestType, setContestType] = useState<"cash" | "gpp">("cash");
   const [mobileView, setMobileView] = useState<"players" | "lineup">("players");
 
   const [platform, setPlatform] = useState<Platform>("draftkings");
@@ -93,6 +94,20 @@ export default function Optimizer() {
   const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"], refetchInterval: 300000 });
   const slate = useMemo(() => slates?.find(s => s.id === slateId), [slates, slateId]);
   const sport = (slate?.sport || "NBA") as Sport;
+
+  const { data: accuracyData } = useQuery<{ players: Array<{ playerName: string; hitRate: number; avgDelta: number; slatesAnalyzed: number }> }>({
+    queryKey: ["/api/projection-accuracy", sport],
+    enabled: !!sport,
+    staleTime: 10 * 60 * 1000,
+  });
+  const hitRateMap = useMemo(() => {
+    const map = new Map<string, { hitRate: number; avgDelta: number; slatesAnalyzed: number }>();
+    if (!accuracyData?.players) return map;
+    for (const p of accuracyData.players) {
+      map.set(p.playerName.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim(), p);
+    }
+    return map;
+  }, [accuracyData]);
   const slateHasStarted = slate ? new Date(slate.startTime) <= new Date() : false;
 
   useEffect(() => {
@@ -165,6 +180,7 @@ export default function Optimizer() {
     setManualReplacements({});
     setSalaryRange(null);
     setProjectedPointsFloor(null);
+    setContestType("cash");
   }, [slateId]);
 
   const saveLineupMutation = useMutation({
@@ -358,6 +374,7 @@ export default function Optimizer() {
       playerMaxSalary: salaryRange && salaryRange[1] < salaryBounds.max ? salaryRange[1] : undefined,
       playerProjections: Object.keys(mergedProjections).length > 0 ? mergedProjections : undefined,
       projectedPointsFloor: projectedPointsFloor ?? undefined,
+      contestType,
     });
   };
 
@@ -385,6 +402,7 @@ export default function Optimizer() {
     setManualReplacements({});
     setSalaryRange(null);
     setProjectedPointsFloor(null);
+    setContestType("cash");
     optimizeMutation.reset();
     setLineupName("");
   };
@@ -878,6 +896,7 @@ export default function Optimizer() {
                   </div>
                 </th>
                 <SortHeader label="Value" field="value" />
+                <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400 text-center">Hit%</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/50">
@@ -1034,6 +1053,19 @@ export default function Optimizer() {
                     </td>
                     <td className="px-3 py-2 font-mono text-xs font-bold text-blue-400">
                       {player.value.toFixed(1)}x
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {(() => {
+                        const key = player.name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+                        const acc = hitRateMap.get(key);
+                        if (!acc) return <span className="text-[10px] text-slate-600">—</span>;
+                        const color = acc.hitRate >= 60 ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" : acc.hitRate >= 45 ? "text-slate-300 bg-slate-500/10 border-slate-500/20" : "text-red-400 bg-red-500/10 border-red-500/20";
+                        return (
+                          <Badge variant="outline" className={`text-[10px] font-black px-1.5 py-0 ${color}`} title={`${acc.slatesAnalyzed} slates analyzed, avg delta: ${acc.avgDelta > 0 ? "+" : ""}${acc.avgDelta}`} data-testid={`hit-rate-${player.id}`}>
+                            {acc.hitRate}%
+                          </Badge>
+                        );
+                      })()}
                     </td>
                   </tr>
                 );
@@ -1253,6 +1285,30 @@ export default function Optimizer() {
               <button onClick={() => setProjectedPointsFloor(null)} className="text-slate-500 hover:text-white flex-shrink-0 cursor-pointer" data-testid="button-reset-floor"><X className="w-3 h-3" /></button>
             )}
           </div>
+
+          <div className="flex items-center gap-1.5 mt-1.5" data-testid="contest-type-toggle">
+            <Button
+              size="sm"
+              variant={contestType === "cash" ? "default" : "outline"}
+              onClick={() => setContestType("cash")}
+              className={`flex-1 h-7 text-[10px] sm:text-xs font-black ${contestType === "cash" ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "border-slate-700 text-slate-400 hover:text-white"}`}
+              data-testid="btn-cash"
+            >
+              <DollarSign className="w-3 h-3 mr-1" /> Cash
+            </Button>
+            <Button
+              size="sm"
+              variant={contestType === "gpp" ? "default" : "outline"}
+              onClick={() => setContestType("gpp")}
+              className={`flex-1 h-7 text-[10px] sm:text-xs font-black ${contestType === "gpp" ? "bg-amber-600 hover:bg-amber-700 text-white" : "border-slate-700 text-slate-400 hover:text-white"}`}
+              data-testid="btn-gpp"
+            >
+              <Trophy className="w-3 h-3 mr-1" /> GPP
+            </Button>
+          </div>
+          <p className="text-[9px] text-slate-500 text-center mt-0.5" data-testid="text-contest-desc">
+            {contestType === "cash" ? "Safe, high-floor lineups for cash games" : "High-ceiling, differentiated lineups for tournaments"}
+          </p>
 
           {slateHasStarted && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center mt-1.5" data-testid="slate-locked-msg">
