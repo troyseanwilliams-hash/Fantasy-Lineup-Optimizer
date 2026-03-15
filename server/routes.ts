@@ -30,6 +30,18 @@ import { calculateOwnership, computeOwnershipForPlayers, type ContestType } from
 import { getCachedSignals, getScoutStatus, refreshAll, forceRefreshAll, secondsUntilRefresh } from "./ai-scout";
 
 
+const YAHOO_OUT_STATUSES = new Set(["INJ", "O", "OUT", "IR", "SUS", "NA"]);
+function isPlayerOut(injuryStatus: string | null): boolean {
+  if (!injuryStatus) return false;
+  const s = injuryStatus.toUpperCase().trim();
+  return s === "OUT" || s === "IR" || YAHOO_OUT_STATUSES.has(s);
+}
+function isPlayerUnavailable(injuryStatus: string | null): boolean {
+  if (!injuryStatus) return false;
+  const s = injuryStatus.toUpperCase().trim();
+  return isPlayerOut(injuryStatus) || s === "QUESTIONABLE" || s === "GTD";
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -181,10 +193,7 @@ export async function registerRoutes(
     if (slate && isDK) {
       players = await applyLiveDKStatuses(players, slate.draftGroupId, slate.sport);
     }
-    players = players.filter(p => {
-      const status = (p.injuryStatus || "").toUpperCase();
-      return status !== "OUT" && status !== "IR" && status !== "QUESTIONABLE";
-    });
+    players = players.filter(p => !isPlayerUnavailable(p.injuryStatus));
     if (slate && isDK) {
       await refreshRecentlyPlayed(slate.sport);
       const { inactiveIds: inactiveIdList } = await getInactivePlayerIds(players, slate.sport);
@@ -256,7 +265,7 @@ export async function registerRoutes(
       if (liveStatus) {
         updated.injuryStatus = liveStatus;
         updated.injuryDetail = liveStatus;
-      } else if (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable" || p.injuryStatus === "Doubtful" || p.injuryStatus === "Probable") {
+      } else if (isPlayerOut(p.injuryStatus) || p.injuryStatus === "Questionable" || p.injuryStatus === "Doubtful" || p.injuryStatus === "Probable" || p.injuryStatus === "GTD" || p.injuryStatus === "DTD") {
         if (!liveStatuses.has(p.draftKingsPlayerId)) {
           updated.injuryStatus = null;
           updated.injuryDetail = null;
@@ -388,7 +397,7 @@ export async function registerRoutes(
       const mergedLocked = [...new Set([...constraints.lockedPlayerIds, ...overrideLocked])];
 
       const autoExcluded = allPlayers
-        .filter(p => p.injuryStatus === "OUT" && !mergedLocked.includes(p.id))
+        .filter(p => isPlayerOut(p.injuryStatus) && !mergedLocked.includes(p.id))
         .map(p => p.id);
       const isDKOpt = slate.platform === "draftkings";
       const { inactiveIds: inactiveExcluded } = isDKOpt ? await getInactivePlayerIds(allPlayers, slate.sport) : { inactiveIds: [] };
@@ -406,10 +415,10 @@ export async function registerRoutes(
         if (p.isConfirmedStarter) {
           proj = Math.round(proj * 1.05 * 10) / 10;
         }
-        if (p.injuryStatus === "OUT") proj = 0;
+        if (isPlayerOut(p.injuryStatus)) proj = 0;
         else if (p.injuryStatus === "Doubtful") proj = proj * 0.3;
-        else if (p.injuryStatus === "Questionable") proj = proj * 0.75;
-        else if (p.injuryStatus === "Probable") proj = proj * 0.9;
+        else if (p.injuryStatus === "Questionable" || p.injuryStatus === "GTD") proj = proj * 0.75;
+        else if (p.injuryStatus === "Probable" || p.injuryStatus === "DTD") proj = proj * 0.9;
         return { ...p, projectedPoints: proj.toString() };
       });
 
@@ -894,9 +903,9 @@ export async function registerRoutes(
             const boostPct = Math.max(-0.15, Math.min(0.15, Number(p.boostScore) * 0.015));
             pts = Math.round(pts * (1 + boostPct) * 10) / 10;
           }
-          if (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") pts = 0;
+          if (isPlayerOut(p.injuryStatus) || p.injuryStatus === "Questionable" || p.injuryStatus === "GTD") pts = 0;
           else if (p.injuryStatus === "Doubtful") pts *= 0.3;
-          else if (p.injuryStatus === "Probable") pts *= 0.9;
+          else if (p.injuryStatus === "Probable" || p.injuryStatus === "DTD") pts *= 0.9;
           return { ...p, projectedPoints: pts.toString() };
         });
 
@@ -919,7 +928,7 @@ export async function registerRoutes(
           pool = applyLeverageMode(playersWithOwnership);
         }
 
-        const baseExcluded = allPlayers.filter(p => p.injuryStatus === "OUT" || p.injuryStatus === "Questionable").map(p => p.id);
+        const baseExcluded = allPlayers.filter(p => isPlayerOut(p.injuryStatus) || p.injuryStatus === "Questionable" || p.injuryStatus === "GTD").map(p => p.id);
         const isDKBulk = slate.platform === "draftkings";
         const { inactiveIds: bulkInactiveExcluded } = isDKBulk ? await getInactivePlayerIds(allPlayers, slate.sport) : { inactiveIds: [] };
         const filteredBulkInactive = bulkInactiveExcluded.filter(id => !baseExcluded.includes(id));
@@ -2385,13 +2394,13 @@ export async function registerRoutes(
           boostedPoints = Math.round(boostedPoints * (1 + boostPct) * 10) / 10;
         }
 
-        if (p.injuryStatus === "OUT") {
+        if (isPlayerOut(p.injuryStatus)) {
           boostedPoints = 0;
         } else if (p.injuryStatus === "Doubtful") {
           boostedPoints *= 0.3;
-        } else if (p.injuryStatus === "Questionable") {
+        } else if (p.injuryStatus === "Questionable" || p.injuryStatus === "GTD") {
           boostedPoints *= 0.75;
-        } else if (p.injuryStatus === "Probable") {
+        } else if (p.injuryStatus === "Probable" || p.injuryStatus === "DTD") {
           boostedPoints *= 0.9;
         }
 
@@ -2411,7 +2420,7 @@ export async function registerRoutes(
         pool = applyCeilingMode(pool, slate.sport);
       }
 
-      console.log(`[ProOptimizer] Starting for ${slate.sport}, ${allPlayers.length} players (${allPlayers.filter(p => p.injuryStatus === "OUT" || p.injuryStatus === "Questionable").length} OUT/Q excluded), ${constraints.lineupCount} lineups requested`);
+      console.log(`[ProOptimizer] Starting for ${slate.sport}, ${allPlayers.length} players (${allPlayers.filter(p => isPlayerOut(p.injuryStatus) || p.injuryStatus === "Questionable" || p.injuryStatus === "GTD").length} OUT/Q excluded), ${constraints.lineupCount} lineups requested`);
       const proStartTime = Date.now();
 
       const bdlStats = await fetchBDLStats(slate.sport);
@@ -2428,7 +2437,7 @@ export async function registerRoutes(
 
       const baseExcluded = [...constraints.excludedPlayerIds];
       allPlayers.forEach(p => {
-        if (p.injuryStatus === "OUT" && !baseExcluded.includes(p.id)) {
+        if (isPlayerOut(p.injuryStatus) && !baseExcluded.includes(p.id)) {
           baseExcluded.push(p.id);
         }
       });
@@ -2995,8 +3004,7 @@ async function generateFallbackPropsFromDK(sports: string[], date: string): Prom
     const eligible = players
       .filter(p => {
         const proj = parseFloat(p.projectedPoints || p.fppg || "0");
-        const status = (p.injuryStatus || "").toUpperCase();
-        return proj > 0 && status !== "OUT" && status !== "IR";
+        return proj > 0 && !isPlayerOut(p.injuryStatus);
       })
       .sort((a, b) => parseFloat(b.projectedPoints || b.fppg || "0") - parseFloat(a.projectedPoints || a.fppg || "0"));
 
@@ -3246,7 +3254,7 @@ async function getInactivePlayerIds(players: Player[], sport: string): Promise<{
 
   const outPlayersByTeamPos = new Map<string, string[]>();
   for (const p of players) {
-    if (p.injuryStatus === "OUT") {
+    if (isPlayerOut(p.injuryStatus)) {
       const positions = p.position.split("/");
       for (const pos of positions) {
         const key = `${p.team}_${pos}`;
@@ -3258,7 +3266,7 @@ async function getInactivePlayerIds(players: Player[], sport: string): Promise<{
 
   let zeroPointCount = 0;
   for (const p of players) {
-    if (p.injuryStatus === "OUT" || p.injuryStatus === "Questionable") continue;
+    if (isPlayerOut(p.injuryStatus) || p.injuryStatus === "Questionable" || p.injuryStatus === "GTD") continue;
 
     if (zeroPointNames.has(p.name.toLowerCase())) {
       inactiveIds.push(p.id);
@@ -3725,7 +3733,7 @@ export async function checkInjuryAlerts() {
 
     const newAlerts: InsertAlert[] = [];
     for (const player of injuredPlayers) {
-      const severity = player.injuryStatus === "OUT" ? "critical"
+      const severity = isPlayerOut(player.injuryStatus) ? "critical"
         : player.injuryStatus === "Doubtful" ? "warning"
         : "info";
 

@@ -47,8 +47,15 @@ function getSlateLabel(s: Slate): string {
 
 const INJURY_COLORS: Record<string, string> = {
   OUT: "bg-red-500/20 text-red-400 border-red-500/30",
+  INJ: "bg-red-500/20 text-red-400 border-red-500/30",
+  O: "bg-red-500/20 text-red-400 border-red-500/30",
+  IR: "bg-red-500/20 text-red-400 border-red-500/30",
+  SUS: "bg-red-500/20 text-red-400 border-red-500/30",
+  NA: "bg-red-500/20 text-red-400 border-red-500/30",
   Doubtful: "bg-orange-500/20 text-orange-400 border-orange-500/30",
   Questionable: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  GTD: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  DTD: "bg-blue-500/20 text-blue-400 border-blue-500/30",
   Probable: "bg-green-500/20 text-green-400 border-green-500/30",
   "Day-to-Day": "bg-blue-500/20 text-blue-400 border-blue-500/30",
 };

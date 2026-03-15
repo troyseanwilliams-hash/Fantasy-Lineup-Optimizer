@@ -193,11 +193,13 @@ function computePopularityScores(
     //                and breaking the ownership distribution sum.
     // Doubtful:      near-zero (0.05) — same reasoning, even more suppressed.
     // Probable:      slight suppression (0.90) — most Probable players suit up.
+    const outStatuses = new Set(["OUT", "INJ", "O", "IR", "SUS", "NA"]);
+    const upperStatus = (player.injuryStatus || "").toUpperCase().trim();
     const injuryPenalty =
-      player.injuryStatus === "OUT" || player.injuryStatus === "IR" ? 0
-      : player.injuryStatus === "Questionable" ? 0.15
-      : player.injuryStatus === "Doubtful" ? 0.05
-      : player.injuryStatus === "Probable" ? 0.90
+      outStatuses.has(upperStatus) ? 0
+      : upperStatus === "QUESTIONABLE" || upperStatus === "GTD" ? 0.15
+      : upperStatus === "DOUBTFUL" ? 0.05
+      : upperStatus === "PROBABLE" || upperStatus === "DTD" ? 0.90
       : 1.0;
 
     const raw = (

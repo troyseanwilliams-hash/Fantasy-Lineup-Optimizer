@@ -135,7 +135,11 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
 
     // Hard excludes: OUT/Questionable + user-excluded
     let pool = allPlayers.filter(p => !input.excludedPlayerIds.includes(p.id));
-    pool = pool.filter(p => p.injuryStatus !== "OUT" && p.injuryStatus !== "Questionable");
+    const YAHOO_OUT = new Set(["INJ", "O", "OUT", "IR", "SUS", "NA"]);
+    pool = pool.filter(p => {
+      const s = (p.injuryStatus || "").toUpperCase().trim();
+      return !YAHOO_OUT.has(s) && s !== "QUESTIONABLE" && s !== "GTD";
+    });
 
     // Salary filter
     if (input.playerMinSalary !== undefined) pool = pool.filter(p => p.salary >= input.playerMinSalary!);

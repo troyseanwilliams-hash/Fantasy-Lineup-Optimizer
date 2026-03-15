@@ -23,7 +23,7 @@ Preferred communication style: Simple, everyday language.
 - **Authentication**: Session-based using bcryptjs.
 - **Payments**: Stripe Elements for subscriptions and webhook handling.
 - **Data Refresh**: Hourly cron jobs for DraftKings slates/players, Odds API props, PrizePicks projections, and player status updates, with accelerated refresh before contests.
-- **Injury Handling**: Live injury statuses from DraftKings API, adjusting player projections or exclusions based on status.
+- **Injury Handling**: Live injury statuses from DraftKings API, adjusting player projections or exclusions based on status. Yahoo-specific statuses (`INJ`, `O`, `IR`, `SUS`, `NA`) are normalized via `isPlayerOut()` helper in `routes.ts`. Yahoo `GTD` maps to Questionable (0.75x), `DTD` maps to Probable (0.9x). All backend files (`routes.ts`, `showdown-route.ts`, `ownership-engine.ts`, `boost-engine.ts`) and frontend color maps use consistent status handling.
 - **Confirmed Starter Boost**: Players confirmed as starters by DraftKings receive a 5% projection boost.
 - **Data Source**: DraftKings public API is the sole system of record for player and slate data.
 - **Timezone Handling**: All DraftKings times are processed as Eastern Time, with UTC storage in the database.

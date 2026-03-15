@@ -54,13 +54,14 @@ export async function computeBoostScores(
 ): Promise<BoostResult[]> {
   if (players.length === 0) return [];
 
+  const OUT_STATUSES = new Set(["OUT", "INJ", "O", "IR", "SUS", "NA"]);
   const activePlayers = players.filter(p => {
-    const status = (p.injuryStatus || "").toUpperCase();
-    return status !== "OUT" && status !== "IR";
+    const status = (p.injuryStatus || "").toUpperCase().trim();
+    return !OUT_STATUSES.has(status);
   });
   const outPlayers = players.filter(p => {
-    const status = (p.injuryStatus || "").toUpperCase();
-    return status === "OUT" || status === "IR";
+    const status = (p.injuryStatus || "").toUpperCase().trim();
+    return OUT_STATUSES.has(status);
   });
 
   const winningLineups = await storage.getWinningLineups(sport, 50);
