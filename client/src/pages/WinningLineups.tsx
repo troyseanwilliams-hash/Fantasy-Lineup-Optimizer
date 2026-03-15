@@ -116,7 +116,7 @@ export default function WinningLineups() {
   const { data: lineups, isLoading: lineupsLoading } = useQuery<WinningLineup[]>({
     queryKey: ["/api/winning-lineups", selectedSport, selectedPlatform],
     queryFn: async () => {
-      const res = await apiRequest("GET", `/api/winning-lineups?sport=${selectedSport}&platform=${selectedPlatform}`);
+      const res = await apiRequest("GET", `/api/winning-lineups/${selectedSport}?platform=${selectedPlatform}`);
       return res.json();
     },
     enabled: isChampion,
@@ -125,7 +125,7 @@ export default function WinningLineups() {
   const { data: aggregated, isLoading: insightsLoading } = useQuery<AggregatedInsights>({
     queryKey: ["/api/winning-lineups", selectedSport, selectedPlatform, "insights"],
     queryFn: async () => {
-      const res = await apiRequest("GET", `/api/winning-lineups/insights?sport=${selectedSport}&platform=${selectedPlatform}`);
+      const res = await apiRequest("GET", `/api/winning-lineups/${selectedSport}/insights?platform=${selectedPlatform}`);
       return res.json();
     },
     enabled: isChampion,

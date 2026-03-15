@@ -1678,6 +1678,27 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/backfill-winning-lineups", async (req, res) => {
+    try {
+      if (!isLoggedIn(req)) return res.sendStatus(401);
+      const userId = getSessionUserId(req)!;
+      const dbUser = await storage.getUser(userId);
+      if (!dbUser?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+
+      const days = typeof req.body.days === "number" ? Math.min(Math.max(req.body.days, 1), 30) : 7;
+      const force = req.body.force === true;
+
+      console.log(`[Admin] Backfill requested: last ${days} days, force=${force} by userId=${userId}`);
+
+      const { runBackfill } = await import("./winning-lineup-agent");
+      const summary = await runBackfill(days, force);
+      res.json(summary);
+    } catch (err: any) {
+      console.error("[Admin] Backfill error:", err);
+      res.status(500).json({ message: err.message || "Backfill failed" });
+    }
+  });
+
   app.post("/api/admin/backfill-and-analyze", async (req, res) => {
     try {
       if (!isLoggedIn(req)) return res.sendStatus(401);
