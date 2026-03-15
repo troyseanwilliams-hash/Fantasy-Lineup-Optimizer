@@ -138,7 +138,7 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
     const YAHOO_OUT = new Set(["INJ", "O", "OUT", "IR", "SUS", "NA"]);
     pool = pool.filter(p => {
       const s = (p.injuryStatus || "").toUpperCase().trim();
-      return !YAHOO_OUT.has(s) && s !== "QUESTIONABLE" && s !== "GTD";
+      return !YAHOO_OUT.has(s) && s !== "QUESTIONABLE" && s !== "GTD" && s !== "DOUBTFUL";
     });
 
     // Salary filter

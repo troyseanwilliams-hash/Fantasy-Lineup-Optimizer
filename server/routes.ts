@@ -36,7 +36,7 @@ const YAHOO_OUT_STATUSES = new Set(["INJ", "O", "OUT", "IR", "SUS", "NA"]);
 function isPlayerOut(injuryStatus: string | null): boolean {
   if (!injuryStatus) return false;
   const s = injuryStatus.toUpperCase().trim();
-  return s === "OUT" || s === "IR" || YAHOO_OUT_STATUSES.has(s);
+  return s === "OUT" || s === "IR" || s === "DOUBTFUL" || YAHOO_OUT_STATUSES.has(s);
 }
 function isPlayerUnavailable(injuryStatus: string | null): boolean {
   if (!injuryStatus) return false;
