@@ -2965,12 +2965,13 @@ export async function registerRoutes(
       const allSlates = await storage.getSlates();
       const playersBySport: Record<string, Array<{ name: string; team: string; position: string; salary: number; fppg: string | null }>> = {};
 
-      for (const sport of ["NBA", "NHL", "GOLF"]) {
+      for (const sport of ["NBA", "NHL", "GOLF", "NFL", "MLB", "SOCCER"]) {
         const sportSlates = allSlates.filter(
-          (s: any) => s.sport?.toUpperCase() === sport && s.platform === "draftkings"
+          (s: any) => s.sport?.toUpperCase() === sport && s.platform === "draftkings" && s.isActive !== false
         );
         if (sportSlates.length > 0) {
-          const slatePlayers = await storage.getPlayersBySlate(sportSlates[0].id);
+          const latestSlate = sportSlates[sportSlates.length - 1];
+          const slatePlayers = await storage.getPlayersBySlate(latestSlate.id);
           if (slatePlayers.length > 0) {
             playersBySport[sport] = slatePlayers.map((p: any) => ({
               name: p.name,
