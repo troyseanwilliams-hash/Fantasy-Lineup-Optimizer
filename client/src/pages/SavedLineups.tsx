@@ -136,6 +136,8 @@
     const [showRegenSettings, setShowRegenSettings] = useState(false);
     const [regenMaxExposure, setRegenMaxExposure] = useState<number | null>(null);
     const [regenProjFloor, setRegenProjFloor] = useState<number | null>(null);
+    const [regenMinSalary, setRegenMinSalary] = useState<number | null>(null);
+    const [regenMaxSalary, setRegenMaxSalary] = useState<number | null>(null);
 
     const { data: lineups, isLoading } = useQuery<any[]>({
       queryKey: ["/api/lineups"],
@@ -225,8 +227,8 @@
     });
 
     const bulkGenerateMutation = useMutation({
-      mutationFn: async ({ ids, useBoosts, ceilingMode, leverageMode, globalMaxExposure, projFloor }: { ids: number[]; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; globalMaxExposure?: number; projFloor?: number }) => {
-        const res = await apiRequest("POST", "/api/lineups/bulk-generate", { ids, useBoosts: useBoosts !== false, ceilingMode: ceilingMode || false, leverageMode: leverageMode || false, globalMaxExposure: globalMaxExposure ?? undefined, projFloor: projFloor ?? undefined });
+      mutationFn: async ({ ids, useBoosts, ceilingMode, leverageMode, globalMaxExposure, projFloor, minSalary, maxSalary }: { ids: number[]; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; globalMaxExposure?: number; projFloor?: number; minSalary?: number; maxSalary?: number }) => {
+        const res = await apiRequest("POST", "/api/lineups/bulk-generate", { ids, useBoosts: useBoosts !== false, ceilingMode: ceilingMode || false, leverageMode: leverageMode || false, globalMaxExposure: globalMaxExposure ?? undefined, projFloor: projFloor ?? undefined, minSalary: minSalary ?? undefined, maxSalary: maxSalary ?? undefined });
         return res.json();
       },
       onSuccess: (data) => {
@@ -652,7 +654,7 @@
                         {isPaid && (
                           <div className="flex items-center gap-1">
                             <Button
-                              onClick={() => bulkGenerateMutation.mutate({ ids: Array.from(selectedIds), useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, globalMaxExposure: regenMaxExposure ?? undefined, projFloor: regenProjFloor ?? undefined })}
+                              onClick={() => bulkGenerateMutation.mutate({ ids: Array.from(selectedIds), useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, globalMaxExposure: regenMaxExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined })}
                               disabled={bulkGenerateMutation.isPending}
                               className="bg-blue-600 hover:bg-blue-700 text-white"
                               data-testid="bulk-generate-btn"
@@ -751,6 +753,36 @@
                     />
                     <span className={`text-xs font-black min-w-[28px] text-center ${regenProjFloor ? "text-amber-400" : "text-slate-500"}`} data-testid="regen-text-proj-floor">
                       {regenProjFloor ? regenProjFloor : "Off"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 min-w-[180px]">
+                    <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Min Salary</span>
+                    <Slider
+                      value={[regenMinSalary ?? 3000]}
+                      onValueChange={(v) => setRegenMinSalary(v[0] <= 3000 ? null : v[0])}
+                      min={3000}
+                      max={12000}
+                      step={100}
+                      className="flex-1"
+                      data-testid="regen-slider-min-salary"
+                    />
+                    <span className={`text-xs font-black min-w-[40px] text-center ${regenMinSalary ? "text-green-400" : "text-slate-500"}`} data-testid="regen-text-min-salary">
+                      {regenMinSalary ? `$${(regenMinSalary / 1000).toFixed(1)}K` : "Off"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 min-w-[180px]">
+                    <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Max Salary</span>
+                    <Slider
+                      value={[regenMaxSalary ?? 12000]}
+                      onValueChange={(v) => setRegenMaxSalary(v[0] >= 12000 ? null : v[0])}
+                      min={3000}
+                      max={12000}
+                      step={100}
+                      className="flex-1"
+                      data-testid="regen-slider-max-salary"
+                    />
+                    <span className={`text-xs font-black min-w-[40px] text-center ${regenMaxSalary ? "text-green-400" : "text-slate-500"}`} data-testid="regen-text-max-salary">
+                      {regenMaxSalary ? `$${(regenMaxSalary / 1000).toFixed(1)}K` : "Off"}
                     </span>
                   </div>
                 </div>

@@ -894,6 +894,8 @@ export async function registerRoutes(
     const totalCount = ids.length;
     const globalMaxExposure = typeof req.body.globalMaxExposure === "number" ? req.body.globalMaxExposure : 80;
     const projFloor = typeof req.body.projFloor === "number" && req.body.projFloor > 0 ? req.body.projFloor : null;
+    const minSalary = typeof req.body.minSalary === "number" ? req.body.minSalary : undefined;
+    const maxSalary = typeof req.body.maxSalary === "number" ? req.body.maxSalary : undefined;
 
     for (const id of ids) {
       const lineup = await storage.getLineup(Number(id));
@@ -1010,8 +1012,17 @@ export async function registerRoutes(
           }
         }
 
+        const salaryFilteredPool = (minSalary || maxSalary)
+          ? perturbedPool.filter(p => {
+              if (iterationExcluded.includes(p.id)) return true;
+              if (minSalary && p.salary < minSalary) return false;
+              if (maxSalary && p.salary > maxSalary) return false;
+              return true;
+            })
+          : perturbedPool;
+
         const solveResult = solveLineup(
-          perturbedPool,
+          salaryFilteredPool,
           { slateId: lineup.slateId, platform, lockedPlayerIds: [], excludedPlayerIds: iterationExcluded, maxSalary: undefined, minSalary: undefined, playerProjections: {} },
           slate.sport,
           platform
