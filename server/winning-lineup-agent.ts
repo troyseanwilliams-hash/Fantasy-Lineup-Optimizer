@@ -6,6 +6,8 @@ import { getPlatformConfig, ACTIVE_SPORTS } from "@shared/platform-config";
 import { clearProfileCache } from "./historical-adjustments";
 import type { Player, InsertWinningLineup } from "@shared/schema";
 
+const WIN_AGENT_SPORTS = ACTIVE_SPORTS.filter(s => !["GOLF", "SOCCER"].includes(s));
+
 function buildPositionVariables(position: string, sport: string): Record<string, number> {
   const vars: Record<string, number> = {};
   const positions = position.split("/");
@@ -228,14 +230,14 @@ function computeInsights(lineup: PlayerWithActual[], pool: PlayerWithActual[], s
   };
 }
 
-export async function analyzeCompletedSlate(sport: string, slateDate: string, platform: "draftkings" | "fanduel" | "yahoo" = "draftkings"): Promise<{ success: boolean; message: string }> {
+export async function analyzeCompletedSlate(sport: string, slateDate: string, platform: "draftkings" | "fanduel" | "yahoo" = "draftkings", force: boolean = false): Promise<{ success: boolean; message: string }> {
   try {
     const existing = await storage.getWinningLineupBySlateDate(sport, slateDate, platform);
-    if (existing) {
+    if (existing && !force) {
       return { success: false, message: `${sport}/${platform} slate for ${slateDate} already analyzed` };
     }
 
-    // Bug 3 fix: filter history by platform so FD/Yahoo analysis doesn't use DK salaries
+    // filter history by platform so FD/Yahoo analysis doesn't use DK salaries
     const history = await storage.getPlayerHistoryBySport(sport, 10000);
     const allSlateRecords = history.filter(h => h.slateDate === slateDate && (h.platform === platform || !h.platform));
 
@@ -415,6 +417,10 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string, pl
       insights,
     };
 
+    if (existing && force) {
+      await storage.deleteWinningLineup(existing.id);
+      console.log(`[WinningAgent] Force mode: replaced existing ${sport}/${platform} ${slateDate} record id=${existing.id}`);
+    }
     await storage.createWinningLineup(record);
     clearProfileCache(sport);
     console.log(
@@ -434,7 +440,7 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string, pl
 
 export async function runNightlyAnalysis(): Promise<string[]> {
   const results: string[] = [];
-  const sports = ACTIVE_SPORTS;
+  const sports = WIN_AGENT_SPORTS;
 
   const todayET = getEasternToday();
   const d = new Date(todayET + "T12:00:00Z");
@@ -476,7 +482,7 @@ export async function runBackfill(
   onProgress?: (msg: string) => void,
 ): Promise<{ attempted: number; succeeded: number; skipped: number; failed: number; results: string[] }> {
   const platforms: Array<"draftkings" | "fanduel" | "yahoo"> = ["draftkings", "fanduel", "yahoo"];
-  const sports = ACTIVE_SPORTS;
+  const sports = WIN_AGENT_SPORTS;
 
   const todayET = getEasternToday();
   const baseDate = new Date(todayET + "T12:00:00Z");

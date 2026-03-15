@@ -38,7 +38,7 @@ Preferred communication style: Simple, everyday language.
 - **Player Swap**: Supports one-click player swaps within generated lineups and PrizePicks entries.
 - **DK Entries Import**: Allows import of DraftKings entries via CSV for Champion tier.
 - **Bulk Regenerate**: Enables regeneration of multiple selected lineups using advanced optimization.
-- **Winning Lineup Agent**: Automated nightly analysis constructs "perfect hindsight" optimal lineups using actual ESPN box score data.
+- **Winning Lineup Agent**: Automated nightly analysis constructs "perfect hindsight" optimal lineups using actual ESPN box score data. Supports multi-platform analysis (DK/FD/Yahoo) via `platform` column. Only runs for sports with ESPN actual-points support (NBA, NHL, MLB, NFL — excludes GOLF/SOCCER). Force mode safely replaces existing records only after new analysis succeeds.
 - **Inactive Player Filter**: Automatically excludes inactive players not present in recent ESPN box scores or those with low productivity.
 - **Player Configuration**: Per-user, per-slate overrides for custom projections, boosts, locks, or exclusions.
 - **Lineup Grading**: Client-side engine assigns letter grades to lineups based on projected score, efficiency, construction, ceiling, and player health, with sport-specific considerations.

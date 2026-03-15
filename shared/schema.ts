@@ -229,10 +229,10 @@ export type InsertPlayerHistory = z.infer<typeof insertPlayerHistorySchema>;
 export const winningLineups = pgTable("winning_lineups", {
   id: serial("id").primaryKey(),
   sport: text("sport").notNull(),
+  platform: text("platform").default("draftkings"),
   slateId: integer("slate_id"),
   slateDate: date("slate_date").notNull(),
   draftGroupId: integer("draft_group_id"),
-  // numeric columns — use toNum() for arithmetic
   totalActualPoints: numeric("total_actual_points").notNull(),
   totalSalary: integer("total_salary").notNull(),
   salaryCap: integer("salary_cap").notNull(),

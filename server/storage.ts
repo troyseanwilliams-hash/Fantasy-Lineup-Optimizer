@@ -86,7 +86,8 @@ export interface IStorage extends IAuthStorage {
 
   createWinningLineup(data: InsertWinningLineup): Promise<WinningLineup>;
   getWinningLineups(sport?: string, limit?: number): Promise<WinningLineup[]>;
-  getWinningLineupBySlateDate(sport: string, slateDate: string): Promise<WinningLineup | undefined>;
+  getWinningLineupBySlateDate(sport: string, slateDate: string, platform?: string): Promise<WinningLineup | undefined>;
+  deleteWinningLineup(id: number): Promise<void>;
 
   getPlayerOverrides(userId: string, slateId: number): Promise<PlayerOverride[]>;
   upsertPlayerOverride(data: InsertPlayerOverride): Promise<PlayerOverride>;
@@ -630,10 +631,17 @@ export class DatabaseStorage implements IStorage {
       .limit(limit);
   }
 
-  async getWinningLineupBySlateDate(sport: string, slateDate: string): Promise<WinningLineup | undefined> {
-    const [result] = await db.select().from(winningLineups)
-      .where(and(eq(winningLineups.sport, sport), eq(winningLineups.slateDate, slateDate)));
+  async getWinningLineupBySlateDate(sport: string, slateDate: string, platform?: string): Promise<WinningLineup | undefined> {
+    const conditions = [eq(winningLineups.sport, sport), eq(winningLineups.slateDate, slateDate)];
+    if (platform) {
+      conditions.push(eq(winningLineups.platform, platform));
+    }
+    const [result] = await db.select().from(winningLineups).where(and(...conditions));
     return result;
+  }
+
+  async deleteWinningLineup(id: number): Promise<void> {
+    await db.delete(winningLineups).where(eq(winningLineups.id, id));
   }
 
   async getPlayerOverrides(userId: string, slateId: number): Promise<PlayerOverride[]> {

@@ -218,8 +218,6 @@ app.use((req, res, next) => {
             const backfillTasks = [
               { sport: "NBA", date: "2026-03-10", draftGroupId: 143552 },
               { sport: "NHL", date: "2026-03-10", draftGroupId: null },
-              { sport: "SOCCER", date: "2026-03-10", draftGroupId: null },
-              { sport: "NFL", date: "2026-03-10", draftGroupId: null },
             ];
 
             for (const task of backfillTasks) {

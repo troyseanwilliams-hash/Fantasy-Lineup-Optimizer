@@ -1667,11 +1667,11 @@ export async function registerRoutes(
       const dbUser = await storage.getUser(userId);
       if (!dbUser?.isAdmin) return res.status(403).json({ message: "Admin access required" });
 
-      const { sport, date } = req.body;
+      const { sport, date, platform = "draftkings", force = false } = req.body;
       if (!sport || !date) return res.status(400).json({ message: "sport and date required" });
 
       const { analyzeCompletedSlate } = await import("./winning-lineup-agent");
-      const result = await analyzeCompletedSlate(sport.toUpperCase(), date);
+      const result = await analyzeCompletedSlate(sport.toUpperCase(), date, platform, force);
       res.json(result);
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Analysis failed" });
