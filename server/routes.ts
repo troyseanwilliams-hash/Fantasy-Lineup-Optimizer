@@ -942,7 +942,8 @@ export async function registerRoutes(
             pts = Math.round(pts * (1 + boostPct) * 10) / 10;
           }
           pts = applyScoutToProjection(pts, p.name, regenScoutMap);
-          if (isPlayerOut(p.injuryStatus) || p.injuryStatus === "Questionable" || p.injuryStatus === "GTD") pts = 0;
+          if (isPlayerOut(p.injuryStatus)) pts = 0;
+          else if (p.injuryStatus === "Questionable" || p.injuryStatus === "GTD") pts *= 0.75;
           else if (p.injuryStatus === "Probable" || p.injuryStatus === "DTD") pts *= 0.9;
           return { ...p, projectedPoints: pts.toString() };
         });
@@ -966,7 +967,7 @@ export async function registerRoutes(
           pool = applyLeverageMode(playersWithOwnership);
         }
 
-        const baseExcluded = allPlayers.filter(p => isPlayerOut(p.injuryStatus) || p.injuryStatus === "Questionable" || p.injuryStatus === "GTD").map(p => p.id);
+        const baseExcluded = allPlayers.filter(p => isPlayerOut(p.injuryStatus)).map(p => p.id);
         const isDKBulk = slate.platform === "draftkings";
         const { inactiveIds: bulkInactiveExcluded } = isDKBulk ? await getInactivePlayerIds(allPlayers, slate.sport) : { inactiveIds: [] };
         const filteredBulkInactive = bulkInactiveExcluded.filter(id => !baseExcluded.includes(id));
@@ -981,6 +982,9 @@ export async function registerRoutes(
           console.log(`[BulkGenerate] Trimmed eligible pool from ${eligiblePool.length} to ${trimmed.length} for ${slate.sport}`);
           pool = [...trimmed, ...pool.filter(p => excludedSet.has(p.id))];
         }
+
+        const eligibleCount = pool.filter(p => !new Set(baseExcluded).has(p.id) && Number(p.projectedPoints) > 0).length;
+        console.log(`[BulkGenerate] ${slate.sport} slate ${slate.id}: ${allPlayers.length} total, ${baseExcluded.length} excluded, ${eligibleCount} eligible with proj > 0, minSal=${minSalary ?? 'none'}, maxSal=${maxSalary ?? 'none'}`);
 
         cached = { slate, pool, allPlayers, baseExcluded, platform };
         slateCache.set(lineup.slateId, cached);
@@ -1028,7 +1032,10 @@ export async function registerRoutes(
           platform
         );
 
-        if (solveResult.error || !solveResult.lineup || solveResult.lineup.length === 0) continue;
+        if (solveResult.error || !solveResult.lineup || solveResult.lineup.length === 0) {
+          if (attempt === 0) console.log(`[BulkGenerate] Solver failed for lineup ${id} attempt ${attempt}: ${solveResult.error || 'empty result'}, pool=${salaryFilteredPool.length}, excluded=${iterationExcluded.length}`);
+          continue;
+        }
 
         const lineupKey = solveResult.lineup.map((p: any) => p.id).sort((a: number, b: number) => a - b).join(",");
         if (usedLineupKeys.has(lineupKey)) continue;
