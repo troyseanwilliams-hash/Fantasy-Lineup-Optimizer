@@ -9,6 +9,7 @@ import { fetchPrizePicksProjections, getSupportedPPSports } from "./prizepicks";
 import { refreshRecentlyPlayed } from "./espn-activity";
 import { runNightlyAnalysis } from "./winning-lineup-agent";
 import { runScoutForAllSports } from "./ai-scout";
+import { fetchStartingLineups } from "./lineups-ingest";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { users } from "@shared/models/auth";
@@ -367,7 +368,16 @@ app.use((req, res, next) => {
             console.error("AI Scout hourly refresh failed:", err);
           }
 
-          log("Scheduled seed data refresh + props + PrizePicks + Scout completed", "cron");
+          try {
+            const lineupsResult = await fetchStartingLineups();
+            if (lineupsResult.playersMatched > 0) {
+              log(`Lineups.com sync: ${lineupsResult.playersMatched} starters matched, ${lineupsResult.confirmedLineups} confirmed, ${lineupsResult.projectionUpdates} proj updates`, "cron");
+            }
+          } catch (err) {
+            console.error("Lineups.com sync failed:", err);
+          }
+
+          log("Scheduled seed data refresh + props + PrizePicks + Scout + Lineups completed", "cron");
         } catch (err) {
           console.error("Scheduled seed refresh failed:", err);
         }

@@ -28,6 +28,7 @@ import { fetchBDLStats, type PlayerStatsMap, normalizeName } from "./balldontlie
 import { refreshRecentlyPlayed, getRecentlyPlayedCache, normalizePlayerName } from "./espn-activity";
 import { calculateOwnership, computeOwnershipForPlayers, type ContestType } from "./ownership-engine";
 import { getCachedSignals, getScoutStatus, refreshAll, forceRefreshAll, secondsUntilRefresh } from "./ai-scout";
+import { fetchStartingLineups, getStartingLineupsData, clearLineupsCache } from "./lineups-ingest";
 import { projectionAccuracyRouter } from "./projection-accuracy-route";
 
 
@@ -3098,6 +3099,43 @@ export async function registerRoutes(
       res.json({ status: "refresh_queued", sport: req.body?.sport || "ALL" });
     } catch (err: any) {
       console.error(`[AIScout] Error refreshing:`, err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/starting-lineups/nba", async (req, res) => {
+    try {
+      const userId = getSessionUserId(req);
+      if (!userId) return res.status(401).json({ error: "Authentication required" });
+      const dbUser = await storage.getUser(userId);
+      const sub = await storage.getSubscription(userId);
+      const isAdmin = dbUser?.isAdmin === true;
+      const tier = isAdmin ? "pro" : (sub?.tier || "free");
+      if (tier !== "pro" && tier !== "star") {
+        return res.status(403).json({ error: "Sharpshooter or Champion tier required", requiresUpgrade: true });
+      }
+
+      const data = await getStartingLineupsData();
+      if (!data) return res.status(502).json({ error: "Unable to fetch starting lineups" });
+      res.json(data);
+    } catch (err: any) {
+      console.error("[Lineups] Error:", err.message);
+      res.status(500).json({ error: "Failed to fetch starting lineups" });
+    }
+  });
+
+  app.post("/api/starting-lineups/sync", async (req, res) => {
+    try {
+      const userId = getSessionUserId(req);
+      if (!userId) return res.status(401).json({ error: "Authentication required" });
+      const dbUser = await storage.getUser(userId);
+      if (!dbUser?.isAdmin) return res.status(403).json({ error: "Admin only" });
+
+      clearLineupsCache();
+      const result = await fetchStartingLineups();
+      res.json(result);
+    } catch (err: any) {
+      console.error("[Lineups] Sync error:", err.message);
       res.status(500).json({ error: err.message });
     }
   });
