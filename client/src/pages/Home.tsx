@@ -1112,7 +1112,7 @@ export default function Home() {
               <span className="text-emerald-400">DFS Lineups</span>
             </h1>
             <p className="text-xl text-slate-300 mb-6 max-w-2xl mx-auto leading-relaxed">
-              Advanced lineup optimizer for DraftKings. Real player projections, LP-based optimization, and instant lineup building.
+              Advanced lineup optimizer for DraftKings, FanDuel, and Yahoo DFS. Real player projections, LP-based optimization, and instant lineup building across all sports.
             </p>
             <div className="flex items-center justify-center gap-3 flex-wrap mb-6">
               {SPORT_ORDER.map(sport => {
@@ -1132,8 +1132,8 @@ export default function Home() {
             >
               Get Started
             </Button>
-            <div className="flex items-center justify-center gap-4 flex-wrap mb-12">
-              <div className="bg-white/5 border border-emerald-500/20 rounded-xl p-5 backdrop-blur-sm text-left w-72" data-testid="unauth-card-dk">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-12 max-w-5xl mx-auto">
+              <div className="bg-white/5 border border-emerald-500/20 rounded-xl p-5 backdrop-blur-sm text-left" data-testid="unauth-card-dk">
                 <div className="flex items-center gap-2.5 mb-2">
                   <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
                     <Zap className="w-4 h-4 text-emerald-400 fill-current" />
@@ -1144,7 +1144,29 @@ export default function Home() {
                   Optimized DFS lineups with real player salaries, LP-based optimization, and instant lineup building across all sports.
                 </p>
               </div>
-              <div className="bg-white/5 border border-purple-500/20 rounded-xl p-5 backdrop-blur-sm text-left w-72" data-testid="unauth-card-pp">
+              <div className="bg-white/5 border border-blue-500/20 rounded-xl p-5 backdrop-blur-sm text-left" data-testid="unauth-card-fd">
+                <div className="flex items-center gap-2.5 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                    <Swords className="w-4 h-4 text-blue-400" />
+                  </div>
+                  <h3 className="text-base font-black text-white">FanDuel</h3>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Full FanDuel slate support with platform-specific salary caps, position requirements, and contest-ready CSV export.
+                </p>
+              </div>
+              <div className="bg-white/5 border border-violet-500/20 rounded-xl p-5 backdrop-blur-sm text-left" data-testid="unauth-card-yahoo">
+                <div className="flex items-center gap-2.5 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
+                    <Star className="w-4 h-4 text-violet-400" />
+                  </div>
+                  <h3 className="text-base font-black text-white">Yahoo DFS</h3>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Yahoo DFS optimization with accurate salary data, multi-sport support, and lineup export formatted for Yahoo upload.
+                </p>
+              </div>
+              <div className="bg-white/5 border border-purple-500/20 rounded-xl p-5 backdrop-blur-sm text-left" data-testid="unauth-card-pp">
                 <div className="flex items-center gap-2.5 mb-2">
                   <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
                     <TrendingUp className="w-4 h-4 text-purple-400" />

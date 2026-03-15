@@ -102,7 +102,7 @@ export default function Optimizer() {
   const sportSlates = useMemo(() => {
     if (!slates) return [];
     return slates
-      .filter(s => s.sport === sport && s.platform === platform)
+      .filter(s => s.sport === sport && s.platform === platform && s.isActive !== false)
       .sort((a, b) => {
         if (a.isMain && !b.isMain) return -1;
         if (!a.isMain && b.isMain) return 1;
