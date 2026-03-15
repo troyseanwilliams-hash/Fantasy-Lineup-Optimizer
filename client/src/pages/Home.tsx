@@ -4,7 +4,7 @@ import {
   Zap, Newspaper, TrendingUp, ArrowRight, Clock, ExternalLink,
   ArrowUpRight, ArrowDownRight, Archive, Crown, Trophy, Dribbble,
   Activity, Target, Lock, Sparkles, Star, Flame, Shield, Swords, Flag,
-  Radio, Circle, Brain, Upload, BarChart3, Layers
+  Radio, Circle, Brain, Upload, BarChart3, Layers, Dice5
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -1278,7 +1278,7 @@ export default function Home() {
               <span className="text-emerald-400">DFS Lineups</span>
             </h1>
             <p className="text-xl text-slate-300 mb-6 max-w-2xl mx-auto leading-relaxed">
-              Advanced lineup optimizer for DraftKings, FanDuel, and Yahoo DFS. Real player projections, LP-based optimization, and instant lineup building across all sports.
+              Advanced lineup optimizer for DraftKings, FanDuel, and Yahoo DFS. Monte Carlo simulation, LP-based optimization, and AI-powered projections across all sports.
             </p>
             <div className="flex items-center justify-center gap-3 flex-wrap mb-6">
               {SPORT_ORDER.map(sport => {
@@ -1355,7 +1355,7 @@ export default function Home() {
                 Platform Features
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-left mb-10">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 text-left mb-10">
                 <div className="bg-white/5 border border-cyan-500/20 rounded-xl p-6 backdrop-blur-sm" data-testid="feature-dk-vault">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
@@ -1380,6 +1380,18 @@ export default function Home() {
                   </p>
                 </div>
 
+                <div className="bg-white/5 border border-violet-500/20 rounded-xl p-6 backdrop-blur-sm" data-testid="feature-monte-carlo">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-lg bg-violet-500/20 flex items-center justify-center">
+                      <Dice5 className="w-5 h-5 text-violet-400" />
+                    </div>
+                    <h3 className="text-lg font-black text-white">Monte Carlo Simulation</h3>
+                  </div>
+                  <p className="text-sm text-slate-400 leading-relaxed">
+                    Simulate entire games hundreds of times with realistic variance — player-level, team-level, and game-level randomness. NFL QB cascade drives natural stacking. Find lineups that are both high-ceiling and consistent for GPP tournaments.
+                  </p>
+                </div>
+
                 <div className="bg-white/5 border border-emerald-500/20 rounded-xl p-6 backdrop-blur-sm" data-testid="feature-pro-optimizer">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
@@ -1388,7 +1400,7 @@ export default function Home() {
                     <h3 className="text-lg font-black text-white">Pro Optimizer</h3>
                   </div>
                   <p className="text-sm text-slate-400 leading-relaxed">
-                    Advanced optimization with boost engine scoring, ceiling and leverage modes, correlation stacking (QB-WR, team stacks), exposure management, and batch lineup generation up to 20 at once.
+                    Advanced optimization with boost engine scoring, ceiling and leverage modes, correlation stacking, exposure management, and batch lineup generation up to 20 at once.
                   </p>
                 </div>
 

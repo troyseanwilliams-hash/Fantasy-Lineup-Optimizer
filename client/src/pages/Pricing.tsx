@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Crown, Lock, Trophy, Sparkles, Calendar, Tag, Loader2, AlertTriangle, CreditCard, Gift } from "lucide-react";
+import { Check, Crown, Lock, Trophy, Sparkles, Calendar, Tag, Loader2, AlertTriangle, CreditCard, Gift, Dice5 } from "lucide-react";
 import { PaymentModal } from "@/components/PaymentForm";
 
 type BillingCycle = "monthly" | "annual";
@@ -213,6 +213,10 @@ export default function Pricing() {
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-400">
               <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
+              <span>No Monte Carlo Simulation</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-400">
+              <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
               <span>No AI boost analysis</span>
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-400">
@@ -305,6 +309,10 @@ export default function Pricing() {
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
               <span className="font-bold">Performance Dashboard</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span className="font-bold">Monte Carlo Sim Mode (up to 200 sims)</span>
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
@@ -423,6 +431,10 @@ export default function Pricing() {
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
               <span className="font-bold text-amber-300">AI boost analysis & injury tracking</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <span className="font-bold text-amber-300">Monte Carlo Sim Mode (up to 500 sims)</span>
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />

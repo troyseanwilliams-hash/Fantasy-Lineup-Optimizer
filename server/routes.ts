@@ -2849,6 +2849,8 @@ export async function registerRoutes(
       const input = simOptimizeSchema.parse(req.body);
       const maxLineupCount = isAdmin ? 150 : tier === "pro" ? 20 : 5;
       input.lineupCount = Math.min(input.lineupCount, maxLineupCount);
+      const maxSims = isAdmin ? 1000 : tier === "pro" ? 500 : 200;
+      input.numSims = Math.min(input.numSims, maxSims);
 
       const slate = await storage.getSlate(input.slateId);
       if (!slate) return res.status(404).json({ message: "Slate not found" });

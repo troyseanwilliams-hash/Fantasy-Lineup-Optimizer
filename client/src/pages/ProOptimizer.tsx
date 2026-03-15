@@ -1090,7 +1090,7 @@ export default function ProOptimizer() {
                     <span className="text-[10px] font-black text-violet-400 tabular-nums">{numSims}</span>
                   </div>
                   <div className="flex gap-1.5">
-                    {[50, 100, 200, 500].map(n => (
+                    {[50, 100, 200, ...(isPro || userIsAdmin ? [500] : [])].map(n => (
                       <button
                         key={n}
                         onClick={() => setNumSims(n)}
@@ -1106,7 +1106,7 @@ export default function ProOptimizer() {
                     ))}
                   </div>
                   <p className="text-[9px] text-slate-600 leading-relaxed">
-                    More sims = better correlation · 200 is the sweet spot · 500 for large GPP fields
+                    More sims = better correlation · 200 is the sweet spot{(isPro || userIsAdmin) ? " · 500 for large GPP fields" : ""}
                   </p>
                 </div>
 
