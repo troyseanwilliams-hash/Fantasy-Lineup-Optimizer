@@ -6,13 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Loader2,
   Trophy,
   TrendingUp,
@@ -28,6 +21,13 @@ import {
 } from "lucide-react";
 
 const SPORTS = ["NBA", "NHL", "MLB", "NFL", "GOLF", "SOCCER"];
+const PLATFORMS = ["draftkings", "fanduel", "yahoo"] as const;
+type PlatformType = typeof PLATFORMS[number];
+const PLATFORM_LABELS: Record<PlatformType, string> = {
+  draftkings: "DraftKings",
+  fanduel: "FanDuel",
+  yahoo: "Yahoo",
+};
 
 const SPORT_COLORS: Record<string, string> = {
   NBA: "text-orange-400",
@@ -95,6 +95,7 @@ interface AggregatedInsights {
 
 export default function WinningLineups() {
   const [selectedSport, setSelectedSport] = useState("NBA");
+  const [selectedPlatform, setSelectedPlatform] = useState<PlatformType>("draftkings");
   const [expandedLineup, setExpandedLineup] = useState<number | null>(null);
   const [analyzeDate, setAnalyzeDate] = useState("");
   const { toast } = useToast();
@@ -113,29 +114,61 @@ export default function WinningLineups() {
   const isChampion = tier === "pro";
 
   const { data: lineups, isLoading: lineupsLoading } = useQuery<WinningLineup[]>({
-    queryKey: ["/api/winning-lineups", selectedSport],
+    queryKey: ["/api/winning-lineups", selectedSport, selectedPlatform],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/winning-lineups?sport=${selectedSport}&platform=${selectedPlatform}`);
+      return res.json();
+    },
     enabled: isChampion,
   });
 
   const { data: aggregated, isLoading: insightsLoading } = useQuery<AggregatedInsights>({
-    queryKey: ["/api/winning-lineups", selectedSport, "insights"],
+    queryKey: ["/api/winning-lineups", selectedSport, selectedPlatform, "insights"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/winning-lineups/insights?sport=${selectedSport}&platform=${selectedPlatform}`);
+      return res.json();
+    },
     enabled: isChampion,
   });
 
   const analyzeMutation = useMutation({
     mutationFn: async ({ sport, date }: { sport: string; date: string }) => {
-      const res = await apiRequest("POST", "/api/admin/analyze-slate", { sport, date });
+      const res = await apiRequest("POST", "/api/admin/analyze-slate", { sport, date, platform: selectedPlatform });
       return res.json();
     },
     onSuccess: (data: any) => {
       toast({ title: data.success ? "Analysis Complete" : "Analysis Skipped", description: data.message });
       if (data.success) {
-        queryClient.invalidateQueries({ queryKey: ["/api/winning-lineups", selectedSport] });
-        queryClient.invalidateQueries({ queryKey: ["/api/winning-lineups", selectedSport, "insights"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/winning-lineups", selectedSport, selectedPlatform] });
+        queryClient.invalidateQueries({ queryKey: ["/api/winning-lineups", selectedSport, selectedPlatform, "insights"] });
       }
     },
     onError: (err: any) => {
       toast({ title: "Analysis Failed", description: err.message || "Could not analyze slate", variant: "destructive" });
+    },
+  });
+
+  const [backfillDays, setBackfillDays] = useState(7);
+  const [backfillResults, setBackfillResults] = useState<string[]>([]);
+  const [showBackfillResults, setShowBackfillResults] = useState(false);
+
+  const backfillMutation = useMutation({
+    mutationFn: async ({ days, force }: { days: number; force: boolean }) => {
+      const res = await apiRequest("POST", "/api/admin/backfill-winning-lineups", { days, force });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      setBackfillResults(data.results || []);
+      setShowBackfillResults(true);
+      queryClient.invalidateQueries({ queryKey: ["/api/winning-lineups"] });
+      toast({
+        title: `Backfill complete`,
+        description: `${data.succeeded} filled · ${data.skipped} skipped · ${data.failed} failed`,
+        variant: data.failed > 0 ? "destructive" : "default",
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: "Backfill Failed", description: err.message || "Could not run backfill", variant: "destructive" });
     },
   });
 
@@ -172,23 +205,80 @@ export default function WinningLineups() {
           <p className="text-slate-400 mt-1 text-sm">Optimal hindsight lineups and performance insights</p>
         </div>
         {isAdmin && (
-          <div className="flex items-center gap-3">
-            <Input
-              type="date"
-              value={analyzeDate}
-              onChange={(e) => setAnalyzeDate(e.target.value)}
-              className="bg-slate-900 border-slate-700 text-white w-40"
-              data-testid="input-analyze-date"
-            />
-            <Button
-              onClick={() => analyzeMutation.mutate({ sport: selectedSport, date: analyzeDate })}
-              disabled={!analyzeDate || analyzeMutation.isPending}
-              className="bg-amber-500 text-black font-bold hover:bg-amber-400"
-              data-testid="button-analyze-slate"
-            >
-              {analyzeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
-              Analyze
-            </Button>
+          <div className="flex flex-col gap-3 items-end">
+            {/* Single-date analyze */}
+            <div className="flex items-center gap-3">
+              <Input
+                type="date"
+                value={analyzeDate}
+                onChange={(e) => setAnalyzeDate(e.target.value)}
+                className="bg-slate-900 border-slate-700 text-white w-40"
+                data-testid="input-analyze-date"
+              />
+              <Button
+                onClick={() => analyzeMutation.mutate({ sport: selectedSport, date: analyzeDate })}
+                disabled={!analyzeDate || analyzeMutation.isPending}
+                className="bg-amber-500 text-black font-bold hover:bg-amber-400"
+                data-testid="button-analyze-slate"
+              >
+                {analyzeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+                Analyze
+              </Button>
+            </div>
+
+            {/* Backfill: last N days across all sports + platforms */}
+            <div className="flex items-center gap-3 bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">Backfill last</span>
+              <select
+                value={backfillDays}
+                onChange={e => setBackfillDays(Number(e.target.value))}
+                className="bg-slate-900 border border-slate-700 text-white text-xs rounded px-2 py-1 font-bold"
+                data-testid="select-backfill-days"
+              >
+                {[3, 7, 14, 30].map(d => (
+                  <option key={d} value={d}>{d} days</option>
+                ))}
+              </select>
+              <span className="text-xs text-slate-500">all sports + platforms</span>
+              <Button
+                size="sm"
+                onClick={() => backfillMutation.mutate({ days: backfillDays, force: false })}
+                disabled={backfillMutation.isPending}
+                className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs"
+                data-testid="button-backfill"
+              >
+                {backfillMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Zap className="w-3.5 h-3.5 mr-1.5" />}
+                Fill Gaps
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => backfillMutation.mutate({ days: backfillDays, force: true })}
+                disabled={backfillMutation.isPending}
+                className="border-orange-500/40 text-orange-400 hover:bg-orange-500/10 font-bold text-xs"
+                data-testid="button-backfill-force"
+                title="Force re-analyze even if a record already exists"
+              >
+                Force Re-run
+              </Button>
+            </div>
+
+            {/* Backfill results log */}
+            {showBackfillResults && backfillResults.length > 0 && (
+              <div className="w-full max-w-xl bg-slate-900 border border-slate-700 rounded-lg p-3 max-h-40 overflow-y-auto" data-testid="backfill-results-log">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Backfill log</span>
+                  <button onClick={() => setShowBackfillResults(false)} className="text-slate-500 hover:text-white text-xs">✕</button>
+                </div>
+                <div className="space-y-0.5">
+                  {backfillResults.map((r, i) => (
+                    <p key={i} className={`text-[10px] font-mono ${r.includes("succeeded") || r.includes("pts optimal") ? "text-emerald-400" : r.includes("skipped") || r.includes("already") ? "text-slate-500" : "text-red-400"}`}>
+                      {r}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -207,6 +297,25 @@ export default function WinningLineups() {
             data-testid={`button-sport-${sport.toLowerCase()}`}
           >
             {sport}
+          </Button>
+        ))}
+      </div>
+
+      <div className="flex gap-2 flex-wrap" data-testid="platform-selector">
+        {PLATFORMS.map((p) => (
+          <Button
+            key={p}
+            variant={selectedPlatform === p ? "default" : "outline"}
+            size="sm"
+            onClick={() => setSelectedPlatform(p)}
+            className={
+              selectedPlatform === p
+                ? "bg-amber-600 text-white font-bold hover:bg-amber-500"
+                : "border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800"
+            }
+            data-testid={`button-platform-${p}`}
+          >
+            {PLATFORM_LABELS[p]}
           </Button>
         ))}
       </div>

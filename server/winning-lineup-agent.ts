@@ -230,13 +230,14 @@ function computeInsights(lineup: PlayerWithActual[], pool: PlayerWithActual[], s
 
 export async function analyzeCompletedSlate(sport: string, slateDate: string, platform: "draftkings" | "fanduel" | "yahoo" = "draftkings"): Promise<{ success: boolean; message: string }> {
   try {
-    const existing = await storage.getWinningLineupBySlateDate(sport, slateDate);
+    const existing = await storage.getWinningLineupBySlateDate(sport, slateDate, platform);
     if (existing) {
-      return { success: false, message: `${sport} slate for ${slateDate} already analyzed` };
+      return { success: false, message: `${sport}/${platform} slate for ${slateDate} already analyzed` };
     }
 
+    // Bug 3 fix: filter history by platform so FD/Yahoo analysis doesn't use DK salaries
     const history = await storage.getPlayerHistoryBySport(sport, 10000);
-    const allSlateRecords = history.filter(h => h.slateDate === slateDate);
+    const allSlateRecords = history.filter(h => h.slateDate === slateDate && (h.platform === platform || !h.platform));
 
     const actualPointsMap = await fetchActualPointsForDate(sport, slateDate);
 
@@ -302,17 +303,35 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string, pl
         console.log(`[WinningAgent] ${sport} ${slateDate}: Updated ${batchUpdates.length} player history records with actual points`);
       }
     } else {
-      console.log(`[WinningAgent] ${sport} ${slateDate}: No player history — building pool from ESPN box scores + current slate salaries`);
+      console.log(`[WinningAgent] ${sport}/${platform} ${slateDate}: No player history — building pool from ESPN box scores + archived slate salaries`);
 
       const allSlates = await storage.getSlates();
-      const currentSlate = allSlates.find(s => s.sport === sport && s.platform === platform && s.isMain);
       const salaryLookup = new Map<string, { salary: number; position: string; fppg: string }>();
 
-      if (currentSlate) {
-        const currentPlayers = await storage.getPlayersBySlate(currentSlate.id);
-        for (const p of currentPlayers) {
-          salaryLookup.set(normalizeName(p.name), { salary: p.salary, position: p.position, fppg: p.fppg ?? "0" });
+      // Prefer slates whose startTime matches slateDate (even if deactivated) — these
+      // have the salaries that were actually live that day. Only fall back to the current
+      // isMain slate when no dated match exists.
+      const datedSlates = allSlates.filter(s => {
+        if (s.sport !== sport || s.platform !== platform) return false;
+        const slateDay = new Date(s.startTime).toISOString().split("T")[0];
+        return slateDay === slateDate;
+      });
+      const candidateSlates = datedSlates.length > 0
+        ? datedSlates
+        : allSlates.filter(s => s.sport === sport && s.platform === platform && s.isMain);
+
+      for (const candidateSlate of candidateSlates) {
+        const candidatePlayers = await storage.getPlayersBySlate(candidateSlate.id);
+        for (const p of candidatePlayers) {
+          const key = normalizeName(p.name);
+          if (!salaryLookup.has(key)) {
+            salaryLookup.set(key, { salary: p.salary, position: p.position, fppg: p.fppg ?? "0" });
+          }
         }
+      }
+
+      if (salaryLookup.size === 0) {
+        console.warn(`[WinningAgent] ${sport}/${platform} ${slateDate}: No salary data found for this date — projections will use estimated salaries`);
       }
 
       const config = getPlatformConfig(sport, platform);
@@ -332,7 +351,7 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string, pl
         matchCount++;
         pool.push({
           id: autoId++,
-          slateId: currentSlate?.id || 0,
+          slateId: candidateSlates[0]?.id || 0,
           name: actual.playerName,
           team: actual.team,
           position,
@@ -385,6 +404,7 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string, pl
 
     const record: InsertWinningLineup = {
       sport,
+      platform,
       slateId: (allSlateRecords.length > 0 ? allSlateRecords[0]?.slateId : null) || null,
       slateDate,
       draftGroupId: null,
@@ -398,16 +418,16 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string, pl
     await storage.createWinningLineup(record);
     clearProfileCache(sport);
     console.log(
-      `[WinningAgent] Stored optimal lineup for ${sport} ${slateDate}: ` +
+      `[WinningAgent] Stored optimal lineup for ${sport}/${platform} ${slateDate}: ` +
       `${result.totalActualPoints} pts, $${result.totalSalary} salary (historical profile cache cleared)`
     );
 
     return {
       success: true,
-      message: `Analyzed ${sport} ${slateDate}: ${result.totalActualPoints} pts optimal lineup (${matchCount} players matched)`,
+      message: `Analyzed ${sport}/${platform} ${slateDate}: ${result.totalActualPoints} pts optimal lineup (${matchCount} players matched)`,
     };
   } catch (err: any) {
-    console.error(`[WinningAgent] Error analyzing ${sport} ${slateDate}:`, err);
+    console.error(`[WinningAgent] Error analyzing ${sport}/${platform} ${slateDate}:`, err);
     return { success: false, message: err.message || "Unknown error" };
   }
 }
@@ -438,4 +458,89 @@ export async function runNightlyAnalysis(): Promise<string[]> {
 
   console.log(`[WinningAgent] Nightly analysis complete:`, results);
   return results;
+}
+
+/**
+ * runBackfill
+ *
+ * Fills in any missing winning lineup records for the past `daysBack` days
+ * across every active sport and platform. Skips combos that already have a
+ * record (unless force=true). Runs dates sequentially so the DB isn't hammered,
+ * but processes sport × platform combos in parallel within each date.
+ *
+ * Called by POST /api/admin/backfill-winning-lineups
+ */
+export async function runBackfill(
+  daysBack = 7,
+  force = false,
+  onProgress?: (msg: string) => void,
+): Promise<{ attempted: number; succeeded: number; skipped: number; failed: number; results: string[] }> {
+  const platforms: Array<"draftkings" | "fanduel" | "yahoo"> = ["draftkings", "fanduel", "yahoo"];
+  const sports = ACTIVE_SPORTS;
+
+  const todayET = getEasternToday();
+  const baseDate = new Date(todayET + "T12:00:00Z");
+
+  // Build the list of dates to check: yesterday back to daysBack days ago.
+  // We skip today because games may not have finished yet.
+  const dates: string[] = [];
+  for (let i = 1; i <= daysBack; i++) {
+    const d = new Date(baseDate);
+    d.setUTCDate(d.getUTCDate() - i);
+    dates.push(d.toISOString().split("T")[0]);
+  }
+
+  const allResults: string[] = [];
+  let attempted = 0;
+  let succeeded = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  console.log(`[WinningAgent] Starting backfill for last ${daysBack} days (${dates[dates.length - 1]} → ${dates[0]}) force=${force}`);
+
+  for (const dateStr of dates) {
+    // Run all sport×platform combos for this date in parallel — they're independent
+    const combos = sports.flatMap(sport =>
+      platforms.map(platform => ({ sport, platform }))
+    );
+
+    const dateResults = await Promise.allSettled(
+      combos.map(async ({ sport, platform }) => {
+        attempted++;
+
+        // Check for existing record before attempting (unless force)
+        if (!force) {
+          const existing = await storage.getWinningLineupBySlateDate(sport, dateStr, platform);
+          if (existing) {
+            skipped++;
+            return `${dateStr} ${sport}/${platform}: skipped (already exists)`;
+          }
+        }
+
+        const result = await analyzeCompletedSlate(sport, dateStr, platform, force);
+        if (result.success) {
+          succeeded++;
+        } else if (result.message.includes("already analyzed")) {
+          skipped++;
+        } else {
+          failed++;
+        }
+        return `${dateStr} ${sport}/${platform}: ${result.message}`;
+      })
+    );
+
+    for (const r of dateResults) {
+      const msg = r.status === "fulfilled" ? r.value : `Error: ${(r as PromiseRejectedResult).reason?.message}`;
+      allResults.push(msg);
+      onProgress?.(msg);
+      if (r.status === "rejected") failed++;
+    }
+
+    // Small pause between dates so we don't overwhelm ESPN's API
+    await new Promise(res => setTimeout(res, 500));
+  }
+
+  console.log(`[WinningAgent] Backfill complete — attempted:${attempted} succeeded:${succeeded} skipped:${skipped} failed:${failed}`);
+
+  return { attempted, succeeded, skipped, failed, results: allResults };
 }
