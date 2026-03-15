@@ -442,21 +442,36 @@ export async function ingestFanDuelSlate(sport: FDSport): Promise<{
     return { success: false, message: `[FD/${sport}] No player data retrieved from any source.` };
   }
 
-  const nowET = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
-  const todayET = `${nowET.getFullYear()}-${String(nowET.getMonth()+1).padStart(2,"0")}-${String(nowET.getDate()).padStart(2,"0")}`;
-
   const allSlates = await storage.getSlates();
-  let slate = allSlates.find(s => {
-    if (s.sport !== sport || s.platform !== "fanduel" || !s.isMain) return false;
-    const sET = new Date(s.startTime.toLocaleString("en-US", { timeZone: "America/New_York" }));
-    return `${sET.getFullYear()}-${String(sET.getMonth()+1).padStart(2,"0")}-${String(sET.getDate()).padStart(2,"0")}` === todayET;
-  });
+  const fdMainSlates = allSlates
+    .filter(s => s.sport === sport && s.platform === "fanduel" && s.isMain)
+    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
 
-  if (!slate) {
+  if (fdMainSlates.length > 1) {
+    for (let i = 1; i < fdMainSlates.length; i++) {
+      try {
+        await storage.deleteSlateAndPlayers(fdMainSlates[i].id);
+        console.log(`[FD Ingest] Removed duplicate FD ${sport} slate id=${fdMainSlates[i].id}`);
+      } catch {}
+    }
+  }
+
+  let slate = fdMainSlates[0] || null;
+
+  if (slate) {
+    try {
+      await storage.updateSlateData(slate.id, { name: slateLabel, startTime, draftGroupId: draftGroupId || null });
+    } catch {}
+    if (!slate.isActive) {
+      const { db } = await import("./db");
+      const { slates: slatesTable } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(slatesTable).set({ isActive: true }).where(eq(slatesTable.id, slate.id));
+    }
+    console.log(`[FD Ingest] Refreshing FD ${sport} slate id=${slate.id} (updated startTime to ${startTime.toISOString()})`);
+  } else {
     slate = await storage.createSlate({ sport, platform: "fanduel", name: slateLabel, startTime, isMain, draftGroupId } satisfies InsertSlate);
     console.log(`[FD Ingest] Created FD ${sport} slate id=${slate.id}`);
-  } else {
-    console.log(`[FD Ingest] Refreshing FD ${sport} slate id=${slate.id}`);
   }
 
   const insertPlayers: InsertPlayer[] = playerRows

@@ -611,18 +611,33 @@ export function parseYahooCSV(csvText: string, sport: YahooSport): YahooPlayerRo
 
 async function upsertYahooSlate(sport: YahooSport, label: string, startTime: Date): Promise<Awaited<ReturnType<typeof storage.createSlate>>> {
   const allSlates = await storage.getSlates();
-  const nowET = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
-  const todayET = `${nowET.getFullYear()}-${String(nowET.getMonth()+1).padStart(2,"0")}-${String(nowET.getDate()).padStart(2,"0")}`;
 
-  const existing = allSlates.find(s => {
-    if (s.sport !== sport || s.platform !== "yahoo" || !s.isMain) return false;
-    const sET = new Date(s.startTime.toLocaleString("en-US", { timeZone: "America/New_York" }));
-    return `${sET.getFullYear()}-${String(sET.getMonth()+1).padStart(2,"0")}-${String(sET.getDate()).padStart(2,"0")}` === todayET;
-  });
+  const existing = allSlates
+    .filter(s => s.sport === sport && s.platform === "yahoo" && s.isMain)
+    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
 
-  if (existing) {
-    console.log(`[Yahoo Ingest] Refreshing ${sport} Yahoo slate id=${existing.id}`);
-    return existing;
+  if (existing.length > 1) {
+    for (let i = 1; i < existing.length; i++) {
+      try {
+        await storage.deleteSlateAndPlayers(existing[i].id);
+        console.log(`[Yahoo Ingest] Removed duplicate ${sport} Yahoo slate id=${existing[i].id}`);
+      } catch {}
+    }
+  }
+
+  const match = existing[0];
+  if (match) {
+    try {
+      await storage.updateSlateData(match.id, { name: label, startTime, draftGroupId: null });
+    } catch {}
+    if (!match.isActive) {
+      const { db } = await import("./db");
+      const { slates } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(slates).set({ isActive: true }).where(eq(slates.id, match.id));
+    }
+    console.log(`[Yahoo Ingest] Refreshing ${sport} Yahoo slate id=${match.id} (updated startTime to ${startTime.toISOString()})`);
+    return { ...match, name: label, startTime, isActive: true };
   }
 
   const created = await storage.createSlate({
