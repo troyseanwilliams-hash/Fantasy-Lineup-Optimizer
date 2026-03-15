@@ -271,7 +271,8 @@ export default function PrizePicksBuilder() {
   const [showAIEntries, setShowAIEntries] = useState(false);
   const [expandedAIEntry, setExpandedAIEntry] = useState<number | null>(null);
   const [aiBuilding, setAiBuilding] = useState(false);
-  const [aiEntries, setAiEntries] = useState<AIBuiltEntry[]>([]);
+  const [aiEntriesBySport, setAiEntriesBySport] = useState<Record<string, AIBuiltEntry[]>>({});
+  const [sortMode, setSortMode] = useState<"time" | "line-high" | "line-low" | "confidence">("confidence");
   const [activeTab, setActiveTab] = useState<"builder" | "vault">("builder");
   const [expandedVaultEntry, setExpandedVaultEntry] = useState<number | null>(null);
   const [swappingProjId, setSwappingProjId] = useState<string | null>(null);
@@ -367,8 +368,12 @@ export default function PrizePicksBuilder() {
     if (statFilter !== "ALL") {
       filtered = filtered.filter(p => p.statType === statFilter);
     }
+    if (sortMode === "line-high") filtered = [...filtered].sort((a, b) => b.line - a.line);
+    else if (sortMode === "line-low") filtered = [...filtered].sort((a, b) => a.line - b.line);
+    else if (sortMode === "confidence") filtered = [...filtered].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+    // "time" is default (already sorted by startTime from the API)
     return filtered;
-  }, [projections, searchQuery, statFilter]);
+  }, [projections, searchQuery, statFilter, sortMode]);
 
   const entrySports = useMemo(() => {
     const sports = new Set(entries.map(e => e.projection.league));
@@ -396,6 +401,18 @@ export default function PrizePicksBuilder() {
   const addEntry = (projection: PrizePicksProjection, pick: "more" | "less") => {
     if (entries.length >= maxPicks) return;
     if (entries.some(e => e.projection.id === projection.id)) return;
+    // Block same player appearing twice (PrizePicks doesn't allow it)
+    const hasSamePlayer = entries.some(
+      e => e.projection.playerName.toLowerCase() === projection.playerName.toLowerCase()
+    );
+    if (hasSamePlayer) {
+      toast({
+        title: "Duplicate player",
+        description: `${projection.playerName} is already in your entry.`,
+        variant: "destructive",
+      });
+      return;
+    }
     setEntries(prev => [...prev, { projection, pick }]);
   };
 
@@ -427,11 +444,20 @@ export default function PrizePicksBuilder() {
     setAnalysisResult(null);
   };
 
+  const startSwap = (projId: string) => {
+    const isStartingNew = swappingProjId !== projId;
+    setSwappingProjId(isStartingNew ? projId : null);
+    // Clear stale analysis whenever a new swap target is chosen
+    if (isStartingNew) setAnalysisResult(null);
+  };
+
   const clearAll = () => {
     setEntries([]);
     setSwappingProjId(null);
     setAnalysisResult(null);
   };
+
+  const aiEntries = aiEntriesBySport[selectedSport] || [];
 
   const runAIBuilder = async () => {
     setAiBuilding(true);
@@ -442,22 +468,19 @@ export default function PrizePicksBuilder() {
       const res = await fetch(`/api/prizepicks/build/${selectedSport}`);
       if (res.status === 401) {
         setAiError("Please sign in to use the AI Builder.");
-        setAiEntries([]);
         return;
       }
       if (res.status === 403) {
         setAiError("AI Builder requires a Champion subscription.");
-        setAiEntries([]);
         return;
       }
       if (!res.ok) throw new Error("Failed to build entries");
       const data: AIBuildResponse = await res.json();
-      setAiEntries(data.entries);
+      setAiEntriesBySport(prev => ({ ...prev, [selectedSport]: data.entries }));
       if (data.entries.length > 0) setExpandedAIEntry(0);
     } catch (err) {
       console.error("AI builder error:", err);
       setAiError("Something went wrong building entries. Please try again.");
-      setAiEntries([]);
     } finally {
       setAiBuilding(false);
     }
@@ -589,7 +612,7 @@ export default function PrizePicksBuilder() {
                     key={sport}
                     variant={selectedSport === sport ? "default" : "outline"}
                     size="sm"
-                    onClick={() => { setSelectedSport(sport); setEntries([]); setSwappingProjId(null); setStatFilter("ALL"); setSearchQuery(""); setShowAIEntries(false); setAiEntries([]); setExpandedAIEntry(null); setAiError(null); }}
+                    onClick={() => { setSelectedSport(sport); setEntries([]); setSwappingProjId(null); setStatFilter("ALL"); setSearchQuery(""); setShowAIEntries(false); setExpandedAIEntry(null); setAiError(null); }}
                     className={selectedSport === sport
                       ? "bg-violet-500 text-white font-bold"
                       : "border-slate-700 text-slate-400 font-bold"
@@ -1026,7 +1049,17 @@ export default function PrizePicksBuilder() {
                   data-testid="pp-builder-search"
                 />
               </div>
-              <div className="flex gap-1.5 flex-wrap">
+              <div className="flex gap-1.5 flex-wrap items-center">
+                <select
+                  value={sortMode}
+                  onChange={e => setSortMode(e.target.value as typeof sortMode)}
+                  className="bg-slate-800/50 border border-slate-700/50 text-slate-300 text-xs rounded-lg px-2.5 py-1.5 font-bold"
+                  data-testid="pp-builder-sort"
+                >
+                  <option value="time">Sort: Time</option>
+                  <option value="line-high">Sort: Line High</option>
+                  <option value="line-low">Sort: Line Low</option>
+                </select>
                 <Button
                   size="sm"
                   variant={statFilter === "ALL" ? "default" : "ghost"}
@@ -1063,7 +1096,7 @@ export default function PrizePicksBuilder() {
               </div>
             ) : (
               <div className="space-y-2 max-h-[calc(100vh-340px)] overflow-y-auto pr-1">
-                {filteredProjections.slice(0, 50).map(proj => {
+                {filteredProjections.slice(0, 150).map(proj => {
                   const inEntry = isInEntry(proj.id);
                   return (
                     <div
@@ -1249,9 +1282,9 @@ export default function PrizePicksBuilder() {
                     </div>
                   );
                 })}
-                {filteredProjections.length > 50 && (
+                {filteredProjections.length > 150 && (
                   <p className="text-center text-xs text-slate-500 py-2">
-                    Showing 50 of {filteredProjections.length} lines. Use search to find specific players.
+                    Showing 150 of {filteredProjections.length} lines. Use search to find specific players.
                   </p>
                 )}
               </div>
@@ -1302,7 +1335,7 @@ export default function PrizePicksBuilder() {
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             <button
-                              onClick={() => setSwappingProjId(swappingProjId === entry.projection.id ? null : entry.projection.id)}
+                              onClick={() => startSwap(entry.projection.id)}
                               className={`p-1 ${swappingProjId === entry.projection.id ? "text-amber-400" : "text-slate-500 hover:text-amber-400"}`}
                               title="Swap player"
                               data-testid={`pp-builder-entry-swap-${idx}`}
