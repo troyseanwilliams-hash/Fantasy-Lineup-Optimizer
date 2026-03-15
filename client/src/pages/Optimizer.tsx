@@ -26,14 +26,6 @@ import { ScoutPanel } from "@/components/ScoutPanel";
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "fppg" | "value";
 type SortDir = "asc" | "desc";
 
-const INJURY_COLORS: Record<string, string> = {
-  OUT: "bg-red-500/20 text-red-400 border-red-500/30",
-  Doubtful: "bg-orange-500/20 text-orange-400 border-orange-500/30",
-  Questionable: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  Probable: "bg-green-500/20 text-green-400 border-green-500/30",
-  "Day-to-Day": "bg-blue-500/20 text-blue-400 border-blue-500/30",
-};
-
 function formatSalary(salary: number, plat: Platform): string {
   if (plat === "yahoo") return `$${salary}`;
   return `$${(salary / 1000).toFixed(1)}K`;
@@ -43,6 +35,23 @@ function formatCap(cap: number, plat: Platform): string {
   if (plat === "yahoo") return `$${cap}`;
   return `$${cap.toLocaleString()}`;
 }
+
+function getSlateLabel(s: Slate): string {
+  const label = (s as any).label as string | undefined;
+  if (label) return label;
+  const locked = new Date(s.startTime) <= new Date();
+  const platform = s.platform === "fanduel" ? "FD" : "DK";
+  const date = new Date(s.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return `${platform} - ${s.name} — ${date}${locked ? " (Locked)" : ""}`;
+}
+
+const INJURY_COLORS: Record<string, string> = {
+  OUT: "bg-red-500/20 text-red-400 border-red-500/30",
+  Doubtful: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  Questionable: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  Probable: "bg-green-500/20 text-green-400 border-green-500/30",
+  "Day-to-Day": "bg-blue-500/20 text-blue-400 border-blue-500/30",
+};
 
 export default function Optimizer() {
   const [, params] = useRoute("/optimizer/:id");
@@ -69,6 +78,7 @@ export default function Optimizer() {
   const [activeSwapSlot, setActiveSwapSlot] = useState<string | null>(null);
   const [manualReplacements, setManualReplacements] = useState<Record<string, Player>>({});
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
+  const [projectedPointsFloor, setProjectedPointsFloor] = useState<number | null>(null);
   const [mobileView, setMobileView] = useState<"players" | "lineup">("players");
 
   const [platform, setPlatform] = useState<Platform>("draftkings");
@@ -91,7 +101,13 @@ export default function Optimizer() {
 
   const sportSlates = useMemo(() => {
     if (!slates) return [];
-    return slates.filter(s => s.sport === sport && s.platform === platform);
+    return slates
+      .filter(s => s.sport === sport && s.platform === platform)
+      .sort((a, b) => {
+        if (a.isMain && !b.isMain) return -1;
+        if (!a.isMain && b.isMain) return 1;
+        return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+      });
   }, [slates, sport, platform]);
 
   const playerUrl = buildUrl("/api/slates/:id/players", { id: slateId });
@@ -121,10 +137,17 @@ export default function Optimizer() {
       const res = await apiRequest("POST", "/api/optimize", constraints);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       setRemovedSlots(new Set());
       setActiveSwapSlot(null);
       setManualReplacements({});
+      if (data.lineups && data.lineups.length === 0 && projectedPointsFloor) {
+        toast({
+          title: `No lineups hit ${projectedPointsFloor}+ pts`,
+          description: data.message || "Try lowering the floor or relaxing constraints.",
+          variant: "destructive",
+        });
+      }
     }
   });
 
@@ -132,9 +155,9 @@ export default function Optimizer() {
     optimizeMutation.reset();
     setRemovedSlots(new Set());
     setActiveSwapSlot(null);
-    setActiveSwapSlot(null);
     setManualReplacements({});
     setSalaryRange(null);
+    setProjectedPointsFloor(null);
   }, [slateId]);
 
   const saveLineupMutation = useMutation({
@@ -327,6 +350,7 @@ export default function Optimizer() {
       playerMinSalary: salaryRange && salaryRange[0] > salaryBounds.min ? salaryRange[0] : undefined,
       playerMaxSalary: salaryRange && salaryRange[1] < salaryBounds.max ? salaryRange[1] : undefined,
       playerProjections: Object.keys(mergedProjections).length > 0 ? mergedProjections : undefined,
+      projectedPointsFloor: projectedPointsFloor ?? undefined,
     });
   };
 
@@ -351,9 +375,9 @@ export default function Optimizer() {
     setBoosts({});
     setRemovedSlots(new Set());
     setActiveSwapSlot(null);
-    setActiveSwapSlot(null);
     setManualReplacements({});
     setSalaryRange(null);
+    setProjectedPointsFloor(null);
     optimizeMutation.reset();
     setLineupName("");
   };
@@ -602,11 +626,10 @@ export default function Optimizer() {
                 {sportSlates.map(s => {
                   const locked = new Date(s.startTime) <= new Date();
                   const userTier = subData?.tier || "free";
-                  const isUserAdmin = userIsAdmin;
-                  const isGated = !s.isMain && userTier !== "pro" && !isUserAdmin;
+                  const isGated = !s.isMain && userTier !== "pro" && !userIsAdmin;
                   return (
                     <option key={s.id} value={s.id} disabled={isGated}>
-                      {s.isMain ? "★ " : ""}{locked ? "🔒 " : ""}{s.platform === "fanduel" ? "FD" : "DK"} - {s.name} — {new Date(s.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}{locked ? " (Locked)" : ""}{isGated ? " (CHAMPION)" : ""}
+                      {s.isMain ? "★ " : ""}{locked ? "🔒 " : ""}{getSlateLabel(s)}{isGated ? " (CHAMPION)" : ""}
                     </option>
                   );
                 })}
@@ -1200,8 +1223,32 @@ export default function Optimizer() {
             </div>
           )}
 
+          <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-800/60 rounded-lg px-2 sm:px-3 py-1.5 border border-slate-700/50 mt-1.5" data-testid="floor-section">
+            <TrendingUp className={`w-3 h-3 sm:w-3.5 sm:h-3.5 flex-shrink-0 ${projectedPointsFloor ? "text-emerald-400" : "text-slate-500"}`} />
+            <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Floor</span>
+            <input
+              type="number"
+              min={0}
+              step={5}
+              placeholder="Off"
+              value={projectedPointsFloor ?? ""}
+              onChange={e => {
+                const v = parseFloat(e.target.value);
+                setProjectedPointsFloor(!isNaN(v) && v > 0 ? v : null);
+              }}
+              className={`flex-1 bg-transparent border-0 text-right font-mono font-black text-xs focus:outline-none tabular-nums ${projectedPointsFloor ? pColors.text : "text-slate-500"}`}
+              data-testid="input-floor"
+            />
+            <span className={`text-[9px] sm:text-[10px] font-black whitespace-nowrap ${projectedPointsFloor ? pColors.text : "text-slate-500"}`}>
+              {projectedPointsFloor ? `${projectedPointsFloor}+ pts` : "pts min"}
+            </span>
+            {projectedPointsFloor && (
+              <button onClick={() => setProjectedPointsFloor(null)} className="text-slate-500 hover:text-white flex-shrink-0 cursor-pointer" data-testid="button-reset-floor"><X className="w-3 h-3" /></button>
+            )}
+          </div>
+
           {slateHasStarted && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center" data-testid="slate-locked-msg">
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center mt-1.5" data-testid="slate-locked-msg">
               <p className="text-red-400 text-sm font-bold">This slate has locked — games have already started.</p>
               <p className="text-slate-400 text-xs mt-1">Switch to another sport with upcoming games to build lineups.</p>
             </div>

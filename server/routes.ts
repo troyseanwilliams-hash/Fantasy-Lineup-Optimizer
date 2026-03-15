@@ -38,9 +38,29 @@ export async function registerRoutes(
   registerAuthRoutes(app);
 
   app.get(api.slates.list.path, async (req, res) => {
-    const allSlates = await storage.getSlates();
-    const slates = allSlates.filter(s => s.isActive !== false);
-    res.json(slates);
+    try {
+      const allSlates = await storage.getSlates();
+      const active = allSlates
+        .filter(s => s.isActive !== false)
+        .sort((a, b) => {
+          if (a.sport === b.sport && a.platform === b.platform) {
+            if (a.isMain && !b.isMain) return -1;
+            if (!a.isMain && b.isMain) return 1;
+          }
+          return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+        })
+        .map(s => ({
+          ...s,
+          label:        (s as any).label        ?? s.name,
+          gameType:     (s as any).gameType     ?? "Classic",
+          gameCount:    (s as any).gameCount    ?? 0,
+          contestCount: (s as any).contestCount ?? 0,
+        }));
+      res.json(active);
+    } catch (err) {
+      console.error("Slates error:", err);
+      res.status(500).json({ message: "Failed to fetch slates" });
+    }
   });
 
   app.post(api.slates.create.path, async (req, res) => {
@@ -407,6 +427,15 @@ export async function registerRoutes(
       const result = solveLineup(salaryFilteredPool, { ...constraints, lockedPlayerIds: mergedLocked, excludedPlayerIds: mergedExclusions }, slate.sport, platform);
 
       if (result.error) {
+        if (constraints.projectedPointsFloor) {
+          return res.json({
+            lineup: [],
+            totalSalary: 0,
+            totalProjectedPoints: 0,
+            platform,
+            message: `No lineups could reach the ${constraints.projectedPointsFloor}-point floor. Try lowering it or relaxing other constraints.`,
+          });
+        }
         return res.status(400).json(result);
       }
 
@@ -2533,7 +2562,13 @@ export async function registerRoutes(
           detail: p.injuryDetail || "",
         }));
 
-      res.json({ lineups: lineupResults, boostsSummary, injurySummary });
+      const message = lineupResults.length === 0
+        ? constraints.projectedPointsFloor
+          ? `No lineups could reach the ${constraints.projectedPointsFloor}-point floor. Try lowering it or relaxing other constraints.`
+          : "Could not generate any feasible lineups with the current constraints."
+        : undefined;
+
+      res.json({ lineups: lineupResults, boostsSummary, injurySummary, message });
     } catch (err) {
       if (err instanceof z.ZodError) {
         res.status(400).json({ message: err.errors[0].message });
@@ -3280,6 +3315,10 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
     variables: {},
     ints: {}
   };
+
+  if (constraints.projectedPointsFloor && constraints.projectedPointsFloor > 0) {
+    model.constraints.projectedPoints = { min: constraints.projectedPointsFloor };
+  }
 
   for (const [key, constraint] of Object.entries(config.positionConstraints)) {
     model.constraints[key] = constraint;

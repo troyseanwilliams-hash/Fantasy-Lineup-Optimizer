@@ -52,13 +52,15 @@ function formatCap(cap: number, plat: Platform): string {
   return `$${cap.toLocaleString()}`;
 }
 
+// Uses server-provided label (e.g. "Classic · 8 games · 7:05 PM ET") when available,
+// falls back gracefully so nothing breaks before the DB migration runs.
 function getSlateLabel(s: Slate): string {
   const label = (s as any).label as string | undefined;
   if (label) return label;
   const locked = new Date(s.startTime) <= new Date();
-  const platform = s.platform === "fanduel" ? "FD" : "DK";
+  const plat = s.platform === "fanduel" ? "FD" : "DK";
   const date = new Date(s.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  return `${platform} - ${s.name} — ${date}${locked ? " (Locked)" : ""}`;
+  return `${plat} - ${s.name}${locked ? " (Locked)" : ""}`;
 }
 
 function getPlayerStarCount(projectedPoints: number): number {
@@ -139,7 +141,7 @@ export default function ProOptimizer() {
   const sportSlates = useMemo(() => {
     if (!slates) return [];
     return slates
-      .filter(s => s.sport === sport && s.platform === platform)
+      .filter(s => s.sport === sport && s.platform === platform && s.isActive !== false)
       .sort((a, b) => {
         if (a.isMain && !b.isMain) return -1;
         if (!a.isMain && b.isMain) return 1;
@@ -216,6 +218,14 @@ export default function ProOptimizer() {
       return res.json();
     },
     onSuccess: (data) => {
+      // Floor filter: 0 lineups returned because floor was too high — not an error
+      if (data?.lineups?.length === 0 && projectedPointsFloor) {
+        toast({
+          title: `No lineups hit ${projectedPointsFloor}+ pts`,
+          description: data.message || "Try lowering the floor or relaxing other constraints.",
+          variant: "destructive",
+        });
+      }
       // Warn if server returned lineups that violate the requested exposure limits.
       // This can happen due to solver rounding or insufficient player pool diversity.
       if (data?.lineups && (Object.keys(exposureLimits).length > 0 || globalMaxExposure)) {
@@ -633,6 +643,7 @@ export default function ProOptimizer() {
     setLineupSwaps({});
     setSwappingTarget(null);
     setUseBoostsUserOverride(null);
+    setProjectedPointsFloor(null);
     optimizeMutation.reset();
   };
 
@@ -770,7 +781,7 @@ export default function ProOptimizer() {
                 const isGated = !s.isMain && userTier !== "pro" && !userIsAdmin;
                 return (
                   <option key={s.id} value={s.id} disabled={isGated}>
-                    {s.isMain ? "★ " : ""}{locked ? "🔒 " : ""}{s.platform === "fanduel" ? "FD" : "DK"} - {s.name}{locked ? " (Locked)" : ""}{isGated ? " (CHAMPION)" : ""}
+                    {s.isMain ? "★ " : ""}{locked ? "🔒 " : ""}{getSlateLabel(s)}{isGated ? " (CHAMPION)" : ""}
                   </option>
                 );
               })}
@@ -866,6 +877,32 @@ export default function ProOptimizer() {
                   )}
                 </div>
               )}
+              {/* ── Projected Points Floor (desktop) ── */}
+              <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0" data-testid="floor-section">
+                <TrendingUp className={`w-3.5 h-3.5 flex-shrink-0 ${projectedPointsFloor ? "text-emerald-400" : "text-slate-500"}`} />
+                <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Floor</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={5}
+                  placeholder="Off"
+                  value={projectedPointsFloor ?? ""}
+                  onChange={e => {
+                    const v = parseFloat(e.target.value);
+                    setProjectedPointsFloor(!isNaN(v) && v > 0 ? v : null);
+                  }}
+                  className={`w-16 bg-transparent border-0 text-right font-mono font-black text-xs focus:outline-none tabular-nums ${projectedPointsFloor ? "text-emerald-400" : "text-slate-500"}`}
+                  data-testid="input-floor"
+                />
+                <span className={`text-[10px] font-black whitespace-nowrap ${projectedPointsFloor ? "text-emerald-400" : "text-slate-500"}`}>
+                  {projectedPointsFloor ? `${projectedPointsFloor}+` : "pts"}
+                </span>
+                {projectedPointsFloor && (
+                  <button onClick={() => setProjectedPointsFloor(null)} className="text-slate-500 hover:text-white flex-shrink-0" data-testid="button-reset-floor">
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -943,6 +980,28 @@ export default function ProOptimizer() {
                   </span>
                 </div>
               )}
+              {/* ── Floor (mobile) ── */}
+              <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0" data-testid="floor-section-mobile">
+                <TrendingUp className={`w-3 h-3 flex-shrink-0 ${projectedPointsFloor ? "text-emerald-400" : "text-slate-500"}`} />
+                <input
+                  type="number"
+                  min={0}
+                  step={5}
+                  placeholder="Floor"
+                  value={projectedPointsFloor ?? ""}
+                  onChange={e => {
+                    const v = parseFloat(e.target.value);
+                    setProjectedPointsFloor(!isNaN(v) && v > 0 ? v : null);
+                  }}
+                  className={`w-14 bg-transparent border-0 font-mono font-black text-[10px] focus:outline-none tabular-nums ${projectedPointsFloor ? "text-emerald-400" : "text-slate-500"}`}
+                  data-testid="input-floor-mobile"
+                />
+                {projectedPointsFloor && (
+                  <button onClick={() => setProjectedPointsFloor(null)} className="text-slate-500 hover:text-white" data-testid="button-reset-floor-mobile">
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -1004,7 +1063,7 @@ export default function ProOptimizer() {
               ) : (
                 <Zap className="w-3.5 h-3.5 mr-1.5" />
               )}
-              {slateHasStarted ? "SLATE LOCKED" : `Generate ${lineupCount}`}
+              {slateHasStarted ? "SLATE LOCKED" : `Generate ${lineupCount}${projectedPointsFloor ? ` (≥${projectedPointsFloor})` : ""}`}
             </Button>
 
             {generatedLineups.length > 0 && (
@@ -2130,6 +2189,7 @@ export default function ProOptimizer() {
                 <h3 className="text-lg font-black text-white mb-2">Ready to Optimize</h3>
                 <p className="text-sm text-slate-400 max-w-xs">
                   Configure your settings and click Generate to create {lineupCount} optimized lineup{lineupCount > 1 ? "s" : ""}.
+                  {projectedPointsFloor ? ` Only lineups scoring ${projectedPointsFloor}+ pts will be returned.` : ""}
                 </p>
               </div>
             )}
