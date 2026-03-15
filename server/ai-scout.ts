@@ -112,14 +112,14 @@ async function fetchNews(sport: string): Promise<string> {
   return chunks.join("\n\n---\n\n");
 }
 
-async function analyzeWithClaude(
+async function analyzeWithGemini(
   newsText: string,
   playerList: string,
   sport: string
 ): Promise<ScoutSignal[]> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    console.log("[AIScout] No ANTHROPIC_API_KEY set — skipping Claude analysis");
+    console.log("[AIScout] No GEMINI_API_KEY set — skipping Gemini analysis");
     return [];
   }
 
@@ -154,34 +154,31 @@ Return ONLY valid JSON array, no markdown fences, no commentary.
 Example: [{"player_name":"Jaylen Brown","signal_type":"injury_opp","reason":"Tatum ruled out — Brown takes over primary ball-handler role","beneficiary_names":[],"ownership_delta":15,"confidence":0.9}]`;
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const model = "gemini-2.0-flash";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const res = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 2000,
-        messages: [{ role: "user", content: prompt }],
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 2000, temperature: 0.3 },
       }),
     });
 
     if (!res.ok) {
       const err = await res.text();
-      console.error(`[AIScout] Claude API error ${res.status}: ${err.slice(0, 200)}`);
+      console.error(`[AIScout] Gemini API error ${res.status}: ${err.slice(0, 200)}`);
       return [];
     }
 
     const data = await res.json() as any;
-    let raw = data.content?.[0]?.text?.trim() || "[]";
+    let raw = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "[]";
     raw = raw.replace(/^```[a-z]*\n?/, "").replace(/\n?```$/, "");
     const signals: ScoutSignal[] = JSON.parse(raw);
-    console.log(`[AIScout] Claude returned ${signals.length} signals for ${sport}`);
+    console.log(`[AIScout] Gemini returned ${signals.length} signals for ${sport}`);
     return signals;
   } catch (err: any) {
-    console.error(`[AIScout] Claude analysis failed: ${err.message}`);
+    console.error(`[AIScout] Gemini analysis failed: ${err.message}`);
     return [];
   }
 }
@@ -208,7 +205,7 @@ export async function runScout(
     .map(p => `- ${p.name} (${p.team}, ${p.position}, $${p.salary.toLocaleString()}, proj=${p.fppg || "0"})`)
     .join("\n");
 
-  const signals = await analyzeWithClaude(newsText, playerList, sport);
+  const signals = await analyzeWithGemini(newsText, playerList, sport);
   _cachedSignals[sport] = signals;
   _lastRun[sport] = Date.now() / 1000;
 
