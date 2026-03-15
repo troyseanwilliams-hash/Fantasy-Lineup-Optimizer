@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { gradeLineup, GRADE_COLORS } from "@/lib/lineup-grader";
 import { PlayerInfoHoverCard } from "@/components/PlayerInfoHoverCard";
+import { ScoutPanel } from "@/components/ScoutPanel";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "fppg" | "value";
 type SortDir = "asc" | "desc";
@@ -743,6 +744,18 @@ export default function Optimizer() {
               </>
             )}
           </div>
+        </div>
+
+        {/* AI Scout Panel */}
+        <div className="px-3 sm:px-4 pt-2">
+          <ScoutPanel
+            sport={sport}
+            players={players}
+            compact
+            onBoostApply={(projections) => {
+              setCustomProjections(prev => ({ ...projections, ...prev }));
+            }}
+          />
         </div>
 
         {/* Filter Bar */}

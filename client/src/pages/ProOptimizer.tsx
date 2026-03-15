@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { gradeLineup, GRADE_COLORS } from "@/lib/lineup-grader";
 import { PlayerInfoHoverCard } from "@/components/PlayerInfoHoverCard";
+import { ScoutPanel } from "@/components/ScoutPanel";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "boostedProj" | "ownershipProjection";
 type SortDir = "asc" | "desc";
@@ -1073,6 +1074,18 @@ export default function ProOptimizer() {
       <div className="flex flex-col xl:flex-row flex-1 overflow-hidden">
         {/* LEFT: Player Pool */}
         <div className={`flex-1 flex flex-col overflow-hidden border-r border-slate-800 ${mobileView !== "players" ? "hidden xl:flex" : ""}`}>
+          {/* AI Scout Panel */}
+          <div className="px-3 sm:px-4 pt-2">
+            <ScoutPanel
+              sport={sport}
+              players={players}
+              compact
+              onBoostApply={(projections) => {
+                setCustomProjections(prev => ({ ...projections, ...prev }));
+              }}
+            />
+          </div>
+
           {/* Filter Bar */}
           <div className="px-4 py-3 border-b border-slate-800 bg-slate-900/20 flex flex-col md:flex-row gap-3 items-stretch md:items-center">
             <div className="relative flex-1 max-w-sm">

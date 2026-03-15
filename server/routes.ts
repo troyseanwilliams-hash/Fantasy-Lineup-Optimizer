@@ -27,6 +27,7 @@ import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analy
 import { fetchBDLStats, type PlayerStatsMap, normalizeName } from "./balldontlie-stats";
 import { refreshRecentlyPlayed, getRecentlyPlayedCache, normalizePlayerName } from "./espn-activity";
 import { calculateOwnership, computeOwnershipForPlayers, type ContestType } from "./ownership-engine";
+import { runScout, getCachedSignals, getScoutStatus, forceRefresh, secondsUntilRefresh } from "./ai-scout";
 
 
 export async function registerRoutes(
@@ -2795,6 +2796,82 @@ export async function registerRoutes(
     }
 
     res.json({ props: visibleProps, tier, totalCount: sorted.length, lockedCount, maxPerSport });
+  });
+
+  app.get("/api/scout/status", async (_req, res) => {
+    try {
+      res.json(getScoutStatus());
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/scout/signals/:sport", async (req, res) => {
+    try {
+      const sport = (req.params.sport || "NBA").toUpperCase();
+      let signals = getCachedSignals(sport);
+
+      if (signals.length === 0) {
+        const allSlates = await storage.getSlates();
+        const sportSlates = allSlates.filter(
+          (s: any) => s.sport?.toUpperCase() === sport && s.platform === "draftkings"
+        );
+        if (sportSlates.length > 0) {
+          const slateId = sportSlates[0].id;
+          const slatePlayers = await storage.getPlayersBySlate(slateId);
+          const playerList = slatePlayers.map((p: any) => ({
+            name: p.name,
+            team: p.team || "",
+            position: p.position || "",
+            salary: p.salary || 0,
+            fppg: p.projectedPoints || null,
+          }));
+          signals = await runScout(sport, playerList);
+        }
+      }
+
+      res.json({
+        signals,
+        seconds_until_refresh: secondsUntilRefresh(sport),
+      });
+    } catch (err: any) {
+      console.error(`[AIScout] Error fetching signals for ${req.params.sport}:`, err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/scout/refresh", async (req, res) => {
+    try {
+      if (!isLoggedIn(req)) {
+        return res.status(401).json({ error: "Login required" });
+      }
+      const { sport = "NBA" } = req.body || {};
+      const sportUp = sport.toUpperCase();
+      forceRefresh(sportUp);
+
+      const allSlates = await storage.getSlates();
+      const sportSlates = allSlates.filter(
+        (s: any) => s.sport?.toUpperCase() === sportUp && s.platform === "draftkings"
+      );
+      if (sportSlates.length > 0) {
+        const slateId = sportSlates[0].id;
+        const slatePlayers = await storage.getPlayersBySlate(slateId);
+        const playerList = slatePlayers.map((p: any) => ({
+          name: p.name,
+          team: p.team || "",
+          position: p.position || "",
+          salary: p.salary || 0,
+          fppg: p.projectedPoints || null,
+        }));
+        const signals = await runScout(sportUp, playerList);
+        res.json({ signals, sport: sportUp });
+      } else {
+        res.json({ signals: [], sport: sportUp, message: "No slates found for sport" });
+      }
+    } catch (err: any) {
+      console.error(`[AIScout] Error refreshing:`, err.message);
+      res.status(500).json({ error: err.message });
+    }
   });
 
   return httpServer;

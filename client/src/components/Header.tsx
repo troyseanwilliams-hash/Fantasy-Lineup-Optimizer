@@ -249,6 +249,12 @@ export function Header() {
                         <span className="text-sm font-bold text-slate-300">Player Config</span>
                       </DropdownMenuItem>
                     </Link>
+                    <Link href="/scout">
+                      <DropdownMenuItem className="cursor-pointer" data-testid="nav-scout">
+                        <Sparkles className="w-4 h-4 mr-2 text-emerald-400" />
+                        <span className="text-sm font-bold text-slate-300">AI Scout</span>
+                      </DropdownMenuItem>
+                    </Link>
                   </>
                 )}
                 {user?.isAdmin && (
