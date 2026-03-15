@@ -3,7 +3,7 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
 import { users, subscriptions, slates } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, lt } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
@@ -40,8 +40,9 @@ export async function registerRoutes(
   app.get(api.slates.list.path, async (req, res) => {
     try {
       const allSlates = await storage.getSlates();
+      const graceCutoff = new Date(Date.now() - 3 * 60 * 60 * 1000);
       const active = allSlates
-        .filter(s => s.isActive !== false)
+        .filter(s => s.isActive !== false && new Date(s.startTime) > graceCutoff)
         .sort((a, b) => {
           if (a.sport === b.sport && a.platform === b.platform) {
             if (a.isMain && !b.isMain) return -1;
@@ -3616,6 +3617,13 @@ export async function seedDatabase(forceRefresh = false) {
 
   await generatePlayerBoostsAndInjuries();
 
+  const graceCutoff = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  const deactivated = await db
+    .update(slates)
+    .set({ isActive: false })
+    .where(and(lt(slates.startTime, graceCutoff), eq(slates.isActive, true)));
+  const deactivatedCount = (deactivated as any)?.rowCount ?? 0;
+  if (deactivatedCount > 0) console.log(`[Seed] Deactivated ${deactivatedCount} stale slate(s) after refresh`);
 }
 
 export async function generatePlayerBoostsAndInjuries() {

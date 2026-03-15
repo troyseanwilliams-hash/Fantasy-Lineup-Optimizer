@@ -22,11 +22,13 @@ showdownRouter.get("/api/showdown/slates", async (req, res) => {
 
     const allSlates = await storage.getSlates();
 
+    const graceCutoff = new Date(Date.now() - 3 * 60 * 60 * 1000);
     const filtered = allSlates
       .filter(s =>
         s.sport    === sport &&
         s.platform === requestedPlatform &&
-        s.isActive !== false
+        s.isActive !== false &&
+        new Date(s.startTime) > graceCutoff
       )
       .sort((a, b) => {
         if (a.isMain && !b.isMain) return -1;
