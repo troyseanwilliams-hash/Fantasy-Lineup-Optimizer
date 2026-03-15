@@ -1880,6 +1880,56 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/landing-data", async (_req, res) => {
+    try {
+      const allSlates = await storage.getSlates();
+      const sportData: Record<string, { playerCount: number; gameCount: number; topPlayers: Array<{ name: string; team: string; position: string; salary: number; projectedPoints: string; opponent: string; gameInfo: string }> }> = {};
+
+      for (const sport of ["NBA", "NHL", "NFL", "MLB", "GOLF", "SOCCER"]) {
+        const slate = allSlates.find(s => s.sport === sport && s.platform === "draftkings" && s.isActive !== false);
+        if (!slate) continue;
+
+        const players = await storage.getPlayersBySlate(slate.id);
+        if (!players || players.length === 0) continue;
+
+        const sorted = [...players]
+          .filter(p => parseFloat(p.projectedPoints || "0") > 0)
+          .sort((a, b) => parseFloat(b.projectedPoints || "0") - parseFloat(a.projectedPoints || "0"));
+
+        const games = new Set(players.map(p => p.gameInfo).filter(Boolean));
+
+        sportData[sport] = {
+          playerCount: players.length,
+          gameCount: games.size,
+          topPlayers: sorted.slice(0, 5).map(p => ({
+            name: p.name,
+            team: p.team || "",
+            position: p.position || "",
+            salary: p.salary || 0,
+            projectedPoints: p.projectedPoints || "0",
+            opponent: p.opponent || "",
+            gameInfo: p.gameInfo || "",
+          })),
+        };
+      }
+
+      const activeSports = Object.keys(sportData);
+      const totalPlayers = Object.values(sportData).reduce((s, d) => s + d.playerCount, 0);
+      const totalGames = Object.values(sportData).reduce((s, d) => s + d.gameCount, 0);
+
+      res.json({
+        sports: sportData,
+        activeSports,
+        totalPlayers,
+        totalGames,
+        lastUpdated: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error("Landing data error:", err);
+      res.json({ sports: {}, activeSports: [], totalPlayers: 0, totalGames: 0, lastUpdated: new Date().toISOString() });
+    }
+  });
+
   const ESPN_NEWS_URLS: Record<string, string> = {
     NBA: "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/news",
     NHL: "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/news",

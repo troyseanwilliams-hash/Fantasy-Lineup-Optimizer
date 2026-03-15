@@ -1093,6 +1093,139 @@ function AuthenticatedDashboard() {
   );
 }
 
+interface LandingPlayerData {
+  name: string;
+  team: string;
+  position: string;
+  salary: number;
+  projectedPoints: string;
+  opponent: string;
+  gameInfo: string;
+}
+
+interface LandingSportData {
+  playerCount: number;
+  gameCount: number;
+  topPlayers: LandingPlayerData[];
+}
+
+interface LandingResponse {
+  sports: Record<string, LandingSportData>;
+  activeSports: string[];
+  totalPlayers: number;
+  totalGames: number;
+  lastUpdated: string;
+}
+
+function LandingTopPlays() {
+  const [activeSport, setActiveSport] = useState("NBA");
+  const { data, isLoading } = useQuery<LandingResponse>({
+    queryKey: ["/api/landing-data"],
+    refetchInterval: 300000,
+  });
+
+  const sports = data?.activeSports || [];
+
+  if (isLoading) {
+    return (
+      <div className="max-w-5xl mx-auto mb-16" data-testid="landing-top-plays-loading">
+        <div className="flex items-center justify-center gap-3 mb-6">
+          {["NBA", "NHL", "NFL"].map(s => (
+            <div key={s} className="w-16 h-8 rounded-full bg-white/5 animate-pulse" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="bg-white/5 rounded-xl p-4 animate-pulse h-28" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!data || sports.length === 0) return null;
+
+  const currentSport = sports.includes(activeSport) ? activeSport : sports[0];
+  const sportData = data?.sports?.[currentSport];
+  const topPlayers = sportData?.topPlayers || [];
+
+  const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+
+  return (
+    <div className="max-w-5xl mx-auto mb-16" data-testid="landing-top-plays">
+      <div className="flex items-center justify-center gap-2 mb-2">
+        <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
+        <span className="text-emerald-400 text-sm font-bold uppercase tracking-wider">Live Projections</span>
+        <span className="text-slate-500 text-xs">{todayStr}</span>
+      </div>
+      <h2 className="text-2xl font-black text-white text-center mb-1">Today's Top Plays</h2>
+      <p className="text-sm text-slate-400 text-center mb-5">
+        {data.totalPlayers.toLocaleString()} players analyzed across {data.totalGames} games
+      </p>
+
+      <div className="flex items-center justify-center gap-2 mb-6 flex-wrap">
+        {sports.map(sport => {
+          const meta = SPORT_META[sport];
+          const Icon = meta?.icon || Zap;
+          const isActive = sport === currentSport;
+          return (
+            <button
+              key={sport}
+              onClick={() => setActiveSport(sport)}
+              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-bold transition-all ${
+                isActive
+                  ? "bg-emerald-500/20 border border-emerald-500/40 text-emerald-400"
+                  : "bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:border-white/20"
+              }`}
+              data-testid={`landing-sport-${sport.toLowerCase()}`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {sport}
+              {sportData && sport === currentSport && (
+                <span className="text-[10px] opacity-60 ml-0.5">{sportData.gameCount}G</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {topPlayers.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+          {topPlayers.map((player, idx) => (
+            <div
+              key={player.name}
+              className="bg-white/5 border border-white/10 rounded-xl p-4 backdrop-blur-sm text-left hover:border-emerald-500/30 transition-colors"
+              data-testid={`landing-player-${idx}`}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${
+                  idx === 0 ? "bg-amber-500/30 text-amber-300" : "bg-white/10 text-slate-400"
+                }`}>
+                  {idx + 1}
+                </div>
+                <TeamLogo team={player.team} sport={currentSport} size={18} />
+                <span className="text-[10px] text-slate-500 font-bold">{player.position}</span>
+              </div>
+              <p className="text-sm font-black text-white truncate" title={player.name}>{player.name}</p>
+              <div className="flex items-center justify-between mt-1.5">
+                <span className="text-emerald-400 font-black text-lg">{parseFloat(player.projectedPoints).toFixed(1)}</span>
+                <span className="text-[10px] text-slate-500">${player.salary.toLocaleString()}</span>
+              </div>
+              <p className="text-[10px] text-slate-500 mt-1 truncate">vs {player.opponent} {player.gameInfo?.split(" ").pop()}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-slate-500 text-center">No active slates for {currentSport} today</p>
+      )}
+
+      <p className="text-[11px] text-slate-600 text-center mt-4">
+        Projections update hourly. Sign up free to build optimized lineups.
+      </p>
+    </div>
+  );
+}
+
 export default function Home() {
   const { user } = useAuth();
 
@@ -1101,8 +1234,8 @@ export default function Home() {
       <div className="min-h-[calc(100vh-80px)] relative bg-[#0F172A]">
         <img src={heroBg} alt="" className="absolute inset-0 w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-[#0F172A]" />
-        <div className="relative z-10 flex items-center justify-center min-h-[calc(100vh-80px)]">
-          <div className="text-center px-4 max-w-4xl">
+        <div className="relative z-10 flex flex-col items-center min-h-[calc(100vh-80px)]">
+          <div className="text-center px-4 max-w-4xl pt-16 md:pt-24">
             <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-bold mb-8 backdrop-blur-sm">
               <Zap className="w-4 h-4 mr-2 fill-current" />
               AI-Powered DFS Optimizer
@@ -1132,6 +1265,9 @@ export default function Home() {
             >
               Get Started
             </Button>
+
+            <LandingTopPlays />
+
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-12 max-w-5xl mx-auto">
               <div className="bg-white/5 border border-emerald-500/20 rounded-xl p-5 backdrop-blur-sm text-left" data-testid="unauth-card-dk">
                 <div className="flex items-center gap-2.5 mb-2">
