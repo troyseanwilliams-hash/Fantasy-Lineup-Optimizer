@@ -12,10 +12,21 @@ import { runScoutForAllSports } from "./ai-scout";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { users } from "@shared/models/auth";
-import { subscriptions } from "@shared/schema";
-import { eq, and, ne, isNull, isNotNull } from "drizzle-orm";
+import { subscriptions, slates } from "@shared/schema";
+import { eq, and, ne, isNull, isNotNull, lt, sql } from "drizzle-orm";
 import { showdownRouter } from "./showdown-route";
 import { ingestRouter, startIngestScheduler } from "./routes/ingest";
+
+const SLATE_GRACE_HOURS = 3;
+
+async function deactivateOldSlates(): Promise<number> {
+  const cutoff = new Date(Date.now() - SLATE_GRACE_HOURS * 60 * 60 * 1000);
+  const result = await db
+    .update(slates)
+    .set({ isActive: false })
+    .where(and(lt(slates.startTime, cutoff), eq(slates.isActive, true)));
+  return (result as any)?.rowCount ?? 0;
+}
 
 async function seedDefaultUser() {
   const email = "troy.sean.williams@gmail.com";
@@ -260,6 +271,13 @@ app.use((req, res, next) => {
           log("Startup seed check completed", "cron");
 
           try {
+            const deactivated = await deactivateOldSlates();
+            if (deactivated > 0) log(`Startup: deactivated ${deactivated} stale slate(s)`, "cron");
+          } catch (err) {
+            console.error("Startup slate deactivation failed:", err);
+          }
+
+          try {
             const statusUpdated = await refreshPlayerStatuses();
             if (statusUpdated && statusUpdated > 0) log(`Startup status refresh: updated ${statusUpdated} player(s)`, "cron");
           } catch (err) {
@@ -364,6 +382,12 @@ app.use((req, res, next) => {
           if (updated && updated > 0) log(`Hourly status refresh: updated ${updated} player(s)`, "cron");
         } catch (err) {
           console.error("Hourly status refresh failed:", err);
+        }
+        try {
+          const deactivated = await deactivateOldSlates();
+          if (deactivated > 0) log(`Deactivated ${deactivated} stale slate(s) (start_time > ${SLATE_GRACE_HOURS}h ago)`, "cron");
+        } catch (err) {
+          console.error("Slate deactivation failed:", err);
         }
       }, {
         timezone: "America/New_York",

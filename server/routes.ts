@@ -38,7 +38,8 @@ export async function registerRoutes(
   registerAuthRoutes(app);
 
   app.get(api.slates.list.path, async (req, res) => {
-    const slates = await storage.getSlates();
+    const allSlates = await storage.getSlates();
+    const slates = allSlates.filter(s => s.isActive !== false);
     res.json(slates);
   });
 
@@ -1711,7 +1712,7 @@ export async function registerRoutes(
     try {
       const sport = req.params.sport.toUpperCase();
       const allSlates = await storage.getSlates();
-      const slate = allSlates.find(s => s.sport === sport && s.platform === "draftkings" && s.isMain);
+      const slate = allSlates.find(s => s.sport === sport && s.platform === "draftkings" && s.isMain && s.isActive !== false);
       if (!slate) {
         return res.json({ sport, topScorers: [], trending: [], matchups: [], slateId: null });
       }

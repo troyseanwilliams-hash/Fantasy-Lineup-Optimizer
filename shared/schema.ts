@@ -36,6 +36,7 @@ export const slates = pgTable("slates", {
   name: text("name").notNull(),
   startTime: timestamp("start_time").notNull(),
   isMain: boolean("is_main").notNull().default(true),
+  isActive: boolean("is_active").notNull().default(true),
   draftGroupId: integer("draft_group_id"),
 });
 
