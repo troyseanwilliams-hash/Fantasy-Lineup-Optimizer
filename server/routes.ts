@@ -23,7 +23,7 @@ import { type OptimizationConstraints, type ProOptimizationConstraints, type Pla
 import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus, fetchLivePlayerStatuses, fetchAvailableDKSlates, fetchDKSlateByDraftGroup, fetchDraftables, isPlayerConfirmedStarter, parseEasternTime, getEasternToday } from "./balldontlie";
 import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
 import { getLiveScores, getAllLiveScores, fetchESPNStarters } from "./espn-scores";
-import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analyzeManualPicks } from "./prizepicks";
+import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analyzeManualPicks, generateProjectionsFromPlayers } from "./prizepicks";
 import { fetchBDLStats, type PlayerStatsMap, normalizeName } from "./balldontlie-stats";
 import { refreshRecentlyPlayed, getRecentlyPlayedCache, normalizePlayerName } from "./espn-activity";
 import { calculateOwnership, computeOwnershipForPlayers, type ContestType } from "./ownership-engine";
@@ -1938,15 +1938,25 @@ export async function registerRoutes(
       let dbProps: any[] = [];
 
       for (const sport of sports) {
-        const projections = await fetchPrizePicksProjections(sport);
-        allProjections.push(...projections);
+        let projections = await fetchPrizePicksProjections(sport);
 
         const allSlates = await storage.getSlates();
-        const sportSlates = allSlates.filter(s => s.sport === sport);
+        const sportSlates = allSlates.filter(s => s.sport === sport && s.platform === "draftkings" && s.isActive !== false);
         for (const slate of sportSlates) {
           const slatePlayers = await storage.getPlayersBySlate(slate.id);
           dbPlayers.push(...slatePlayers);
         }
+
+        if (projections.length === 0) {
+          const seen = new Set<string>();
+          const uniquePlayers = dbPlayers.filter(p => {
+            if (seen.has(p.name)) return false;
+            seen.add(p.name);
+            return true;
+          });
+          projections = generateProjectionsFromPlayers(uniquePlayers, sport);
+        }
+        allProjections.push(...projections);
 
         const today = getEasternToday();
         const sportProps = await storage.getPropsByDate(today, sport);
@@ -1976,25 +1986,33 @@ export async function registerRoutes(
       if (!supported.includes(sport)) {
         return res.status(400).json({ error: `Invalid sport: ${sport}` });
       }
-      const projections = await fetchPrizePicksProjections(sport);
-      if (projections.length === 0) {
-        return res.json({ sport, entries: [] });
-      }
+      let projections = await fetchPrizePicksProjections(sport);
 
       const allSlates = await storage.getSlates();
-      const sportSlates = allSlates.filter(s => s.sport === sport);
+      const sportSlates = allSlates.filter(s => s.sport === sport && s.platform === "draftkings" && s.isActive !== false);
       let dbPlayers: Player[] = [];
       for (const slate of sportSlates) {
         const slatePlayers = await storage.getPlayersBySlate(slate.id);
         dbPlayers.push(...slatePlayers);
       }
 
-      const today = getEasternToday();
-      const dbProps = await storage.getPropsByDate(today, sport);
+      if (projections.length === 0) {
+        const seen = new Set<string>();
+        const uniquePlayers = dbPlayers.filter(p => {
+          if (seen.has(p.name)) return false;
+          seen.add(p.name);
+          return true;
+        });
+        projections = generateProjectionsFromPlayers(uniquePlayers, sport);
+      }
 
-      console.log(`[PrizePicks Builder] ${sport}: ${projections.length} PP lines, ${dbPlayers.length} DK players, ${dbProps.length} odds props`);
+      if (projections.length === 0) {
+        return res.json({ sport, entries: [] });
+      }
 
-      const entries = buildAIEntries(projections, dbPlayers, dbProps, 5);
+      console.log(`[PrizePicks Builder] ${sport}: ${projections.length} projections, ${dbPlayers.length} DK players`);
+
+      const entries = buildAIEntries(projections, dbPlayers);
       res.json({ sport, entries });
     } catch (err) {
       console.error(`[PrizePicks Builder] Error for ${req.params.sport}:`, err);
@@ -2080,7 +2098,26 @@ export async function registerRoutes(
       if (!supported.includes(sport)) {
         return res.status(400).json({ error: `Invalid sport: ${sport}. Valid: ${supported.join(", ")}` });
       }
-      const projections = await fetchPrizePicksProjections(sport);
+      let projections = await fetchPrizePicksProjections(sport);
+      if (projections.length === 0) {
+        const allSlates = await storage.getSlates();
+        const activeSlates = allSlates.filter(s => s.sport === sport && s.platform === "draftkings" && s.isActive !== false);
+        let dbPlayers: Player[] = [];
+        for (const slate of activeSlates) {
+          const slatePlayers = await storage.getPlayersBySlate(slate.id);
+          dbPlayers.push(...slatePlayers);
+        }
+        const seen = new Set<string>();
+        dbPlayers = dbPlayers.filter(p => {
+          if (seen.has(p.name)) return false;
+          seen.add(p.name);
+          return true;
+        });
+        projections = generateProjectionsFromPlayers(dbPlayers, sport);
+        if (projections.length > 0) {
+          console.log(`[PrizePicks] Generated ${projections.length} projections from ${dbPlayers.length} DB players for ${sport}`);
+        }
+      }
       res.json({ sport, projections });
     } catch (err) {
       console.error(`[PrizePicks] Error in route for ${req.params.sport}:`, err);
