@@ -1,0 +1,35 @@
+simulation-engine.ts
+The core of the advantage. Three calibrated variance levels per simulation:
+Game-level — samples a single factor for the entire matchup (NBA: ±10%, NFL: ±18%, MLB: ±25%). In a "shootout" game script, every player in that game gets amplified. In a grind, everyone gets compressed.
+Team-level — within that game, samples which team ran the script. A 1.4× team factor means they controlled the game — their pass-catchers, hitters, and forwards all benefit proportionally.
+Player-level — individual idiosyncratic variance, calibrated by position. NFL WRs have a 55% CV (very boom/bust), QBs 22% (more consistent), DSTs 60% (shutout or disaster). MLB hitters 65% (binary hit/HR outcomes). NHL forwards 62%.
+NFL QB Cascade — the key differentiator. When a QB simulates at 1.4× median, his WRs receive 40% of that upside, TEs 35%, RBs 8%. This means when a QB stacks, his pass-catchers follow him organically in the same simulation — the LP sees consistent projections and naturally selects the stack without any rules.
+MLB/NHL stacking — additional secondary team correlation for batters and NHL forward lines ensures teammates cluster in high-scoring game scripts.
+
+optimizer-route.ts — /api/optimize/sim
+Runs numSims LP solves (one per game script). Each LP call sees that sim's correlated projections. Results are deduplicated across all sims. Then every unique lineup is scored across all simulations (not just the ones it won), computing:
+
+avgSimScore — average across all sims
+p75Score — 75th percentile ceiling
+p90Score — 90th percentile max upside
+freqPct — percentage of sims this lineup was the LP-optimal result (a consensus signal)
+compositeScore — 0.35×avg + 0.35×p75 + 0.20×p90 + 0.10×frequency
+
+Lineups are ranked by composite score, then exposure caps are applied. Returns exposureSummary showing each player's appearance rate across the selected portfolio.
+
+ProOptimizer.tsx
+Sim Mode panel — collapsible section with a violet toggle. When enabled:
+
+Sim count picker: 50 / 100 / 200 / 500 (200 is the default sweet spot, 500 for big GPP fields)
+Game Stacks toggle (stacks emerge naturally; this boosts the weight further)
+Legend explaining what Median / P75 / P90 / Freq% mean
+
+Lineup cards in sim mode — each card shows four score badges:
+
+Green Med — median across sims (replaces the standard FP projection)
+Green ↑ P75 — 75th percentile ceiling
+Amber ↑↑ P90 — 90th percentile max upside
+Violet % Freq — frequency the lineup was LP-optimal
+
+Stack detection — a blue Users badge shows how many players are from the same game stack and which teams are involved.
+Button routes to /api/optimize/sim when sim mode is on, with label Sim N Lineups and spinner showing Simulating N×… while running. Standard LP mode is completely unchanged.

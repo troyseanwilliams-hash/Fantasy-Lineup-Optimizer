@@ -687,7 +687,6 @@ export default function ProOptimizer() {
     setSwappingTarget(null);
     setUseBoostsUserOverride(null);
     optimizeMutation.reset();
-    simMutation.reset();
   };
 
   useEffect(() => {

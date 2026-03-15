@@ -28,6 +28,7 @@ import { fetchBDLStats, type PlayerStatsMap, normalizeName } from "./balldontlie
 import { refreshRecentlyPlayed, getRecentlyPlayedCache, normalizePlayerName } from "./espn-activity";
 import { calculateOwnership, computeOwnershipForPlayers, type ContestType } from "./ownership-engine";
 import { getCachedSignals, getScoutStatus, refreshAll, forceRefreshAll, secondsUntilRefresh } from "./ai-scout";
+import { runSimulations, detectStack } from "./simulation-engine";
 import { fetchStartingLineups, getStartingLineupsData, clearLineupsCache } from "./lineups-ingest";
 import { projectionAccuracyRouter } from "./projection-accuracy-route";
 
@@ -2811,6 +2812,259 @@ export async function registerRoutes(
         console.error("Pro optimizer error:", err);
         res.status(500).json({ message: "Pro optimizer failed" });
       }
+    }
+  });
+
+  const simOptimizeSchema = z.object({
+    slateId:              z.number(),
+    platform:             z.enum(["draftkings", "fanduel", "yahoo"]).default("draftkings"),
+    lockedPlayerIds:      z.array(z.number()).default([]),
+    excludedPlayerIds:    z.array(z.number()).default([]),
+    playerProjections:    z.record(z.string(), z.number()).optional(),
+    playerMinSalary:      z.number().optional(),
+    playerMaxSalary:      z.number().optional(),
+    lineupCount:          z.number().min(1).max(150).default(20),
+    numSims:              z.number().min(50).max(1000).default(200),
+    globalMaxExposure:    z.number().min(1).max(100).optional(),
+    enforceGameStack:     z.boolean().default(false),
+    minStackSize:         z.number().min(2).max(5).default(2),
+  });
+
+  app.post("/api/optimize/sim", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+
+    const startTime = Date.now();
+    const MAX_RUNTIME_MS = 30_000;
+
+    try {
+      const userId = getSessionUserId(req)!;
+      const dbUser = await storage.getUser(userId);
+      const isAdmin = dbUser?.isAdmin === true;
+      const sub = await storage.getSubscription(userId);
+      const tier = isAdmin ? "pro" : (sub?.tier || "free");
+      if (tier !== "pro" && tier !== "star") {
+        return res.status(403).json({ message: "Sharpshooter or Champion subscription required for simulation mode.", requiresUpgrade: true });
+      }
+
+      const input = simOptimizeSchema.parse(req.body);
+      const maxLineupCount = isAdmin ? 150 : tier === "pro" ? 20 : 5;
+      input.lineupCount = Math.min(input.lineupCount, maxLineupCount);
+
+      const slate = await storage.getSlate(input.slateId);
+      if (!slate) return res.status(404).json({ message: "Slate not found" });
+      if (slate.isActive === false) return res.status(410).json({ message: "This slate has ended." });
+
+      if (new Date(slate.startTime) <= new Date()) {
+        return res.status(400).json({ message: "This slate has already started. Lineups can no longer be generated." });
+      }
+
+      const sport = slate.sport;
+      const platform = (input.platform || slate.platform || "draftkings") as Platform;
+      const config = getPlatformConfig(sport, platform);
+
+      let allPlayers = await storage.getPlayersBySlate(input.slateId);
+      if (allPlayers.length === 0) {
+        return res.status(400).json({ message: "No players found for this slate" });
+      }
+
+      if (slate.platform === "draftkings") {
+        allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
+      }
+
+      const proScoutMap = buildScoutMap(slate.sport);
+
+      let pool = allPlayers.map(p => {
+        let boostedPoints = Number(p.projectedPoints);
+
+        if (p.isConfirmedStarter) {
+          boostedPoints = Math.round(boostedPoints * 1.05 * 10) / 10;
+        }
+        boostedPoints = applyScoutToProjection(boostedPoints, p.name, proScoutMap, false);
+
+        if (isPlayerOut(p.injuryStatus)) {
+          boostedPoints = 0;
+        } else if (p.injuryStatus === "Questionable" || p.injuryStatus === "GTD") {
+          boostedPoints *= 0.75;
+        } else if (p.injuryStatus === "Probable" || p.injuryStatus === "DTD") {
+          boostedPoints *= 0.9;
+        }
+
+        return { ...p, projectedPoints: boostedPoints.toString() };
+      });
+
+      pool = pool.filter(p => !input.excludedPlayerIds.includes(p.id));
+      pool = pool.filter(p => !isPlayerOut(p.injuryStatus));
+      if (input.playerMinSalary) pool = pool.filter(p => p.salary >= input.playerMinSalary!);
+      if (input.playerMaxSalary) pool = pool.filter(p => p.salary <= input.playerMaxSalary!);
+
+      const projOverrides: Record<number, number> = {};
+      if (input.playerProjections) {
+        for (const [pid, v] of Object.entries(input.playerProjections)) {
+          projOverrides[Number(pid)] = v;
+        }
+      }
+      for (const p of pool) {
+        if (projOverrides[p.id] === undefined) {
+          projOverrides[p.id] = Number(p.projectedPoints) ?? 0;
+        }
+      }
+
+      console.log(`[SimOptimizer] Starting ${input.numSims} sims for ${sport} slate ${input.slateId}, pool: ${pool.length} players, requesting ${input.lineupCount} lineups`);
+
+      const sims = runSimulations(pool, sport, input.numSims, projOverrides);
+
+      const lineupMap = new Map<string, {
+        lineup:    Player[];
+        frequency: number;
+        simScores: number[];
+      }>();
+
+      for (let i = 0; i < sims.length; i++) {
+        if (Date.now() - startTime > MAX_RUNTIME_MS) {
+          console.log(`[SimOptimizer] Time cap reached after ${i} sims`);
+          break;
+        }
+
+        const sim = sims[i];
+
+        const simConstraints = {
+          slateId: input.slateId,
+          lockedPlayerIds: input.lockedPlayerIds,
+          excludedPlayerIds: input.excludedPlayerIds,
+          lineupCount: 1,
+          maxSalary: config.salaryCap,
+        } as OptimizationConstraints;
+
+        const simPool = pool.map(p => ({
+          ...p,
+          projectedPoints: (sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0).toString(),
+        }));
+
+        const result = solveLineup(simPool, simConstraints, sport, platform);
+        if (result.error || result.lineup.length === 0) continue;
+
+        const key = result.lineup.map((p: Player) => p.id).sort().join(",");
+        const existing = lineupMap.get(key);
+        if (existing) {
+          existing.frequency++;
+          existing.simScores.push(result.totalProjectedPoints);
+        } else {
+          lineupMap.set(key, {
+            lineup:    result.lineup as Player[],
+            frequency: 1,
+            simScores: [result.totalProjectedPoints],
+          });
+        }
+      }
+
+      if (lineupMap.size === 0) {
+        return res.status(200).json({
+          lineups: [],
+          message: "No feasible lineups found in simulations. Try relaxing constraints.",
+          simsRun: sims.length,
+        });
+      }
+
+      const uniqueLineups = Array.from(lineupMap.entries()).map(([key, data]) => {
+        const allSimScores = sims.map(sim =>
+          data.lineup.reduce((sum, p) => sum + (sim.projections[p.id] || 0), 0)
+        ).sort((a, b) => a - b);
+
+        const n   = allSimScores.length;
+        const avg = allSimScores.reduce((a, b) => a + b, 0) / n;
+        const p75 = allSimScores[Math.floor(n * 0.75)] ?? avg;
+        const p90 = allSimScores[Math.floor(n * 0.90)] ?? avg;
+        const med = allSimScores[Math.floor(n * 0.50)] ?? avg;
+
+        const composite = avg * 0.35 + p75 * 0.35 + p90 * 0.20 + (data.frequency / sims.length) * 100 * 0.10;
+        const stack = detectStack(data.lineup);
+
+        return {
+          lineup:       data.lineup,
+          key,
+          frequency:    data.frequency,
+          freqPct:      Math.round((data.frequency / sims.length) * 1000) / 10,
+          avgSimScore:  Math.round(avg * 10) / 10,
+          medianScore:  Math.round(med * 10) / 10,
+          p75Score:     Math.round(p75 * 10) / 10,
+          p90Score:     Math.round(p90 * 10) / 10,
+          compositeScore: Math.round(composite * 10) / 10,
+          totalSalary:  data.lineup.reduce((s, p) => s + p.salary, 0),
+          stackedGame:  stack.game,
+          stackCount:   stack.count,
+          stackTeams:   stack.teams,
+        };
+      });
+
+      uniqueLineups.sort((a, b) => b.compositeScore - a.compositeScore);
+
+      const playerAppearances: Record<number, number> = {};
+      const selected: typeof uniqueLineups = [];
+
+      for (const lu of uniqueLineups) {
+        if (selected.length >= input.lineupCount) break;
+
+        let violatesExposure = false;
+        if (input.globalMaxExposure !== undefined && selected.length > 0) {
+          for (const p of lu.lineup) {
+            const appearances = (playerAppearances[p.id] || 0) + 1;
+            const pct = (appearances / (selected.length + 1)) * 100;
+            if (pct > input.globalMaxExposure) { violatesExposure = true; break; }
+          }
+        }
+        if (violatesExposure) continue;
+
+        selected.push(lu);
+        for (const p of lu.lineup) {
+          playerAppearances[p.id] = (playerAppearances[p.id] || 0) + 1;
+        }
+      }
+
+      if (selected.length < input.lineupCount && input.globalMaxExposure === undefined) {
+        for (const lu of uniqueLineups) {
+          if (selected.length >= input.lineupCount) break;
+          if (!selected.find(s => s.key === lu.key)) selected.push(lu);
+        }
+      }
+
+      const elapsedMs = Date.now() - startTime;
+
+      const ownershipMap: Record<number, number> = {};
+      for (const lu of selected) {
+        for (const p of lu.lineup) {
+          ownershipMap[p.id] = (ownershipMap[p.id] || 0) + 1;
+        }
+      }
+      const exposureSummary = Object.entries(ownershipMap)
+        .map(([id, count]) => {
+          const player = pool.find(p => p.id === Number(id));
+          return {
+            playerId: Number(id),
+            playerName: player?.name || "Unknown",
+            position: player?.position || "",
+            team: player?.team || "",
+            appearances: count,
+            exposurePct: Math.round((count / selected.length) * 100),
+          };
+        })
+        .sort((a, b) => b.exposurePct - a.exposurePct);
+
+      console.log(`[SimOptimizer] Completed: ${sims.length} sims, ${lineupMap.size} unique lineups, ${selected.length} selected, ${elapsedMs}ms`);
+
+      res.json({
+        lineups:         selected,
+        simsRun:         sims.length,
+        uniqueLineups:   lineupMap.size,
+        elapsedMs,
+        exposureSummary,
+        gamesRepresented: new Set(
+          selected.flatMap(lu => lu.stackedGame ? [lu.stackedGame] : [])
+        ).size,
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
+      console.error("[SimOptimizer] Error:", err);
+      res.status(500).json({ message: "Simulation optimization failed" });
     }
   });
 
