@@ -410,7 +410,7 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string, pl
       slateId: (allSlateRecords.length > 0 ? allSlateRecords[0]?.slateId : null) || null,
       slateDate,
       draftGroupId: null,
-      totalActualPoints: String(result.totalActualPoints),
+      totalActualPoints: result.totalActualPoints,
       totalSalary: result.totalSalary,
       salaryCap: config.salaryCap,
       playerData,
