@@ -2900,7 +2900,7 @@ export async function registerRoutes(
       const allSlates = await storage.getSlates();
       const playersBySport: Record<string, Array<{ name: string; team: string; position: string; salary: number; fppg: string | null }>> = {};
 
-      for (const sport of ["NBA", "NFL", "MLB", "NHL", "GOLF"]) {
+      for (const sport of ["NBA", "NHL", "GOLF"]) {
         const sportSlates = allSlates.filter(
           (s: any) => s.sport?.toUpperCase() === sport && s.platform === "draftkings"
         );
