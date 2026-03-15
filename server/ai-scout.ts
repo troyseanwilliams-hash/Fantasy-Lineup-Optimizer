@@ -1,36 +1,26 @@
 
-// ── News Sources ──────────────────────────────────────────────────────────────
-// These are free, public, bot-friendly endpoints that don't require an API key.
-// RotoWire RSS feeds are public. ESPN injury API returns JSON directly.
-// Replaced HTML scraping (which gets bot-blocked) with structured feeds.
-
-const NEWS_SOURCES: Record<string, Array<{ url: string; type: "rss" | "json" | "html" }>> = {
+const NEWS_SOURCES: Record<string, Array<{ url: string; type: "injuries" | "news" }>> = {
   NBA: [
-    { url: "https://www.rotowire.com/basketball/rss/news.php", type: "rss" },
-    { url: "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/injuries", type: "json" },
-    { url: "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/news?limit=50", type: "json" },
+    { url: "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/injuries", type: "injuries" },
+    { url: "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/news?limit=50", type: "news" },
   ],
   NFL: [
-    { url: "https://www.rotowire.com/football/rss/news.php", type: "rss" },
-    { url: "https://site.api.espn.com/apis/site/v2/sports/football/nfl/injuries", type: "json" },
-    { url: "https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=50", type: "json" },
+    { url: "https://site.api.espn.com/apis/site/v2/sports/football/nfl/injuries", type: "injuries" },
+    { url: "https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=50", type: "news" },
   ],
   MLB: [
-    { url: "https://www.rotowire.com/baseball/rss/news.php", type: "rss" },
-    { url: "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/injuries", type: "json" },
-    { url: "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/news?limit=50", type: "json" },
+    { url: "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/injuries", type: "injuries" },
+    { url: "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/news?limit=50", type: "news" },
   ],
   NHL: [
-    { url: "https://www.rotowire.com/hockey/rss/news.php", type: "rss" },
-    { url: "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/injuries", type: "json" },
-    { url: "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/news?limit=50", type: "json" },
+    { url: "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/injuries", type: "injuries" },
+    { url: "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/news?limit=50", type: "news" },
   ],
   GOLF: [
-    { url: "https://www.rotowire.com/golf/rss/news.php", type: "rss" },
-    { url: "https://site.api.espn.com/apis/site/v2/sports/golf/pga/news?limit=30", type: "json" },
+    { url: "https://site.api.espn.com/apis/site/v2/sports/golf/pga/news?limit=30", type: "news" },
   ],
   SOCCER: [
-    { url: "https://site.api.espn.com/apis/site/v2/sports/soccer/news?limit=30", type: "json" },
+    { url: "https://site.api.espn.com/apis/site/v2/sports/soccer/news?limit=30", type: "news" },
   ],
 };
 
@@ -71,21 +61,25 @@ type PlayerInfo = {
   fppg: string | null;
 };
 
+interface ESPNInjury {
+  name: string;
+  team: string;
+  status: string;
+  type: string;
+  position: string;
+}
+
 const HEADERS = {
   "User-Agent": "Mozilla/5.0 (compatible; EliteLineupBot/1.0; +https://elitelineup.com)",
-  Accept: "text/html,application/xhtml+xml",
+  Accept: "application/json",
 };
 
-const INTERVAL_SECS = 1800; // 30 minutes — max 2 calls/hour, well within Gemini free tier (1,500/day)
+const INTERVAL_SECS = 1800;
 const ACTIVE_SPORTS = ["NBA", "NHL", "GOLF"];
 
 let _lastRun: number = 0;
 let _cachedSignals: Record<string, ScoutSignal[]> = {};
-let _newsCache: Record<string, string> = {};
-let _newsTtl: Record<string, number> = {};
 let _isRefreshing = false;
-let _geminiCallCount = 0;
-let _geminiCallCountResetTime = Date.now();
 
 function isStale(): boolean {
   return (Date.now() / 1000 - _lastRun) >= INTERVAL_SECS;
@@ -104,25 +98,27 @@ export function isRefreshing(): boolean {
   return _isRefreshing;
 }
 
-async function fetchAllNews(sports: string[]): Promise<Record<string, string>> {
-  const result: Record<string, string> = {};
+const OUT_STATUSES = new Set(["out", "injured reserve", "suspension", "not with team", "ir"]);
+const LIMITED_STATUSES = new Set(["doubtful", "questionable", "day-to-day", "probable"]);
+
+async function fetchESPNData(sports: string[]): Promise<{
+  injuries: Record<string, ESPNInjury[]>;
+  headlines: Record<string, string[]>;
+}> {
+  const injuries: Record<string, ESPNInjury[]> = {};
+  const headlines: Record<string, string[]> = {};
 
   for (const sport of sports) {
     const sources = NEWS_SOURCES[sport] || [];
-    const chunks: string[] = [];
+    injuries[sport] = [];
+    headlines[sport] = [];
 
     for (const source of sources) {
-      const cacheKey = source.url;
-      if (_newsCache[cacheKey] && Date.now() / 1000 < (_newsTtl[cacheKey] || 0)) {
-        chunks.push(_newsCache[cacheKey]);
-        continue;
-      }
-
       try {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 10000);
         const res = await fetch(source.url, {
-          headers: { ...HEADERS, "Accept": "application/json, text/xml, text/html" },
+          headers: HEADERS,
           signal: controller.signal,
         });
         clearTimeout(timer);
@@ -131,197 +127,201 @@ async function fetchAllNews(sports: string[]): Promise<Record<string, string>> {
           continue;
         }
 
-        let text = "";
+        const json = await res.json() as any;
 
-        if (source.type === "json") {
-          // ESPN public API — extract headlines and injury details from JSON
-          const json = await res.json() as any;
-
-          // ESPN news format
-          const articles = json.articles || json.feed || [];
-          const newsLines = articles.slice(0, 30).map((a: any) => {
-            const headline = a.headline || a.title || "";
-            const desc = a.description || a.summary || "";
-            return `${headline}. ${desc}`.trim();
-          }).filter(Boolean);
-
-          // ESPN injuries format
-          const injuries = json.season?.injuries || json.injuries || [];
-          const injuryLines = injuries.slice(0, 40).flatMap((team: any) =>
-            (team.injuries || []).map((inj: any) => {
+        if (source.type === "injuries") {
+          const injuryTeams = json.season?.injuries || json.injuries || [];
+          for (const team of injuryTeams) {
+            const teamAbbr = team.team?.abbreviation || team.team?.shortDisplayName || "";
+            for (const inj of (team.injuries || [])) {
               const name = inj.athlete?.displayName || inj.athlete?.fullName || "";
-              const status = inj.status || "";
-              const detail = inj.details?.returnDate ? ` (return: ${inj.details.returnDate})` : "";
+              const status = (inj.status || "").toLowerCase().trim();
               const type = inj.details?.type || inj.details?.detail || "";
-              return name ? `${name} [${status}] ${type}${detail}` : "";
-            }).filter(Boolean)
-          );
-
-          text = [...injuryLines, ...newsLines].join("\n");
-        } else if (source.type === "rss") {
-          // RotoWire RSS — strip XML tags to get clean text
-          const raw = await res.text();
-          // Extract title and description from each <item>
-          const items: string[] = [];
-          const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
-          let match;
-          while ((match = itemRegex.exec(raw)) !== null && items.length < 40) {
-            const item = match[1];
-            const title = (/<title><!\[CDATA\[(.*?)\]\]><\/title>/i.exec(item) || /<title>(.*?)<\/title>/i.exec(item))?.[1] || "";
-            const desc  = (/<description><!\[CDATA\[(.*?)\]\]><\/description>/i.exec(item) || /<description>(.*?)<\/description>/i.exec(item))?.[1] || "";
-            const clean = `${title}. ${desc}`.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-            if (clean.length > 10) items.push(clean);
+              const position = inj.athlete?.position?.abbreviation || "";
+              if (name) {
+                injuries[sport].push({ name, team: teamAbbr, status, type, position });
+              }
+            }
           }
-          text = items.join("\n");
-        } else {
-          // Plain HTML fallback (last resort)
-          const raw = await res.text();
-          text = raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 6000);
+          console.log(`[AIScout] ${sport} ← injuries (${injuries[sport].length} players)`);
         }
 
-        if (text.length > 50) {
-          _newsCache[cacheKey] = text;
-          _newsTtl[cacheKey] = Date.now() / 1000 + 1800;
-          chunks.push(text);
-          console.log(`[AIScout] ${sport} ← ${source.url.split("/").slice(-2).join("/")} (${text.length} chars)`);
+        if (source.type === "news") {
+          const articles = json.articles || json.feed || [];
+          for (const a of articles.slice(0, 30)) {
+            const headline = a.headline || a.title || "";
+            const desc = a.description || a.summary || "";
+            if (headline) headlines[sport].push(`${headline}. ${desc}`.trim());
+          }
+          console.log(`[AIScout] ${sport} ← news (${headlines[sport].length} headlines)`);
         }
       } catch (err: any) {
         console.warn(`[AIScout] Failed to fetch ${source.url}: ${err.message}`);
       }
     }
+  }
 
-    result[sport] = chunks.join("\n\n---\n\n");
-    if (!result[sport]) {
-      console.warn(`[AIScout] No news fetched for ${sport} — Claude will analyse player list only`);
-      result[sport] = `No recent news available for ${sport}. Analyse player pool for value based on salaries and projections.`;
+  return { injuries, headlines };
+}
+
+function normalizeNameForMatch(name: string): string {
+  return name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+}
+
+function findBeneficiaries(
+  outPlayer: { name: string; team: string; position: string },
+  allPlayers: PlayerInfo[]
+): string[] {
+  const teammates = allPlayers.filter(p =>
+    p.team === outPlayer.team && p.name !== outPlayer.name
+  );
+
+  const samePos = teammates
+    .filter(p => {
+      const pPositions = p.position.split("/").map(s => s.trim().toUpperCase());
+      const outPositions = outPlayer.position.split("/").map(s => s.trim().toUpperCase());
+      return pPositions.some(pp => outPositions.includes(pp));
+    })
+    .sort((a, b) => (parseFloat(b.fppg || "0") - parseFloat(a.fppg || "0")));
+
+  if (samePos.length > 0) return samePos.slice(0, 3).map(p => p.name);
+
+  return teammates
+    .sort((a, b) => (parseFloat(b.fppg || "0") - parseFloat(a.fppg || "0")))
+    .slice(0, 2)
+    .map(p => p.name);
+}
+
+function analyzeData(
+  espnData: { injuries: Record<string, ESPNInjury[]>; headlines: Record<string, string[]> },
+  playersBySport: Record<string, PlayerInfo[]>
+): Record<string, ScoutSignal[]> {
+  const result: Record<string, ScoutSignal[]> = {};
+
+  for (const sport of Object.keys(playersBySport)) {
+    const signals: ScoutSignal[] = [];
+    const players = playersBySport[sport];
+    const sportInjuries = espnData.injuries[sport] || [];
+    const sportHeadlines = espnData.headlines[sport] || [];
+    const playerMap = new Map(players.map(p => [normalizeNameForMatch(p.name), p]));
+
+    for (const inj of sportInjuries) {
+      const normalizedName = normalizeNameForMatch(inj.name);
+      const matchedPlayer = playerMap.get(normalizedName);
+
+      if (OUT_STATUSES.has(inj.status)) {
+        signals.push({
+          player_name: inj.name,
+          signal_type: "out",
+          reason: `${inj.name} ruled OUT${inj.type ? ` (${inj.type})` : ""}`,
+          beneficiary_names: matchedPlayer
+            ? findBeneficiaries({ name: inj.name, team: matchedPlayer.team, position: matchedPlayer.position }, players)
+            : findBeneficiaries({ name: inj.name, team: inj.team, position: inj.position }, players),
+          ownership_delta: -20,
+          confidence: 0.95,
+        });
+
+        if (matchedPlayer) {
+          const beneficiaries = findBeneficiaries(
+            { name: inj.name, team: matchedPlayer.team, position: matchedPlayer.position },
+            players
+          );
+          for (const bName of beneficiaries.slice(0, 2)) {
+            const bPlayer = players.find(p => p.name === bName);
+            if (bPlayer) {
+              signals.push({
+                player_name: bName,
+                signal_type: "injury_opp",
+                reason: `${inj.name} ruled OUT — ${bName} gets expanded role`,
+                beneficiary_names: [],
+                ownership_delta: Math.min(20, Math.round(parseFloat(matchedPlayer.fppg || "0") / 3)),
+                confidence: 0.8,
+              });
+            }
+          }
+        }
+      } else if (LIMITED_STATUSES.has(inj.status)) {
+        if (matchedPlayer) {
+          const statusLabel = inj.status.charAt(0).toUpperCase() + inj.status.slice(1);
+          signals.push({
+            player_name: inj.name,
+            signal_type: "negative_news",
+            reason: `${inj.name} listed as ${statusLabel}${inj.type ? ` (${inj.type})` : ""} — monitor status`,
+            beneficiary_names: findBeneficiaries(
+              { name: inj.name, team: matchedPlayer.team, position: matchedPlayer.position },
+              players
+            ),
+            ownership_delta: inj.status === "doubtful" ? -12 : inj.status === "questionable" ? -5 : -2,
+            confidence: inj.status === "doubtful" ? 0.8 : 0.6,
+          });
+        }
+      }
     }
+
+    const outNames = new Set(
+      sportInjuries.filter(i => OUT_STATUSES.has(i.status)).map(i => normalizeNameForMatch(i.name))
+    );
+    const questionableNames = new Set(
+      sportInjuries.filter(i => LIMITED_STATUSES.has(i.status)).map(i => normalizeNameForMatch(i.name))
+    );
+
+    const hotStreakPatterns = [
+      /(\w[\w\s.'-]+?) (?:scores?|had|puts up|records?|posts?|tallied?|notch(?:es|ed)?)\s+(\d+)\s+(?:points|pts|goals?|assists?|rebounds|hits|strikeouts)/i,
+      /(\w[\w\s.'-]+?) (?:leads?|carries?|powers?|paces?|fuels?|propels?|lifts?|sparks?)/i,
+      /(\w[\w\s.'-]+?) (?:has|had|with)\s+(?:a\s+)?(?:triple[- ]double|double[- ]double|career[- ]high|season[- ]high)/i,
+    ];
+
+    for (const headline of sportHeadlines) {
+      for (const pattern of hotStreakPatterns) {
+        const match = pattern.exec(headline);
+        if (match) {
+          const rawName = match[1].trim();
+          const normalizedHL = normalizeNameForMatch(rawName);
+          const matchedP = playerMap.get(normalizedHL);
+          if (matchedP && !outNames.has(normalizedHL) && !signals.some(s => s.player_name === matchedP.name && s.signal_type === "hot_streak")) {
+            signals.push({
+              player_name: matchedP.name,
+              signal_type: "hot_streak",
+              reason: headline.split(".")[0].trim().slice(0, 120),
+              beneficiary_names: [],
+              ownership_delta: 5,
+              confidence: 0.65,
+            });
+          }
+        }
+      }
+    }
+
+    const avgFppg = players.reduce((s, p) => s + parseFloat(p.fppg || "0"), 0) / Math.max(players.length, 1);
+    const valuePlays = players
+      .filter(p => {
+        const norm = normalizeNameForMatch(p.name);
+        return !outNames.has(norm) && !questionableNames.has(norm) && !signals.some(s => s.player_name === p.name);
+      })
+      .map(p => ({
+        player: p,
+        value: parseFloat(p.fppg || "0") / Math.max(p.salary / 1000, 1),
+        projAboveAvg: parseFloat(p.fppg || "0") - avgFppg,
+      }))
+      .filter(v => v.value > 4.5 && v.player.salary > 0)
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+
+    for (const vp of valuePlays) {
+      signals.push({
+        player_name: vp.player.name,
+        signal_type: "value_spike",
+        reason: `${vp.player.name} ($${vp.player.salary.toLocaleString()}) projects ${parseFloat(vp.player.fppg || "0").toFixed(1)} pts — ${vp.value.toFixed(1)}x value`,
+        beneficiary_names: [],
+        ownership_delta: Math.min(10, Math.round(vp.value)),
+        confidence: 0.7,
+      });
+    }
+
+    result[sport] = signals;
   }
 
   return result;
-}
-
-async function callGemini(
-  newsBySport: Record<string, string>,
-  playersBySport: Record<string, PlayerInfo[]>
-): Promise<Record<string, ScoutSignal[]>> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.log("[AIScout] No GEMINI_API_KEY set — skipping analysis");
-    return {};
-  }
-
-  const now = Date.now();
-  if (now - _geminiCallCountResetTime > 3600000) {
-    _geminiCallCount = 0;
-    _geminiCallCountResetTime = now;
-  }
-  if (_geminiCallCount >= 2) {
-    const minsLeft = Math.ceil((3600000 - (now - _geminiCallCountResetTime)) / 60000);
-    console.log(`[AIScout] Rate limit: already made ${_geminiCallCount} Gemini calls this hour. Next window in ${minsLeft}m`);
-    return {};
-  }
-
-  const sportSections: string[] = [];
-  for (const sport of Object.keys(playersBySport)) {
-    const playerList = playersBySport[sport]
-      .slice(0, 150)
-      .map(p => `  - ${p.name} (${p.team}, ${p.position}, $${p.salary.toLocaleString()}, proj=${p.fppg || "0"})`)
-      .join("\n");
-    const newsText = (newsBySport[sport] || "").slice(0, 6000);
-    sportSections.push(
-      `=== ${sport} ===\n\n<news_${sport}>\n${newsText}\n</news_${sport}>\n\n<players_${sport}>\n${playerList}\n</players_${sport}>`
-    );
-  }
-
-  const prompt = `You are an expert DFS analyst for EliteLineup.com.
-Current time (UTC): ${new Date().toISOString().slice(0, 16)}
-
-Below are injury/news reports and player pools for every active DFS sport today.
-Analyse each sport and produce signals for ALL sports in one response.
-
-${sportSections.join("\n\n")}
-
-For every player whose DFS projection should be adjusted, produce a signal with:
-  - "sport":             one of ${JSON.stringify(Object.keys(playersBySport))}
-  - "player_name":       exact name from that sport's player list
-  - "signal_type":       one of ${JSON.stringify(Object.keys(BOOST_WEIGHTS))}
-  - "reason":            1-sentence UI explanation
-  - "beneficiary_names": players who benefit if this one is out/limited (may be [])
-  - "ownership_delta":   integer -30 to +30
-  - "confidence":        0.0 to 1.0
-
-Flag up to 5 VALUE PLAYS per sport (signal_type "injury_opp" or "value_spike").
-
-Return a single JSON object — sport names as keys, arrays of signal objects as values.
-No markdown, no commentary, no extra text. Pure JSON only.
-Example:
-{
-  "NBA": [{"player_name":"Jaylen Brown","signal_type":"injury_opp","reason":"Tatum ruled out","beneficiary_names":[],"ownership_delta":15,"confidence":0.9}],
-  "NFL": [],
-  "MLB": []
-}`;
-
-  try {
-    // Use gemini-2.0-flash — free tier: 1,500 req/day, 15 req/min
-    const model = "gemini-2.0-flash";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-    // Retry up to 3 times with exponential backoff on 429 (rate limit)
-    _geminiCallCount++;
-    console.log(`[AIScout] Gemini API call #${_geminiCallCount} this hour`);
-
-    let lastError = "";
-    for (let attempt = 0; attempt < 3; attempt++) {
-      if (attempt > 0) {
-        const waitMs = attempt * 30000; // 30s, then 60s
-        console.log(`[AIScout] Gemini 429 — waiting ${waitMs / 1000}s before retry ${attempt + 1}/3`);
-        await new Promise(r => setTimeout(r, waitMs));
-      }
-
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 4000, temperature: 0.3 },
-        }),
-      });
-
-      if (res.status === 429) {
-        const retryAfter = res.headers.get("Retry-After");
-        lastError = `429 rate limit${retryAfter ? ` (retry-after: ${retryAfter}s)` : ""}`;
-        console.warn(`[AIScout] Gemini ${lastError} on attempt ${attempt + 1}`);
-        continue; // retry
-      }
-
-      if (!res.ok) {
-        const err = await res.text();
-        console.error(`[AIScout] Gemini API error ${res.status}: ${err.slice(0, 200)}`);
-        return {};
-      }
-
-      const data = await res.json() as any;
-      let raw = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "{}";
-      // Strip any accidental markdown fences
-      raw = raw.replace(/^```[a-z]*\n?/i, "").replace(/\n?```$/i, "").trim();
-
-      const parsed: Record<string, ScoutSignal[]> = JSON.parse(raw);
-      const totalSignals = Object.values(parsed).reduce((sum, arr) => sum + arr.length, 0);
-      console.log(`[AIScout] Gemini returned ${totalSignals} signals across ${Object.keys(parsed).length} sports`);
-
-      return Object.fromEntries(
-        Object.keys(playersBySport).map(sport => [sport, parsed[sport] || []])
-      );
-    }
-
-    // All retries exhausted
-    console.error(`[AIScout] Gemini gave up after 3 attempts — last error: ${lastError}`);
-    console.error(`[AIScout] Check: aistudio.google.com → API keys → View quota`);
-    return {};
-  } catch (err: any) {
-    console.error(`[AIScout] Gemini analysis failed: ${err.message}`);
-    return {};
-  }
 }
 
 export async function refreshAll(
@@ -349,17 +349,21 @@ export async function refreshAll(
 
   _isRefreshing = true;
   try {
-    console.log(`[AIScout] One Gemini call for sports: ${Object.keys(active).join(", ")}`);
-    const newsBySport = await fetchAllNews(Object.keys(active));
-    const signalsBySport = await callGemini(newsBySport, active);
+    console.log(`[AIScout] Analyzing sports: ${Object.keys(active).join(", ")} (rule-based, no API key needed)`);
+    const espnData = await fetchESPNData(Object.keys(active));
+    const signalsBySport = analyzeData(espnData, active);
 
-    if (Object.keys(signalsBySport).length === 0) {
-      console.warn("[AIScout] Gemini returned no data — keeping stale cache, will retry next cycle");
+    const totalSignals = Object.values(signalsBySport).reduce((s, a) => s + a.length, 0);
+    const hadPriorData = Object.values(_cachedSignals).reduce((s, a) => s + a.length, 0) > 0;
+    if (totalSignals === 0 && hadPriorData) {
+      console.warn("[AIScout] Analysis returned 0 signals but cache has data — keeping stale cache, will retry next cycle");
       return;
     }
 
     for (const [sport, signals] of Object.entries(signalsBySport)) {
-      _cachedSignals[sport] = signals;
+      if (signals.length > 0 || !_cachedSignals[sport]?.length) {
+        _cachedSignals[sport] = signals;
+      }
       console.log(`[AIScout]   ${sport} → ${signals.length} signals`);
     }
 
@@ -381,8 +385,6 @@ export function getScoutStatus(): {
   per_sport: Record<string, SportStatus>;
   next_refresh: number;
   is_refreshing: boolean;
-  gemini_calls_this_hour: number;
-  gemini_calls_max: number;
 } {
   const nextRefresh = secondsUntilRefresh();
   const perSport: Record<string, SportStatus> = {};
@@ -401,12 +403,7 @@ export function getScoutStatus(): {
     };
   }
 
-  if (Date.now() - _geminiCallCountResetTime > 3600000) {
-    _geminiCallCount = 0;
-    _geminiCallCountResetTime = Date.now();
-  }
-
-  return { per_sport: perSport, next_refresh: nextRefresh, is_refreshing: _isRefreshing, gemini_calls_this_hour: _geminiCallCount, gemini_calls_max: 2 };
+  return { per_sport: perSport, next_refresh: nextRefresh, is_refreshing: _isRefreshing };
 }
 
 export async function runScoutForAllSports(
