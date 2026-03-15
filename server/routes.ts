@@ -1883,7 +1883,18 @@ export async function registerRoutes(
   app.get("/api/landing-data", async (_req, res) => {
     try {
       const allSlates = await storage.getSlates();
-      const sportData: Record<string, { playerCount: number; gameCount: number; topPlayers: Array<{ name: string; team: string; position: string; salary: number; projectedPoints: string; opponent: string; gameInfo: string }> }> = {};
+      const sportData: Record<string, {
+        playerCount: number;
+        gameCount: number;
+        topPlayers: Array<{
+          name: string; team: string; position: string; salary: number;
+          projectedPoints: string; boostedPoints: string; opponent: string;
+          gameInfo: string; boostScore: string; injuryStatus: string | null;
+          valueScore: string;
+        }>;
+      }> = {};
+
+      const scoutSignals: Record<string, string[]> = {};
 
       for (const sport of ["NBA", "NHL", "NFL", "MLB", "GOLF", "SOCCER"]) {
         const slate = allSlates.find(s => s.sport === sport && s.platform === "draftkings" && s.isActive !== false);
@@ -1892,23 +1903,68 @@ export async function registerRoutes(
         const players = await storage.getPlayersBySlate(slate.id);
         if (!players || players.length === 0) continue;
 
-        const sorted = [...players]
+        const signals = getCachedSignals(sport);
+        const outNames = new Set(
+          signals
+            .filter(s => s.signal_type === "out" || s.signal_type === "starter_out")
+            .map(s => s.player_name.toLowerCase())
+        );
+        const boostNames = new Map(
+          signals
+            .filter(s => s.signal_type === "injury_opp" || s.signal_type === "hot_streak" || s.signal_type === "value_spike")
+            .map(s => [s.player_name.toLowerCase(), s])
+        );
+
+        if (signals.length > 0) {
+          scoutSignals[sport] = signals
+            .filter(s => s.signal_type !== "out" && s.confidence >= 0.6)
+            .slice(0, 3)
+            .map(s => s.reason);
+        }
+
+        const boostedPlayers = players
           .filter(p => parseFloat(p.projectedPoints || "0") > 0)
-          .sort((a, b) => parseFloat(b.projectedPoints || "0") - parseFloat(a.projectedPoints || "0"));
+          .filter(p => !outNames.has(p.name.toLowerCase()))
+          .map(p => {
+            const baseProj = parseFloat(p.projectedPoints || "0");
+            const boostPct = p.boostScore ? Math.max(-0.15, Math.min(0.15, Number(p.boostScore) * 0.015)) : 0;
+            let boosted = baseProj * (1 + boostPct);
+
+            const scoutSig = boostNames.get(p.name.toLowerCase());
+            if (scoutSig) {
+              const scoutBoost = scoutSig.signal_type === "injury_opp" ? 0.08
+                : scoutSig.signal_type === "hot_streak" ? 0.04
+                : 0.03;
+              boosted *= (1 + scoutBoost);
+            }
+
+            const valueScore = p.salary > 0 ? boosted / (p.salary / 1000) : 0;
+
+            return {
+              ...p,
+              boostedPoints: boosted,
+              valueScore,
+            };
+          })
+          .sort((a, b) => b.boostedPoints - a.boostedPoints);
 
         const games = new Set(players.map(p => p.gameInfo).filter(Boolean));
 
         sportData[sport] = {
           playerCount: players.length,
           gameCount: games.size,
-          topPlayers: sorted.slice(0, 5).map(p => ({
+          topPlayers: boostedPlayers.slice(0, 5).map(p => ({
             name: p.name,
             team: p.team || "",
             position: p.position || "",
             salary: p.salary || 0,
             projectedPoints: p.projectedPoints || "0",
+            boostedPoints: p.boostedPoints.toFixed(1),
             opponent: p.opponent || "",
             gameInfo: p.gameInfo || "",
+            boostScore: p.boostScore || "0",
+            injuryStatus: p.injuryStatus || null,
+            valueScore: p.valueScore.toFixed(2),
           })),
         };
       }
@@ -1922,6 +1978,7 @@ export async function registerRoutes(
         activeSports,
         totalPlayers,
         totalGames,
+        scoutSignals,
         lastUpdated: new Date().toISOString(),
       });
     } catch (err) {

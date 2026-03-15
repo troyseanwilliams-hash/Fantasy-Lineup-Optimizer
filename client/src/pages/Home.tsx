@@ -1191,36 +1191,69 @@ function LandingTopPlays() {
 
       {topPlayers.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-          {topPlayers.map((player, idx) => (
-            <div
-              key={player.name}
-              className="bg-white/5 border border-white/10 rounded-xl p-4 backdrop-blur-sm text-left hover:border-emerald-500/30 transition-colors"
-              data-testid={`landing-player-${idx}`}
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${
-                  idx === 0 ? "bg-amber-500/30 text-amber-300" : "bg-white/10 text-slate-400"
-                }`}>
-                  {idx + 1}
+          {topPlayers.map((player: any, idx: number) => {
+            const boosted = parseFloat(player.boostedPoints || player.projectedPoints || "0");
+            const base = parseFloat(player.projectedPoints || "0");
+            const diff = boosted - base;
+            const hasBoost = Math.abs(diff) >= 0.1;
+            const value = parseFloat(player.valueScore || "0");
+
+            return (
+              <div
+                key={player.name}
+                className={`bg-white/5 border rounded-xl p-4 backdrop-blur-sm text-left hover:border-emerald-500/30 transition-colors ${
+                  idx === 0 ? "border-amber-500/30" : "border-white/10"
+                }`}
+                data-testid={`landing-player-${idx}`}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${
+                    idx === 0 ? "bg-amber-500/30 text-amber-300" : "bg-white/10 text-slate-400"
+                  }`}>
+                    {idx + 1}
+                  </div>
+                  <TeamLogo team={player.team} sport={currentSport} size={18} />
+                  <span className="text-[10px] text-slate-500 font-bold">{player.position}</span>
+                  {value >= 5.0 && (
+                    <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">VALUE</span>
+                  )}
                 </div>
-                <TeamLogo team={player.team} sport={currentSport} size={18} />
-                <span className="text-[10px] text-slate-500 font-bold">{player.position}</span>
+                <p className="text-sm font-black text-white truncate" title={player.name}>{player.name}</p>
+                <div className="flex items-center justify-between mt-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-emerald-400 font-black text-lg">{boosted.toFixed(1)}</span>
+                    {hasBoost && (
+                      <span className={`text-[10px] font-bold ${diff > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                        {diff > 0 ? "+" : ""}{diff.toFixed(1)}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-slate-500">${player.salary.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-[10px] text-slate-500 truncate">vs {player.opponent}</p>
+                  <span className="text-[10px] text-slate-600">{value.toFixed(1)}x</span>
+                </div>
               </div>
-              <p className="text-sm font-black text-white truncate" title={player.name}>{player.name}</p>
-              <div className="flex items-center justify-between mt-1.5">
-                <span className="text-emerald-400 font-black text-lg">{parseFloat(player.projectedPoints).toFixed(1)}</span>
-                <span className="text-[10px] text-slate-500">${player.salary.toLocaleString()}</span>
-              </div>
-              <p className="text-[10px] text-slate-500 mt-1 truncate">vs {player.opponent} {player.gameInfo?.split(" ").pop()}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <p className="text-sm text-slate-500 text-center">No active slates for {currentSport} today</p>
       )}
 
+      {data?.scoutSignals?.[currentSport] && (
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          {data.scoutSignals[currentSport].slice(0, 3).map((sig: string, i: number) => (
+            <span key={i} className="text-[10px] px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400">
+              {sig}
+            </span>
+          ))}
+        </div>
+      )}
+
       <p className="text-[11px] text-slate-600 text-center mt-4">
-        Projections update hourly. Sign up free to build optimized lineups.
+        AI-boosted projections update hourly with injury and trend analysis. Sign up free to build optimized lineups.
       </p>
     </div>
   );
