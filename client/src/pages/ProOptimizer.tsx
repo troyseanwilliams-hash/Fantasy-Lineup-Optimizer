@@ -860,16 +860,17 @@ export default function ProOptimizer() {
 
             <div className="h-4 w-px bg-slate-700 flex-shrink-0 hidden md:block" />
 
-            <div className="hidden md:flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+            <div className={`hidden md:flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0 ${simMode ? "opacity-50 cursor-not-allowed" : ""}`}>
               <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Qty</span>
               <Slider
                 value={[lineupCount]}
-                onValueChange={(v) => setLineupCount(Math.min(v[0], maxLineupSlider))}
+                onValueChange={(v) => !simMode && setLineupCount(Math.min(v[0], maxLineupSlider))}
                 min={1}
                 max={maxLineupSlider}
                 step={1}
                 className="w-20"
                 data-testid="slider-lineup-count"
+                disabled={simMode}
               />
               <span className="text-xs font-black text-amber-400 min-w-[18px] text-center" data-testid="text-lineup-count">{lineupCount}</span>
             </div>
@@ -948,16 +949,17 @@ export default function ProOptimizer() {
                   {projectionMode === "ceiling" ? "CEILING" : "BALANCED"}
                 </button>
               </div>
-              <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+              <div className={`flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0 ${simMode ? "opacity-50 cursor-not-allowed" : ""}`}>
                 <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Qty</span>
                 <Slider
                   value={[lineupCount]}
-                  onValueChange={(v) => setLineupCount(Math.min(v[0], maxLineupSlider))}
+                  onValueChange={(v) => !simMode && setLineupCount(Math.min(v[0], maxLineupSlider))}
                   min={1}
                   max={maxLineupSlider}
                   step={1}
                   className="w-20"
                   data-testid="slider-lineup-count-mobile"
+                  disabled={simMode}
                 />
                 <span className="text-xs font-black text-amber-400 min-w-[18px] text-center">{lineupCount}</span>
               </div>
@@ -1003,16 +1005,17 @@ export default function ProOptimizer() {
           {/* Row 3 (Mobile only for non-Pro): Qty slider */}
           {!isPro && (
             <div className="flex md:hidden items-center gap-2">
-              <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+              <div className={`flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0 ${simMode ? "opacity-50 cursor-not-allowed" : ""}`}>
                 <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Qty</span>
                 <Slider
                   value={[lineupCount]}
-                  onValueChange={(v) => setLineupCount(Math.min(v[0], maxLineupSlider))}
+                  onValueChange={(v) => !simMode && setLineupCount(Math.min(v[0], maxLineupSlider))}
                   min={1}
                   max={maxLineupSlider}
                   step={1}
                   className="w-20"
                   data-testid="slider-lineup-count-basic-mobile"
+                  disabled={simMode}
                 />
                 <span className="text-xs font-black text-amber-400 min-w-[18px] text-center">{lineupCount}</span>
               </div>
