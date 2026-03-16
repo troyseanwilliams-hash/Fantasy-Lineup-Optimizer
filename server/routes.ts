@@ -1208,7 +1208,7 @@ export async function registerRoutes(
     const tierSims = isAdmin ? 1500 : tier === "pro" ? 500 : 200;
     const numSims = tierSims;
     const startTime = Date.now();
-    const MAX_RUNTIME_MS = 60000;
+    const MAX_RUNTIME_MS = isAdmin ? 90000 : 60000;
 
     console.log(`[SimRegen] Starting: ${ids.length} lineups, ${numSims} sims (tier=${tier}), sortBy=${sortKey}, contest=${simContestType}, boosts=${useBoosts}, ceiling=${ceilingMode}, leverage=${leverageMode}, exposure=${globalMaxExposure}, projFloor=${projFloor}, minSal=${minSalary}, maxSal=${maxSalary}`);
 
