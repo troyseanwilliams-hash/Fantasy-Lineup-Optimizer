@@ -2828,6 +2828,7 @@ export async function registerRoutes(
     globalMaxExposure:    z.number().min(1).max(100).optional(),
     enforceGameStack:     z.boolean().default(false),
     minStackSize:         z.number().min(2).max(5).default(2),
+    stackGameKey:         z.string().optional(),
   });
 
   app.post("/api/optimize/sim", async (req, res) => {
@@ -2909,6 +2910,24 @@ export async function registerRoutes(
         if (projOverrides[p.id] === undefined) {
           projOverrides[p.id] = Number(p.projectedPoints) ?? 0;
         }
+      }
+
+      if (input.stackGameKey) {
+        const stackKey = input.stackGameKey.trim().toUpperCase();
+        let matchedCount = 0;
+        for (const p of pool) {
+          const gi = p.gameInfo || "";
+          const teams = gi.match(/^([A-Z0-9]+)\s*[@vs.]+\s*([A-Z0-9]+)/i);
+          if (teams) {
+            const key = [teams[1].toUpperCase(), teams[2].toUpperCase()].sort().join("-");
+            if (key === stackKey) {
+              const pid = p.id;
+              projOverrides[pid] = (projOverrides[pid] ?? Number(p.projectedPoints)) * 1.15;
+              matchedCount++;
+            }
+          }
+        }
+        console.log(`[SimOptimizer] Manual stack target: ${stackKey} — boosted ${matchedCount} players by 15%`);
       }
 
       console.log(`[SimOptimizer] Starting ${input.numSims} sims for ${sport} slate ${input.slateId}, pool: ${pool.length} players, requesting ${input.lineupCount} lineups`);

@@ -115,6 +115,7 @@ export default function ProOptimizer() {
   const [simMode, setSimMode] = useState(false);
   const [numSims, setNumSims] = useState(200);
   const [enforceGameStack, setEnforceGameStack] = useState(false);
+  const [stackGameKey, setStackGameKey] = useState<string | null>(null);
   const [lineupSwaps, setLineupSwaps] = useState<Record<string, Record<string, Player>>>({});
   const [swappingTarget, setSwappingTarget] = useState<{ lineupIdx: number; slot: string } | null>(null);
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
@@ -479,6 +480,27 @@ export default function ProOptimizer() {
     });
   }, [swappingTarget, players, generatedLineups, config, sport, excludedIds]);
 
+  const availableGames = useMemo(() => {
+    if (!players || players.length === 0) return [];
+    const gameMap = new Map<string, { label: string; playerCount: number; avgProj: number }>();
+    for (const p of players) {
+      const gi = p.gameInfo || "";
+      const match = gi.match(/^([A-Z0-9]+)\s*[@vs.]+\s*([A-Z0-9]+)/i);
+      if (!match) continue;
+      const away = match[1].toUpperCase();
+      const home = match[2].toUpperCase();
+      const key = [away, home].sort().join("-");
+      const label = `${away}@${home}`;
+      const entry = gameMap.get(key) || { label, playerCount: 0, avgProj: 0 };
+      entry.playerCount++;
+      entry.avgProj += Number(p.projectedPoints) || 0;
+      gameMap.set(key, entry);
+    }
+    return Array.from(gameMap.entries())
+      .map(([key, data]) => ({ key, label: data.label, playerCount: data.playerCount, avgProj: Math.round((data.avgProj / data.playerCount) * 10) / 10 }))
+      .sort((a, b) => b.avgProj - a.avgProj);
+  }, [players]);
+
   const exposureTracking = useMemo(() => {
     if (generatedLineups.length === 0 || !players) return [];
     const appearances: Record<number, number> = {};
@@ -539,6 +561,7 @@ export default function ProOptimizer() {
         lineupCount,
         numSims,
         enforceGameStack,
+        stackGameKey: stackGameKey || undefined,
         globalMaxExposure: globalMaxExposure ?? undefined,
       });
     } else {
@@ -699,6 +722,7 @@ export default function ProOptimizer() {
     setLineupSwaps({});
     setSwappingTarget(null);
     setUseBoostsUserOverride(null);
+    setStackGameKey(null);
     optimizeMutation.reset();
     simMutation.reset();
   };
@@ -1137,6 +1161,45 @@ export default function ProOptimizer() {
                     onCheckedChange={setEnforceGameStack}
                     data-testid="switch-enforce-stack"
                   />
+                </div>
+
+                {/* Manual stack game selector */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Target Game Stack</span>
+                    {stackGameKey && (
+                      <button
+                        onClick={() => setStackGameKey(null)}
+                        className="text-[9px] font-black text-red-400 hover:text-red-300 transition-colors"
+                        data-testid="btn-clear-stack-game"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  {availableGames.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {availableGames.map(g => (
+                        <button
+                          key={g.key}
+                          onClick={() => setStackGameKey(stackGameKey === g.key ? null : g.key)}
+                          className={`px-2 py-1 rounded text-[10px] font-black transition-all border ${
+                            stackGameKey === g.key
+                              ? "bg-violet-500/20 text-violet-400 border-violet-500/40 ring-1 ring-violet-500/20"
+                              : "text-slate-500 border-slate-700/50 hover:text-slate-300 hover:border-slate-600"
+                          }`}
+                          data-testid={`btn-stack-game-${g.key}`}
+                        >
+                          {g.label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[9px] text-slate-600">No games detected in player pool</p>
+                  )}
+                  <p className="text-[9px] text-slate-600 leading-relaxed">
+                    {stackGameKey ? "Players from this game get a 15% projection boost in sims" : "Optional · pick a game to prioritize in your lineups"}
+                  </p>
                 </div>
 
                 {/* Sim stat legend */}
