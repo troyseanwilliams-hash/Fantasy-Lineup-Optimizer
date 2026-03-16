@@ -987,17 +987,10 @@ export async function registerRoutes(
         const filteredBulkInactive = bulkInactiveExcluded.filter(id => !baseExcluded.includes(id));
         baseExcluded.push(...filteredBulkInactive);
 
-        const MAX_POOL_SIZE = 150;
         const excludedSet = new Set(baseExcluded);
-        const eligiblePool = pool.filter(p => !excludedSet.has(p.id));
-        if (eligiblePool.length > MAX_POOL_SIZE) {
-          const sorted = [...eligiblePool].sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
-          const trimmed = sorted.slice(0, MAX_POOL_SIZE);
-          console.log(`[BulkGenerate] Trimmed eligible pool from ${eligiblePool.length} to ${trimmed.length} for ${slate.sport}`);
-          pool = [...trimmed, ...pool.filter(p => excludedSet.has(p.id))];
-        }
+        pool = pool.filter(p => !excludedSet.has(p.id));
 
-        const eligibleCount = pool.filter(p => !new Set(baseExcluded).has(p.id) && Number(p.projectedPoints) > 0).length;
+        const eligibleCount = pool.filter(p => Number(p.projectedPoints) > 0).length;
         console.log(`[BulkGenerate] ${slate.sport} slate ${slate.id}: ${allPlayers.length} total, ${baseExcluded.length} excluded, ${eligibleCount} eligible with proj > 0, minSal=${minSalary ?? 'none'}, maxSal=${maxSalary ?? 'none'}`);
 
         cached = { slate, pool, allPlayers, baseExcluded, platform };
@@ -1012,16 +1005,14 @@ export async function registerRoutes(
       for (let attempt = 0; attempt < maxAttempts && !updated; attempt++) {
         const noiseScale = (iteration + attempt) === 0 ? 0 : Math.min(0.10 + (iteration + attempt) * 0.04, 0.40);
         const perturbedPool = pool.map(p => {
-          if (baseExcluded.includes(p.id)) return p;
           const base = Number(p.projectedPoints);
           const noise = (iteration + attempt) === 0 ? 0 : (Math.random() - 0.5) * base * noiseScale;
           return { ...p, projectedPoints: Math.max(0, base + noise).toString() };
         });
 
-        const iterationExcluded = [...baseExcluded];
+        const iterationExcluded: number[] = [];
         if (totalCount > 3) {
           for (const p of pool) {
-            if (iterationExcluded.includes(p.id)) continue;
             const appearances = playerAppearances[p.id] || 0;
             const currentExposure = totalCount > 0 ? (appearances / totalCount) * 100 : 0;
             if (currentExposure >= globalMaxExposure) {
@@ -1032,7 +1023,6 @@ export async function registerRoutes(
 
         const salaryFilteredPool = (minSalary || maxSalary)
           ? perturbedPool.filter(p => {
-              if (iterationExcluded.includes(p.id)) return true;
               if (minSalary && p.salary < minSalary) return false;
               if (maxSalary && p.salary > maxSalary) return false;
               return true;
