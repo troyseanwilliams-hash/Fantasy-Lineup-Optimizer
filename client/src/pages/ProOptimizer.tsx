@@ -2187,20 +2187,18 @@ export default function ProOptimizer() {
                 )}
 
                 {/* Sort Controls */}
-                {generatedLineups.length > 1 && (
+                {generatedLineups.length > 0 && (
                   <div className="flex gap-2 mb-3 flex-wrap">
                     <span className="text-[11px] font-black text-slate-400 uppercase self-center">Sort:</span>
                     {[
-                      { key: "index", label: "Order" },
-                      { key: "projected", label: "Projected" },
-                      { key: "salary", label: "Salary" },
-                      ...(generatedLineups.length > 0 && (generatedLineups[0] as any)?.simData ? [
-                        { key: "ceiling", label: "P75" },
-                        { key: "p90", label: "P90" },
-                        { key: "median", label: "Median" },
-                        { key: "freq", label: "Freq%" },
-                      ] : []),
-                    ].map(opt => (
+                      { key: "index", label: "Order", sim: false },
+                      { key: "projected", label: "Projected", sim: false },
+                      { key: "salary", label: "Salary", sim: false },
+                      { key: "ceiling", label: "P75", sim: true },
+                      { key: "p90", label: "P90", sim: true },
+                      { key: "median", label: "Median", sim: true },
+                      { key: "freq", label: "Freq%", sim: true },
+                    ].filter(opt => !opt.sim || (generatedLineups[0] as any)?.simData).map(opt => (
                       <button
                         key={opt.key}
                         onClick={() => setLineupSortBy(opt.key as typeof lineupSortBy)}
