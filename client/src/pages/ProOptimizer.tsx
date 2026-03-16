@@ -564,7 +564,7 @@ export default function ProOptimizer() {
         playerProjections: Object.keys(projections).length > 0 ? projections : undefined,
         playerMinSalary:  salaryRange && salaryRange[0] > salaryBounds.min ? salaryRange[0] : undefined,
         playerMaxSalary:  salaryRange && salaryRange[1] < salaryBounds.max ? salaryRange[1] : undefined,
-        lineupCount,
+        lineupCount: 150,
         numSims,
         enforceGameStack,
         stackGameKey: stackGameKey || undefined,
