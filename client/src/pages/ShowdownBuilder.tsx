@@ -13,7 +13,7 @@ import {
   ChevronLeft, ChevronRight, RefreshCw, Zap, Target, Sliders,
   ChevronDown, ChevronUp, DollarSign, BarChart3, Shuffle,
   TrendingUp, TrendingDown, AlertTriangle, Settings2, EyeOff,
-  Activity, Clock, RotateCcw,
+  Activity, Clock, RotateCcw, Flame, Percent,
 } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import { Slider } from "@/components/ui/slider";
@@ -41,6 +41,17 @@ interface ShowdownLineup {
   totalSalary: number;
   totalProjectedPoints: number;
   key: string;
+  simData?: {
+    avgSimScore: number;
+    medianScore: number;
+    p75Score: number;
+    p90Score: number;
+    freqPct: number;
+    compositeScore: number;
+    stackedGame?: string;
+    stackCount?: number;
+    stackTeams?: string[];
+  };
 }
 
 interface ShowdownConfig {
@@ -163,6 +174,11 @@ export default function ShowdownBuilder() {
   const [globalMaxExposure, setGlobalMaxExposure] = useState<number | null>(null);
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
   const [showConfig, setShowConfig] = useState(false);
+
+  // ── Sim mode ─────────────────────────────────────────────────────────────
+  const [simMode, setSimMode] = useState(false);
+  const [numSims, setNumSims] = useState(200);
+  const [simSummary, setSimSummary] = useState<{ simsRun: number; uniqueCount: number; elapsedMs: number } | null>(null);
 
   // ── Output ─────────────────────────────────────────────────────────────────
   const [generatedLineups, setGeneratedLineups] = useState<ShowdownLineup[]>([]);
@@ -356,54 +372,11 @@ export default function ShowdownBuilder() {
   // ── Optimize ───────────────────────────────────────────────────────────────
   const optimizeMut = useMutation({
     mutationFn: async () => {
-      // Build per-player payload: merge custom projections + scout boosts (if on)
-      const mergedProjections: Record<string, number> = { ...customProjections };
-      if (useBoosts) {
-        for (const p of players) {
-          const pid = String(p.id);
-          if (pid in mergedProjections) continue; // user override wins
-          const boost = boostByName[p.name.toLowerCase()] || 0;
-          if (boost !== 0) mergedProjections[pid] = toNum(p.projectedPoints) + boost;
-        }
-      }
-
-      // Per-player exposure caps
-      const perPlayerMaxExposure: Record<string, number> = {};
-      for (const [pid, pset] of Object.entries(playerSettings)) {
-        if (pset.maxExposure !== undefined) perPlayerMaxExposure[pid] = pset.maxExposure;
-      }
-
-      // Per-player custom ownership overrides
-      const ownershipOverrides: Record<string, number> = {};
-      for (const [pid, pset] of Object.entries(playerSettings)) {
-        if (pset.customOwnership !== undefined) ownershipOverrides[pid] = pset.customOwnership;
-      }
-
-      // Faded players → soft-exclude (pass as a separate flag array)
-      const fadedIds = Object.entries(playerSettings)
-        .filter(([, s]) => s.fade)
-        .map(([id]) => Number(id));
-
-      const res = await apiRequest("POST", "/api/showdown/optimize", {
-        slateId: selectedSlateId,
-        platform,
-        sport,
-        lockedCaptainId: captainId || undefined,
-        lockedFlexIds,
-        excludedPlayerIds: excludedIds,
+      const payload = {
+        ...buildShowdownPayload(),
         lineupCount: Math.min(lineupCount, maxLineups),
-        gameFilter: gameFilter || undefined,
-        projectionMode,
-        leverageMode,
-        useBoosts,
-        globalMaxExposure: globalMaxExposure ?? undefined,
-        playerProjections: Object.keys(mergedProjections).length > 0 ? mergedProjections : undefined,
-        playerMinSalary: salaryRange?.[0] ?? undefined,
-        playerMaxSalary: salaryRange?.[1] ?? undefined,
-        perPlayerMaxExposure: Object.keys(perPlayerMaxExposure).length > 0 ? perPlayerMaxExposure : undefined,
-        ownershipOverrides: Object.keys(ownershipOverrides).length > 0 ? ownershipOverrides : undefined,
-        fadedPlayerIds: fadedIds.length > 0 ? fadedIds : undefined,
-      });
+      };
+      const res = await apiRequest("POST", "/api/showdown/optimize", payload);
       return res.json();
     },
     onSuccess: (data) => {
@@ -411,10 +384,94 @@ export default function ShowdownBuilder() {
       setShowdownConfig(data.config);
       setActiveLineupIdx(0);
       setSavedLineupIndices(new Set());
+      setSimSummary(null);
       toast({ title: `${data.lineups.length} lineup${data.lineups.length > 1 ? "s" : ""} generated!` });
     },
     onError: (err: any) => {
       toast({ title: "Optimization failed", description: err.message || "Could not generate lineups", variant: "destructive" });
+    },
+  });
+
+  function buildShowdownPayload() {
+    const mergedProjections: Record<string, number> = { ...customProjections };
+    if (useBoosts) {
+      for (const p of players) {
+        const pid = String(p.id);
+        if (pid in mergedProjections) continue;
+        const boost = boostByName[p.name.toLowerCase()] || 0;
+        if (boost !== 0) mergedProjections[pid] = toNum(p.projectedPoints) + boost;
+      }
+    }
+    const perPlayerMaxExposure: Record<string, number> = {};
+    for (const [pid, pset] of Object.entries(playerSettings)) {
+      if (pset.maxExposure !== undefined) perPlayerMaxExposure[pid] = pset.maxExposure;
+    }
+    const ownershipOverrides: Record<string, number> = {};
+    for (const [pid, pset] of Object.entries(playerSettings)) {
+      if (pset.customOwnership !== undefined) ownershipOverrides[pid] = pset.customOwnership;
+    }
+    const fadedIds = Object.entries(playerSettings)
+      .filter(([, s]) => s.fade)
+      .map(([id]) => Number(id));
+    return {
+      slateId: selectedSlateId,
+      platform,
+      sport,
+      lockedCaptainId: captainId || undefined,
+      lockedFlexIds,
+      excludedPlayerIds: excludedIds,
+      gameFilter: gameFilter || undefined,
+      projectionMode,
+      leverageMode,
+      useBoosts,
+      globalMaxExposure: globalMaxExposure ?? undefined,
+      playerProjections: Object.keys(mergedProjections).length > 0 ? mergedProjections : undefined,
+      playerMinSalary: salaryRange?.[0] ?? undefined,
+      playerMaxSalary: salaryRange?.[1] ?? undefined,
+      perPlayerMaxExposure: Object.keys(perPlayerMaxExposure).length > 0 ? perPlayerMaxExposure : undefined,
+      ownershipOverrides: Object.keys(ownershipOverrides).length > 0 ? ownershipOverrides : undefined,
+      fadedPlayerIds: fadedIds.length > 0 ? fadedIds : undefined,
+    };
+  }
+
+  const simMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        ...buildShowdownPayload(),
+        lineupCount: numSims,
+        numSims,
+      };
+      const res = await apiRequest("POST", "/api/showdown/optimize/sim", payload);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      const lineups: ShowdownLineup[] = (data.lineups || []).map((lu: any) => ({
+        captain: lu.captain,
+        flexPlayers: lu.flexPlayers,
+        totalSalary: lu.totalSalary,
+        totalProjectedPoints: lu.totalProjectedPoints,
+        key: lu.key,
+        simData: {
+          avgSimScore: lu.avgSimScore,
+          medianScore: lu.medianScore,
+          p75Score: lu.p75Score,
+          p90Score: lu.p90Score,
+          freqPct: lu.freqPct,
+          compositeScore: lu.compositeScore,
+          stackedGame: lu.stackedGame,
+          stackCount: lu.stackCount,
+          stackTeams: lu.stackTeams,
+        },
+      }));
+      setGeneratedLineups(lineups);
+      setShowdownConfig(data.config);
+      setActiveLineupIdx(0);
+      setSavedLineupIndices(new Set());
+      setSimSummary({ simsRun: data.simsRun, uniqueCount: data.uniqueCount, elapsedMs: data.elapsedMs });
+      toast({ title: `${lineups.length} sim lineup${lineups.length > 1 ? "s" : ""} generated!` });
+    },
+    onError: (err: any) => {
+      toast({ title: "Sim optimization failed", description: err.message || "Could not generate sim lineups", variant: "destructive" });
     },
   });
 
@@ -633,15 +690,27 @@ export default function ShowdownBuilder() {
             <div className="lg:col-span-3">
               {/* ── Generate / Reset (top) ── */}
               <div className="mb-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                <Button
-                  onClick={() => optimizeMut.mutate()}
-                  disabled={optimizeMut.isPending}
-                  className="bg-amber-600 hover:bg-amber-700 font-bold flex-1 sm:flex-none"
-                  data-testid="btn-optimize-showdown-top"
-                >
-                  {optimizeMut.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Swords className="w-4 h-4 mr-2" />}
-                  Generate {lineupCount > 1 ? `${lineupCount} Lineups` : "Lineup"}
-                </Button>
+                {simMode ? (
+                  <Button
+                    onClick={() => simMutation.mutate()}
+                    disabled={simMutation.isPending}
+                    className="bg-violet-600 hover:bg-violet-700 font-bold flex-1 sm:flex-none"
+                    data-testid="btn-sim-showdown"
+                  >
+                    {simMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Activity className="w-4 h-4 mr-2" />}
+                    {simMutation.isPending ? `Simulating ${numSims}x...` : `Sim ${numSims} Lineups`}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => optimizeMut.mutate()}
+                    disabled={optimizeMut.isPending}
+                    className="bg-amber-600 hover:bg-amber-700 font-bold flex-1 sm:flex-none"
+                    data-testid="btn-optimize-showdown-top"
+                  >
+                    {optimizeMut.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Swords className="w-4 h-4 mr-2" />}
+                    Generate {lineupCount > 1 ? `${lineupCount} Lineups` : "Lineup"}
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -652,6 +721,46 @@ export default function ShowdownBuilder() {
                   <RefreshCw className="w-4 h-4 mr-1" /> Reset All
                 </Button>
               </div>
+
+              {/* ── Sim Mode Panel ── */}
+              {isPaidUser && (
+                <Card className="bg-slate-900/60 border-violet-500/20 mb-3" data-testid="sim-mode-panel-showdown">
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Activity className="w-4 h-4 text-violet-400" />
+                        <span className="text-xs font-bold text-white">Sim Mode</span>
+                        <span className="text-[9px] font-black text-violet-400/80 bg-violet-500/10 px-1 py-0.5 rounded">MONTE CARLO</span>
+                      </div>
+                      <Switch checked={simMode} onCheckedChange={setSimMode} data-testid="toggle-sim-showdown" />
+                    </div>
+                    {simMode && (
+                      <div className="mt-3 pt-3 border-t border-violet-500/20 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Simulations</span>
+                          <div className="flex gap-1">
+                            {[50, 100, 200, 500].map(n => (
+                              <button
+                                key={n}
+                                onClick={() => setNumSims(n)}
+                                disabled={!userIsAdmin && tier !== "pro" && n > 200}
+                                data-testid={`sim-count-${n}`}
+                                className={`px-2 py-1 rounded text-[10px] font-black transition-all border ${
+                                  numSims === n
+                                    ? "bg-violet-500/20 text-violet-300 border-violet-500/30"
+                                    : "bg-slate-800/60 text-slate-400 border-slate-700/40 hover:text-white"
+                                } ${!userIsAdmin && tier !== "pro" && n > 200 ? "opacity-40 cursor-not-allowed" : ""}`}
+                              >
+                                {n}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
               {/* ── Optimizer Config Panel ── */}
               <Card className="bg-slate-900/60 border-slate-700/50 mb-3">
@@ -1267,12 +1376,17 @@ export default function ShowdownBuilder() {
             {/* ── RIGHT: Generated Lineup ── */}
             <div className="lg:col-span-2">
               {generatedLineups.length > 0 && activeLineup ? (
-                <Card className="bg-slate-900 border-slate-700" data-testid="showdown-lineup-card">
+                <Card className={`bg-slate-900 ${activeLineup.simData ? "border-violet-500/30" : "border-slate-700"}`} data-testid="showdown-lineup-card">
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-white text-base">
-                        Generated Lineup{generatedLineups.length > 1 ? "s" : ""}
-                      </CardTitle>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-white text-base">
+                          Generated Lineup{generatedLineups.length > 1 ? "s" : ""}
+                        </CardTitle>
+                        {activeLineup.simData && (
+                          <Badge className="bg-violet-500/15 text-violet-300 border-violet-500/30 text-[9px] font-black">SIM</Badge>
+                        )}
+                      </div>
                       {generatedLineups.length > 1 && (
                         <div className="flex items-center gap-2">
                           <Button variant="ghost" size="sm" onClick={() => setActiveLineupIdx(Math.max(0, activeLineupIdx - 1))} disabled={activeLineupIdx === 0} className="h-7 w-7 p-0 text-slate-400" data-testid="btn-prev-lineup">
@@ -1381,6 +1495,51 @@ export default function ShowdownBuilder() {
                         </div>
                       );
                     })}
+
+                    {/* Sim Stats */}
+                    {activeLineup.simData && (
+                      <div className="bg-violet-950/30 border border-violet-500/20 rounded-lg p-3" data-testid="sim-stats-showdown">
+                        <div className="grid grid-cols-4 gap-2 text-center">
+                          <div>
+                            <div className="flex items-center justify-center gap-1 text-violet-300 font-black text-sm">
+                              <TrendingUp className="w-3 h-3" />
+                              {activeLineup.simData.medianScore.toFixed(1)}
+                            </div>
+                            <div className="text-[9px] text-slate-500 uppercase">Median</div>
+                          </div>
+                          <div>
+                            <div className="flex items-center justify-center gap-1 text-cyan-300 font-black text-sm">
+                              <TrendingUp className="w-3 h-3" />
+                              {activeLineup.simData.p75Score.toFixed(1)}
+                            </div>
+                            <div className="text-[9px] text-slate-500 uppercase">P75</div>
+                          </div>
+                          <div>
+                            <div className="flex items-center justify-center gap-1 text-orange-300 font-black text-sm">
+                              <Flame className="w-3 h-3" />
+                              {activeLineup.simData.p90Score.toFixed(1)}
+                            </div>
+                            <div className="text-[9px] text-slate-500 uppercase">P90</div>
+                          </div>
+                          <div>
+                            <div className="flex items-center justify-center gap-1 text-emerald-300 font-black text-sm">
+                              <Percent className="w-3 h-3" />
+                              {activeLineup.simData.freqPct}%
+                            </div>
+                            <div className="text-[9px] text-slate-500 uppercase">Freq</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Sim Summary Bar */}
+                    {simSummary && activeLineup.simData && (
+                      <div className="flex items-center justify-center gap-4 text-[10px] text-slate-500">
+                        <span>{simSummary.simsRun} sims</span>
+                        <span>{simSummary.uniqueCount} unique</span>
+                        <span>{(simSummary.elapsedMs / 1000).toFixed(1)}s</span>
+                      </div>
+                    )}
 
                     {/* Totals */}
                     <div className="border-t border-slate-700 pt-3 mt-3">
