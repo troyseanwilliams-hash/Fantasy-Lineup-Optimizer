@@ -29,7 +29,7 @@ Preferred communication style: Simple, everyday language.
 - **Boost Engine**: Data-driven scoring using player history, trends, salary movement, floor/ceiling projections, momentum, team environment, and sport-specific stacking.
 - **Historical Adjustments**: Auto-learning module applies winning lineup patterns and salary/position accuracy multipliers.
 - **Lineup Preservation**: Saved lineups move to "review" status during slate refreshes.
-- **Pro Optimizer Pool Trimming**: Limits player pool to 150 players for performance.
+- **Sim Pool Parity**: Both Pro Optimizer Sim and Vault ReSim use the full player pool (no artificial trimming) with identical projection pipelines (boosts, ceiling, leverage, historical, DvP, Vegas).
 - **Player Swap**: One-click player swaps within generated lineups and PrizePicks entries.
 - **DK Entries Import**: CSV import for DraftKings entries (Champion tier).
 - **Bulk Regenerate**: Regenerates multiple selected lineups using advanced optimization.

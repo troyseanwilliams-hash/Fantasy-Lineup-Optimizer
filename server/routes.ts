@@ -1312,19 +1312,14 @@ export async function registerRoutes(
         }
 
         const baseExcluded = allPlayers
-          .filter(p => isPlayerOut(p.injuryStatus) || (simContestType === "gpp" && isPlayerUnavailable(p.injuryStatus)))
+          .filter(p => isPlayerOut(p.injuryStatus))
           .map(p => p.id);
         const isDK = slate.platform === "draftkings";
         const { inactiveIds } = isDK ? await getInactivePlayerIds(allPlayers, slate.sport) : { inactiveIds: [] };
         baseExcluded.push(...inactiveIds.filter(id => !baseExcluded.includes(id)));
 
-        const MAX_POOL_SIZE = 150;
         const excludedSet = new Set(baseExcluded);
-        const eligiblePool = pool.filter(p => !excludedSet.has(p.id));
-        if (eligiblePool.length > MAX_POOL_SIZE) {
-          const sorted = [...eligiblePool].sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
-          pool = [...sorted.slice(0, MAX_POOL_SIZE), ...pool.filter(p => excludedSet.has(p.id))];
-        }
+        pool = pool.filter(p => !excludedSet.has(p.id));
 
         const simProjFloor = typeof projFloor === "number" && projFloor > 0 ? projFloor : null;
         const simMinSalary = typeof minSalary === "number" ? minSalary : undefined;
@@ -1332,7 +1327,6 @@ export async function registerRoutes(
 
         if (simMinSalary || simMaxSalary) {
           pool = pool.filter(p => {
-            if (excludedSet.has(p.id)) return true;
             if (simMinSalary && p.salary < simMinSalary) return false;
             if (simMaxSalary && p.salary > simMaxSalary) return false;
             return true;
@@ -1375,7 +1369,7 @@ export async function registerRoutes(
 
           const result = solveLineup(
             simPool,
-            { slateId, lockedPlayerIds: [], excludedPlayerIds: baseExcluded, lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
+            { slateId, lockedPlayerIds: [], excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
             slate.sport,
             platform
           );
