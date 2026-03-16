@@ -119,6 +119,7 @@ export default function ProOptimizer() {
   const [swappingTarget, setSwappingTarget] = useState<{ lineupIdx: number; slot: string } | null>(null);
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
   const [mobileView, setMobileView] = useState<"players" | "lineup">("players");
+  const [lineupSortBy, setLineupSortBy] = useState<"index" | "projected" | "salary" | "ceiling">("index");
 
   const [platform, setPlatform] = useState<Platform>("draftkings");
 
@@ -2094,6 +2095,32 @@ export default function ProOptimizer() {
                   </div>
                 )}
 
+                {/* Sort Controls */}
+                {generatedLineups.length > 1 && (
+                  <div className="flex gap-2 mb-3 flex-wrap">
+                    <span className="text-[11px] font-black text-slate-400 uppercase self-center">Sort:</span>
+                    {[
+                      { key: "index", label: "Order" },
+                      { key: "projected", label: "Projected" },
+                      { key: "salary", label: "Salary" },
+                      ...(generatedLineups.some(l => (l as any).simData?.p75Score) ? [{ key: "ceiling", label: "Ceiling" }] : []),
+                    ].map(opt => (
+                      <button
+                        key={opt.key}
+                        onClick={() => setLineupSortBy(opt.key as typeof lineupSortBy)}
+                        className={`px-2 py-1 rounded text-[10px] font-black transition-all border ${
+                          lineupSortBy === opt.key
+                            ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                            : "text-slate-400 border-slate-700/50 hover:text-slate-300"
+                        }`}
+                        data-testid={`sort-lineups-${opt.key}`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 <div className="space-y-3">
                   {generatedLineups.map((lineupData, idx) => {
                     const lineupPlayers = lineupData.lineup || [];
@@ -2249,7 +2276,7 @@ export default function ProOptimizer() {
                       </Card>
                     );
                   })}
-                </div>
+</div>
               </div>
             )}
 
