@@ -653,6 +653,231 @@ export default function ShowdownBuilder() {
                 </Button>
               </div>
 
+              {/* ── Optimizer Config Panel ── */}
+              <Card className="bg-slate-900/60 border-slate-700/50 mb-3">
+                <CardContent className="p-3">
+                  <button
+                    onClick={() => setShowConfig(c => !c)}
+                    className="w-full flex items-center justify-between text-sm font-bold text-slate-300 hover:text-white transition-colors"
+                    data-testid="toggle-config"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Sliders className="w-3.5 h-3.5 text-amber-400/70" />
+                      <span className="text-xs">Optimizer Settings</span>
+                      {anyActiveConfig && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
+                    </div>
+                    {showConfig ? <ChevronUp className="w-3.5 h-3.5 text-slate-500" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-500" />}
+                  </button>
+
+                  {showConfig && (
+                    <div className="space-y-4 mt-3 pt-3 border-t border-slate-800/60">
+
+                      {/* Projection mode */}
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <BarChart3 className="w-3.5 h-3.5 text-slate-500" />
+                          <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Projection Mode</span>
+                        </div>
+                        <div className="flex gap-1.5">
+                          {(["balanced", "ceiling"] as const).map(mode => (
+                            <button
+                              key={mode}
+                              onClick={() => setProjectionMode(mode)}
+                              data-testid={`projection-mode-${mode}`}
+                              className={`flex-1 py-1.5 rounded-lg text-[11px] font-black transition-all border ${
+                                projectionMode === mode
+                                  ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                                  : "bg-slate-800/60 text-slate-400 border-slate-700/40 hover:text-white"
+                              }`}
+                            >
+                              {mode === "balanced" ? "⚖️ Balanced" : "🚀 Ceiling"}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-1">
+                          {projectionMode === "ceiling" ? "High-upside GPP — targets boom-or-bust plays" : "Safer floor — better for cash games"}
+                        </p>
+                      </div>
+
+                      {/* Toggles */}
+                      <div className="space-y-2">
+                        {/* Leverage */}
+                        <div className="flex items-center justify-between bg-slate-800/40 rounded-lg px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <Target className="w-3.5 h-3.5 text-amber-400" />
+                            <div>
+                              <p className="text-xs font-bold text-white">Leverage Mode</p>
+                              <p className="text-[10px] text-slate-500">Down-weights chalk, boosts low-ownership plays</p>
+                            </div>
+                          </div>
+                          <Switch checked={leverageMode} onCheckedChange={setLeverageMode} data-testid="toggle-leverage" />
+                        </div>
+
+                        {/* AI Boosts */}
+                        <div className={`flex items-center justify-between rounded-lg px-3 py-2 ${isPaidUser ? "bg-slate-800/40" : "bg-slate-800/20 opacity-60"}`}>
+                          <div className="flex items-center gap-2">
+                            <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-xs font-bold text-white">AI Scout Boosts</p>
+                                {!isPaidUser && <span className="text-[9px] font-black text-amber-400/80 bg-amber-500/10 px-1 py-0.5 rounded">PRO</span>}
+                                {scoutSignals.length > 0 && isPaidUser && (
+                                  <span className="text-[9px] font-black text-emerald-400/80 bg-emerald-500/10 px-1 py-0.5 rounded">
+                                    {scoutSignals.length} signals
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-slate-500">
+                                {scoutLoading ? "Fetching signals..." : `Scout projection adjustments from live news`}
+                              </p>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={useBoosts}
+                            onCheckedChange={isPaidUser ? setUseBoosts : undefined}
+                            disabled={!isPaidUser}
+                            data-testid="toggle-boosts"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Scout signal summary (when boosts enabled) */}
+                      {useBoosts && scoutSignals.length > 0 && (
+                        <div className="rounded-lg border border-emerald-900/40 bg-emerald-950/20 p-3">
+                          <p className="text-[10px] font-black text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                            <Activity className="w-3 h-3" /> Active Scout Signals — {sport}
+                          </p>
+                          <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                            {scoutSignals.slice(0, 10).map((sig, i) => {
+                              const meta = SIGNAL_META[sig.signal_type] || SIGNAL_META["hot_streak"];
+                              const boost = BOOST_WEIGHTS[sig.signal_type] || 0;
+                              return (
+                                <div key={i} className="flex items-start gap-2">
+                                  <span className={`text-[9px] font-black px-1 py-0.5 rounded border shrink-0 ${meta.colorClass}`}>
+                                    {meta.icon} {meta.label}
+                                  </span>
+                                  <span className="text-[11px] text-slate-300 flex-1 leading-snug">{sig.player_name} — {sig.reason}</span>
+                                  <span className={`text-[10px] font-black shrink-0 ${boost > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                                    {boost > 0 ? "+" : ""}{boost.toFixed(1)}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                            {scoutSignals.length > 10 && (
+                              <p className="text-[10px] text-slate-600 text-center">+{scoutSignals.length - 10} more signals</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Salary range */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <DollarSign className="w-3.5 h-3.5 text-slate-500" />
+                            <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Player Salary Range</span>
+                          </div>
+                          {salaryRange && (
+                            <button onClick={() => setSalaryRange(null)} className="text-[10px] text-slate-500 hover:text-slate-300" data-testid="reset-salary-range">
+                              Reset
+                            </button>
+                          )}
+                        </div>
+                        <Slider
+                          value={salaryRange || [salaryBounds.min, salaryBounds.max]}
+                          onValueChange={v => setSalaryRange([v[0], v[1]])}
+                          min={salaryBounds.min}
+                          max={salaryBounds.max}
+                          step={salaryBounds.step}
+                          data-testid="salary-range-slider"
+                        />
+                        <div className="flex justify-between mt-1 text-[10px] font-bold">
+                          <span className={salaryRange ? "text-emerald-400" : "text-slate-500"}>${((salaryRange?.[0] ?? salaryBounds.min) / 1000).toFixed(1)}K</span>
+                          <span className={salaryRange ? "text-emerald-400" : "text-slate-500"}>${((salaryRange?.[1] ?? salaryBounds.max) / 1000).toFixed(1)}K</span>
+                        </div>
+                      </div>
+
+                      {/* Max exposure (multi-lineup) */}
+                      {lineupCount > 1 && (
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <Shuffle className="w-3.5 h-3.5 text-slate-500" />
+                              <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Global Max Exposure</span>
+                            </div>
+                            <span className={`text-[11px] font-black ${globalMaxExposure ? "text-cyan-400" : "text-slate-500"}`}>
+                              {globalMaxExposure ? `${globalMaxExposure}%` : "Off"}
+                            </span>
+                          </div>
+                          <Slider
+                            value={[globalMaxExposure ?? 100]}
+                            onValueChange={v => setGlobalMaxExposure(v[0] === 100 ? null : v[0])}
+                            min={10} max={100} step={5}
+                            data-testid="exposure-slider"
+                          />
+                          <p className="text-[10px] text-slate-500 mt-1">
+                            {globalMaxExposure ? `No player appears in more than ${globalMaxExposure}% of lineups` : "Drag left to cap player frequency"}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Per-player settings summary */}
+                      {customizedCount > 0 && (
+                        <div className="rounded-lg border border-purple-900/40 bg-purple-950/20 p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-[10px] font-black text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                              <Settings2 className="w-3 h-3" /> Per-Player Settings ({customizedCount})
+                            </p>
+                            <button
+                              onClick={() => setPlayerSettings({})}
+                              className="text-[10px] text-slate-600 hover:text-red-400 flex items-center gap-1"
+                            >
+                              <RotateCcw className="w-3 h-3" /> Clear all
+                            </button>
+                          </div>
+                          <div className="space-y-1">
+                            {Object.entries(playerSettings).map(([pid, pset]) => {
+                              const p = players.find(pl => String(pl.id) === pid);
+                              if (!p) return null;
+                              const chips = [];
+                              if (pset.customProjection !== undefined) chips.push(`proj: ${pset.customProjection}`);
+                              if (pset.customOwnership !== undefined) chips.push(`own: ${pset.customOwnership}%`);
+                              if (pset.maxExposure !== undefined) chips.push(`max: ${pset.maxExposure}%`);
+                              if (pset.fade) chips.push("faded");
+                              return (
+                                <div key={pid} className="flex items-center justify-between text-[10px]">
+                                  <span className="text-slate-300 font-bold truncate">{p.name}</span>
+                                  <div className="flex gap-1 flex-wrap justify-end">
+                                    {chips.map((c, ci) => (
+                                      <span key={ci} className="text-purple-300 bg-purple-500/10 border border-purple-500/20 rounded px-1 py-0.5 font-bold">
+                                        {c}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* ── Active config chips ── */}
+              {anyActiveConfig && (
+                <div className="flex flex-wrap gap-1.5 mb-3" data-testid="active-config-chips">
+                  {projectionMode === "ceiling" && <span className="text-[10px] font-black bg-purple-500/15 border border-purple-500/25 text-purple-300 px-2 py-1 rounded-lg">🚀 Ceiling</span>}
+                  {leverageMode && <span className="text-[10px] font-black bg-amber-500/15 border border-amber-500/25 text-amber-300 px-2 py-1 rounded-lg flex items-center gap-1"><Target className="w-3 h-3" />Leverage</span>}
+                  {useBoosts && <span className="text-[10px] font-black bg-emerald-500/15 border border-emerald-500/25 text-emerald-300 px-2 py-1 rounded-lg flex items-center gap-1"><Zap className="w-3 h-3" />Scout Active</span>}
+                  {globalMaxExposure && <span className="text-[10px] font-black bg-cyan-500/15 border border-cyan-500/25 text-cyan-300 px-2 py-1 rounded-lg flex items-center gap-1"><Shuffle className="w-3 h-3" />Max {globalMaxExposure}%</span>}
+                  {salaryRange && <span className="text-[10px] font-black bg-slate-700/60 border border-slate-600/40 text-slate-300 px-2 py-1 rounded-lg flex items-center gap-1"><DollarSign className="w-3 h-3" />${(salaryRange[0]/1000).toFixed(1)}K–${(salaryRange[1]/1000).toFixed(1)}K</span>}
+                  {customizedCount > 0 && <span className="text-[10px] font-black bg-purple-500/15 border border-purple-500/25 text-purple-300 px-2 py-1 rounded-lg flex items-center gap-1"><Settings2 className="w-3 h-3" />{customizedCount} customized</span>}
+                </div>
+              )}
+
               <Card className="bg-slate-900 border-slate-700">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
@@ -1035,230 +1260,6 @@ export default function ShowdownBuilder() {
                 </CardContent>
               </Card>
 
-              {/* ── Optimizer Config Panel ── */}
-              <Card className="bg-slate-900/60 border-slate-700/50 mt-3">
-                <CardContent className="p-3">
-                  <button
-                    onClick={() => setShowConfig(c => !c)}
-                    className="w-full flex items-center justify-between text-sm font-bold text-slate-300 hover:text-white transition-colors"
-                    data-testid="toggle-config"
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <Sliders className="w-3.5 h-3.5 text-amber-400/70" />
-                      <span className="text-xs">Optimizer Settings</span>
-                      {anyActiveConfig && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
-                    </div>
-                    {showConfig ? <ChevronUp className="w-3.5 h-3.5 text-slate-500" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-500" />}
-                  </button>
-
-                  {showConfig && (
-                    <div className="space-y-4 mt-3 pt-3 border-t border-slate-800/60">
-
-                      {/* Projection mode */}
-                      <div>
-                        <div className="flex items-center gap-1.5 mb-1.5">
-                          <BarChart3 className="w-3.5 h-3.5 text-slate-500" />
-                          <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Projection Mode</span>
-                        </div>
-                        <div className="flex gap-1.5">
-                          {(["balanced", "ceiling"] as const).map(mode => (
-                            <button
-                              key={mode}
-                              onClick={() => setProjectionMode(mode)}
-                              data-testid={`projection-mode-${mode}`}
-                              className={`flex-1 py-1.5 rounded-lg text-[11px] font-black transition-all border ${
-                                projectionMode === mode
-                                  ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
-                                  : "bg-slate-800/60 text-slate-400 border-slate-700/40 hover:text-white"
-                              }`}
-                            >
-                              {mode === "balanced" ? "⚖️ Balanced" : "🚀 Ceiling"}
-                            </button>
-                          ))}
-                        </div>
-                        <p className="text-[10px] text-slate-500 mt-1">
-                          {projectionMode === "ceiling" ? "High-upside GPP — targets boom-or-bust plays" : "Safer floor — better for cash games"}
-                        </p>
-                      </div>
-
-                      {/* Toggles */}
-                      <div className="space-y-2">
-                        {/* Leverage */}
-                        <div className="flex items-center justify-between bg-slate-800/40 rounded-lg px-3 py-2">
-                          <div className="flex items-center gap-2">
-                            <Target className="w-3.5 h-3.5 text-amber-400" />
-                            <div>
-                              <p className="text-xs font-bold text-white">Leverage Mode</p>
-                              <p className="text-[10px] text-slate-500">Down-weights chalk, boosts low-ownership plays</p>
-                            </div>
-                          </div>
-                          <Switch checked={leverageMode} onCheckedChange={setLeverageMode} data-testid="toggle-leverage" />
-                        </div>
-
-                        {/* AI Boosts */}
-                        <div className={`flex items-center justify-between rounded-lg px-3 py-2 ${isPaidUser ? "bg-slate-800/40" : "bg-slate-800/20 opacity-60"}`}>
-                          <div className="flex items-center gap-2">
-                            <Zap className="w-3.5 h-3.5 text-emerald-400" />
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <p className="text-xs font-bold text-white">AI Scout Boosts</p>
-                                {!isPaidUser && <span className="text-[9px] font-black text-amber-400/80 bg-amber-500/10 px-1 py-0.5 rounded">PRO</span>}
-                                {scoutSignals.length > 0 && isPaidUser && (
-                                  <span className="text-[9px] font-black text-emerald-400/80 bg-emerald-500/10 px-1 py-0.5 rounded">
-                                    {scoutSignals.length} signals
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[10px] text-slate-500">
-                                {scoutLoading ? "Fetching signals..." : `Scout projection adjustments from live news`}
-                              </p>
-                            </div>
-                          </div>
-                          <Switch
-                            checked={useBoosts}
-                            onCheckedChange={isPaidUser ? setUseBoosts : undefined}
-                            disabled={!isPaidUser}
-                            data-testid="toggle-boosts"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Scout signal summary (when boosts enabled) */}
-                      {useBoosts && scoutSignals.length > 0 && (
-                        <div className="rounded-lg border border-emerald-900/40 bg-emerald-950/20 p-3">
-                          <p className="text-[10px] font-black text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                            <Activity className="w-3 h-3" /> Active Scout Signals — {sport}
-                          </p>
-                          <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                            {scoutSignals.slice(0, 10).map((sig, i) => {
-                              const meta = SIGNAL_META[sig.signal_type] || SIGNAL_META["hot_streak"];
-                              const boost = BOOST_WEIGHTS[sig.signal_type] || 0;
-                              return (
-                                <div key={i} className="flex items-start gap-2">
-                                  <span className={`text-[9px] font-black px-1 py-0.5 rounded border shrink-0 ${meta.colorClass}`}>
-                                    {meta.icon} {meta.label}
-                                  </span>
-                                  <span className="text-[11px] text-slate-300 flex-1 leading-snug">{sig.player_name} — {sig.reason}</span>
-                                  <span className={`text-[10px] font-black shrink-0 ${boost > 0 ? "text-emerald-400" : "text-red-400"}`}>
-                                    {boost > 0 ? "+" : ""}{boost.toFixed(1)}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                            {scoutSignals.length > 10 && (
-                              <p className="text-[10px] text-slate-600 text-center">+{scoutSignals.length - 10} more signals</p>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Salary range */}
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <div className="flex items-center gap-1.5">
-                            <DollarSign className="w-3.5 h-3.5 text-slate-500" />
-                            <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Player Salary Range</span>
-                          </div>
-                          {salaryRange && (
-                            <button onClick={() => setSalaryRange(null)} className="text-[10px] text-slate-500 hover:text-slate-300" data-testid="reset-salary-range">
-                              Reset
-                            </button>
-                          )}
-                        </div>
-                        <Slider
-                          value={salaryRange || [salaryBounds.min, salaryBounds.max]}
-                          onValueChange={v => setSalaryRange([v[0], v[1]])}
-                          min={salaryBounds.min}
-                          max={salaryBounds.max}
-                          step={salaryBounds.step}
-                          data-testid="salary-range-slider"
-                        />
-                        <div className="flex justify-between mt-1 text-[10px] font-bold">
-                          <span className={salaryRange ? "text-emerald-400" : "text-slate-500"}>${((salaryRange?.[0] ?? salaryBounds.min) / 1000).toFixed(1)}K</span>
-                          <span className={salaryRange ? "text-emerald-400" : "text-slate-500"}>${((salaryRange?.[1] ?? salaryBounds.max) / 1000).toFixed(1)}K</span>
-                        </div>
-                      </div>
-
-                      {/* Max exposure (multi-lineup) */}
-                      {lineupCount > 1 && (
-                        <div>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <div className="flex items-center gap-1.5">
-                              <Shuffle className="w-3.5 h-3.5 text-slate-500" />
-                              <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Global Max Exposure</span>
-                            </div>
-                            <span className={`text-[11px] font-black ${globalMaxExposure ? "text-cyan-400" : "text-slate-500"}`}>
-                              {globalMaxExposure ? `${globalMaxExposure}%` : "Off"}
-                            </span>
-                          </div>
-                          <Slider
-                            value={[globalMaxExposure ?? 100]}
-                            onValueChange={v => setGlobalMaxExposure(v[0] === 100 ? null : v[0])}
-                            min={10} max={100} step={5}
-                            data-testid="exposure-slider"
-                          />
-                          <p className="text-[10px] text-slate-500 mt-1">
-                            {globalMaxExposure ? `No player appears in more than ${globalMaxExposure}% of lineups` : "Drag left to cap player frequency"}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Per-player settings summary */}
-                      {customizedCount > 0 && (
-                        <div className="rounded-lg border border-purple-900/40 bg-purple-950/20 p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-[10px] font-black text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
-                              <Settings2 className="w-3 h-3" /> Per-Player Settings ({customizedCount})
-                            </p>
-                            <button
-                              onClick={() => setPlayerSettings({})}
-                              className="text-[10px] text-slate-600 hover:text-red-400 flex items-center gap-1"
-                            >
-                              <RotateCcw className="w-3 h-3" /> Clear all
-                            </button>
-                          </div>
-                          <div className="space-y-1">
-                            {Object.entries(playerSettings).map(([pid, pset]) => {
-                              const p = players.find(pl => String(pl.id) === pid);
-                              if (!p) return null;
-                              const chips = [];
-                              if (pset.customProjection !== undefined) chips.push(`proj: ${pset.customProjection}`);
-                              if (pset.customOwnership !== undefined) chips.push(`own: ${pset.customOwnership}%`);
-                              if (pset.maxExposure !== undefined) chips.push(`max: ${pset.maxExposure}%`);
-                              if (pset.fade) chips.push("faded");
-                              return (
-                                <div key={pid} className="flex items-center justify-between text-[10px]">
-                                  <span className="text-slate-300 font-bold truncate">{p.name}</span>
-                                  <div className="flex gap-1 flex-wrap justify-end">
-                                    {chips.map((c, ci) => (
-                                      <span key={ci} className="text-purple-300 bg-purple-500/10 border border-purple-500/20 rounded px-1 py-0.5 font-bold">
-                                        {c}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* ── Active config chips ── */}
-              {anyActiveConfig && (
-                <div className="flex flex-wrap gap-1.5 mt-2" data-testid="active-config-chips">
-                  {projectionMode === "ceiling" && <span className="text-[10px] font-black bg-purple-500/15 border border-purple-500/25 text-purple-300 px-2 py-1 rounded-lg">🚀 Ceiling</span>}
-                  {leverageMode && <span className="text-[10px] font-black bg-amber-500/15 border border-amber-500/25 text-amber-300 px-2 py-1 rounded-lg flex items-center gap-1"><Target className="w-3 h-3" />Leverage</span>}
-                  {useBoosts && <span className="text-[10px] font-black bg-emerald-500/15 border border-emerald-500/25 text-emerald-300 px-2 py-1 rounded-lg flex items-center gap-1"><Zap className="w-3 h-3" />Scout Active</span>}
-                  {globalMaxExposure && <span className="text-[10px] font-black bg-cyan-500/15 border border-cyan-500/25 text-cyan-300 px-2 py-1 rounded-lg flex items-center gap-1"><Shuffle className="w-3 h-3" />Max {globalMaxExposure}%</span>}
-                  {salaryRange && <span className="text-[10px] font-black bg-slate-700/60 border border-slate-600/40 text-slate-300 px-2 py-1 rounded-lg flex items-center gap-1"><DollarSign className="w-3 h-3" />${(salaryRange[0]/1000).toFixed(1)}K–${(salaryRange[1]/1000).toFixed(1)}K</span>}
-                  {customizedCount > 0 && <span className="text-[10px] font-black bg-purple-500/15 border border-purple-500/25 text-purple-300 px-2 py-1 rounded-lg flex items-center gap-1"><Settings2 className="w-3 h-3" />{customizedCount} customized</span>}
-                </div>
-              )}
 
               
             </div>
