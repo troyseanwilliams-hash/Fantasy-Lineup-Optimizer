@@ -1248,7 +1248,7 @@ export default function ProOptimizer() {
               )}
               {slateHasStarted ? "SLATE LOCKED"
                 : isOptimizing && simMode ? `Simulating ${numSims}×…`
-                : simMode ? `Sim ${lineupCount} Lineups`
+                : simMode ? `Sim ${numSims} Lineups`
                 : `Generate ${lineupCount}`}
             </Button>
 
