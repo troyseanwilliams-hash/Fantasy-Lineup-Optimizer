@@ -117,6 +117,7 @@ export default function ProOptimizer() {
   const [numSims, setNumSims] = useState(200);
   const [enforceGameStack, setEnforceGameStack] = useState(false);
   const [stackGameKey, setStackGameKey] = useState<string | null>(null);
+  const [minStarRating, setMinStarRating] = useState<number>(0);
   const [lineupSwaps, setLineupSwaps] = useState<Record<string, Record<string, Player>>>({});
   const [swappingTarget, setSwappingTarget] = useState<{ lineupIdx: number; slot: string } | null>(null);
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
@@ -552,6 +553,15 @@ export default function ProOptimizer() {
         }
       }
     }
+    const ratingExcluded: number[] = [];
+    if (minStarRating > 0 && players) {
+      for (const p of players) {
+        const proj = projections[p.id.toString()] ?? Number(p.projectedPoints);
+        if (getPlayerStarCount(proj) < minStarRating && !lockedIds.includes(p.id)) {
+          ratingExcluded.push(p.id);
+        }
+      }
+    }
     const activeExposureLimits = Object.keys(exposureLimits).length > 0 ? exposureLimits : undefined;
     setSavedIndices(new Set());
     setLineupSwaps({});
@@ -563,7 +573,7 @@ export default function ProOptimizer() {
         slateId,
         platform,
         lockedPlayerIds:  lockedIds,
-        excludedPlayerIds: excludedIds,
+        excludedPlayerIds: [...excludedIds, ...ratingExcluded],
         playerProjections: Object.keys(projections).length > 0 ? projections : undefined,
         playerMinSalary:  salaryRange && salaryRange[0] > salaryBounds.min ? salaryRange[0] : undefined,
         playerMaxSalary:  salaryRange && salaryRange[1] < salaryBounds.max ? salaryRange[1] : undefined,
@@ -579,7 +589,7 @@ export default function ProOptimizer() {
         slateId,
         platform,
         lockedPlayerIds: lockedIds,
-        excludedPlayerIds: excludedIds,
+        excludedPlayerIds: [...excludedIds, ...ratingExcluded],
         playerProjections: Object.keys(projections).length > 0 ? projections : undefined,
         playerMinSalary: salaryRange && salaryRange[0] > salaryBounds.min ? salaryRange[0] : undefined,
         playerMaxSalary: salaryRange && salaryRange[1] < salaryBounds.max ? salaryRange[1] : undefined,
@@ -732,6 +742,7 @@ export default function ProOptimizer() {
     setSwappingTarget(null);
     setUseBoostsUserOverride(null);
     setStackGameKey(null);
+    setMinStarRating(0);
     optimizeMutation.reset();
     simMutation.reset();
   };
@@ -967,6 +978,25 @@ export default function ProOptimizer() {
                   )}
                 </div>
               )}
+              <div className="flex items-center gap-1.5 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+                <span className="text-[10px] font-black text-amber-400 uppercase whitespace-nowrap">Min ★</span>
+                <div className="flex gap-1">
+                  {[0, 1, 2, 3, 4, 5].map(n => (
+                    <button
+                      key={n}
+                      onClick={() => setMinStarRating(minStarRating === n ? 0 : n)}
+                      className={`w-5 h-5 rounded text-[10px] font-black transition-all border ${
+                        minStarRating === n
+                          ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                          : "text-slate-500 border-slate-700/50 hover:text-slate-300"
+                      }`}
+                      data-testid={`btn-min-stars-${n}`}
+                    >
+                      {n === 0 ? "All" : n}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
@@ -1045,6 +1075,23 @@ export default function ProOptimizer() {
                   </span>
                 </div>
               )}
+              <div className="flex items-center gap-1 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+                <span className="text-[10px] font-black text-amber-400 uppercase whitespace-nowrap">Min ★</span>
+                {[0, 1, 2, 3, 4, 5].map(n => (
+                  <button
+                    key={n}
+                    onClick={() => setMinStarRating(minStarRating === n ? 0 : n)}
+                    className={`w-5 h-5 rounded text-[10px] font-black transition-all border ${
+                      minStarRating === n
+                        ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                        : "text-slate-500 border-slate-700/50 hover:text-slate-300"
+                    }`}
+                    data-testid={`btn-min-stars-mobile-${n}`}
+                  >
+                    {n === 0 ? "All" : n}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
