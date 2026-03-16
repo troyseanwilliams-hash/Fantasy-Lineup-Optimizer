@@ -1449,7 +1449,8 @@ export async function registerRoutes(
 
     if (!slateId) {
       const allSlates = await storage.getSlates();
-      const dkSlate = allSlates.find(s => s.sport === sport && s.platform === "draftkings");
+      const dkSlate = allSlates.find(s => s.sport === sport && s.platform === "draftkings" && s.isMain)
+        || allSlates.find(s => s.sport === sport && s.platform === "draftkings");
       if (dkSlate) {
         slateId = dkSlate.id;
         console.log(`[DK Import] Auto-detected DK ${sport} slate ${slateId} (${dkSlate.name})`);
