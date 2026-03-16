@@ -1114,8 +1114,8 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Sharpshooter or Champion subscription required for simulation scoring.", requiresUpgrade: true });
     }
 
-    const maxSims = isAdmin ? 1000 : tier === "pro" ? 500 : 200;
-    const numSims = Math.min(Math.max(Number(rawNumSims) || 200, 50), maxSims);
+    const maxSims = isAdmin ? 1500 : tier === "pro" ? 500 : 200;
+    const numSims = isAdmin ? 1500 : Math.min(Math.max(Number(rawNumSims) || 200, 50), maxSims);
     const startTime = Date.now();
 
     try {
@@ -3280,8 +3280,8 @@ export async function registerRoutes(
       const input = simOptimizeSchema.parse(req.body);
       const maxLineupCount = isAdmin ? 2000 : tier === "pro" ? 1000 : 400;
       input.lineupCount = Math.min(input.lineupCount, maxLineupCount);
-      const maxSims = isAdmin ? 1000 : tier === "pro" ? 500 : 200;
-      input.numSims = Math.min(input.numSims, maxSims);
+      const maxSims = isAdmin ? 1500 : tier === "pro" ? 500 : 200;
+      input.numSims = isAdmin ? 1500 : Math.min(input.numSims, maxSims);
 
       const slate = await storage.getSlate(input.slateId);
       if (!slate) return res.status(404).json({ message: "Slate not found" });
