@@ -13,7 +13,7 @@ import {
   ChevronLeft, ChevronRight, RefreshCw, Zap, Target, Sliders,
   ChevronDown, ChevronUp, DollarSign, BarChart3, Shuffle,
   TrendingUp, TrendingDown, AlertTriangle, Settings2, EyeOff,
-  Activity, Clock, RotateCcw, Flame, Percent,
+  Activity, Clock, RotateCcw, Flame, Percent, ArrowUpDown, CheckCheck,
 } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import { Slider } from "@/components/ui/slider";
@@ -185,6 +185,8 @@ export default function ShowdownBuilder() {
   const [showdownConfig, setShowdownConfig] = useState<ShowdownConfig | null>(null);
   const [activeLineupIdx, setActiveLineupIdx] = useState(0);
   const [savedLineupIndices, setSavedLineupIndices] = useState<Set<number>>(new Set());
+  const [lineupSortKey, setLineupSortKey] = useState<"proj" | "median" | "p75" | "p90" | "freq">("proj");
+  const [expandedLineupIdx, setExpandedLineupIdx] = useState<number | null>(null);
 
   // ── Subscription ───────────────────────────────────────────────────────────
   const { data: subscription } = useQuery<{ tier: string }>({
@@ -247,6 +249,7 @@ export default function ShowdownBuilder() {
     setShowdownConfig(null);
     setSavedLineupIndices(new Set());
     setActiveLineupIdx(0);
+    setExpandedLineupIdx(null);
     setSelectedSlateId(newSlateId);
   }
 
@@ -384,6 +387,8 @@ export default function ShowdownBuilder() {
       setShowdownConfig(data.config);
       setActiveLineupIdx(0);
       setSavedLineupIndices(new Set());
+      setExpandedLineupIdx(null);
+      setLineupSortKey("proj");
       setSimSummary(null);
       toast({ title: `${data.lineups.length} lineup${data.lineups.length > 1 ? "s" : ""} generated!` });
     },
@@ -467,6 +472,8 @@ export default function ShowdownBuilder() {
       setShowdownConfig(data.config);
       setActiveLineupIdx(0);
       setSavedLineupIndices(new Set());
+      setExpandedLineupIdx(null);
+      setLineupSortKey("proj");
       setSimSummary({ simsRun: data.simsRun, uniqueCount: data.uniqueCount, elapsedMs: data.elapsedMs });
       toast({ title: `${lineups.length} sim lineup${lineups.length > 1 ? "s" : ""} generated!` });
     },
@@ -477,7 +484,7 @@ export default function ShowdownBuilder() {
 
   // ── Save ───────────────────────────────────────────────────────────────────
   const saveMut = useMutation({
-    mutationFn: async (lineup: ShowdownLineup) => {
+    mutationFn: async ({ lineup, idx }: { lineup: ShowdownLineup; idx: number }) => {
       const snapshot = [
         { ...lineup.captain, slot: captainLabel },
         ...lineup.flexPlayers.map((p, i) => ({ ...p, slot: `${flexLabel}${i + 1}` })),
@@ -492,17 +499,48 @@ export default function ShowdownBuilder() {
         totalProjectedPoints: lineup.totalProjectedPoints,
         playerSnapshot: snapshot,
       });
-      return res.json();
+      return { result: await res.json(), idx };
     },
-    onSuccess: () => {
+    onSuccess: ({ idx }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
-      setSavedLineupIndices(prev => new Set(prev).add(activeLineupIdx));
+      setSavedLineupIndices(prev => new Set(prev).add(idx));
       toast({ title: "Lineup saved to vault!" });
     },
     onError: (err: any) => {
       toast({ title: "Save failed", description: err.message || "Could not save lineup", variant: "destructive" });
     },
   });
+
+  const [savingAll, setSavingAll] = useState(false);
+  async function saveAllLineups() {
+    setSavingAll(true);
+    let savedCount = 0;
+    for (let i = 0; i < generatedLineups.length; i++) {
+      if (savedLineupIndices.has(i)) continue;
+      try {
+        const lineup = generatedLineups[i];
+        const snapshot = [
+          { ...lineup.captain, slot: captainLabel },
+          ...lineup.flexPlayers.map((p, pi) => ({ ...p, slot: `${flexLabel}${pi + 1}` })),
+        ];
+        await apiRequest("POST", "/api/showdown/save", {
+          slateId: selectedSlateId,
+          sport,
+          platform,
+          captainId: lineup.captain.id,
+          flexIds: lineup.flexPlayers.map(p => p.id),
+          totalSalary: lineup.totalSalary,
+          totalProjectedPoints: lineup.totalProjectedPoints,
+          playerSnapshot: snapshot,
+        });
+        setSavedLineupIndices(prev => new Set(prev).add(i));
+        savedCount++;
+      } catch { /* skip failed */ }
+    }
+    queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
+    toast({ title: `${savedCount} lineup${savedCount !== 1 ? "s" : ""} saved to vault!` });
+    setSavingAll(false);
+  }
 
   // ── Actions ────────────────────────────────────────────────────────────────
   function toggleCaptain(playerId: number) {
@@ -533,14 +571,20 @@ export default function ShowdownBuilder() {
     setExpandedSettingsId(prev => prev === playerId ? null : playerId);
   }
 
+  function csvEscape(val: string) {
+    if (/[",\n\r]/.test(val)) return `"${val.replace(/"/g, '""')}"`;
+    return val;
+  }
+
   function exportCSV() {
-    if (!activeLineup) return;
-    const header = [captainLabel, ...Array.from({ length: activeLineup.flexPlayers.length }, () => flexLabel)].join(",");
-    const row = [activeLineup.captain.name, ...activeLineup.flexPlayers.map(p => p.name)].join(",");
-    const blob = new Blob([`${header}\n${row}`], { type: "text/csv" });
+    if (generatedLineups.length === 0) return;
+    const first = generatedLineups[0];
+    const header = [captainLabel, ...Array.from({ length: first.flexPlayers.length }, () => flexLabel)].join(",");
+    const rows = generatedLineups.map(lu => [csvEscape(lu.captain.name), ...lu.flexPlayers.map(p => csvEscape(p.name))].join(","));
+    const blob = new Blob([`${header}\n${rows.join("\n")}`], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `showdown_${sport}_lineup.csv`; a.click();
+    a.href = url; a.download = `showdown_${sport}_${generatedLineups.length}lineups.csv`; a.click();
     URL.revokeObjectURL(url);
   }
 
@@ -551,6 +595,22 @@ export default function ShowdownBuilder() {
     setUseBoosts(false); setGlobalMaxExposure(null);
     setExpandedSettingsId(null);
   }
+
+  const sortedLineups = useMemo(() => {
+    if (generatedLineups.length === 0) return [];
+    const withIdx = generatedLineups.map((lu, idx) => ({ lu, origIdx: idx }));
+    withIdx.sort((a, b) => {
+      const aS = a.lu.simData, bS = b.lu.simData;
+      switch (lineupSortKey) {
+        case "median": return (bS?.medianScore || 0) - (aS?.medianScore || 0);
+        case "p75":    return (bS?.p75Score || 0) - (aS?.p75Score || 0);
+        case "p90":    return (bS?.p90Score || 0) - (aS?.p90Score || 0);
+        case "freq":   return (bS?.freqPct || 0) - (aS?.freqPct || 0);
+        default:       return b.lu.totalProjectedPoints - a.lu.totalProjectedPoints;
+      }
+    });
+    return withIdx;
+  }, [generatedLineups, lineupSortKey]);
 
   const activeLineup = generatedLineups[activeLineupIdx];
 
@@ -1373,212 +1433,277 @@ export default function ShowdownBuilder() {
               
             </div>
 
-            {/* ── RIGHT: Generated Lineup ── */}
-            <div className="lg:col-span-2">
-              {generatedLineups.length > 0 && activeLineup ? (
-                <Card className={`bg-slate-900 ${activeLineup.simData ? "border-violet-500/30" : "border-slate-700"}`} data-testid="showdown-lineup-card">
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <CardTitle className="text-white text-base">
-                          Generated Lineup{generatedLineups.length > 1 ? "s" : ""}
-                        </CardTitle>
-                        {activeLineup.simData && (
-                          <Badge className="bg-violet-500/15 text-violet-300 border-violet-500/30 text-[9px] font-black">SIM</Badge>
-                        )}
-                      </div>
-                      {generatedLineups.length > 1 && (
+            {/* ── RIGHT: Generated Lineups ── */}
+            <div className="lg:col-span-2 space-y-3">
+              {generatedLineups.length > 0 ? (
+                <>
+                  <Card className="bg-slate-900 border-slate-700" data-testid="showdown-lineup-card">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
                         <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => setActiveLineupIdx(Math.max(0, activeLineupIdx - 1))} disabled={activeLineupIdx === 0} className="h-7 w-7 p-0 text-slate-400" data-testid="btn-prev-lineup">
-                            <ChevronLeft className="w-4 h-4" />
-                          </Button>
-                          <span className="text-xs text-slate-400 font-bold" data-testid="lineup-counter">{activeLineupIdx + 1} / {generatedLineups.length}</span>
-                          <Button variant="ghost" size="sm" onClick={() => setActiveLineupIdx(Math.min(generatedLineups.length - 1, activeLineupIdx + 1))} disabled={activeLineupIdx === generatedLineups.length - 1} className="h-7 w-7 p-0 text-slate-400" data-testid="btn-next-lineup">
-                            <ChevronRight className="w-4 h-4" />
-                          </Button>
+                          <CardTitle className="text-white text-base">
+                            {generatedLineups.length} Lineup{generatedLineups.length > 1 ? "s" : ""}
+                          </CardTitle>
+                          {generatedLineups[0]?.simData && (
+                            <Badge className="bg-violet-500/15 text-violet-300 border-violet-500/30 text-[9px] font-black">SIM</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {generatedLineups.length > 1 && generatedLineups[0]?.simData && (
+                            <Select value={lineupSortKey} onValueChange={(v) => setLineupSortKey(v as any)}>
+                              <SelectTrigger className="h-7 w-[110px] bg-slate-800 border-slate-600 text-slate-300 text-[10px]" data-testid="lineup-sort-select">
+                                <ArrowUpDown className="w-3 h-3 mr-1" />
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="proj">Projected</SelectItem>
+                                <SelectItem value="median">Median</SelectItem>
+                                <SelectItem value="p75">P75</SelectItem>
+                                <SelectItem value="p90">P90</SelectItem>
+                                <SelectItem value="freq">Freq %</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
+                          {generatedLineups.length > 1 && (
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                onClick={saveAllLineups}
+                                disabled={savingAll || savedLineupIndices.size === generatedLineups.length}
+                                className="h-7 text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 px-2"
+                                data-testid="btn-save-all"
+                              >
+                                {savingAll ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <CheckCheck className="w-3 h-3 mr-1" />}
+                                Save All
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={exportCSV} className="h-7 text-[10px] border-slate-600 text-slate-300 hover:bg-slate-800 px-2" data-testid="btn-export-csv">
+                                <Download className="w-3 h-3 mr-1" />CSV
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-1.5 max-h-[600px] overflow-y-auto">
+                      {/* Exposure bar */}
+                      {generatedLineups.length > 1 && (() => {
+                        const apps: Record<number, { name: string; count: number }> = {};
+                        for (const lu of generatedLineups) {
+                          for (const p of [lu.captain, ...lu.flexPlayers]) {
+                            if (!apps[p.id]) apps[p.id] = { name: p.name, count: 0 };
+                            apps[p.id].count++;
+                          }
+                        }
+                        return (
+                          <div className="bg-slate-800/40 rounded-lg p-2.5 mb-2" data-testid="exposure-panel">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Exposure — {generatedLineups.length} lineups</p>
+                            <div className="space-y-1.5">
+                              {Object.entries(apps).sort(([,a],[,b]) => b.count - a.count).slice(0, 6).map(([id, d]) => {
+                                const pct = Math.round((d.count / generatedLineups.length) * 100);
+                                const over = globalMaxExposure !== null && pct > globalMaxExposure;
+                                const perCap = playerSettings[id]?.maxExposure;
+                                const overPer = perCap !== undefined && pct > perCap;
+                                return (
+                                  <div key={id} className="flex items-center gap-2">
+                                    <span className="text-[10px] text-white font-bold flex-1 truncate">{d.name}</span>
+                                    <span className="text-[10px] font-mono text-slate-500">{d.count}/{generatedLineups.length}</span>
+                                    <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                      <div className={`h-full rounded-full ${over || overPer ? "bg-red-400" : "bg-cyan-500"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                                    </div>
+                                    <span className={`text-[10px] font-black w-8 text-right ${over || overPer ? "text-red-400" : "text-cyan-400"}`}>{pct}%</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Sim Summary Bar */}
+                      {simSummary && generatedLineups[0]?.simData && (
+                        <div className="flex items-center justify-center gap-4 text-[10px] text-slate-500 pb-1">
+                          <span>{simSummary.simsRun} sims</span>
+                          <span>{simSummary.uniqueCount} unique</span>
+                          <span>{(simSummary.elapsedMs / 1000).toFixed(1)}s</span>
                         </div>
                       )}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
 
-                    {/* Exposure bar */}
-                    {generatedLineups.length > 1 && (() => {
-                      const apps: Record<number, { name: string; count: number }> = {};
-                      for (const lu of generatedLineups) {
-                        for (const p of [lu.captain, ...lu.flexPlayers]) {
-                          if (!apps[p.id]) apps[p.id] = { name: p.name, count: 0 };
-                          apps[p.id].count++;
-                        }
-                      }
-                      return (
-                        <div className="bg-slate-800/40 rounded-lg p-2.5" data-testid="exposure-panel">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Exposure — {generatedLineups.length} lineups</p>
-                          <div className="space-y-1.5">
-                            {Object.entries(apps).sort(([,a],[,b]) => b.count - a.count).slice(0, 6).map(([id, d]) => {
-                              const pct = Math.round((d.count / generatedLineups.length) * 100);
-                              const over = globalMaxExposure !== null && pct > globalMaxExposure;
-                              const perCap = playerSettings[id]?.maxExposure;
-                              const overPer = perCap !== undefined && pct > perCap;
-                              return (
-                                <div key={id} className="flex items-center gap-2">
-                                  <span className="text-[10px] text-white font-bold flex-1 truncate">{d.name}</span>
-                                  <span className="text-[10px] font-mono text-slate-500">{d.count}/{generatedLineups.length}</span>
-                                  <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                                    <div className={`h-full rounded-full ${over || overPer ? "bg-red-400" : "bg-cyan-500"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
-                                  </div>
-                                  <span className={`text-[10px] font-black w-8 text-right ${over || overPer ? "text-red-400" : "text-cyan-400"}`}>{pct}%</span>
+                      {/* Lineup list */}
+                      {sortedLineups.map(({ lu, origIdx }, sortIdx) => {
+                        const isExpanded = expandedLineupIdx === origIdx;
+                        const isSaved = savedLineupIndices.has(origIdx);
+                        const salaryCap = showdownConfig?.salaryCap || 50000;
+                        return (
+                          <div
+                            key={origIdx}
+                            className={`rounded-lg border transition-all cursor-pointer ${isExpanded ? (lu.simData ? "border-violet-500/40 bg-violet-950/10" : "border-amber-500/30 bg-amber-950/10") : "border-slate-700/50 bg-slate-800/30 hover:bg-slate-800/60"}`}
+                            data-testid={`lineup-row-${sortIdx}`}
+                          >
+                            <div
+                              className="flex items-center gap-2 p-2.5"
+                              onClick={() => setExpandedLineupIdx(isExpanded ? null : origIdx)}
+                            >
+                              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                <span className="text-[10px] font-black text-slate-500 w-5 shrink-0">#{sortIdx + 1}</span>
+                                <div className="flex items-center gap-1 min-w-0 flex-1">
+                                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-[9px] font-black shrink-0">{captainLabel}</Badge>
+                                  <span className="text-[11px] text-white font-bold truncate">{lu.captain.name}</span>
+                                  <span className="text-[10px] text-slate-500 shrink-0">+{lu.flexPlayers.length}</span>
                                 </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Captain slot */}
-                    <div className="rounded-lg border-2 border-amber-500/40 bg-amber-500/5 p-3" data-testid="captain-slot">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-[10px] font-black">{captainLabel}</Badge>
-                        <Badge variant="outline" className="border-amber-500/30 text-amber-300 text-[10px]">{captainMultiplier}x</Badge>
-                        {/* Scout badge on captain */}
-                        {(() => {
-                          const sig = signalByName[activeLineup.captain.name.toLowerCase()]?.[0];
-                          if (!sig) return null;
-                          const meta = SIGNAL_META[sig.signal_type];
-                          if (!meta) return null;
-                          return (
-                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${meta.colorClass}`}>
-                              {meta.icon} {meta.label}
-                            </span>
-                          );
-                        })()}
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="text-white font-bold text-sm" data-testid="captain-name">{activeLineup.captain.name}</div>
-                          <div className="text-slate-400 text-xs">{activeLineup.captain.position} &middot; {activeLineup.captain.team}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-amber-400 font-black text-sm" data-testid="captain-proj">
-                            {toNum(activeLineup.captain.effectiveProjection).toFixed(1)} pts
-                          </div>
-                          <div className="text-slate-400 text-xs">${toNum(activeLineup.captain.effectiveSalary).toLocaleString()}</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Flex slots */}
-                    {activeLineup.flexPlayers.map((player, i) => {
-                      const sig = signalByName[player.name.toLowerCase()]?.[0];
-                      const meta = sig ? SIGNAL_META[sig.signal_type] : null;
-                      return (
-                        <div key={player.id} className="rounded-lg border border-slate-700 bg-slate-800/40 p-3" data-testid={`flex-slot-${i}`}>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <Badge variant="outline" className="border-slate-600 text-slate-400 text-[10px]">{flexLabel}</Badge>
-                                <span className="text-white font-medium text-sm">{player.name}</span>
-                                {meta && (
-                                  <span className={`text-[9px] font-black px-1 py-0.5 rounded border ${meta.colorClass}`}>
-                                    {meta.icon} {meta.label}
-                                  </span>
-                                )}
                               </div>
-                              <div className="text-slate-400 text-xs mt-0.5">{player.position} &middot; {player.team}</div>
+                              <div className="flex items-center gap-3 shrink-0">
+                                <div className="text-right">
+                                  <div className="text-xs font-black text-amber-400">{lu.totalProjectedPoints.toFixed(1)}</div>
+                                  <div className="text-[9px] text-slate-500">proj</div>
+                                </div>
+                                {lu.simData && (
+                                  <>
+                                    <div className="text-right">
+                                      <div className="text-xs font-black text-violet-300">{lu.simData.medianScore.toFixed(1)}</div>
+                                      <div className="text-[9px] text-slate-500">med</div>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-xs font-black text-cyan-300">{lu.simData.p75Score.toFixed(1)}</div>
+                                      <div className="text-[9px] text-slate-500">p75</div>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-xs font-black text-orange-300">{lu.simData.p90Score.toFixed(1)}</div>
+                                      <div className="text-[9px] text-slate-500">p90</div>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-xs font-black text-emerald-300">{lu.simData.freqPct}%</div>
+                                      <div className="text-[9px] text-slate-500">freq</div>
+                                    </div>
+                                  </>
+                                )}
+                                <div className="text-right">
+                                  <div className={`text-[10px] font-bold ${lu.totalSalary > salaryCap ? "text-red-400" : "text-slate-400"}`}>${lu.totalSalary.toLocaleString()}</div>
+                                </div>
+                                {isSaved && <CheckCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 text-slate-500"
+                                  onClick={(e) => { e.stopPropagation(); saveMut.mutate({ lineup: lu, idx: origIdx }); }}
+                                  disabled={saveMut.isPending || isSaved}
+                                  data-testid={`btn-save-lineup-${sortIdx}`}
+                                >
+                                  {isSaved ? null : <Save className="w-3 h-3" />}
+                                </Button>
+                                {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
+                              </div>
                             </div>
-                            <div className="text-right">
-                              <div className="text-emerald-400 font-bold text-sm">{toNum(player.effectiveProjection).toFixed(1)} pts</div>
-                              <div className="text-slate-400 text-xs">${toNum(player.effectiveSalary).toLocaleString()}</div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
 
-                    {/* Sim Stats */}
-                    {activeLineup.simData && (
-                      <div className="bg-violet-950/30 border border-violet-500/20 rounded-lg p-3" data-testid="sim-stats-showdown">
-                        <div className="grid grid-cols-4 gap-2 text-center">
-                          <div>
-                            <div className="flex items-center justify-center gap-1 text-violet-300 font-black text-sm">
-                              <TrendingUp className="w-3 h-3" />
-                              {activeLineup.simData.medianScore.toFixed(1)}
-                            </div>
-                            <div className="text-[9px] text-slate-500 uppercase">Median</div>
-                          </div>
-                          <div>
-                            <div className="flex items-center justify-center gap-1 text-cyan-300 font-black text-sm">
-                              <TrendingUp className="w-3 h-3" />
-                              {activeLineup.simData.p75Score.toFixed(1)}
-                            </div>
-                            <div className="text-[9px] text-slate-500 uppercase">P75</div>
-                          </div>
-                          <div>
-                            <div className="flex items-center justify-center gap-1 text-orange-300 font-black text-sm">
-                              <Flame className="w-3 h-3" />
-                              {activeLineup.simData.p90Score.toFixed(1)}
-                            </div>
-                            <div className="text-[9px] text-slate-500 uppercase">P90</div>
-                          </div>
-                          <div>
-                            <div className="flex items-center justify-center gap-1 text-emerald-300 font-black text-sm">
-                              <Percent className="w-3 h-3" />
-                              {activeLineup.simData.freqPct}%
-                            </div>
-                            <div className="text-[9px] text-slate-500 uppercase">Freq</div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                            {isExpanded && (
+                              <div className="px-2.5 pb-3 space-y-2 border-t border-slate-700/50 pt-2">
+                                <div className="rounded-lg border-2 border-amber-500/40 bg-amber-500/5 p-2.5" data-testid="captain-slot">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-[10px] font-black">{captainLabel}</Badge>
+                                    <Badge variant="outline" className="border-amber-500/30 text-amber-300 text-[10px]">{captainMultiplier}x</Badge>
+                                    {(() => {
+                                      const sig = signalByName[lu.captain.name.toLowerCase()]?.[0];
+                                      if (!sig) return null;
+                                      const meta = SIGNAL_META[sig.signal_type];
+                                      if (!meta) return null;
+                                      return <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${meta.colorClass}`}>{meta.icon} {meta.label}</span>;
+                                    })()}
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <div className="text-white font-bold text-sm" data-testid="captain-name">{lu.captain.name}</div>
+                                      <div className="text-slate-400 text-xs">{lu.captain.position} &middot; {lu.captain.team}</div>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-amber-400 font-black text-sm" data-testid="captain-proj">{toNum(lu.captain.effectiveProjection).toFixed(1)} pts</div>
+                                      <div className="text-slate-400 text-xs">${toNum(lu.captain.effectiveSalary).toLocaleString()}</div>
+                                    </div>
+                                  </div>
+                                </div>
 
-                    {/* Sim Summary Bar */}
-                    {simSummary && activeLineup.simData && (
-                      <div className="flex items-center justify-center gap-4 text-[10px] text-slate-500">
-                        <span>{simSummary.simsRun} sims</span>
-                        <span>{simSummary.uniqueCount} unique</span>
-                        <span>{(simSummary.elapsedMs / 1000).toFixed(1)}s</span>
-                      </div>
-                    )}
+                                {lu.flexPlayers.map((player, i) => {
+                                  const sig = signalByName[player.name.toLowerCase()]?.[0];
+                                  const meta = sig ? SIGNAL_META[sig.signal_type] : null;
+                                  return (
+                                    <div key={player.id} className="rounded-lg border border-slate-700 bg-slate-800/40 p-2.5" data-testid={`flex-slot-${i}`}>
+                                      <div className="flex items-center justify-between">
+                                        <div>
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <Badge variant="outline" className="border-slate-600 text-slate-400 text-[10px]">{flexLabel}</Badge>
+                                            <span className="text-white font-medium text-sm">{player.name}</span>
+                                            {meta && <span className={`text-[9px] font-black px-1 py-0.5 rounded border ${meta.colorClass}`}>{meta.icon} {meta.label}</span>}
+                                          </div>
+                                          <div className="text-slate-400 text-xs mt-0.5">{player.position} &middot; {player.team}</div>
+                                        </div>
+                                        <div className="text-right">
+                                          <div className="text-emerald-400 font-bold text-sm">{toNum(player.effectiveProjection).toFixed(1)} pts</div>
+                                          <div className="text-slate-400 text-xs">${toNum(player.effectiveSalary).toLocaleString()}</div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
 
-                    {/* Totals */}
-                    <div className="border-t border-slate-700 pt-3 mt-3">
-                      <div className="grid grid-cols-3 gap-3 text-center">
-                        <div>
-                          <div className="text-lg font-black text-amber-400" data-testid="lineup-total-proj">{activeLineup.totalProjectedPoints.toFixed(1)}</div>
-                          <div className="text-[10px] text-slate-400 uppercase">Projected</div>
-                        </div>
-                        <div>
-                          <div className={`text-lg font-black ${activeLineup.totalSalary > (showdownConfig?.salaryCap || 50000) ? "text-red-400" : "text-white"}`} data-testid="lineup-total-salary">
-                            ${activeLineup.totalSalary.toLocaleString()}
-                          </div>
-                          <div className="text-[10px] text-slate-400 uppercase">Salary</div>
-                        </div>
-                        <div>
-                          <div className="text-lg font-black text-slate-300" data-testid="lineup-salary-remaining">
-                            ${((showdownConfig?.salaryCap || 50000) - activeLineup.totalSalary).toLocaleString()}
-                          </div>
-                          <div className="text-[10px] text-slate-400 uppercase">Remaining</div>
-                        </div>
-                      </div>
-                    </div>
+                                {lu.simData && (
+                                  <div className="bg-violet-950/30 border border-violet-500/20 rounded-lg p-2.5" data-testid="sim-stats-showdown">
+                                    <div className="grid grid-cols-4 gap-2 text-center">
+                                      <div>
+                                        <div className="flex items-center justify-center gap-1 text-violet-300 font-black text-sm"><TrendingUp className="w-3 h-3" />{lu.simData.medianScore.toFixed(1)}</div>
+                                        <div className="text-[9px] text-slate-500 uppercase">Median</div>
+                                      </div>
+                                      <div>
+                                        <div className="flex items-center justify-center gap-1 text-cyan-300 font-black text-sm"><TrendingUp className="w-3 h-3" />{lu.simData.p75Score.toFixed(1)}</div>
+                                        <div className="text-[9px] text-slate-500 uppercase">P75</div>
+                                      </div>
+                                      <div>
+                                        <div className="flex items-center justify-center gap-1 text-orange-300 font-black text-sm"><Flame className="w-3 h-3" />{lu.simData.p90Score.toFixed(1)}</div>
+                                        <div className="text-[9px] text-slate-500 uppercase">P90</div>
+                                      </div>
+                                      <div>
+                                        <div className="flex items-center justify-center gap-1 text-emerald-300 font-black text-sm"><Percent className="w-3 h-3" />{lu.simData.freqPct}%</div>
+                                        <div className="text-[9px] text-slate-500 uppercase">Freq</div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
 
-                    {/* Save / Export */}
-                    <div className="flex gap-2 pt-2">
-                      <Button
-                        onClick={() => saveMut.mutate(activeLineup)}
-                        disabled={saveMut.isPending || savedLineupIndices.has(activeLineupIdx)}
-                        className={`flex-1 font-bold ${savedLineupIndices.has(activeLineupIdx) ? "bg-emerald-700/30 border border-emerald-500/30 text-emerald-400" : "bg-emerald-600 hover:bg-emerald-700"}`}
-                        data-testid="btn-save-showdown"
-                      >
-                        {saveMut.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : savedLineupIndices.has(activeLineupIdx) ? "✓ Saved" : <><Save className="w-4 h-4 mr-1" />Save</>}
-                      </Button>
-                      <Button variant="outline" onClick={exportCSV} className="border-slate-600 text-slate-300 hover:bg-slate-800" data-testid="btn-export-csv">
-                        <Download className="w-4 h-4 mr-1" />CSV
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                                <div className="border-t border-slate-700 pt-2">
+                                  <div className="grid grid-cols-3 gap-3 text-center">
+                                    <div>
+                                      <div className="text-base font-black text-amber-400" data-testid="lineup-total-proj">{lu.totalProjectedPoints.toFixed(1)}</div>
+                                      <div className="text-[10px] text-slate-400 uppercase">Projected</div>
+                                    </div>
+                                    <div>
+                                      <div className={`text-base font-black ${lu.totalSalary > salaryCap ? "text-red-400" : "text-white"}`} data-testid="lineup-total-salary">${lu.totalSalary.toLocaleString()}</div>
+                                      <div className="text-[10px] text-slate-400 uppercase">Salary</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-base font-black text-slate-300" data-testid="lineup-salary-remaining">${(salaryCap - lu.totalSalary).toLocaleString()}</div>
+                                      <div className="text-[10px] text-slate-400 uppercase">Remaining</div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex gap-2 pt-1">
+                                  <Button
+                                    onClick={() => saveMut.mutate({ lineup: lu, idx: origIdx })}
+                                    disabled={saveMut.isPending || isSaved}
+                                    className={`flex-1 font-bold text-xs ${isSaved ? "bg-emerald-700/30 border border-emerald-500/30 text-emerald-400" : "bg-emerald-600 hover:bg-emerald-700"}`}
+                                    data-testid="btn-save-showdown"
+                                  >
+                                    {saveMut.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : isSaved ? "✓ Saved" : <><Save className="w-4 h-4 mr-1" />Save</>}
+                                  </Button>
+                                  <Button variant="outline" onClick={exportCSV} className="border-slate-600 text-slate-300 hover:bg-slate-800 text-xs" data-testid="btn-export-csv">
+                                    <Download className="w-4 h-4 mr-1" />CSV
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </CardContent>
+                  </Card>
+                </>
               ) : (
                 <Card className="bg-slate-900 border-slate-700">
                   <CardContent className="p-8 text-center" data-testid="showdown-no-lineup">
@@ -1586,7 +1711,6 @@ export default function ShowdownBuilder() {
                     <h3 className="text-base font-bold text-white mb-1">No Lineup Yet</h3>
                     <p className="text-slate-400 text-sm">Lock a {captainLabel} and/or {flexLabel} players, then hit Generate.</p>
 
-                    {/* Scout teaser when no lineup generated */}
                     {scoutSignals.length > 0 && (
                       <div className="mt-4 rounded-lg border border-emerald-900/40 bg-emerald-950/20 p-3 text-left">
                         <p className="text-[10px] font-black text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
