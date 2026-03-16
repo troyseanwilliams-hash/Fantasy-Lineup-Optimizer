@@ -63,6 +63,7 @@ export interface IStorage extends IAuthStorage {
   getLineupCountBySport(userId: string, sport: string): Promise<number>;
   deleteExpiredLineups(): Promise<number>;
   getAllActiveLineups(): Promise<Lineup[]>;
+  getLineupsForScoring(): Promise<Lineup[]>;
 
   getSubscription(userId: string): Promise<Subscription | undefined>;
   getSubscriptionByStripeCustomerId(customerId: string): Promise<Subscription | undefined>;
@@ -267,7 +268,7 @@ export class DatabaseStorage implements IStorage {
     if (activeSlateIds.length === 0) return [];
     const ids = activeSlateIds.map(s => s.id);
     return await db.select().from(lineups).where(
-      and(eq(lineups.userId, userId), inArray(lineups.slateId, ids), eq(lineups.status, "active"))
+      and(eq(lineups.userId, userId), inArray(lineups.slateId, ids), inArray(lineups.status, ["active", "review"]))
     );
   }
 
@@ -365,6 +366,16 @@ export class DatabaseStorage implements IStorage {
   async getReviewLineups(userId: string): Promise<Lineup[]> {
     return await db.select().from(lineups).where(
       and(eq(lineups.userId, userId), eq(lineups.status, "review"))
+    );
+  }
+
+  async getLineupsForScoring(): Promise<Lineup[]> {
+    const cutoff = getTodayLineupCutoff();
+    const slateRows = await db.select({ id: slates.id }).from(slates).where(gte(slates.startTime, cutoff));
+    if (slateRows.length === 0) return [];
+    const ids = slateRows.map(s => s.id);
+    return await db.select().from(lineups).where(
+      and(inArray(lineups.slateId, ids), inArray(lineups.status, ["active", "review"]))
     );
   }
 

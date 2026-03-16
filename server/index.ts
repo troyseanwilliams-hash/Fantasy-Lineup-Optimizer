@@ -10,6 +10,8 @@ import { refreshRecentlyPlayed } from "./espn-activity";
 import { runNightlyAnalysis } from "./winning-lineup-agent";
 import { runScoutForAllSports } from "./ai-scout";
 import { fetchStartingLineups } from "./lineups-ingest";
+import { fetchAllActualPointsForDate } from "./actual-points";
+import { players as playersTable } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { users } from "@shared/models/auth";
@@ -19,6 +21,127 @@ import { showdownRouter } from "./showdown-route";
 import { ingestRouter, startIngestScheduler } from "./routes/ingest";
 
 const SLATE_GRACE_HOURS = 3;
+
+function normalizeName(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/['']/g, "")
+    .replace(/[^a-z\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function refreshLineupScores(): Promise<void> {
+  const lineups = await storage.getLineupsForScoring();
+  if (lineups.length === 0) return;
+
+  const sportSet = new Set(lineups.map(l => l.sport));
+  const supportedSports = ["NBA", "NHL", "MLB", "NFL"];
+  const today = getEasternToday();
+
+  const sportPointsMaps = new Map<string, { playerMap: Map<string, any>; gamesTotal: number; gamesCompleted: number; gamesInProgress: number }>();
+
+  for (const sport of sportSet) {
+    if (!supportedSports.includes(sport)) continue;
+    try {
+      const result = await fetchAllActualPointsForDate(sport, today);
+      if (result.gamesTotal > 0) {
+        sportPointsMaps.set(sport, result);
+      }
+    } catch (err) {
+      console.error(`[ScoreRefresh] Failed to fetch ${sport} actual points:`, err);
+    }
+  }
+
+  if (sportPointsMaps.size === 0) {
+    return;
+  }
+
+  let scored = 0;
+  const slateCache = new Map<number, any[]>();
+
+  for (const lineup of lineups) {
+    const actualData = sportPointsMaps.get(lineup.sport);
+    if (!actualData || actualData.gamesTotal === 0) continue;
+
+    if (!slateCache.has(lineup.slateId)) {
+      const slatePlayers = await db.select().from(playersTable).where(eq(playersTable.slateId, lineup.slateId));
+      slateCache.set(lineup.slateId, slatePlayers);
+    }
+    const allPlayers = slateCache.get(lineup.slateId)!;
+
+    const rosterPlayers = allPlayers.filter(p => lineup.playerIds.includes(p.id));
+    if (rosterPlayers.length === 0) continue;
+
+    const playerScores: Array<{
+      playerId: number;
+      playerName: string;
+      position: string;
+      team: string;
+      salary: number;
+      livePoints: number;
+      projectedPoints: number;
+      gameStatus: string;
+      gameStartTime: string;
+    }> = [];
+
+    let totalLive = 0;
+    let totalProjected = 0;
+    let gamesWithData = 0;
+
+    for (const p of rosterPlayers) {
+      const normalized = normalizeName(p.name);
+      const actual = actualData.playerMap.get(normalized);
+      const livePoints = actual ? actual.points : 0;
+      const projPts = parseFloat(p.projectedPoints || "0") || 0;
+
+      const gameStatus = actual ? (actual.points > 0 ? "Final" : "In Progress") : "Upcoming";
+      if (actual) gamesWithData++;
+
+      totalLive += livePoints;
+      totalProjected += projPts;
+      playerScores.push({
+        playerId: p.id,
+        playerName: p.name,
+        position: p.position || "",
+        team: p.team || "",
+        salary: p.salary || 0,
+        livePoints: Math.round(livePoints * 100) / 100,
+        projectedPoints: Math.round(projPts * 100) / 100,
+        gameStatus,
+        gameStartTime: "",
+      });
+    }
+
+    const percentComplete = rosterPlayers.length > 0
+      ? Math.round((gamesWithData / rosterPlayers.length) * 100)
+      : 0;
+
+    try {
+      await storage.upsertLineupScore({
+        lineupId: lineup.id,
+        userId: lineup.userId,
+        sport: lineup.sport,
+        totalLivePoints: (Math.round(totalLive * 100) / 100).toString(),
+        totalProjectedPoints: (Math.round(totalProjected * 100) / 100).toString(),
+        percentComplete,
+        playerScores,
+      });
+      scored++;
+    } catch (err) {
+      console.error(`[ScoreRefresh] Failed to upsert score for lineup ${lineup.id}:`, err);
+    }
+  }
+
+  if (scored > 0) {
+    const sportSummary = Array.from(sportPointsMaps.entries())
+      .map(([s, d]) => `${s}: ${d.gamesCompleted}done/${d.gamesInProgress}live`)
+      .join(", ");
+    log(`Score refresh: updated ${scored}/${lineups.length} lineup(s) [${sportSummary}]`, "cron");
+  }
+}
 
 async function deactivateOldSlates(): Promise<number> {
   const cutoff = new Date(Date.now() - SLATE_GRACE_HOURS * 60 * 60 * 1000);
@@ -429,6 +552,15 @@ app.use((req, res, next) => {
         timezone: "America/New_York",
       });
       log("Scheduled pre-contest status refresh (every 5 min within 1 hour of lock)", "cron");
+
+      cron.schedule("0,30 * * * *", async () => {
+        try {
+          await refreshLineupScores();
+        } catch (err) {
+          console.error("Lineup score refresh failed:", err);
+        }
+      }, { timezone: "America/New_York" });
+      log("Scheduled lineup score refresh every 30 minutes", "cron");
 
       cron.schedule("0 3 * * *", async () => {
         try {

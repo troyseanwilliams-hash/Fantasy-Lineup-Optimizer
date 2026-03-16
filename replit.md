@@ -44,7 +44,8 @@ Preferred communication style: Simple, everyday language.
 - **Inactive Player Filter**: Automatically excludes inactive players not present in recent ESPN box scores or those with low productivity.
 - **Player Configuration**: Per-user, per-slate overrides for custom projections, boosts, locks, or exclusions.
 - **Lineup Grading**: Client-side engine assigns letter grades to lineups based on projected score, efficiency, construction, ceiling, and player health, with sport-specific considerations.
-- **Live Score Tracker**: Real-time tracking of active lineup performance with per-player scoring breakdowns.
+- **Live Score Tracker**: Real-time tracking of active and review lineup performance with per-player scoring breakdowns. Automated cron job every 30 minutes fetches ESPN box scores (completed + in-progress games) via `fetchAllActualPointsForDate()` and upserts `lineup_scores` for all lineups (active + review status) from today's slates. Supports NBA, NHL, MLB, NFL. Frontend shows both active and review lineups with live/actual fantasy point totals.
+- **Lineup Visibility**: Lineups remain visible until 5 AM ET the next morning via `getTodayLineupCutoff()` in `server/storage.ts`. The `deleteExpiredLineups()` cleanup only runs between 5-10 AM ET.
 - **Notification Preferences**: Configurable email/SMS alerts for injuries, scoring, and reminders.
 - **Performance Dashboard**: Displays aggregate performance stats against optimal and field, with historical data.
 - **Track Record**: Shows user's overall DFS history and performance summary.

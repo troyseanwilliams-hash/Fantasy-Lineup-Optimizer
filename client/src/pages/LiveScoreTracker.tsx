@@ -69,7 +69,7 @@ export default function LiveScoreTracker() {
   }
 
   const isLoading = lineupsLoading || scoresLoading;
-  const activeLineups = (lineups || []).filter(l => l.status === "active");
+  const activeLineups = (lineups || []).filter(l => l.status === "active" || l.status === "review");
   const filteredLineups = selectedSport === "ALL" ? activeLineups : activeLineups.filter(l => l.sport === selectedSport);
 
   const scoreMap = new Map<number, LineupScore>();

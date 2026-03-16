@@ -219,6 +219,73 @@ async function fetchCompletedGameIdsForDate(sport: string, dateStr: string): Pro
   }
 }
 
+export interface GameInfo {
+  id: string;
+  status: "pre" | "in" | "post";
+  statusDetail: string;
+  startTime: string;
+}
+
+export async function fetchActiveGameIdsForDate(sport: string, dateStr: string): Promise<GameInfo[]> {
+  const baseUrl = ESPN_SCOREBOARD_URLS[sport];
+  if (!baseUrl) return [];
+
+  try {
+    const res = await fetch(`${baseUrl}?dates=${dateStr}`, { headers: { "User-Agent": "EliteLineupAI/1.0" } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const events = data.events || [];
+    return events
+      .filter((e: any) => {
+        const state = e.status?.type?.state;
+        return state === "in" || state === "post";
+      })
+      .map((e: any) => ({
+        id: e.id,
+        status: e.status?.type?.state as "in" | "post",
+        statusDetail: e.status?.type?.shortDetail || e.status?.type?.detail || "",
+        startTime: e.date || "",
+      }));
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchAllActualPointsForDate(sport: string, dateStr: string): Promise<{ playerMap: Map<string, PlayerActualPoints>; gamesTotal: number; gamesCompleted: number; gamesInProgress: number }> {
+  const formattedDate = dateStr.replace(/-/g, "");
+  const games = await fetchActiveGameIdsForDate(sport, formattedDate);
+
+  if (games.length === 0) {
+    return { playerMap: new Map(), gamesTotal: 0, gamesCompleted: 0, gamesInProgress: 0 };
+  }
+
+  const gamesCompleted = games.filter(g => g.status === "post").length;
+  const gamesInProgress = games.filter(g => g.status === "in").length;
+
+  const playerMap = new Map<string, PlayerActualPoints>();
+  const batchSize = 3;
+  const gameIds = games.map(g => g.id);
+
+  for (let i = 0; i < gameIds.length; i += batchSize) {
+    const batch = gameIds.slice(i, i + batchSize);
+    const results = await Promise.all(batch.map(id => fetchPlayerStatsFromGame(sport, id)));
+    for (const gameResults of results) {
+      for (const player of gameResults) {
+        const existing = playerMap.get(player.normalizedName);
+        if (existing) {
+          existing.points += player.points;
+          existing.points = Math.round(existing.points * 100) / 100;
+          Object.assign(existing.statLine, player.statLine);
+        } else {
+          playerMap.set(player.normalizedName, player);
+        }
+      }
+    }
+  }
+
+  return { playerMap, gamesTotal: games.length, gamesCompleted, gamesInProgress };
+}
+
 async function fetchPlayerStatsFromGame(sport: string, gameId: string): Promise<PlayerActualPoints[]> {
   const baseUrl = ESPN_SUMMARY_URLS[sport];
   if (!baseUrl) return [];
