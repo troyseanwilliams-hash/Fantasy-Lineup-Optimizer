@@ -33,6 +33,14 @@ import { fetchStartingLineups, getStartingLineupsData, clearLineupsCache } from 
 import { projectionAccuracyRouter } from "./projection-accuracy-route";
 
 
+function starRatingMinProjection(starRating: number): number {
+  if (starRating <= 1) return 0;
+  if (starRating === 2) return 15;
+  if (starRating === 3) return 25;
+  if (starRating === 4) return 35;
+  return 45;
+}
+
 const YAHOO_OUT_STATUSES = new Set(["INJ", "O", "OUT", "IR", "SUS", "NA"]);
 function isPlayerOut(injuryStatus: string | null): boolean {
   if (!injuryStatus) return false;
@@ -2646,6 +2654,14 @@ export async function registerRoutes(
         pool = applyCeilingMode(pool, slate.sport);
       }
 
+      if (constraints.minStarRating > 0) {
+        const minProj = starRatingMinProjection(constraints.minStarRating);
+        const lockedSet = new Set(constraints.lockedPlayerIds);
+        const beforeCount = pool.length;
+        pool = pool.filter(p => lockedSet.has(p.id) || Number(p.projectedPoints) >= minProj);
+        console.log(`[ProOptimizer] Star filter ${constraints.minStarRating}★ (≥${minProj}pts) removed ${beforeCount - pool.length} players`);
+      }
+
       console.log(`[ProOptimizer] Starting for ${slate.sport}, ${allPlayers.length} players (${allPlayers.filter(p => isPlayerOut(p.injuryStatus) || p.injuryStatus === "Questionable" || p.injuryStatus === "GTD").length} OUT/Q excluded), ${constraints.lineupCount} lineups requested`);
       const proStartTime = Date.now();
 
@@ -2829,6 +2845,7 @@ export async function registerRoutes(
     enforceGameStack:     z.boolean().default(false),
     minStackSize:         z.number().min(2).max(5).default(2),
     stackGameKey:         z.string().optional(),
+    minStarRating:        z.number().min(0).max(5).default(0),
   });
 
   app.post("/api/optimize/sim", async (req, res) => {
@@ -2899,6 +2916,14 @@ export async function registerRoutes(
       pool = pool.filter(p => !isPlayerOut(p.injuryStatus));
       if (input.playerMinSalary) pool = pool.filter(p => p.salary >= input.playerMinSalary!);
       if (input.playerMaxSalary) pool = pool.filter(p => p.salary <= input.playerMaxSalary!);
+
+      if (input.minStarRating > 0) {
+        const minProj = starRatingMinProjection(input.minStarRating);
+        const lockedSet = new Set(input.lockedPlayerIds);
+        const beforeCount = pool.length;
+        pool = pool.filter(p => lockedSet.has(p.id) || Number(p.projectedPoints) >= minProj);
+        console.log(`[SimOptimizer] Star filter ${input.minStarRating}★ (≥${minProj}pts) removed ${beforeCount - pool.length} players`);
+      }
 
       const projOverrides: Record<number, number> = {};
       if (input.playerProjections) {

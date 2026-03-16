@@ -392,6 +392,7 @@ export const proOptimizationConstraintSchema = optimizationConstraintSchema.exte
   globalMaxExposure: z.number().min(10).max(100).optional(),
   leverageMode: z.boolean().default(false),
   projectionMode: z.enum(["balanced", "ceiling"]).default("balanced"),
+  minStarRating: z.number().min(0).max(5).default(0),
 });
 
 export type ProOptimizationConstraints = z.infer<typeof proOptimizationConstraintSchema>;

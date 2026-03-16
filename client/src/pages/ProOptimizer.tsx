@@ -582,6 +582,7 @@ export default function ProOptimizer() {
         enforceGameStack,
         stackGameKey: stackGameKey || undefined,
         globalMaxExposure: globalMaxExposure ?? undefined,
+        minStarRating,
       });
     } else {
       // ── Standard LP mode ───────────────────────────────────────────────────
@@ -599,6 +600,7 @@ export default function ProOptimizer() {
         globalMaxExposure: globalMaxExposure ?? undefined,
         leverageMode,
         projectionMode,
+        minStarRating,
       });
     }
   };
