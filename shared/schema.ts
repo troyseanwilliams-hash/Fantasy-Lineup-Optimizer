@@ -100,6 +100,7 @@ export const lineups = pgTable("lineups", {
   reviewedAt: timestamp("reviewed_at"),
   // Typed snapshot of player data at lineup creation time.
   playerSnapshot: jsonb("player_snapshot").$type<Player[]>(),
+  simData: jsonb("sim_data").$type<{ avgSimScore?: number; medianScore?: number; p75Score?: number; p90Score?: number; freqPct?: number; compositeScore?: number }>(),
   // Typed contest result data, populated after contest settlement.
   contestWinnerData: jsonb("contest_winner_data").$type<ContestWinnerData>(),
   dkEntryId: text("dk_entry_id"),

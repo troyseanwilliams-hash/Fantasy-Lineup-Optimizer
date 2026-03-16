@@ -610,7 +610,7 @@ export default function ProOptimizer() {
   const handleSaveLineup = (lineup: any, index: number) => {
     if (!user || savedIndices.has(index)) return;
     const lineupPlayers = lineup.lineup || [];
-    saveLineupMutation.mutate({
+    const payload: any = {
       userId: userId!,
       slateId,
       sport,
@@ -619,7 +619,9 @@ export default function ProOptimizer() {
       totalProjectedPoints: String(lineup.totalProjectedPoints),
       playerIds: lineupPlayers.map((p: Player) => p.id),
       name: `Optimizer Pro #${index + 1} - ${sport} ${config.shortLabel}`,
-    }, {
+    };
+    if (lineup.simData) payload.simData = lineup.simData;
+    saveLineupMutation.mutate(payload, {
       onSuccess: () => {
         setSavedIndices(prev => new Set(prev).add(index));
         toast({ title: "Lineup Saved!", description: `Lineup #${index + 1} added to your vault.` });
@@ -641,7 +643,7 @@ export default function ProOptimizer() {
     const saveResults = await Promise.allSettled(
       unsavedLineups.map(({ lineup, index }) => {
         const lineupPlayers = lineup.lineup || [];
-        return apiRequest("POST", "/api/lineups", {
+        const payload: any = {
           userId: userId!,
           slateId,
           sport,
@@ -650,7 +652,9 @@ export default function ProOptimizer() {
           totalProjectedPoints: String(lineup.totalProjectedPoints),
           playerIds: lineupPlayers.map((p: Player) => p.id),
           name: `Optimizer Pro #${index + 1} - ${sport} ${config.shortLabel}`,
-        }).then(async res => {
+        };
+        if (lineup.simData) payload.simData = lineup.simData;
+        return apiRequest("POST", "/api/lineups", payload).then(async res => {
           if (!res.ok) {
             const err = await res.json();
             throw new Error(err.message || "Failed to save");
@@ -707,7 +711,7 @@ export default function ProOptimizer() {
       unsaved.map((lu) => {
         const lineupPlayers = lu.lineup || [];
         const sortLabel = lineupSortBy === "index" ? "" : ` [${lineupSortBy.toUpperCase()}]`;
-        return apiRequest("POST", "/api/lineups", {
+        const payload: any = {
           userId: userId!,
           slateId,
           sport,
@@ -716,7 +720,9 @@ export default function ProOptimizer() {
           totalProjectedPoints: String(lu.totalProjectedPoints),
           playerIds: lineupPlayers.map((p: Player) => p.id),
           name: `${simMode ? "Sim" : "Pro"} Top${count}${sortLabel} #${sortedLineups.indexOf(lu) + 1} - ${sport} ${config.shortLabel}`,
-        }).then(async res => {
+        };
+        if (lu.simData) payload.simData = lu.simData;
+        return apiRequest("POST", "/api/lineups", payload).then(async res => {
           if (!res.ok) {
             const err = await res.json();
             throw new Error(err.message || "Failed to save");

@@ -17,7 +17,7 @@
   import type { Player } from "@shared/schema";
   import { PlayerInfoHoverCard } from "@/components/PlayerInfoHoverCard";
 
-  type VaultSortKey = "newest" | "oldest" | "projection_high" | "projection_low" | "ownership_high" | "ownership_low" | "salary_high" | "salary_low" | "grade_high" | "grade_low";
+  type VaultSortKey = "newest" | "oldest" | "projection_high" | "projection_low" | "ownership_high" | "ownership_low" | "salary_high" | "salary_low" | "grade_high" | "grade_low" | "p75_high" | "p90_high" | "median_high" | "freq_high" | "composite_high";
   type VaultTab = "active" | "review";
 
   interface LineupWithPlayers {
@@ -177,10 +177,20 @@
           case "salary_low": return a.totalSalary - b.totalSalary;
           case "grade_high": return (lineupGrades.get(b.id)?.score ?? 0) - (lineupGrades.get(a.id)?.score ?? 0);
           case "grade_low": return (lineupGrades.get(a.id)?.score ?? 0) - (lineupGrades.get(b.id)?.score ?? 0);
+          case "p75_high": return (b.simData?.p75Score ?? -1) - (a.simData?.p75Score ?? -1);
+          case "p90_high": return (b.simData?.p90Score ?? -1) - (a.simData?.p90Score ?? -1);
+          case "median_high": return (b.simData?.medianScore ?? -1) - (a.simData?.medianScore ?? -1);
+          case "freq_high": return (b.simData?.freqPct ?? -1) - (a.simData?.freqPct ?? -1);
+          case "composite_high": return (b.simData?.compositeScore ?? -1) - (a.simData?.compositeScore ?? -1);
           default: return 0;
         }
       });
     }, [lineups, vaultSort, lineupGrades]);
+
+    const hasSimLineups = useMemo(() => {
+      if (!lineups) return false;
+      return lineups.some((lu: any) => lu.simData && (lu.simData.p75Score != null || lu.simData.p90Score != null));
+    }, [lineups]);
 
     const { data: subscription } = useQuery<any>({
       queryKey: ["/api/subscription"],
@@ -626,6 +636,15 @@
                         <option value="salary_low">Salary: Low → High</option>
                         <option value="grade_high">Grade: Best → Worst</option>
                         <option value="grade_low">Grade: Worst → Best</option>
+                        {hasSimLineups && (
+                          <>
+                            <option value="p75_high">Sim P75: High → Low</option>
+                            <option value="p90_high">Sim P90: High → Low</option>
+                            <option value="median_high">Sim Median: High → Low</option>
+                            <option value="freq_high">Sim Freq%: High → Low</option>
+                            <option value="composite_high">Sim Composite: High → Low</option>
+                          </>
+                        )}
                       </select>
                     </div>
                     <Button
@@ -1338,6 +1357,28 @@
                     {grade.grade === "S" && <Star className="w-3.5 h-3.5 fill-current" />}
                     {grade.grade}
                   </div>
+                </div>
+              )}
+              {lineup.simData && (lineup.simData.p75Score != null || lineup.simData.p90Score != null) && (
+                <div className="flex items-center gap-2 px-2 py-1 bg-indigo-500/10 rounded-lg border border-indigo-500/20">
+                  {lineup.simData.p75Score != null && (
+                    <div className="text-right">
+                      <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">P75</p>
+                      <p className="text-sm font-black text-emerald-400 tabular-nums">{lineup.simData.p75Score}</p>
+                    </div>
+                  )}
+                  {lineup.simData.p90Score != null && (
+                    <div className="text-right">
+                      <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">P90</p>
+                      <p className="text-sm font-black text-amber-400 tabular-nums">{lineup.simData.p90Score}</p>
+                    </div>
+                  )}
+                  {lineup.simData.freqPct != null && (
+                    <div className="text-right">
+                      <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Freq</p>
+                      <p className="text-sm font-black text-violet-400 tabular-nums">{lineup.simData.freqPct}%</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
