@@ -978,7 +978,10 @@ export async function registerRoutes(
           pool = applyLeverageMode(playersWithOwnership);
         }
 
-        const baseExcluded = allPlayers.filter(p => isPlayerOut(p.injuryStatus)).map(p => p.id);
+        const bulkContestMode = req.body.contestType === "gpp" ? "gpp" : "cash";
+        const baseExcluded = allPlayers
+          .filter(p => isPlayerOut(p.injuryStatus) || (bulkContestMode === "gpp" && isPlayerUnavailable(p.injuryStatus)))
+          .map(p => p.id);
         const isDKBulk = slate.platform === "draftkings";
         const { inactiveIds: bulkInactiveExcluded } = isDKBulk ? await getInactivePlayerIds(allPlayers, slate.sport) : { inactiveIds: [] };
         const filteredBulkInactive = bulkInactiveExcluded.filter(id => !baseExcluded.includes(id));
@@ -1308,7 +1311,9 @@ export async function registerRoutes(
           }
         }
 
-        const baseExcluded = allPlayers.filter(p => isPlayerOut(p.injuryStatus)).map(p => p.id);
+        const baseExcluded = allPlayers
+          .filter(p => isPlayerOut(p.injuryStatus) || (simContestType === "gpp" && isPlayerUnavailable(p.injuryStatus)))
+          .map(p => p.id);
         const isDK = slate.platform === "draftkings";
         const { inactiveIds } = isDK ? await getInactivePlayerIds(allPlayers, slate.sport) : { inactiveIds: [] };
         baseExcluded.push(...inactiveIds.filter(id => !baseExcluded.includes(id)));
