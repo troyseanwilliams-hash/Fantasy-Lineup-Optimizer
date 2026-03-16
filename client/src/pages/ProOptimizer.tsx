@@ -118,6 +118,7 @@ export default function ProOptimizer() {
   const [numSims, setNumSims] = useState(200);
   const [enforceGameStack, setEnforceGameStack] = useState(false);
   const [stackGameKey, setStackGameKey] = useState<string | null>(null);
+  const [simSortMetric, setSimSortMetric] = useState<"composite" | "p90" | "p75" | "median" | "avg">("composite");
   const [minStarRating, setMinStarRating] = useState<number>(0);
   const [lineupSwaps, setLineupSwaps] = useState<Record<string, Record<string, Player>>>({});
   const [visibleLineupCount, setVisibleLineupCount] = useState(25);
@@ -395,7 +396,13 @@ export default function ProOptimizer() {
       return simMutation.data.lineups.map((lu: any) => ({
         lineup:               lu.lineup,
         totalSalary:          lu.totalSalary,
-        totalProjectedPoints: lu.medianScore ?? lu.avgSimScore ?? 0,
+        totalProjectedPoints: (
+          simSortMetric === "p90" ? lu.p90Score :
+          simSortMetric === "p75" ? lu.p75Score :
+          simSortMetric === "median" ? lu.medianScore :
+          simSortMetric === "avg" ? lu.avgSimScore :
+          lu.compositeScore
+        ) ?? lu.medianScore ?? 0,
         // Extra sim metadata passed through for display
         simData: {
           avgSimScore:   lu.avgSimScore,
@@ -411,7 +418,7 @@ export default function ProOptimizer() {
       }));
     }
     return optimizeMutation.data?.lineups || [];
-  }, [simMode, simMutation.data, optimizeMutation.data]);
+  }, [simMode, simMutation.data, optimizeMutation.data, simSortMetric]);
 
   const isOptimizing = optimizeMutation.isPending || simMutation.isPending;
 
@@ -587,6 +594,7 @@ export default function ProOptimizer() {
         stackGameKey: stackGameKey || undefined,
         globalMaxExposure: globalMaxExposure ?? undefined,
         minStarRating,
+        sortMetric: simSortMetric,
       });
     } else {
       // ── Standard LP mode ───────────────────────────────────────────────────
@@ -1278,6 +1286,36 @@ export default function ProOptimizer() {
                       className="scale-75"
                       data-testid="switch-enforce-stack"
                     />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <InfoTip
+                    text="P90 = top 10% ceiling (boom potential). P75 = top 25% upside. Median = middle outcome. Average = mean across all sims. Composite = weighted blend of all metrics for balanced ranking."
+                    side="bottom"
+                  />
+                  <span className="text-[9px] font-black text-slate-500 uppercase">Sort By</span>
+                  <div className="flex gap-1 flex-1">
+                    {([
+                      { key: "composite", label: "Composite" },
+                      { key: "p90", label: "P90" },
+                      { key: "p75", label: "P75" },
+                      { key: "median", label: "Median" },
+                      { key: "avg", label: "Average" },
+                    ] as const).map(m => (
+                      <button
+                        key={m.key}
+                        onClick={() => setSimSortMetric(m.key)}
+                        className={`flex-1 py-0.5 rounded text-[10px] font-black transition-all border ${
+                          simSortMetric === m.key
+                            ? "bg-violet-500/20 text-violet-400 border-violet-500/30"
+                            : "text-slate-500 border-slate-700/50 hover:text-slate-300"
+                        }`}
+                        data-testid={`btn-sim-sort-${m.key}`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 

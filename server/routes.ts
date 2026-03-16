@@ -3255,6 +3255,7 @@ export async function registerRoutes(
     minStackSize:         z.number().min(2).max(5).default(2),
     stackGameKey:         z.string().optional(),
     minStarRating:        z.number().min(0).max(5).default(0),
+    sortMetric:           z.enum(["composite", "p90", "p75", "median", "avg"]).default("composite"),
   });
 
   app.post("/api/optimize/sim", async (req, res) => {
@@ -3481,7 +3482,14 @@ export async function registerRoutes(
         };
       });
 
-      uniqueLineups.sort((a, b) => b.compositeScore - a.compositeScore);
+      const metricKey = {
+        composite: "compositeScore",
+        p90:       "p90Score",
+        p75:       "p75Score",
+        median:    "medianScore",
+        avg:       "avgSimScore",
+      }[input.sortMetric] as keyof typeof uniqueLineups[0];
+      uniqueLineups.sort((a, b) => (b[metricKey] as number) - (a[metricKey] as number));
 
       const playerAppearances: Record<number, number> = {};
       const selected: typeof uniqueLineups = [];
