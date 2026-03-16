@@ -276,7 +276,7 @@
     });
 
     const simRegenMutation = useMutation({
-      mutationFn: async (params: { ids: number[]; numSims: number; sortBy: string; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; globalMaxExposure?: number; projFloor?: number; minSalary?: number; maxSalary?: number }) => {
+      mutationFn: async (params: { ids: number[]; numSims?: number; sortBy: string; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; globalMaxExposure?: number; projFloor?: number; minSalary?: number; maxSalary?: number }) => {
         const res = await apiRequest("POST", "/api/lineups/sim-regenerate", params);
         return res.json();
       },
@@ -745,7 +745,7 @@
                               {simScoreMutation.isPending ? "Scoring..." : "Score"}
                             </Button>
                             <Button
-                              onClick={() => simRegenMutation.mutate({ ids: Array.from(selectedIds), numSims: 200, sortBy: simMetric, useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, globalMaxExposure: regenMaxExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined })}
+                              onClick={() => simRegenMutation.mutate({ ids: Array.from(selectedIds), sortBy: simMetric, useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, globalMaxExposure: regenMaxExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined })}
                               disabled={simRegenMutation.isPending || simScoreMutation.isPending}
                               className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-md rounded-l-none text-xs"
                               data-testid="sim-regen-btn"
