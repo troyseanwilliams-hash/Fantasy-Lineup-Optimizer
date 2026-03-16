@@ -2141,7 +2141,7 @@ export default function ProOptimizer() {
                       { key: "index", label: "Order" },
                       { key: "projected", label: "Projected" },
                       { key: "salary", label: "Salary" },
-                      ...(simMode || generatedLineups.some(l => (l as any).simData?.p75Score) ? [
+                      ...(generatedLineups.length > 0 && (generatedLineups[0] as any)?.simData ? [
                         { key: "ceiling", label: "P75" },
                         { key: "p90", label: "P90" },
                         { key: "median", label: "Median" },
