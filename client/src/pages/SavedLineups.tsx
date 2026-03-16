@@ -16,6 +16,7 @@
   import { getPlatformConfig, assignPlayersToSlots, getSlotDisplayName, positionFitsSlot } from "@shared/platform-config";
   import type { Player } from "@shared/schema";
   import { PlayerInfoHoverCard } from "@/components/PlayerInfoHoverCard";
+  import { InfoTip } from "@/components/InfoTip";
 
   type VaultSortKey = "newest" | "oldest" | "projection_high" | "projection_low" | "ownership_high" | "ownership_low" | "salary_high" | "salary_low" | "grade_high" | "grade_low" | "p75_high" | "p90_high" | "median_high" | "freq_high" | "composite_high";
   type VaultTab = "active" | "review";
@@ -720,6 +721,10 @@
                         )}
                         {isPaid && (
                           <div className="flex items-center gap-1" data-testid="sim-actions-group">
+                            <InfoTip
+                              text="P90 = top 10% ceiling (boom potential). P75 = top 25% upside. Median = middle outcome. Average = mean across all sims. Composite = weighted blend of all metrics for balanced ranking."
+                              side="bottom"
+                            />
                             <select
                               value={simMetric}
                               onChange={(e) => setSimMetric(e.target.value as any)}
@@ -812,36 +817,43 @@
               <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl px-4 py-3" data-testid="regen-settings-panel">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Optimization Settings</p>
                 <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex items-center gap-1 bg-slate-900/60 rounded-lg p-0.5" data-testid="regen-contest-type">
-                    <button
-                      onClick={() => setRegenContestType("cash")}
-                      className={`px-3 py-1 text-xs font-black rounded-md transition-all ${regenContestType === "cash" ? "bg-emerald-600 text-white" : "text-slate-400 hover:text-white"}`}
-                      data-testid="regen-contest-cash"
-                    >
-                      Cash
-                    </button>
-                    <button
-                      onClick={() => setRegenContestType("gpp")}
-                      className={`px-3 py-1 text-xs font-black rounded-md transition-all ${regenContestType === "gpp" ? "bg-orange-600 text-white" : "text-slate-400 hover:text-white"}`}
-                      data-testid="regen-contest-gpp"
-                    >
-                      GPP
-                    </button>
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1 bg-slate-900/60 rounded-lg p-0.5" data-testid="regen-contest-type">
+                      <button
+                        onClick={() => setRegenContestType("cash")}
+                        className={`px-3 py-1 text-xs font-black rounded-md transition-all ${regenContestType === "cash" ? "bg-emerald-600 text-white" : "text-slate-400 hover:text-white"}`}
+                        data-testid="regen-contest-cash"
+                      >
+                        Cash
+                      </button>
+                      <button
+                        onClick={() => setRegenContestType("gpp")}
+                        className={`px-3 py-1 text-xs font-black rounded-md transition-all ${regenContestType === "gpp" ? "bg-orange-600 text-white" : "text-slate-400 hover:text-white"}`}
+                        data-testid="regen-contest-gpp"
+                      >
+                        GPP
+                      </button>
+                    </div>
+                    <InfoTip text="Cash = favors consistent, high-floor players. GPP = favors high-ceiling upside players and excludes questionable/GTD players." side="bottom" />
                   </div>
                   <div className="flex items-center gap-2">
                     <Switch checked={regenUseBoosts} onCheckedChange={setRegenUseBoosts} data-testid="regen-toggle-boosts" className="scale-90" />
                     <span className="text-xs font-bold text-slate-300">Boosts</span>
+                    <InfoTip text="Apply data-driven projection boosts based on player value, consistency, salary trends, and matchup strength." side="bottom" />
                   </div>
                   <div className="flex items-center gap-2">
                     <Switch checked={regenCeilingMode} onCheckedChange={setRegenCeilingMode} data-testid="regen-toggle-ceiling" className="scale-90" />
                     <span className="text-xs font-bold text-slate-300">Ceiling Mode</span>
+                    <InfoTip text="Inflates projections for high-salary, high-upside players to target tournament-winning ceilings." side="bottom" />
                   </div>
                   <div className="flex items-center gap-2">
                     <Switch checked={regenLeverageMode} onCheckedChange={setRegenLeverageMode} data-testid="regen-toggle-leverage" className="scale-90" />
                     <span className="text-xs font-bold text-slate-300">Leverage</span>
+                    <InfoTip text="Adjusts projections based on ownership — boosts low-owned players and reduces chalk to create contrarian lineups." side="bottom" />
                   </div>
                   <div className="flex items-center gap-2 min-w-[180px]">
                     <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Exposure</span>
+                    <InfoTip text="Limits how often any single player can appear across your lineups. Lower = more diverse lineups." side="bottom" />
                     <Slider
                       value={[regenMaxExposure ?? 100]}
                       onValueChange={(v) => setRegenMaxExposure(v[0] >= 100 ? null : v[0])}
@@ -857,6 +869,7 @@
                   </div>
                   <div className="flex items-center gap-2 min-w-[180px]">
                     <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Proj Floor</span>
+                    <InfoTip text="Minimum total projected points a lineup must hit to be kept. Filters out low-scoring lineups." side="bottom" />
                     <Slider
                       value={[regenProjFloor ?? 0]}
                       onValueChange={(v) => setRegenProjFloor(v[0] <= 0 ? null : v[0])}
@@ -872,6 +885,7 @@
                   </div>
                   <div className="flex items-center gap-2 min-w-[180px]">
                     <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Min Salary</span>
+                    <InfoTip text="Only include players with salary at or above this amount in the player pool." side="bottom" />
                     <Slider
                       value={[regenMinSalary ?? 3000]}
                       onValueChange={(v) => setRegenMinSalary(v[0] <= 3000 ? null : v[0])}
@@ -887,6 +901,7 @@
                   </div>
                   <div className="flex items-center gap-2 min-w-[180px]">
                     <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Max Salary</span>
+                    <InfoTip text="Only include players with salary at or below this amount in the player pool." side="bottom" />
                     <Slider
                       value={[regenMaxSalary ?? 12000]}
                       onValueChange={(v) => setRegenMaxSalary(v[0] >= 12000 ? null : v[0])}
