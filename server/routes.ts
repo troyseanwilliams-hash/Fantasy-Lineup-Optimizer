@@ -29,6 +29,8 @@ import { refreshRecentlyPlayed, getRecentlyPlayedCache, normalizePlayerName } fr
 import { calculateOwnership, computeOwnershipForPlayers, type ContestType } from "./ownership-engine";
 import { getCachedSignals, getScoutStatus, refreshAll, forceRefreshAll, secondsUntilRefresh } from "./ai-scout";
 import { runSimulations, detectStack } from "./simulation-engine";
+import { buildVegasContext } from "./vegas-client";
+import { buildDvPContext, applyDvPToProjections, buildOpponentMap } from "./dvp-client";
 import { fetchStartingLineups, getStartingLineupsData, clearLineupsCache } from "./lineups-ingest";
 import { projectionAccuracyRouter } from "./projection-accuracy-route";
 
@@ -2957,7 +2959,33 @@ export async function registerRoutes(
 
       console.log(`[SimOptimizer] Starting ${input.numSims} sims for ${sport} slate ${input.slateId}, pool: ${pool.length} players, requesting ${input.lineupCount} lineups`);
 
-      const sims = runSimulations(pool, sport, input.numSims, projOverrides);
+      const opponentMap = buildOpponentMap(pool);
+
+      const [vegasContext, dvpContext] = await Promise.all([
+        Promise.race([
+          buildVegasContext(pool, sport),
+          new Promise<null>(r => setTimeout(() => r(null), 3000)),
+        ]),
+        Promise.race([
+          buildDvPContext(opponentMap, sport),
+          new Promise<null>(r => setTimeout(() => r(null), 3000)),
+        ]),
+      ]);
+
+      if (vegasContext) {
+        console.log(`[SimOpt] Vegas: ${vegasContext.games.size} games, avg total ${vegasContext.slateAvgTotal.toFixed(1)}, source: ${vegasContext.source}`);
+      } else {
+        console.log(`[SimOpt] Vegas context unavailable — using flat variance`);
+      }
+
+      const dvpAdjustedOverrides = dvpContext
+        ? applyDvPToProjections(pool, projOverrides, opponentMap, dvpContext, sport)
+        : projOverrides;
+
+      const vegasApplied = vegasContext !== null;
+      const dvpApplied   = dvpContext !== null;
+
+      const sims = runSimulations(pool, sport, input.numSims, dvpAdjustedOverrides, vegasContext ?? undefined);
 
       const lineupMap = new Map<string, {
         lineup:    Player[];
@@ -3106,6 +3134,14 @@ export async function registerRoutes(
         gamesRepresented: new Set(
           selected.flatMap(lu => lu.stackedGame ? [lu.stackedGame] : [])
         ).size,
+        context: {
+          vegasApplied,
+          vegasSource:      vegasContext?.source ?? null,
+          vegasGamesFound:  vegasContext?.games.size ?? 0,
+          slateAvgTotal:    vegasContext ? Math.round(vegasContext.slateAvgTotal * 10) / 10 : null,
+          dvpApplied,
+          dvpTeamsFound:    dvpContext ? dvpContext.size / 8 : 0,
+        },
       });
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });

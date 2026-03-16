@@ -1,0 +1,27 @@
+Five files. Here's exactly what each does and how the three features compound together in a single sim run.
+
+vegas-client.ts — Vegas-Informed Variance
+Hits api.the-odds-api.com/v4/sports/{key}/odds/ with markets=totals,h2h. Prefers DraftKings as the bookmaker, falls back to any available book. Falls back to ESPN's scoreboard endpoint (which includes overUnder, homeTeamOdds.moneyLine) when the Odds API key is exhausted or returns nothing.
+Implied total math: American odds → raw probability → vig-normalized → multiply by total. A -150/+125 game with a 228.5 total gives ~131.4 pts for the home team and ~97.1 for the away team, not a flat 114.25 split.
+Cache: keyed by {sport}:{ET date}, expires at midnight ET. 4 sports × 1 fetch/day × 30 days = ~120 requests/month against your 500 limit. Logs x-requests-remaining every call so you can monitor.
+Comprehensive team name map covers all 30/32-team rosters for NBA, NFL, MLB, NHL including known variants ("76ers", "Athletics", "Utah Hockey Club").
+
+dvp-client.ts — Defense vs Position
+Fetches ESPN team stats (/teams/{id}/statistics) for only the opponent teams in each slate (8–16 teams for a full slate, not all 30). Handles both ESPN response formats. Caches team IDs for 7 days, defensive stats for 6 hours.
+Multiplier formula: rawScore = teamPtsAllowed / contextAvg. posMultiplier = 1 + (rawScore - 1) × sensitivity. Clamped to [0.82, 1.20]. A team allowing 120 pts/game vs a 113-pt league average gives a 1.062 raw score. A PG (sensitivity 1.0) facing that team gets a 1.062× multiplier. A C (sensitivity 0.70) gets 1.043×.
+Applied before sims run in optimizer-route.ts — shifts the median each player sims around, so the variance sampling is already centered on the DvP-adjusted value.
+
+simulation-engine.ts — Vegas Variance Integration
+Two changes to runSingleSim:
+Game-level variance: adjustedGameVar = baseGameVar × (total / slateAvgTotal). An NBA game with a 245 total vs a 220 slate average gets 0.10 × (245/220) = 0.114 — 14% wider variance. Every player in that game sees more extreme outcomes in both directions.
+Team baseline shift: impliedShift = (implied/avgImplied - 1.0) × 0.50. The 50% dampening is intentional — DK projections already partially reflect Vegas lines, so we apply half the signal to avoid double-counting. A team implied at 126 vs a 111 slate average gets a +6.8% baseline in their team factor sampling.
+
+ai-scout.ts — Smart Minutes Redistribution
+findBeneficiaries (which returned a flat string[]) is replaced by computeSmartRedistribution which returns structured BeneficiarySignal[] with a computed boost_value per beneficiary.
+Minutes model: estimateMinutes = fppg / AVG_FPPM (NBA: 1.35 pts/min). Allocation fractions: primary same-position teammate gets 55% of redistributed minutes, adjacent-position secondary gets 25%, any other teammate gets 15%. The computeInjuryBoost formula: min(minutesAvailable, allocatedMinutes, currentMinutes) × FPPM × absorptionFactor. Absorption factor is 0.68 for NBA — backups are less efficient per minute than the starter they're replacing.
+Example: LeBron (45 FPPG, ~33 min) is OUT. Austin Reaves (15 FPPG, ~11 min) is the primary beneficiary. He absorbs min(25, 18.15, 11) = 11 min. Boost = 11 × (15/11) × 0.68 = 10.2 pts. Total projection: 15 + 10.2 = 25.2 pts. That's a realistic jump for a backup stepping into a starter role.
+For Doubtful players, tentative half-weight signals are generated (boost_value × 0.50, confidence 0.55) so the optimizer can start pricing in the possibility without fully committing.
+One additional change needed in useScoutBoosts.ts (1 line): change sig.source === "admin" && sig.boost_value !== undefined to just sig.boost_value !== undefined so AI-computed boost values flow through the hook the same way admin signals do.
+
+optimizer-route.ts — Wiring
+In /api/optimize/sim, Vegas and DvP contexts are fetched in parallel with a 3-second timeout each — if either fails, the sim runs without that feature rather than erroring out. DvP is applied first (shifts medians), then Vegas is passed into runSimulations (widens variance). The response includes a context diagnostic object showing vegasApplied, vegasSource, slateAvgTotal, and dvpApplied so you can confirm which features were active on each run.

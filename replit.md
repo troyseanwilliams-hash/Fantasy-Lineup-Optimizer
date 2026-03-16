@@ -2,7 +2,7 @@
 
 ## Overview
 
-EliteLineup AI is a web application designed for Daily Fantasy Sports (DFS) players on DraftKings, FanDuel, and Yahoo, offering advanced tools for lineup optimization, prop betting, parlay building, and PrizePicks entry optimization across NBA, NHL, GOLF, MLB, NFL, and SOCCER. It leverages Linear Programming based on player projections to create optimal lineups. The project aims to provide a comprehensive, data-driven platform that empowers users to enhance their DFS strategies and improve their success rates.
+EliteLineup AI is a web application for Daily Fantasy Sports (DFS) players on DraftKings, FanDuel, and Yahoo. It provides advanced tools for lineup optimization, prop betting, parlay building, and PrizePicks entry optimization across major sports like NBA, NHL, GOLF, MLB, NFL, and SOCCER. The platform utilizes Linear Programming based on player projections to generate optimal lineups, aiming to enhance users' DFS strategies and improve success rates through data-driven insights.
 
 ## User Preferences
 
@@ -11,70 +11,59 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### Frontend
-- **Framework**: React 18 with TypeScript, Wouter for routing.
-- **State Management**: TanStack React Query for server state, local React for UI state.
+- **Framework**: React 18 with TypeScript and Wouter for routing.
+- **State Management**: TanStack React Query for server state; local React for UI state.
 - **UI**: shadcn/ui (New York style) built on Radix UI, styled with Tailwind CSS (dark theme, platform-specific colors).
-- **Build**: Vite.
 
 ### Backend
 - **Runtime**: Node.js with Express and TypeScript.
 - **API**: RESTful JSON API with Zod validation.
-- **Optimization**: `javascript-lp-solver` for Linear Programming.
-- **Authentication**: Session-based using bcryptjs.
-- **Payments**: Stripe Elements for subscriptions and webhook handling.
-- **Data Refresh**: Hourly cron jobs for DraftKings slates/players, Odds API props, PrizePicks projections, and player status updates, with accelerated refresh before contests.
-- **Injury Handling**: Live injury statuses from DraftKings API, adjusting player projections or exclusions based on status. Yahoo-specific statuses (`INJ`, `O`, `IR`, `SUS`, `NA`) are normalized via `isPlayerOut()` helper in `routes.ts`. Yahoo `GTD` maps to Questionable (0.75x), `DTD` maps to Probable (0.9x). All backend files (`routes.ts`, `showdown-route.ts`, `ownership-engine.ts`, `boost-engine.ts`) and frontend color maps use consistent status handling.
-- **Confirmed Starter Boost**: Players confirmed as starters by DraftKings receive a 5% projection boost.
-- **Data Source**: DraftKings public API is the sole system of record for player and slate data.
-- **Timezone Handling**: All DraftKings times are processed as Eastern Time, with UTC storage in the database.
-- **Golf News Hub**: Enhanced endpoint combining ESPN news with PGA Tour scoreboard data.
-- **Boost Engine**: Data-driven scoring system using player history, trends, salary movement, floor/ceiling projections, momentum, team environment, and sport-specific stacking. Includes projection accuracy tracking and hot/cold form detection.
-- **Historical Adjustments**: Auto-learning module applies winning lineup patterns and salary/position accuracy multipliers to projections.
-- **Winning Frequency Boost**: Players frequently appearing in optimal lineups receive projection boosts.
-- **Winning Lineup Projection Adjustment**: Adjusts player projections based on their cleaned average actual points from past winning lineups.
-- **Player History**: Tracks player projection snapshots per slate.
-- **Lineup Preservation**: Saved lineups are moved to "review" status during slate refreshes to prevent data loss.
+- **Optimization**: Linear Programming via `javascript-lp-solver`.
+- **Authentication**: Session-based with bcryptjs.
+- **Data Refresh**: Hourly cron jobs for projections, props, and player status, with accelerated refresh before contests.
+- **Injury Handling**: Live injury statuses from DraftKings API, adjusting player projections or exclusions. Yahoo-specific statuses are normalized.
+- **Confirmed Starter Boost**: 5% projection boost for DraftKings confirmed starters.
+- **Data Source**: DraftKings public API is the primary system of record for player and slate data.
+- **Timezone Handling**: DraftKings times are processed as Eastern Time, stored as UTC.
+- **Golf News Hub**: Combines ESPN news with PGA Tour scoreboard data.
+- **Boost Engine**: Data-driven scoring using player history, trends, salary movement, floor/ceiling projections, momentum, team environment, and sport-specific stacking.
+- **Historical Adjustments**: Auto-learning module applies winning lineup patterns and salary/position accuracy multipliers.
+- **Lineup Preservation**: Saved lineups move to "review" status during slate refreshes.
 - **Pro Optimizer Pool Trimming**: Limits player pool to 150 players for performance.
-- **Player Swap**: Supports one-click player swaps within generated lineups and PrizePicks entries.
-- **DK Entries Import**: Allows import of DraftKings entries via CSV for Champion tier.
-- **Bulk Regenerate**: Enables regeneration of multiple selected lineups using advanced optimization.
-- **Monte Carlo Simulation Engine** (`server/simulation-engine.ts`): Game-script simulation for GPP lineup optimization. Runs N Monte Carlo sims with three-level variance model (game-level pace, team-level script, player-level idiosyncratic). NFL QB cascade amplifies receiver projections when QB sims high. MLB batter correlation and NHL forward-line correlation included. Endpoint: `POST /api/optimize/sim` (Star/Pro tier). Frontend: Sim Mode toggle in ProOptimizer with 50/100/200/500 sim count selector, game stack toggle, manual stack game selector, and sim stat display (median, P75, P90, frequency%). Composite score = `avg*0.35 + p75*0.35 + p90*0.20 + freq*0.10`. 30s hard cap. Exposure caps enforced post-scoring.
-- **Manual Stack Game Selector**: In Sim Mode, users can pick a specific game (e.g. BOS@NYK) to target. Players from the selected game receive a 15% projection boost before simulations run, increasing their likelihood of appearing in generated lineups. Games are extracted from the player pool's `gameInfo` field, normalized to `TEAM-TEAM` keys, and sorted by average projection. Resets on slate change. Passed as `stackGameKey` in the sim request body.
-- **Winning Lineup Agent**: Automated nightly analysis constructs "perfect hindsight" optimal lineups using actual ESPN box score data. Supports multi-platform analysis (DK/FD/Yahoo) via `platform` column. Only runs for sports with ESPN actual-points support (NBA, NHL, MLB, NFL — excludes GOLF/SOCCER). Force mode safely replaces existing records only after new analysis succeeds.
-- **Inactive Player Filter**: Automatically excludes inactive players not present in recent ESPN box scores or those with low productivity.
+- **Player Swap**: One-click player swaps within generated lineups and PrizePicks entries.
+- **DK Entries Import**: CSV import for DraftKings entries (Champion tier).
+- **Bulk Regenerate**: Regenerates multiple selected lineups using advanced optimization.
+- **Monte Carlo Simulation Engine**: Game-script simulation for GPP lineup optimization, featuring a three-level variance model and sport-specific correlations (NFL QB cascade, MLB/NHL correlations). Includes Vegas context for variance scaling and DvP adjustments.
+- **Vegas Client**: Fetches game totals and implied team totals from The Odds API with ESPN scoreboard fallback.
+- **DvP Client**: Defense vs Position engine using ESPN public team stats API for projection multipliers.
+- **Manual Stack Game Selector**: Allows users to select a specific game in Sim Mode for a 15% projection boost to players in that game.
+- **Winning Lineup Agent**: Automated nightly analysis to construct "perfect hindsight" optimal lineups using actual ESPN box score data for supported sports.
+- **Inactive Player Filter**: Automatically excludes inactive or low-productivity players.
 - **Player Configuration**: Per-user, per-slate overrides for custom projections, boosts, locks, or exclusions.
-- **Lineup Grading**: Client-side engine assigns letter grades to lineups based on projected score, efficiency, construction, ceiling, and player health, with sport-specific considerations.
-- **Live Score Tracker**: Real-time tracking of active and review lineup performance with per-player scoring breakdowns. Automated cron job every 30 minutes fetches ESPN box scores (completed + in-progress games) via `fetchAllActualPointsForDate()` and upserts `lineup_scores` for all lineups (active + review status) from today's slates. Supports NBA, NHL, MLB, NFL. Frontend shows both active and review lineups with live/actual fantasy point totals.
-- **Lineup Visibility**: Lineups remain visible until 5 AM ET the next morning via `getTodayLineupCutoff()` in `server/storage.ts`. The `deleteExpiredLineups()` cleanup only runs between 5-10 AM ET.
-- **Notification Preferences**: Configurable email/SMS alerts for injuries, scoring, and reminders.
-- **Performance Dashboard**: Displays aggregate performance stats against optimal and field, with historical data. Includes "Today's Activity" section showing current lineup counts, projected/actual scores, and salary utilization per sport in real time. Automated `generatePerformanceSnapshots()` runs after score refresh to create performance records once all games complete (100% scored). Uses `winning_lineups` table for optimal score benchmarks.
-- **Track Record**: Shows user's overall DFS history and performance summary.
-- **GatedContent Component**: Manages access to features based on user subscription tier.
-- **Showdown Builder**: Single-game DFS lineup optimization for CPT/FLEX or MVP/FLEX formats. Slate dropdown shows all active slates for the day (Classic, Showdown, Tiers, etc.) with server-built labels (e.g. "Classic · 7:05 PM ET"), ★ for the main slate, sorted by main-first then start time. `resetForSlate()` clears all player-specific state (locks, excludes, settings, lineups, filters) on slate switch to prevent cross-slate bleed. **Showdown Sim Mode**: Monte Carlo simulation for showdown lineups via `POST /api/showdown/optimize/sim` (Star/Pro tier). Runs N sims, solves CPT/FLEX LP per sim using variance-adjusted projections, deduplicates, scores (Median, P75, P90, Freq%), ranks by composite. Frontend: Sim Mode toggle, sim count selector (50/100/200/500), violet-themed generate button, sim stats display (Median, P75, P90, Freq%) on lineup cards.
-- **FanDuel Ingest** (`server/fanduel-ingest.ts`): Fetches FD slates/players via four sources in priority order: (1) SportsData.io with correct `YYYY-MMM-DD` date format (`SPORTSDATA_API_KEY`), (2) FD JSON API, (3) FD CSV download, (4) **DK Cross-Platform Fallback** — when no FD API keys are set, derives FD slates from existing DraftKings data with proportionally scaled salaries (DK $50K → FD $60K/$55K/$35K per sport) and mapped positions. Auth uses `_fanduel_session` cookie (`FD_SESSION_COOKIE`) or Bearer token (`FD_AUTH_TOKEN`) with proper Origin/Referer headers. Includes retry logic (3 attempts with backoff), request timeouts, ET-based date filtering, and improved main slate detection (`is_guaranteed`, `is_primary`, label regex).
-- **Platform-Gated DK Statuses**: `applyLiveDKStatuses` and `getInactivePlayerIds` are only called when `slate.platform === "draftkings"` — never for FanDuel or Yahoo slates.
-- **Yahoo Ingest** (`server/yahoo-ingest.ts`): Fetches Yahoo DFS slates/players via three sources: (1) RotoWire API (`ROTOWIRE_API_KEY`), (2) Yahoo DFS Lobby API using correct `contestId` parameter and `fantasyPointsPerGame` for FPPG, (3) CSV upload. **Critical API patterns**: Yahoo wraps both contests and players in `{ result: [...], error: ... }` sub-objects — always access `.result`. Contest `startTime` is in **milliseconds** (not seconds). Player fields use camelCase (`firstName`, `lastName`, `teamAbbr`, `eligiblePositions`, `salary`, `code`). Contest URL: `https://dfyql-ro.sports.yahoo.com/v2/contests?sport={slug}&status=open`. Player URL: `https://dfyql-ro.sports.yahoo.com/v2/contestPlayers?contestId={id}`. Both APIs work **without auth** (OAuth client_credentials broken). Yahoo salary cap is $200.
-- **Ingest Routes** (`server/routes/ingest.ts`): Admin-only API at `/api/ingest` for triggering FD/Yahoo data ingestion per sport or all sports. Auth via session admin or `ADMIN_INGEST_KEY` header. Includes daily 5 AM ET cron scheduler. Yahoo CSV upload via multipart POST.
-- **Starting Lineups** (`server/lineups-ingest.ts`): NBA starting lineup data from lineups.com public API. Provides projected/confirmed 5-man lineups for each game, DK/FD salaries, DK/FD projections, player ratings, injury designations, and Vegas lines (spreads, O/U). Uses `curl` via `child_process` (Node.js `fetch` gets 403). Syncs hourly via cron and on-demand via `POST /api/starting-lineups/sync` (admin). `GET /api/starting-lineups/nba` (Star/Pro tier). Updates `projectedPoints` and `injuryStatus` in DB. Currently NBA only (NHL/NFL/MLB return 404/403 from the API).
-- **AI Scout** (`server/ai-scout.ts`): Rule-based signal engine using ESPN public APIs (injuries + news). No API key required, zero cost. Detects OUT players → `starter_out` signal + `injury_opp` for position-matched teammates; questionable/doubtful → `negative_news`; headline regex patterns → `hot_streak`; salary efficiency → `value_spike`. Refreshes every 30 minutes. Endpoints: `GET /api/scout/status` (Star/Pro only), `GET /api/scout/signals/:sport` (Star/Pro only, cache read), `POST /api/scout/refresh` (admin only). Free users get 403 with `requiresUpgrade: true`. Frontend: `ScoutPanel` component embedded in Optimizer/ProOptimizer player pools, `ScoutDashboard` page at `/scout` with `ScoutUpgradeGate` for free users and admin-only "Scan Now" button. **Scout signals are automatically applied server-side** during all optimization paths (basic, pro, bulk regenerate, showdown) via `buildScoutMap()`/`applyScoutToProjection()` helpers — no manual "Apply Boosts" required. Signals also feed into `customProjections` via the frontend "Apply Boosts" button for manual overrides.
-- **Slate Lifecycle** (`is_active` column): Slates have an `is_active` boolean (default TRUE). Deactivated 3 hours after `start_time` passes via `deactivateOldSlates()` in the hourly cron and at startup. All user-facing endpoints (`/api/slates`, `/api/dashboard/:sport`, `/api/showdown/slates`, `/api/showdown/players/:slateId`, `/api/showdown/optimize`) filter on `isActive !== false`. Deactivated slates return 410 Gone from player/optimize endpoints. Slates and players are kept in the DB so saved lineups don't break.
+- **Lineup Grading**: Client-side engine assigns grades based on projected score, efficiency, construction, ceiling, and player health.
+- **Live Score Tracker**: Real-time tracking of lineup performance with per-player scoring breakdowns using ESPN box scores.
+- **Notification Preferences**: Configurable email/SMS alerts.
+- **Performance Dashboard**: Displays aggregate performance stats, "Today's Activity," and historical data.
+- **GatedContent Component**: Manages feature access based on subscription tier.
+- **Showdown Builder**: Single-game DFS lineup optimization (CPT/FLEX or MVP/FLEX formats) with a dedicated Showdown Sim Mode.
+- **FanDuel Ingest**: Fetches FD slates/players from multiple sources, including a DraftKings cross-platform fallback for scaling salaries and mapping positions when no FD API keys are set.
+- **Yahoo Ingest**: Fetches Yahoo DFS slates/players from RotoWire API and Yahoo DFS Lobby API, with CSV upload support. Handles Yahoo-specific API patterns and salary cap.
+- **Ingest Routes**: Admin-only API for triggering FD/Yahoo data ingestion, with daily cron scheduling.
+- **Starting Lineups**: Integrates NBA starting lineup data from an external API, updating player projections and injury statuses.
+- **AI Scout**: Rule-based signal engine using ESPN public APIs to detect player status (OUT, questionable), news (hot streak), and value spikes. Signals are automatically applied during optimization.
+- **Slate Lifecycle**: Slates are marked inactive 3 hours after start time and filtered from user-facing endpoints.
 
 ### Platform Configuration
-- Shared configuration in `shared/platform-config.ts` for sport-specific roster slots, salary caps, and position constraints.
-- **Multi-Platform Support**: DraftKings, FanDuel, and Yahoo platform configs. Yahoo uses $200 salary cap (not $50K). Soccer excluded from Yahoo.
-- **PlatformSelector Component**: `client/src/components/PlatformSelector.tsx` — tab bar for switching DK/FD/YH with platform colors and tier gating.
-- **Platform Colors**: DraftKings=emerald, FanDuel=blue, Yahoo=purple. Exported as `PLATFORM_COLORS`.
-- **Salary Formatting**: Yahoo salaries display as `$XX` (not `$XX,XXX`). Use `formatSalary()`/`formatCap()` helpers in optimizer pages.
-- **CSV Export**: Platform-aware CSV format — DK uses `Name (ID)`, FD uses `ID:Name`, Yahoo uses `Name`.
+- Shared configuration for sport-specific roster slots, salary caps, and position constraints.
+- Multi-platform support for DraftKings, FanDuel, and Yahoo, including specific salary caps and CSV export formats.
+- Platform-specific colors and salary formatting.
 
 ### Data Storage
-- **Database**: PostgreSQL.
-- **ORM**: Drizzle ORM.
-- **Key Tables**: Users, slates, players, lineups, subscriptions, player history, player overrides, lineup scores, etc.
+- **Database**: PostgreSQL with Drizzle ORM.
+- **Key Tables**: Users, slates, players, lineups, subscriptions, player history, player overrides, lineup scores.
 
 ### Ownership Projection Engine
-- Modular, multi-sport engine using softmax-based probability distribution.
-- Configurable weights for projection, salary, value, recency, and position chalk multipliers.
+- Modular, multi-sport engine using softmax-based probability distribution with configurable weights for projection, salary, value, recency, and position chalk multipliers.
 - Supports `gpp_large`, `gpp_small`, and `cash` contest types.
 
 ### Ownership Heatmap
@@ -82,7 +71,7 @@ Preferred communication style: Simple, everyday language.
 
 ### Subscription System
 - **Tiers**: Basic (free), Star, and Pro, with 7-day free trials.
-- **Payment**: Stripe Elements for upgrades and customer portal for management.
+- **Payment**: Stripe Elements for upgrades and customer portal.
 
 ## External Dependencies
 
@@ -91,4 +80,7 @@ Preferred communication style: Simple, everyday language.
 - **DraftKings Public API**: DFS data source.
 - **ESPN Public API**: Live sports news and scores.
 - **PrizePicks Public API**: Player prop projections.
+- **The Odds API**: Game totals and implied team totals.
+- **RotoWire API**: Yahoo DFS data source.
+- **lineups.com Public API**: NBA starting lineup data.
 - **NPM Packages**: `drizzle-orm`, `javascript-lp-solver`, `express`, `bcryptjs`, `stripe`, `@tanstack/react-query`, `zod`, `wouter`, `shadcn/ui`.

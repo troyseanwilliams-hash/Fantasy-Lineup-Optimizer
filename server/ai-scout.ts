@@ -44,6 +44,18 @@ export interface ScoutSignal {
   beneficiary_names: string[];
   ownership_delta: number;
   confidence: number;
+  /**
+   * Explicit projection boost in DFS points.
+   * When present, useScoutBoosts.ts should use `boost_value * confidence`
+   * instead of the generic BOOST_WEIGHTS lookup.
+   *
+   * NOTE: Update useScoutBoosts.ts weight calculation from:
+   *   sig.source === "admin" && sig.boost_value !== undefined ? ...
+   * to:
+   *   sig.boost_value !== undefined ? ...
+   * so AI-computed boosts also flow through correctly.
+   */
+  boost_value?: number;
 }
 
 interface SportStatus {
@@ -168,28 +180,181 @@ function normalizeNameForMatch(name: string): string {
   return name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
 }
 
-function findBeneficiaries(
-  outPlayer: { name: string; team: string; position: string },
-  allPlayers: PlayerInfo[]
-): string[] {
-  const teammates = allPlayers.filter(p =>
+// ── Smart Minutes Redistribution ─────────────────────────────────────────────
+// When a starter is OUT, instead of applying a flat injury_opp boost we
+// compute the actual projected minutes/usage gained by each beneficiary and
+// translate that to a DFS point boost.
+//
+// Three-level allocation:
+//   Primary (same pos, same team):   55% of redistributed minutes
+//   Secondary (adj pos, same team):  25%
+//   Tertiary (any teammate):         15%
+//
+// absorbFactor: backups are less efficient per minute than starters
+// (smaller role, not the same playmaker — discount their per-minute rate)
+
+const AVG_FPPM: Record<string, number> = {
+  NBA:  1.35,   // ~1.35 DFS pts per minute for average NBA player
+  NFL:  1.20,   // approximate — heavily skewed by position
+  MLB:  0.0,    // MLB doesn't use minutes model — use raw fppg fraction
+  NHL:  0.45,   // NHL players score less per minute
+};
+
+const ABSORB_FACTOR: Record<string, number> = {
+  NBA:  0.68,   // backup absorbs 68% as efficiently as starter per minute
+  NFL:  0.62,
+  NHL:  0.72,
+  MLB:  0.55,
+};
+
+const MAX_MINUTES: Record<string, number> = {
+  NBA:  36,
+  NHL:  22,
+  NFL:  999,  // NFL uses snap %, not pure minutes
+};
+
+function estimateMinutes(fppg: number, sport: string): number {
+  const fppm = AVG_FPPM[sport] || 1.0;
+  if (fppm <= 0) return 20;
+  return Math.max(6, Math.min(MAX_MINUTES[sport] || 36, fppg / fppm));
+}
+
+function computeInjuryBoost(
+  outPlayer:    { fppg: string | null; position: string },
+  beneficiary:  { fppg: string | null },
+  allocation:   number,   // 0–1, fraction of out player's minutes going to this beneficiary
+  sport:        string,
+): number {
+  const outFppg  = parseFloat(outPlayer.fppg || "0");
+  const benFppg  = parseFloat(beneficiary.fppg || "0");
+  if (outFppg <= 0 || benFppg <= 0) return 0;
+
+  const absorb  = ABSORB_FACTOR[sport.toUpperCase()] || 0.65;
+
+  // MLB: use raw fppg fraction instead of minutes model
+  if (sport.toUpperCase() === "MLB") {
+    return Math.round(outFppg * allocation * absorb * 10) / 10;
+  }
+
+  const outMinutes = estimateMinutes(outFppg, sport.toUpperCase());
+  const benMinutes = estimateMinutes(benFppg, sport.toUpperCase());
+  const maxMore    = (MAX_MINUTES[sport.toUpperCase()] || 36) - benMinutes;
+
+  // Minutes they gain from this injury
+  const rawAlloc   = outMinutes * allocation;
+  // Cap: can't absorb more than what they currently play (fatigue model)
+  const gained     = Math.min(rawAlloc, maxMore, benMinutes);
+
+  if (gained <= 0 || benMinutes <= 0) return 0;
+
+  const benFppm    = benFppg / benMinutes;   // beneficiary's pts/minute
+  const boost      = gained * benFppm * absorb;
+  return Math.round(boost * 10) / 10;
+}
+
+function ownershipDeltaFromBoost(boost: number): number {
+  if (boost >= 8) return 22;
+  if (boost >= 5) return 16;
+  if (boost >= 3) return 12;
+  if (boost >= 1) return 7;
+  return 3;
+}
+
+// Adjacent positions eligible for usage absorption
+const ADJ_POSITIONS: Record<string, string[]> = {
+  // NBA
+  PG: ["PG","SG","G"],  SG: ["SG","PG","G"],
+  SF: ["SF","PF","F"],  PF: ["PF","SF","F"],  C: ["C","PF","F"],
+  // NFL
+  QB: ["QB"],  RB: ["RB","WR"],  WR: ["WR","TE","RB"],  TE: ["TE","WR"],
+  // NHL
+  C: ["C","W","LW","RW"], W: ["W","C","LW","RW"],
+  LW: ["LW","W","C","RW"], RW: ["RW","W","C","LW"],
+  D: ["D"],  G: ["G"],
+  // MLB
+  SP: ["SP","RP"],  RP: ["RP","SP"],
+  OF: ["OF"],  "1B": ["1B","OF"],  "2B": ["2B","3B","SS"],
+  "3B": ["3B","2B"],  SS: ["SS","2B"],  C: ["C"],
+};
+
+interface BeneficiarySignal {
+  name:          string;
+  boost_value:   number;
+  ownership_delta: number;
+  reason:        string;
+  allocation:    "primary" | "secondary" | "tertiary";
+}
+
+function computeSmartRedistribution(
+  outPlayer: { name: string; team: string; position: string; fppg: string | null },
+  pool:      PlayerInfo[],
+  sport:     string,
+): BeneficiarySignal[] {
+  const outFppg  = parseFloat(outPlayer.fppg || "0");
+  const outPos   = outPlayer.position.split("/")[0].toUpperCase();
+  const adjPos   = ADJ_POSITIONS[outPos] || [outPos];
+
+  const teammates = pool.filter(p =>
     p.team === outPlayer.team && p.name !== outPlayer.name
-  );
+  ).sort((a, b) => parseFloat(b.fppg || "0") - parseFloat(a.fppg || "0"));
 
-  const samePos = teammates
-    .filter(p => {
-      const pPositions = p.position.split("/").map(s => s.trim().toUpperCase());
-      const outPositions = outPlayer.position.split("/").map(s => s.trim().toUpperCase());
-      return pPositions.some(pp => outPositions.includes(pp));
-    })
-    .sort((a, b) => (parseFloat(b.fppg || "0") - parseFloat(a.fppg || "0")));
+  // Split: same position = primary, adjacent = secondary, any teammate = tertiary
+  const primary   = teammates.filter(p => {
+    const pp = p.position.split("/").map(s => s.toUpperCase());
+    return pp.some(x => adjPos.slice(0, 1).includes(x));  // exact same positions
+  }).slice(0, 2);
 
-  if (samePos.length > 0) return samePos.slice(0, 3).map(p => p.name);
+  const alreadyPrimary = new Set(primary.map(p => p.name));
 
-  return teammates
-    .sort((a, b) => (parseFloat(b.fppg || "0") - parseFloat(a.fppg || "0")))
-    .slice(0, 2)
-    .map(p => p.name);
+  const secondary = teammates.filter(p => {
+    if (alreadyPrimary.has(p.name)) return false;
+    const pp = p.position.split("/").map(s => s.toUpperCase());
+    return pp.some(x => adjPos.includes(x));
+  }).slice(0, 2);
+
+  const alreadyUsed = new Set([...primary, ...secondary].map(p => p.name));
+
+  const tertiary = teammates.filter(p => !alreadyUsed.has(p.name)).slice(0, 1);
+
+  const signals: BeneficiarySignal[] = [];
+
+  const ALLOC = { primary: 0.55, secondary: 0.25, tertiary: 0.15 } as const;
+
+  for (const [tier, players] of [
+    ["primary",   primary]   as const,
+    ["secondary", secondary] as const,
+    ["tertiary",  tertiary]  as const,
+  ]) {
+    const alloc = ALLOC[tier] / Math.max(players.length, 1);
+    for (const ben of players) {
+      const boost = computeInjuryBoost(outPlayer, ben, alloc, sport);
+      if (boost <= 0) continue;
+      signals.push({
+        name:            ben.name,
+        boost_value:     boost,
+        ownership_delta: ownershipDeltaFromBoost(boost),
+        allocation:      tier,
+        reason:          `${outPlayer.name} (${outPlayer.position}) OUT — ${ben.name} gains ~${boost.toFixed(1)} projected pts via usage redistribution`,
+      });
+    }
+  }
+
+  // If minutes model produced nothing useful, fall back to flat rank-based boost
+  if (signals.length === 0) {
+    const topTeammates = teammates.slice(0, 2);
+    for (const t of topTeammates) {
+      const flatBoost = Math.max(1.0, outFppg * 0.12);
+      signals.push({
+        name:            t.name,
+        boost_value:     Math.round(flatBoost * 10) / 10,
+        ownership_delta: ownershipDeltaFromBoost(flatBoost),
+        allocation:      "primary",
+        reason:          `${outPlayer.name} OUT — ${t.name} absorbs usage`,
+      });
+    }
+  }
+
+  return signals;
 }
 
 function analyzeData(
@@ -210,50 +375,71 @@ function analyzeData(
       const matchedPlayer = playerMap.get(normalizedName);
 
       if (OUT_STATUSES.has(inj.status)) {
+        // Determine the player's info for redistribution
+        const outInfo = matchedPlayer
+          ? { name: inj.name, team: matchedPlayer.team, position: matchedPlayer.position, fppg: matchedPlayer.fppg }
+          : { name: inj.name, team: inj.team,          position: inj.position,           fppg: null };
+
+        // Smart minutes redistribution — computes actual projection boost per beneficiary
+        const redistribution = computeSmartRedistribution(outInfo, players, sport);
+        const beneficiaryNames = redistribution.map(r => r.name);
+
         signals.push({
-          player_name: inj.name,
-          signal_type: "out",
-          reason: `${inj.name} ruled OUT${inj.type ? ` (${inj.type})` : ""}`,
-          beneficiary_names: matchedPlayer
-            ? findBeneficiaries({ name: inj.name, team: matchedPlayer.team, position: matchedPlayer.position }, players)
-            : findBeneficiaries({ name: inj.name, team: inj.team, position: inj.position }, players),
-          ownership_delta: -20,
-          confidence: 0.95,
+          player_name:       inj.name,
+          signal_type:       "out",
+          reason:            `${inj.name} ruled OUT${inj.type ? ` (${inj.type})` : ""}`,
+          beneficiary_names: beneficiaryNames,
+          ownership_delta:   -20,
+          confidence:        0.95,
         });
 
-        if (matchedPlayer) {
-          const beneficiaries = findBeneficiaries(
-            { name: inj.name, team: matchedPlayer.team, position: matchedPlayer.position },
-            players
-          );
-          for (const bName of beneficiaries.slice(0, 2)) {
-            const bPlayer = players.find(p => p.name === bName);
-            if (bPlayer) {
-              signals.push({
-                player_name: bName,
-                signal_type: "injury_opp",
-                reason: `${inj.name} ruled OUT — ${bName} gets expanded role`,
-                beneficiary_names: [],
-                ownership_delta: Math.min(20, Math.round(parseFloat(matchedPlayer.fppg || "0") / 3)),
-                confidence: 0.8,
-              });
-            }
-          }
+        // Create one injury_opp signal per beneficiary with the computed boost_value
+        for (const ben of redistribution) {
+          signals.push({
+            player_name:       ben.name,
+            signal_type:       "injury_opp",
+            reason:            ben.reason,
+            beneficiary_names: [],
+            ownership_delta:   ben.ownership_delta,
+            confidence:        0.80,
+            boost_value:       ben.boost_value,
+          });
         }
       } else if (LIMITED_STATUSES.has(inj.status)) {
         if (matchedPlayer) {
           const statusLabel = inj.status.charAt(0).toUpperCase() + inj.status.slice(1);
+          // For doubtful players, pre-compute beneficiary boosts at reduced confidence
+          const redistribution = inj.status === "doubtful"
+            ? computeSmartRedistribution(
+                { name: inj.name, team: matchedPlayer.team, position: matchedPlayer.position, fppg: matchedPlayer.fppg },
+                players,
+                sport
+              )
+            : [];
+
           signals.push({
             player_name: inj.name,
             signal_type: "negative_news",
             reason: `${inj.name} listed as ${statusLabel}${inj.type ? ` (${inj.type})` : ""} — monitor status`,
-            beneficiary_names: findBeneficiaries(
-              { name: inj.name, team: matchedPlayer.team, position: matchedPlayer.position },
-              players
-            ),
+            beneficiary_names: redistribution.map(r => r.name),
             ownership_delta: inj.status === "doubtful" ? -12 : inj.status === "questionable" ? -5 : -2,
             confidence: inj.status === "doubtful" ? 0.8 : 0.6,
           });
+
+          // Add tentative boosts for doubtful (lower confidence)
+          if (inj.status === "doubtful") {
+            for (const ben of redistribution.slice(0, 2)) {
+              signals.push({
+                player_name:       ben.name,
+                signal_type:       "injury_opp",
+                reason:            `${inj.name} listed Doubtful — ${ben.name} may gain ~${ben.boost_value.toFixed(1)} pts if confirmed out`,
+                beneficiary_names: [],
+                ownership_delta:   Math.round(ben.ownership_delta * 0.5),
+                confidence:        0.55,
+                boost_value:       Math.round(ben.boost_value * 0.5 * 10) / 10,  // half boost at half confidence
+              });
+            }
+          }
         }
       }
     }

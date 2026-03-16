@@ -145,6 +145,9 @@ export function runSingleSim(
     }
   }
 
+  // ── Game-level factors — variance scaled by Vegas total ───────────────────
+  // High-total games (shootouts) have wider variance; low-total games tighter.
+  // Scalar = total / slateAvgTotal, clamped to [0.55, 1.6].
   const gameFactors: Record<string, number> = {};
   for (const gameKey of gameGroups.keys()) {
     let adjustedGameVar = gameVar;
@@ -156,6 +159,9 @@ export function runSingleSim(
     gameFactors[gameKey] = clampFactor(sampleNormal(1.0, adjustedGameVar));
   }
 
+  // ── Team-level factors — baseline shifted by implied total ────────────────
+  // A team with implied total 10% above slate average gets a +5% baseline
+  // (50% dampened — DK projections already partially reflect Vegas).
   const teamSet = new Set<string>(playerTeam.values());
   const teamFactors: Record<string, number> = {};
   for (const team of teamSet) {
@@ -163,6 +169,7 @@ export function runSingleSim(
     if (vegasContext?.teamImplied.has(team) && vegasContext.slateAvgImplied > 0) {
       const implied       = vegasContext.teamImplied.get(team)!;
       const impliedRatio  = implied / vegasContext.slateAvgImplied;
+      // Dampen by 50%: market signal already partially reflected in projections
       const impliedShift  = (impliedRatio - 1.0) * 0.50;
       teamBaseline        = Math.max(0.70, Math.min(1.35, 1.0 + impliedShift));
     }
