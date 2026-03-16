@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { InfoTip, LabelTip } from "@/components/InfoTip";
 import {
   TrendingUp, Lock, Crown, Zap, Plus, X, Trash2,
   ArrowUp, ArrowDown, Dribbble, Activity, Flag, Target, Trophy,
@@ -744,7 +745,7 @@ export default function PrizePicksBuilder() {
                           )}
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[11px] text-slate-400">{entry.multiplier}x multiplier</span>
+                          <LabelTip text="Your payout multiplier based on the number of picks. More picks = higher multiplier but harder to hit all of them."><span className="text-[11px] text-slate-400">{entry.multiplier}x multiplier</span></LabelTip>
                           {entry.wager && <span className="text-[11px] text-slate-500">· ${entry.wager} wager</span>}
                           {entry.potentialPayout && <span className="text-[11px] text-emerald-400 font-bold">· ${entry.potentialPayout}</span>}
                         </div>

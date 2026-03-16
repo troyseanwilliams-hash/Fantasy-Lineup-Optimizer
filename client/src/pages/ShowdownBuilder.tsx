@@ -16,6 +16,7 @@ import {
   Activity, Clock, RotateCcw, Flame, Percent, ArrowUpDown, CheckCheck,
 } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
+import { InfoTip, LabelTip } from "@/components/InfoTip";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import type { Slate, Player } from "@shared/schema";
@@ -789,7 +790,7 @@ export default function ShowdownBuilder() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Activity className="w-4 h-4 text-violet-400" />
-                        <span className="text-xs font-bold text-white">Sim Mode</span>
+                        <LabelTip text="Monte Carlo simulation runs many game scenarios to find showdown lineups that perform best across a range of outcomes."><span className="text-xs font-bold text-white">Sim Mode</span></LabelTip>
                         <span className="text-[9px] font-black text-violet-400/80 bg-violet-500/10 px-1 py-0.5 rounded">MONTE CARLO</span>
                       </div>
                       <Switch checked={simMode} onCheckedChange={setSimMode} data-testid="toggle-sim-showdown" />
@@ -797,7 +798,7 @@ export default function ShowdownBuilder() {
                     {simMode && (
                       <div className="mt-3 pt-3 border-t border-violet-500/20 space-y-3">
                         <div className="flex items-center gap-2">
-                          <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Simulations</span>
+                          <LabelTip text="More simulations = more accurate results but longer processing time. 200 is a good balance."><span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Simulations</span></LabelTip>
                           <div className="flex gap-1">
                             {[50, 100, 200, 500].map(n => (
                               <button
@@ -845,7 +846,7 @@ export default function ShowdownBuilder() {
                       <div>
                         <div className="flex items-center gap-1.5 mb-1.5">
                           <BarChart3 className="w-3.5 h-3.5 text-slate-500" />
-                          <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Projection Mode</span>
+                          <LabelTip text="Balanced = safe, high-floor lineups for cash games. Ceiling = high-upside lineups targeting boom-or-bust plays in GPPs."><span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Projection Mode</span></LabelTip>
                         </div>
                         <div className="flex gap-1.5">
                           {(["balanced", "ceiling"] as const).map(mode => (
@@ -875,7 +876,7 @@ export default function ShowdownBuilder() {
                           <div className="flex items-center gap-2">
                             <Target className="w-3.5 h-3.5 text-amber-400" />
                             <div>
-                              <p className="text-xs font-bold text-white">Leverage Mode</p>
+                              <LabelTip text="Down-weight heavily-owned players and boost low-ownership plays for tournament differentiation."><p className="text-xs font-bold text-white">Leverage Mode</p></LabelTip>
                               <p className="text-[10px] text-slate-500">Down-weights chalk, boosts low-ownership plays</p>
                             </div>
                           </div>

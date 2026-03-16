@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Slate } from "@shared/schema";
 import { ACTIVE_SPORTS, getPlatformConfig } from "@shared/platform-config";
+import { InfoTip, LabelTip } from "@/components/InfoTip";
 
 interface OwnershipPlayer {
   id: number;
@@ -230,7 +231,7 @@ function HoverCardPortal({ player, anchorRect, sport, onClose }: HoverCardPortal
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <Zap className="w-3.5 h-3.5 text-slate-500" />
-              <span className="text-[11px] font-bold text-slate-400">Value Score</span>
+              <LabelTip text="Projected points per $1,000 of salary. Higher values indicate better bang for your buck. Scores above 5.0 are generally considered elite."><span className="text-[11px] font-bold text-slate-400">Value Score</span></LabelTip>
             </div>
             <div className="flex items-center gap-1.5">
               <span className={`text-[11px] font-black ${valueLabel.color}`}>{valueScore}×</span>
@@ -242,7 +243,7 @@ function HoverCardPortal({ player, anchorRect, sport, onClose }: HoverCardPortal
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <Target className="w-3.5 h-3.5 text-slate-500" />
-              <span className="text-[11px] font-bold text-slate-400">GPP Leverage</span>
+              <LabelTip text="Points per 1% of ownership. Higher values mean more upside relative to how many people are rostering this player — great for tournaments."><span className="text-[11px] font-bold text-slate-400">GPP Leverage</span></LabelTip>
             </div>
             <span className="text-[11px] font-black text-white tabular-nums">
               {player.ownershipProjection > 0

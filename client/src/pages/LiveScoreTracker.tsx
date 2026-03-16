@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Activity, TrendingUp, Clock, Trophy, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Lineup, LineupScore } from "@shared/schema";
+import { InfoTip, LabelTip } from "@/components/InfoTip";
 
 function toNum(v: string | number | null | undefined): number {
   if (v == null || v === "") return 0;
@@ -181,7 +182,7 @@ export default function LiveScoreTracker() {
                               style={{ width: `${Math.min(pctComplete, 100)}%` }}
                             />
                           </div>
-                          <span className="text-slate-400 text-xs w-10 text-right">{pctComplete}%</span>
+                          <LabelTip text="Percentage of games completed for this lineup. 100% means all games have finished and scores are final."><span className="text-slate-400 text-xs w-10 text-right">{pctComplete}%</span></LabelTip>
                         </div>
                         {isExpanded ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
                       </div>

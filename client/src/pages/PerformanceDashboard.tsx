@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, BarChart3, TrendingUp, Target, Activity, Trophy, Calendar, Zap, DollarSign, Crosshair } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { PerformanceSnapshot } from "@shared/schema";
+import { InfoTip, LabelTip } from "@/components/InfoTip";
 
 function toNum(v: string | number | null | undefined): number {
   if (v == null || v === "") return 0;
@@ -211,21 +212,21 @@ export default function PerformanceDashboard() {
                     <CardContent className="p-4 text-center">
                       <Target className="w-6 h-6 text-emerald-400 mx-auto mb-2" />
                       <div className="text-2xl font-black text-emerald-400" data-testid="stat-vs-optimal">{aggregate!.avgVsOptimal}%</div>
-                      <div className="text-xs text-slate-400">vs. Optimal</div>
+                      <LabelTip text="How close your lineup scored compared to the best possible lineup that could have been built. 100% means you matched the optimal."><div className="text-xs text-slate-400">vs. Optimal</div></LabelTip>
                     </CardContent>
                   </Card>
                   <Card className="bg-slate-900 border-slate-700">
                     <CardContent className="p-4 text-center">
                       <TrendingUp className="w-6 h-6 text-blue-400 mx-auto mb-2" />
                       <div className="text-2xl font-black text-blue-400" data-testid="stat-vs-field">{aggregate!.avgVsField}%</div>
-                      <div className="text-xs text-slate-400">vs. Field Avg</div>
+                      <LabelTip text="How your lineup performed compared to the average score across all entries. Above 100% means you beat the field average."><div className="text-xs text-slate-400">vs. Field Avg</div></LabelTip>
                     </CardContent>
                   </Card>
                   <Card className="bg-slate-900 border-slate-700">
                     <CardContent className="p-4 text-center">
                       <Activity className="w-6 h-6 text-cyan-400 mx-auto mb-2" />
                       <div className="text-2xl font-black text-cyan-400" data-testid="stat-accuracy">{aggregate!.avgAccuracy}%</div>
-                      <div className="text-xs text-slate-400">Proj. Accuracy</div>
+                      <LabelTip text="How close your projected total was to the actual scored total. Higher values mean our projections closely matched reality."><div className="text-xs text-slate-400">Proj. Accuracy</div></LabelTip>
                     </CardContent>
                   </Card>
                 </div>

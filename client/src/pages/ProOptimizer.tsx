@@ -26,6 +26,7 @@ import {
 import { gradeLineup, GRADE_COLORS } from "@/lib/lineup-grader";
 import { PlayerInfoHoverCard } from "@/components/PlayerInfoHoverCard";
 import { ScoutPanel } from "@/components/ScoutPanel";
+import { InfoTip, LabelTip } from "@/components/InfoTip";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "boostedProj" | "ownershipProjection";
 type SortDir = "asc" | "desc";
@@ -893,15 +894,15 @@ export default function ProOptimizer() {
               <>
                 <div className="h-4 w-px bg-slate-700 flex-shrink-0 hidden md:block" />
                 <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
-                  <label className="text-[10px] font-black text-slate-400 uppercase">Boosts</label>
+                  <LabelTip text="Apply AI Scout projection adjustments from live injury and news data."><label className="text-[10px] font-black text-slate-400 uppercase">Boosts</label></LabelTip>
                   <Switch checked={useBoosts} onCheckedChange={setUseBoosts} data-testid="toggle-boosts" className="scale-90" />
                 </div>
                 <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
-                  <label className="text-[10px] font-black text-amber-400 uppercase">Leverage</label>
+                  <LabelTip text="Down-weight heavily-owned 'chalk' players and boost low-ownership plays for tournament differentiation."><label className="text-[10px] font-black text-amber-400 uppercase">Leverage</label></LabelTip>
                   <Switch checked={leverageMode} onCheckedChange={setLeverageMode} data-testid="toggle-leverage" className="scale-90" />
                 </div>
                 <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
-                  <label className="text-[10px] font-black text-purple-400 uppercase">Mode</label>
+                  <LabelTip text="Balanced = safe, high-floor lineups for cash games. Ceiling = high-upside lineups targeting boom-or-bust GPP plays."><label className="text-[10px] font-black text-purple-400 uppercase">Mode</label></LabelTip>
                   <button
                     onClick={() => setProjectionMode(projectionMode === "balanced" ? "ceiling" : "balanced")}
                     className={`text-[10px] font-black px-2 py-0.5 rounded ${
@@ -920,7 +921,7 @@ export default function ProOptimizer() {
             <div className="h-4 w-px bg-slate-700 flex-shrink-0 hidden md:block" />
 
             <div className={`hidden md:flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0 ${simMode ? "opacity-50 cursor-not-allowed" : ""}`}>
-              <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Qty</span>
+              <LabelTip text="Number of unique lineups to generate. More lineups = more diversity and exposure spread."><span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Qty</span></LabelTip>
               <Slider
                 value={[lineupCount]}
                 onValueChange={(v) => !simMode && setLineupCount(Math.min(v[0], maxLineupSlider))}
@@ -941,7 +942,7 @@ export default function ProOptimizer() {
             <div className="hidden md:flex items-center gap-3 overflow-x-auto scrollbar-hide">
               {isPro && lineupCount > 1 && (
                 <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
-                  <span className="text-[10px] font-black text-cyan-400 uppercase whitespace-nowrap">Max Exp</span>
+                  <LabelTip text="Maximum % any single player can appear across all generated lineups. Lower values increase lineup diversity."><span className="text-[10px] font-black text-cyan-400 uppercase whitespace-nowrap">Max Exp</span></LabelTip>
                   <Slider
                     value={[globalMaxExposure ?? 100]}
                     onValueChange={(v) => setGlobalMaxExposure(v[0] === 100 ? null : v[0])}
@@ -981,7 +982,7 @@ export default function ProOptimizer() {
                 </div>
               )}
               <div className="flex items-center gap-1.5 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
-                <span className="text-[10px] font-black text-amber-400 uppercase whitespace-nowrap">Min ★</span>
+                <LabelTip text="Only include players at or above this star rating. Ratings are based on projected points: 1★ (<15), 2★ (15-24), 3★ (25-34), 4★ (35-44), 5★ (45+)."><span className="text-[10px] font-black text-amber-400 uppercase whitespace-nowrap">Min ★</span></LabelTip>
                 <div className="flex gap-1">
                   {[0, 1, 2, 3, 4, 5].map(n => (
                     <button
@@ -1078,7 +1079,7 @@ export default function ProOptimizer() {
                 </div>
               )}
               <div className="flex items-center gap-1 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
-                <span className="text-[10px] font-black text-amber-400 uppercase whitespace-nowrap">Min ★</span>
+                <LabelTip text="Only include players at or above this star rating. Ratings are based on projected points: 1★ (<15), 2★ (15-24), 3★ (25-34), 4★ (35-44), 5★ (45+)."><span className="text-[10px] font-black text-amber-400 uppercase whitespace-nowrap">Min ★</span></LabelTip>
                 {[0, 1, 2, 3, 4, 5].map(n => (
                   <button
                     key={n}
@@ -1155,9 +1156,9 @@ export default function ProOptimizer() {
             >
               <div className="flex items-center gap-2">
                 <Activity className={`w-3.5 h-3.5 ${simMode ? "text-violet-400" : "text-slate-500"}`} />
-                <span className={`text-xs font-black ${simMode ? "text-violet-400" : "text-slate-300"}`}>
-                  Sim Mode
-                </span>
+                <LabelTip text="Monte Carlo simulation runs thousands of game scenarios to find lineups that perform best across a range of outcomes — ideal for GPP tournaments.">
+                  <span className={`text-xs font-black ${simMode ? "text-violet-400" : "text-slate-300"}`}>Sim Mode</span>
+                </LabelTip>
                 {simMode && (
                   <Badge className="text-[8px] font-black bg-violet-500/20 text-violet-400 border-violet-500/30 px-1 py-0">
                     ON
@@ -1194,7 +1195,7 @@ export default function ProOptimizer() {
                     ))}
                   </div>
                   <div className="flex items-center gap-1.5 pl-2 border-l border-slate-700/40">
-                    <span className="text-[9px] font-black text-slate-500 uppercase">Stacks</span>
+                    <LabelTip text="Require correlated player groups (e.g. QB + WR from the same game) for higher upside in tournaments."><span className="text-[9px] font-black text-slate-500 uppercase">Stacks</span></LabelTip>
                     <Switch
                       checked={enforceGameStack}
                       onCheckedChange={setEnforceGameStack}
@@ -1208,7 +1209,7 @@ export default function ProOptimizer() {
                 {availableGames.length > 0 && (
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Target Game</span>
+                      <LabelTip text="Pick a specific game to target. Players from this game get a 15% projection boost, making them more likely to appear in your lineups."><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Target Game</span></LabelTip>
                       {stackGameKey && (
                         <button
                           onClick={() => setStackGameKey(null)}

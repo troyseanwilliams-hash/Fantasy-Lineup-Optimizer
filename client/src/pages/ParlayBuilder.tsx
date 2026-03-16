@@ -13,6 +13,7 @@ import {
   AlertTriangle, CheckCircle2, Info, Copy, Share2, ExternalLink
 } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
+import { InfoTip, LabelTip } from "@/components/InfoTip";
 import { AFFILIATE_LINKS } from "@shared/affiliate-config";
 
 const SPORT_META: Record<string, { icon: typeof Dribbble; color: string; bgColor: string; accent: string }> = {
@@ -567,7 +568,7 @@ export default function ParlayBuilder() {
                       <span className="text-sm font-bold text-white">{parlayLegs.length}/{maxLegs}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-400 font-bold">Combined Odds</span>
+                      <LabelTip text="The total combined odds for all legs in this parlay. Higher odds = bigger potential payout but lower probability of hitting."><span className="text-xs text-slate-400 font-bold">Combined Odds</span></LabelTip>
                       <span className={`text-lg font-black ${combinedAmericanOdds > 0 ? "text-emerald-400" : "text-white"}`}>
                         {formatOdds(combinedAmericanOdds)}
                       </span>

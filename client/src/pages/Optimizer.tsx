@@ -22,6 +22,7 @@ import {
 import { gradeLineup, GRADE_COLORS } from "@/lib/lineup-grader";
 import { PlayerInfoHoverCard } from "@/components/PlayerInfoHoverCard";
 import { ScoutPanel } from "@/components/ScoutPanel";
+import { InfoTip, LabelTip } from "@/components/InfoTip";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "fppg" | "value";
 type SortDir = "asc" | "desc";
@@ -1264,7 +1265,7 @@ export default function Optimizer() {
 
           <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-800/60 rounded-lg px-2 sm:px-3 py-1.5 border border-slate-700/50 mt-1.5" data-testid="floor-section">
             <TrendingUp className={`w-3 h-3 sm:w-3.5 sm:h-3.5 flex-shrink-0 ${projectedPointsFloor ? "text-emerald-400" : "text-slate-500"}`} />
-            <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Floor</span>
+            <LabelTip text="Minimum total projected points a lineup must have. Lineups below this threshold are excluded."><span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Floor</span></LabelTip>
             <input
               type="number"
               min={0}
@@ -1305,6 +1306,7 @@ export default function Optimizer() {
             >
               <Trophy className="w-3 h-3 mr-1" /> GPP
             </Button>
+            <InfoTip text="Cash = safe, high-floor lineups for 50/50 and double-ups. GPP = high-ceiling, differentiated lineups for tournaments where you need to finish near the top." side="bottom" />
           </div>
           <p className="text-[9px] text-slate-500 text-center mt-0.5" data-testid="text-contest-desc">
             {contestType === "cash" ? "Safe, high-floor lineups for cash games" : "High-ceiling, differentiated lineups for tournaments"}
