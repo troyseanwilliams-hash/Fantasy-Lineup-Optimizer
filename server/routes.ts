@@ -27,7 +27,7 @@ import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analy
 import { fetchBDLStats, type PlayerStatsMap, normalizeName } from "./balldontlie-stats";
 import { refreshRecentlyPlayed, getRecentlyPlayedCache, normalizePlayerName } from "./espn-activity";
 import { calculateOwnership, computeOwnershipForPlayers, type ContestType } from "./ownership-engine";
-import { getCachedSignals, getScoutStatus, refreshAll, forceRefreshAll, secondsUntilRefresh } from "./ai-scout";
+import { getCachedSignals, getScoutStatus, refreshAll, forceRefreshAll, secondsUntilRefresh, triggerLazyRefreshIfStale } from "./ai-scout";
 import { runSimulations, detectStack } from "./simulation-engine";
 import { buildVegasContext } from "./vegas-client";
 import { buildDvPContext, applyDvPToProjections, buildOpponentMap } from "./dvp-client";
@@ -3507,6 +3507,30 @@ export async function registerRoutes(
 
       const sport = (req.params.sport || "NBA").toUpperCase();
       const signals = getCachedSignals(sport);
+
+      triggerLazyRefreshIfStale(async (s: string) => {
+        const allSlates = await storage.getSlates();
+        let sportSlates = allSlates.filter(
+          (sl: any) => sl.sport?.toUpperCase() === s && sl.platform === "draftkings" && sl.isActive !== false
+        );
+        if (sportSlates.length === 0) {
+          sportSlates = allSlates.filter(
+            (sl: any) => sl.sport?.toUpperCase() === s && sl.isActive !== false
+          );
+        }
+        if (sportSlates.length === 0) return [];
+        sportSlates.sort((a: any, b: any) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime());
+        const latestSlate = sportSlates[0];
+        const slatePlayers = await storage.getPlayersBySlate(latestSlate.id);
+        return slatePlayers.map((p: any) => ({
+          name: p.name,
+          team: p.team || "",
+          position: p.position || "",
+          salary: p.salary || 0,
+          fppg: p.projectedPoints || null,
+        }));
+      });
+
       res.json({
         sport,
         count: signals.length,
@@ -3533,11 +3557,17 @@ export async function registerRoutes(
       const playersBySport: Record<string, Array<{ name: string; team: string; position: string; salary: number; fppg: string | null }>> = {};
 
       for (const sport of ["NBA", "NHL", "GOLF", "NFL", "MLB", "SOCCER"]) {
-        const sportSlates = allSlates.filter(
+        let sportSlates = allSlates.filter(
           (s: any) => s.sport?.toUpperCase() === sport && s.platform === "draftkings" && s.isActive !== false
         );
+        if (sportSlates.length === 0) {
+          sportSlates = allSlates.filter(
+            (s: any) => s.sport?.toUpperCase() === sport && s.isActive !== false
+          );
+        }
         if (sportSlates.length > 0) {
-          const latestSlate = sportSlates[sportSlates.length - 1];
+          sportSlates.sort((a: any, b: any) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime());
+          const latestSlate = sportSlates[0];
           const slatePlayers = await storage.getPlayersBySlate(latestSlate.id);
           if (slatePlayers.length > 0) {
             playersBySport[sport] = slatePlayers.map((p: any) => ({

@@ -522,8 +522,12 @@ app.use((req, res, next) => {
             } catch {}
           }
 
-          const snapshotted = await storage.backfillPlayerSnapshots();
-          if (snapshotted > 0) log(`Backfilled player snapshots for ${snapshotted} lineup(s)`, "cron");
+          try {
+            const snapshotted = await storage.backfillPlayerSnapshots();
+            if (snapshotted > 0) log(`Backfilled player snapshots for ${snapshotted} lineup(s)`, "cron");
+          } catch (err) {
+            console.error("Startup player snapshot backfill failed:", err);
+          }
           const ppSports = getSupportedPPSports();
           for (const sport of ppSports) {
             try {
@@ -536,11 +540,17 @@ app.use((req, res, next) => {
           try {
             await runScoutForAllSports(async (sport: string) => {
               const allSlates = await storage.getSlates();
-              const sportSlates = allSlates.filter(
+              let sportSlates = allSlates.filter(
                 (s: any) => s.sport?.toUpperCase() === sport && s.platform === "draftkings" && s.isActive !== false
               );
+              if (sportSlates.length === 0) {
+                sportSlates = allSlates.filter(
+                  (s: any) => s.sport?.toUpperCase() === sport && s.isActive !== false
+                );
+              }
               if (sportSlates.length === 0) return [];
-              const latestSlate = sportSlates[sportSlates.length - 1];
+              sportSlates.sort((a: any, b: any) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime());
+              const latestSlate = sportSlates[0];
               const slatePlayers = await storage.getPlayersBySlate(latestSlate.id);
               return slatePlayers.map((p: any) => ({
                 name: p.name,
@@ -582,11 +592,17 @@ app.use((req, res, next) => {
           try {
             await runScoutForAllSports(async (sport: string) => {
               const allSlates = await storage.getSlates();
-              const sportSlates = allSlates.filter(
+              let sportSlates = allSlates.filter(
                 (s: any) => s.sport?.toUpperCase() === sport && s.platform === "draftkings" && s.isActive !== false
               );
+              if (sportSlates.length === 0) {
+                sportSlates = allSlates.filter(
+                  (s: any) => s.sport?.toUpperCase() === sport && s.isActive !== false
+                );
+              }
               if (sportSlates.length === 0) return [];
-              const latestSlate = sportSlates[sportSlates.length - 1];
+              sportSlates.sort((a: any, b: any) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime());
+              const latestSlate = sportSlates[0];
               const slatePlayers = await storage.getPlayersBySlate(latestSlate.id);
               return slatePlayers.map((p: any) => ({
                 name: p.name,

@@ -110,6 +110,32 @@ export function isRefreshing(): boolean {
   return _isRefreshing;
 }
 
+let _lazyRefreshScheduled = false;
+
+export function triggerLazyRefreshIfStale(getPlayers: (sport: string) => Promise<PlayerInfo[]>): void {
+  if (!isStale() || _isRefreshing || _lazyRefreshScheduled) return;
+  _lazyRefreshScheduled = true;
+  setTimeout(async () => {
+    try {
+      const playersBySport: Record<string, PlayerInfo[]> = {};
+      for (const sport of ACTIVE_SPORTS) {
+        try {
+          const players = await getPlayers(sport);
+          if (players.length > 0) playersBySport[sport] = players;
+        } catch {}
+      }
+      if (Object.keys(playersBySport).length > 0) {
+        await refreshAll(playersBySport, true);
+        console.log("[AIScout] Lazy background refresh completed");
+      }
+    } catch (err: any) {
+      console.error("[AIScout] Lazy background refresh failed:", err.message);
+    } finally {
+      _lazyRefreshScheduled = false;
+    }
+  }, 100);
+}
+
 const OUT_STATUSES = new Set(["out", "injured reserve", "suspension", "not with team", "ir"]);
 const LIMITED_STATUSES = new Set(["doubtful", "questionable", "day-to-day", "probable"]);
 
