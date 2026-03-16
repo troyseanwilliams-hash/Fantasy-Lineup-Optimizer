@@ -392,18 +392,15 @@ export default function ProOptimizer() {
   // Merge standard optimizer results and sim results into a single lineups array
   const rawGeneratedLineups = useMemo(() => {
     if (simMode && simMutation.data?.lineups) {
-      // Normalize sim lineup shape to match ProOptimizeResponse.lineups shape
-      return simMutation.data.lineups.map((lu: any) => ({
+      const metricKeyMap: Record<string, string> = {
+        p90: "p90Score", p75: "p75Score", median: "medianScore",
+        avg: "avgSimScore", composite: "compositeScore",
+      };
+      const sortKey = metricKeyMap[simSortMetric] || "compositeScore";
+      const mapped = simMutation.data.lineups.map((lu: any) => ({
         lineup:               lu.lineup,
         totalSalary:          lu.totalSalary,
-        totalProjectedPoints: (
-          simSortMetric === "p90" ? lu.p90Score :
-          simSortMetric === "p75" ? lu.p75Score :
-          simSortMetric === "median" ? lu.medianScore :
-          simSortMetric === "avg" ? lu.avgSimScore :
-          lu.compositeScore
-        ) ?? lu.medianScore ?? 0,
-        // Extra sim metadata passed through for display
+        totalProjectedPoints: (lu[sortKey] ?? lu.medianScore ?? 0) as number,
         simData: {
           avgSimScore:   lu.avgSimScore,
           medianScore:   lu.medianScore,
@@ -416,6 +413,8 @@ export default function ProOptimizer() {
           compositeScore:lu.compositeScore,
         },
       }));
+      mapped.sort((a: any, b: any) => b.totalProjectedPoints - a.totalProjectedPoints);
+      return mapped;
     }
     return optimizeMutation.data?.lineups || [];
   }, [simMode, simMutation.data, optimizeMutation.data, simSortMetric]);
