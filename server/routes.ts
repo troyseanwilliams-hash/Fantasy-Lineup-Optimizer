@@ -231,15 +231,7 @@ export async function registerRoutes(
     if (slate && isDK) {
       players = await applyLiveDKStatuses(players, slate.draftGroupId, slate.sport);
     }
-    players = players.filter(p => !isPlayerUnavailable(p.injuryStatus));
-    if (slate && isDK) {
-      await refreshRecentlyPlayed(slate.sport);
-      const { inactiveIds: inactiveIdList } = await getInactivePlayerIds(players, slate.sport);
-      const inactiveIds = new Set(inactiveIdList);
-      if (inactiveIds.size > 0) {
-        players = players.filter(p => !inactiveIds.has(p.id));
-      }
-    }
+    players = players.filter(p => !isPlayerOut(p.injuryStatus));
     const bdlStats = slate ? await fetchBDLStats(slate.sport) : {};
     const ownershipResults = slate ? await calculateOwnership(players, slate.sport, "gpp_large", bdlStats) : [];
     const playersWithOwnership = computeOwnershipForPlayers(players, ownershipResults);
