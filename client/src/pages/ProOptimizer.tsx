@@ -120,7 +120,7 @@ export default function ProOptimizer() {
   const [swappingTarget, setSwappingTarget] = useState<{ lineupIdx: number; slot: string } | null>(null);
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
   const [mobileView, setMobileView] = useState<"players" | "lineup">("players");
-  const [lineupSortBy, setLineupSortBy] = useState<"index" | "projected" | "salary" | "ceiling">("index");
+  const [lineupSortBy, setLineupSortBy] = useState<"index" | "projected" | "salary" | "ceiling" | "p90" | "median" | "freq">("index");
 
   const [platform, setPlatform] = useState<Platform>("draftkings");
 
@@ -435,6 +435,12 @@ export default function ProOptimizer() {
       indexed.sort((a, b) => (b.totalSalary || 0) - (a.totalSalary || 0));
     } else if (lineupSortBy === "ceiling") {
       indexed.sort((a, b) => ((b as any).simData?.p75Score || 0) - ((a as any).simData?.p75Score || 0));
+    } else if (lineupSortBy === "p90") {
+      indexed.sort((a, b) => ((b as any).simData?.p90Score || 0) - ((a as any).simData?.p90Score || 0));
+    } else if (lineupSortBy === "median") {
+      indexed.sort((a, b) => ((b as any).simData?.medianScore || 0) - ((a as any).simData?.medianScore || 0));
+    } else if (lineupSortBy === "freq") {
+      indexed.sort((a, b) => ((b as any).simData?.freqPct || 0) - ((a as any).simData?.freqPct || 0));
     }
     return indexed;
   }, [generatedLineups, lineupSortBy]);
@@ -2132,7 +2138,12 @@ export default function ProOptimizer() {
                       { key: "index", label: "Order" },
                       { key: "projected", label: "Projected" },
                       { key: "salary", label: "Salary" },
-                      ...(generatedLineups.some(l => (l as any).simData?.p75Score) ? [{ key: "ceiling", label: "Ceiling" }] : []),
+                      ...(generatedLineups.some(l => (l as any).simData?.p75Score) ? [
+                        { key: "ceiling", label: "P75" },
+                        { key: "p90", label: "P90" },
+                        { key: "median", label: "Median" },
+                        { key: "freq", label: "Freq%" },
+                      ] : []),
                     ].map(opt => (
                       <button
                         key={opt.key}
