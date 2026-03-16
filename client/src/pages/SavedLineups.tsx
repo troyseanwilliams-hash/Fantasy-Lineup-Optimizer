@@ -769,7 +769,7 @@
                               ) : (
                                 <Zap className="w-3.5 h-3.5 mr-1" />
                               )}
-                              {simRegenMutation.isPending ? "Regenerating..." : `Regen ${selectedIds.size}`}
+                              {simRegenMutation.isPending ? "ReSimming..." : `ReSim ${selectedIds.size}`}
                             </Button>
                           </div>
                         )}
