@@ -2848,7 +2848,7 @@ export async function registerRoutes(
       }
 
       const input = simOptimizeSchema.parse(req.body);
-      const maxLineupCount = isAdmin ? 150 : tier === "pro" ? 20 : 5;
+      const maxLineupCount = isAdmin ? 150 : tier === "pro" ? 150 : 20;
       input.lineupCount = Math.min(input.lineupCount, maxLineupCount);
       const maxSims = isAdmin ? 1000 : tier === "pro" ? 500 : 200;
       input.numSims = Math.min(input.numSims, maxSims);
