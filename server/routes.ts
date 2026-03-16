@@ -3078,15 +3078,16 @@ export async function registerRoutes(
 
       const playerAppearances: Record<number, number> = {};
       const selected: typeof uniqueLineups = [];
+      const targetCount = Math.min(input.lineupCount, uniqueLineups.length);
 
       for (const lu of uniqueLineups) {
-        if (selected.length >= input.lineupCount) break;
+        if (selected.length >= targetCount) break;
 
         let violatesExposure = false;
         if (input.globalMaxExposure !== undefined && selected.length > 0) {
           for (const p of lu.lineup) {
             const appearances = (playerAppearances[p.id] || 0) + 1;
-            const pct = (appearances / (selected.length + 1)) * 100;
+            const pct = (appearances / targetCount) * 100;
             if (pct > input.globalMaxExposure) { violatesExposure = true; break; }
           }
         }
@@ -3098,9 +3099,9 @@ export async function registerRoutes(
         }
       }
 
-      if (selected.length < input.lineupCount && input.globalMaxExposure === undefined) {
+      if (selected.length < targetCount) {
         for (const lu of uniqueLineups) {
-          if (selected.length >= input.lineupCount) break;
+          if (selected.length >= targetCount) break;
           if (!selected.find(s => s.key === lu.key)) selected.push(lu);
         }
       }
