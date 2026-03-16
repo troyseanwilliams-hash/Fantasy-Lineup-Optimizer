@@ -1370,7 +1370,7 @@ export async function registerRoutes(
         }
 
         const scoredCandidates = Array.from(lineupMap.entries()).map(([key, data]) => {
-          const allSimScores = sims.map(sim =>
+          const allSimScores = sims.slice(0, processedSims).map(sim =>
             data.lineup.reduce((sum, p) => sum + (sim.projections[p.id] || 0), 0)
           ).sort((a, b) => a - b);
 
