@@ -1036,9 +1036,10 @@ export async function registerRoutes(
             })
           : perturbedPool;
 
+        const bulkContestType = req.body.contestType === "gpp" ? "gpp" : "cash";
         const solveResult = solveLineup(
           salaryFilteredPool,
-          { slateId: lineup.slateId, platform, lockedPlayerIds: [], excludedPlayerIds: iterationExcluded, maxSalary: undefined, minSalary: undefined, playerProjections: {} },
+          { slateId: lineup.slateId, platform, lockedPlayerIds: [], excludedPlayerIds: iterationExcluded, maxSalary: undefined, minSalary: undefined, playerProjections: {}, contestType: bulkContestType } as any,
           slate.sport,
           platform
         );
@@ -1204,7 +1205,8 @@ export async function registerRoutes(
   app.post("/api/lineups/sim-regenerate", async (req, res) => {
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const userId = getSessionUserId(req)!;
-    const { ids, sortBy, useBoosts, ceilingMode, leverageMode, globalMaxExposure, projFloor, minSalary, maxSalary } = req.body;
+    const { ids, sortBy, useBoosts, ceilingMode, leverageMode, contestType: rawContestType, globalMaxExposure, projFloor, minSalary, maxSalary } = req.body;
+    const simContestType = rawContestType === "gpp" ? "gpp" : "cash";
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "No lineup IDs provided" });
 
     const validSortKeys = ["p90", "p75", "composite", "median", "avg"];
@@ -1223,7 +1225,7 @@ export async function registerRoutes(
     const startTime = Date.now();
     const MAX_RUNTIME_MS = isAdmin ? 90000 : 45000;
 
-    console.log(`[SimRegen] Starting: ${ids.length} lineups, ${numSims} sims (tier=${tier}), sortBy=${sortKey}, boosts=${useBoosts}, ceiling=${ceilingMode}, leverage=${leverageMode}, exposure=${globalMaxExposure}, projFloor=${projFloor}, minSal=${minSalary}, maxSal=${maxSalary}`);
+    console.log(`[SimRegen] Starting: ${ids.length} lineups, ${numSims} sims (tier=${tier}), sortBy=${sortKey}, contest=${simContestType}, boosts=${useBoosts}, ceiling=${ceilingMode}, leverage=${leverageMode}, exposure=${globalMaxExposure}, projFloor=${projFloor}, minSal=${minSalary}, maxSal=${maxSalary}`);
 
     try {
       const slateGroups = new Map<number, number[]>();
@@ -1368,7 +1370,7 @@ export async function registerRoutes(
 
           const result = solveLineup(
             simPool,
-            { slateId, lockedPlayerIds: [], excludedPlayerIds: baseExcluded, lineupCount: 1, maxSalary: config.salaryCap } as OptimizationConstraints,
+            { slateId, lockedPlayerIds: [], excludedPlayerIds: baseExcluded, lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
             slate.sport,
             platform
           );

@@ -133,6 +133,7 @@
     const [regenUseBoosts, setRegenUseBoosts] = useState(true);
     const [regenCeilingMode, setRegenCeilingMode] = useState(false);
     const [regenLeverageMode, setRegenLeverageMode] = useState(false);
+    const [regenContestType, setRegenContestType] = useState<"cash" | "gpp">("gpp");
     const [showRegenSettings, setShowRegenSettings] = useState(false);
     const [regenMaxExposure, setRegenMaxExposure] = useState<number | null>(null);
     const [regenProjFloor, setRegenProjFloor] = useState<number | null>(null);
@@ -276,7 +277,7 @@
     });
 
     const simRegenMutation = useMutation({
-      mutationFn: async (params: { ids: number[]; numSims?: number; sortBy: string; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; globalMaxExposure?: number; projFloor?: number; minSalary?: number; maxSalary?: number }) => {
+      mutationFn: async (params: { ids: number[]; numSims?: number; sortBy: string; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; contestType?: string; globalMaxExposure?: number; projFloor?: number; minSalary?: number; maxSalary?: number }) => {
         const res = await apiRequest("POST", "/api/lineups/sim-regenerate", params);
         return res.json();
       },
@@ -709,7 +710,7 @@
                         </Button>
                         {isPaid && (
                           <Button
-                            onClick={() => bulkGenerateMutation.mutate({ ids: Array.from(selectedIds), useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, globalMaxExposure: regenMaxExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined })}
+                            onClick={() => bulkGenerateMutation.mutate({ ids: Array.from(selectedIds), useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, contestType: regenContestType, globalMaxExposure: regenMaxExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined })}
                             disabled={bulkGenerateMutation.isPending}
                             className="bg-blue-600 hover:bg-blue-700 text-white"
                             data-testid="bulk-generate-btn"
@@ -745,7 +746,7 @@
                               {simScoreMutation.isPending ? "Scoring..." : "Score"}
                             </Button>
                             <Button
-                              onClick={() => simRegenMutation.mutate({ ids: Array.from(selectedIds), sortBy: simMetric, useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, globalMaxExposure: regenMaxExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined })}
+                              onClick={() => simRegenMutation.mutate({ ids: Array.from(selectedIds), sortBy: simMetric, useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, contestType: regenContestType, globalMaxExposure: regenMaxExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined })}
                               disabled={simRegenMutation.isPending || simScoreMutation.isPending}
                               className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-md rounded-l-none text-xs"
                               data-testid="sim-regen-btn"
@@ -811,6 +812,22 @@
               <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl px-4 py-3" data-testid="regen-settings-panel">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Optimization Settings</p>
                 <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex items-center gap-1 bg-slate-900/60 rounded-lg p-0.5" data-testid="regen-contest-type">
+                    <button
+                      onClick={() => setRegenContestType("cash")}
+                      className={`px-3 py-1 text-xs font-black rounded-md transition-all ${regenContestType === "cash" ? "bg-emerald-600 text-white" : "text-slate-400 hover:text-white"}`}
+                      data-testid="regen-contest-cash"
+                    >
+                      Cash
+                    </button>
+                    <button
+                      onClick={() => setRegenContestType("gpp")}
+                      className={`px-3 py-1 text-xs font-black rounded-md transition-all ${regenContestType === "gpp" ? "bg-orange-600 text-white" : "text-slate-400 hover:text-white"}`}
+                      data-testid="regen-contest-gpp"
+                    >
+                      GPP
+                    </button>
+                  </div>
                   <div className="flex items-center gap-2">
                     <Switch checked={regenUseBoosts} onCheckedChange={setRegenUseBoosts} data-testid="regen-toggle-boosts" className="scale-90" />
                     <span className="text-xs font-bold text-slate-300">Boosts</span>
