@@ -2,7 +2,7 @@ import type { Express, Request } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, subscriptions, slates } from "@shared/schema";
+import { users, subscriptions, slates, lineups as lineupsTable } from "@shared/schema";
 import { eq, and, lt } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -28,7 +28,7 @@ import { fetchBDLStats, type PlayerStatsMap, normalizeName } from "./balldontlie
 import { refreshRecentlyPlayed, getRecentlyPlayedCache, normalizePlayerName } from "./espn-activity";
 import { calculateOwnership, computeOwnershipForPlayers, type ContestType } from "./ownership-engine";
 import { getCachedSignals, getScoutStatus, refreshAll, forceRefreshAll, secondsUntilRefresh, triggerLazyRefreshIfStale } from "./ai-scout";
-import { runSimulations, detectStack } from "./simulation-engine";
+import { runSimulations, detectStack, scoreLineupsAcrossSims } from "./simulation-engine";
 import { buildVegasContext } from "./vegas-client";
 import { buildDvPContext, applyDvPToProjections, buildOpponentMap } from "./dvp-client";
 import { fetchStartingLineups, getStartingLineupsData, clearLineupsCache } from "./lineups-ingest";
@@ -1094,6 +1094,111 @@ export async function registerRoutes(
 
     const updatedCount = results.filter(r => r.status === "updated").length;
     res.json({ results, updated: updatedCount, total: ids.length });
+  });
+
+  app.post("/api/lineups/sim-score", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    const { ids, numSims: rawNumSims } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "No lineup IDs provided" });
+
+    const sub = await storage.getSubscription(userId);
+    const dbUser = await storage.getUser(userId);
+    const isAdmin = dbUser?.isAdmin === true;
+    const tier = isAdmin ? "pro" : (sub?.tier || "free");
+    if (tier !== "pro" && tier !== "star") {
+      return res.status(403).json({ message: "Sharpshooter or Champion subscription required for simulation scoring.", requiresUpgrade: true });
+    }
+
+    const maxSims = isAdmin ? 1000 : tier === "pro" ? 500 : 200;
+    const numSims = Math.min(Math.max(Number(rawNumSims) || 200, 50), maxSims);
+    const startTime = Date.now();
+
+    try {
+      const slateSimCache = new Map<number, ReturnType<typeof runSimulations>>();
+      const slatePoolCache = new Map<number, Player[]>();
+      const results: { id: number; status: string; simData?: any; error?: string }[] = [];
+
+      for (const id of ids) {
+        const lineup = await storage.getLineup(Number(id));
+        if (!lineup || lineup.userId !== userId) {
+          results.push({ id, status: "skipped", error: "Not found or not yours" });
+          continue;
+        }
+
+        let sims = slateSimCache.get(lineup.slateId);
+        let pool = slatePoolCache.get(lineup.slateId);
+        if (!sims || !pool) {
+          const slate = await storage.getSlate(lineup.slateId);
+          if (!slate) { results.push({ id, status: "skipped", error: "Slate not found" }); continue; }
+
+          let allPlayers = await storage.getPlayersBySlate(lineup.slateId);
+          if (allPlayers.length === 0) { results.push({ id, status: "skipped", error: "No players in slate" }); continue; }
+
+          if (slate.platform === "draftkings") {
+            allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
+          }
+
+          const scoutMap = buildScoutMap(slate.sport);
+          pool = allPlayers.map(p => {
+            let pts = Number(p.projectedPoints);
+            if (p.isConfirmedStarter) pts = Math.round(pts * 1.05 * 10) / 10;
+            pts = applyScoutToProjection(pts, p.name, scoutMap, false);
+            if (isPlayerOut(p.injuryStatus)) pts = 0;
+            else if (p.injuryStatus === "Questionable" || p.injuryStatus === "GTD") pts *= 0.75;
+            else if (p.injuryStatus === "Probable" || p.injuryStatus === "DTD") pts *= 0.9;
+            return { ...p, projectedPoints: pts.toString() };
+          });
+
+          const projOverrides: Record<number, number> = {};
+          for (const p of pool) projOverrides[p.id] = Number(p.projectedPoints) ?? 0;
+
+          const opponentMap = buildOpponentMap(pool);
+          const [vegasContext, dvpContext] = await Promise.all([
+            Promise.race([buildVegasContext(pool, slate.sport), new Promise<null>(r => setTimeout(() => r(null), 3000))]),
+            Promise.race([buildDvPContext(opponentMap, slate.sport), new Promise<null>(r => setTimeout(() => r(null), 3000))]),
+          ]);
+
+          const dvpAdjusted = dvpContext
+            ? applyDvPToProjections(pool, projOverrides, opponentMap, dvpContext, slate.sport)
+            : projOverrides;
+
+          sims = runSimulations(pool, slate.sport, numSims, dvpAdjusted, vegasContext ?? undefined);
+          slateSimCache.set(lineup.slateId, sims);
+          slatePoolCache.set(lineup.slateId, pool);
+          console.log(`[SimScore] Ran ${sims.length} sims for ${slate.sport} slate ${lineup.slateId}, pool: ${pool.length} players`);
+        }
+
+        const allSimScores = sims.map(sim =>
+          lineup.playerIds.reduce((sum: number, pid: number) => sum + (sim.projections[pid] || 0), 0)
+        ).sort((a, b) => a - b);
+
+        const n = allSimScores.length;
+        const avg = allSimScores.reduce((a, b) => a + b, 0) / n;
+        const med = allSimScores[Math.floor(n * 0.50)] ?? avg;
+        const p75 = allSimScores[Math.floor(n * 0.75)] ?? avg;
+        const p90 = allSimScores[Math.floor(n * 0.90)] ?? avg;
+        const composite = avg * 0.39 + p75 * 0.39 + p90 * 0.22;
+
+        const simData = {
+          avgSimScore: Math.round(avg * 10) / 10,
+          medianScore: Math.round(med * 10) / 10,
+          p75Score: Math.round(p75 * 10) / 10,
+          p90Score: Math.round(p90 * 10) / 10,
+          compositeScore: Math.round(composite * 10) / 10,
+        };
+
+        await db.update(lineupsTable).set({ simData }).where(eq(lineupsTable.id, Number(id)));
+        results.push({ id, status: "scored", simData });
+      }
+
+      const scoredCount = results.filter(r => r.status === "scored").length;
+      console.log(`[SimScore] Completed: ${scoredCount}/${ids.length} lineups scored, ${numSims} sims, ${Date.now() - startTime}ms`);
+      res.json({ results, scored: scoredCount, total: ids.length, simsRun: numSims });
+    } catch (err: any) {
+      console.error("[SimScore] Error:", err);
+      res.status(500).json({ message: err.message || "Simulation scoring failed" });
+    }
   });
 
   app.post("/api/lineups/import-dk", async (req, res) => {

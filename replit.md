@@ -33,6 +33,7 @@ Preferred communication style: Simple, everyday language.
 - **Player Swap**: One-click player swaps within generated lineups and PrizePicks entries.
 - **DK Entries Import**: CSV import for DraftKings entries (Champion tier).
 - **Bulk Regenerate**: Regenerates multiple selected lineups using advanced optimization.
+- **Saved Lineup Sim Scoring**: Run Monte Carlo simulations on saved lineups to calculate P75/P90/median/composite scores. Sim data is cleared automatically when lineups are modified.
 - **Monte Carlo Simulation Engine**: Game-script simulation for GPP lineup optimization, featuring a three-level variance model and sport-specific correlations (NFL QB cascade, MLB/NHL correlations). Includes Vegas context for variance scaling and DvP adjustments.
 - **Vegas Client**: Fetches game totals and implied team totals from The Odds API with ESPN scoreboard fallback.
 - **DvP Client**: Defense vs Position engine using ESPN public team stats API for projection multipliers.

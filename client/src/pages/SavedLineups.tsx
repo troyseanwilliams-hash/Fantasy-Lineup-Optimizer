@@ -1,6 +1,6 @@
   import { useState, useMemo, useRef } from "react";
   import { useQuery, useMutation } from "@tanstack/react-query";
-  import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye, AlertTriangle, Upload, Settings, RefreshCw, FileUp, Star } from "lucide-react";
+  import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye, AlertTriangle, Upload, Settings, RefreshCw, FileUp, Star, Activity, Loader2, Flame, Percent } from "lucide-react";
   import { gradeLineup, GRADE_COLORS, type LineupGrade } from "@/lib/lineup-grader";
   import { Switch } from "@/components/ui/switch";
   import { Slider } from "@/components/ui/slider";
@@ -252,6 +252,25 @@
       },
       onError: (err: any) => {
         toast({ title: "Generation Failed", description: err.message || "Could not generate lineups.", variant: "destructive" });
+      }
+    });
+
+    const simScoreMutation = useMutation({
+      mutationFn: async ({ ids, numSims }: { ids: number[]; numSims: number }) => {
+        const res = await apiRequest("POST", "/api/lineups/sim-score", { ids, numSims });
+        return res.json();
+      },
+      onSuccess: (data) => {
+        const scored = data.scored || 0;
+        const skipped = (data.results || []).filter((r: any) => r.status !== "scored").length;
+        let desc = `${scored} lineup${scored !== 1 ? "s" : ""} scored with ${data.simsRun} simulations.`;
+        if (skipped > 0) desc += ` ${skipped} skipped.`;
+        toast({ title: "Sim Scoring Complete", description: desc });
+        setSelectedIds(new Set());
+        queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
+      },
+      onError: (err: any) => {
+        toast({ title: "Sim Scoring Failed", description: err.message || "Could not score lineups.", variant: "destructive" });
       }
     });
 
@@ -690,6 +709,21 @@
                               <Settings className="w-4 h-4" />
                             </Button>
                           </div>
+                        )}
+                        {isPaid && (
+                          <Button
+                            onClick={() => simScoreMutation.mutate({ ids: Array.from(selectedIds), numSims: 200 })}
+                            disabled={simScoreMutation.isPending}
+                            className="bg-violet-600 hover:bg-violet-700 text-white"
+                            data-testid="sim-score-btn"
+                          >
+                            {simScoreMutation.isPending ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              <Activity className="w-4 h-4 mr-2" />
+                            )}
+                            {simScoreMutation.isPending ? "Simulating..." : `Sim Score ${selectedIds.size}`}
+                          </Button>
                         )}
                         {isPaid && (
                           <Button

@@ -280,7 +280,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateLineup(id: number, data: { playerIds: number[]; totalSalary: number; totalProjectedPoints: string; playerSnapshot?: any }): Promise<Lineup> {
-    const setData: any = { playerIds: data.playerIds, totalSalary: data.totalSalary, totalProjectedPoints: data.totalProjectedPoints };
+    const setData: any = { playerIds: data.playerIds, totalSalary: data.totalSalary, totalProjectedPoints: data.totalProjectedPoints, simData: null };
     if (data.playerSnapshot) setData.playerSnapshot = data.playerSnapshot;
     const [updated] = await db.update(lineups)
       .set(setData)
