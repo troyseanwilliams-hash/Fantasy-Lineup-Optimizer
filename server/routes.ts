@@ -3009,10 +3009,14 @@ export async function registerRoutes(
           maxSalary: config.salaryCap,
         } as OptimizationConstraints;
 
-        const simPool = pool.map(p => ({
-          ...p,
-          projectedPoints: (sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0).toString(),
-        }));
+        const simPool = pool.map(p => {
+          const simProj = sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0;
+          const noise = simProj * (Math.random() * 0.06 - 0.03);
+          return {
+            ...p,
+            projectedPoints: Math.max(0, simProj + noise).toString(),
+          };
+        });
 
         const result = solveLineup(simPool, simConstraints, sport, platform);
         if (result.error || result.lineup.length === 0) continue;
