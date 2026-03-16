@@ -1204,7 +1204,7 @@ export async function registerRoutes(
   app.post("/api/lineups/sim-regenerate", async (req, res) => {
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const userId = getSessionUserId(req)!;
-    const { ids, numSims: rawNumSims, sortBy } = req.body;
+    const { ids, numSims: rawNumSims, sortBy, useBoosts, ceilingMode, leverageMode, globalMaxExposure, projFloor, minSalary, maxSalary } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "No lineup IDs provided" });
 
     const validSortKeys = ["p90", "p75", "composite", "median", "avg"];
@@ -1259,10 +1259,17 @@ export async function registerRoutes(
           allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
         }
 
+        const applyBoosts = useBoosts !== false;
+        const useCeilingMode = ceilingMode === true;
+        const useLeverageMode = leverageMode === true;
         const scoutMap = buildScoutMap(slate.sport);
         let pool = allPlayers.map(p => {
           let pts = Number(p.projectedPoints);
           if (p.isConfirmedStarter) pts = Math.round(pts * 1.05 * 10) / 10;
+          if (applyBoosts && p.boostScore) {
+            const boostPct = Math.max(-0.15, Math.min(0.15, Number(p.boostScore) * 0.015));
+            pts = Math.round(pts * (1 + boostPct) * 10) / 10;
+          }
           pts = applyScoutToProjection(pts, p.name, scoutMap, false);
           if (isPlayerOut(p.injuryStatus)) pts = 0;
           else if (p.injuryStatus === "Questionable" || p.injuryStatus === "GTD") pts *= 0.75;
@@ -1278,6 +1285,17 @@ export async function registerRoutes(
           pool = applyHistoricalAdjustments(pool, regenProfile);
         }
 
+        if (useCeilingMode) {
+          pool = applyCeilingMode(pool, slate.sport);
+        }
+
+        if (useLeverageMode) {
+          const bdlStats = await fetchBDLStats(slate.sport);
+          const ownershipResults = await calculateOwnership(pool, slate.sport, "gpp_large", bdlStats);
+          const playersWithOwnership = computeOwnershipForPlayers(pool, ownershipResults);
+          pool = applyLeverageMode(playersWithOwnership);
+        }
+
         const baseExcluded = allPlayers.filter(p => isPlayerOut(p.injuryStatus)).map(p => p.id);
         const isDK = slate.platform === "draftkings";
         const { inactiveIds } = isDK ? await getInactivePlayerIds(allPlayers, slate.sport) : { inactiveIds: [] };
@@ -1289,6 +1307,19 @@ export async function registerRoutes(
         if (eligiblePool.length > MAX_POOL_SIZE) {
           const sorted = [...eligiblePool].sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
           pool = [...sorted.slice(0, MAX_POOL_SIZE), ...pool.filter(p => excludedSet.has(p.id))];
+        }
+
+        const simProjFloor = typeof projFloor === "number" && projFloor > 0 ? projFloor : null;
+        const simMinSalary = typeof minSalary === "number" ? minSalary : undefined;
+        const simMaxSalary = typeof maxSalary === "number" ? maxSalary : undefined;
+
+        if (simMinSalary || simMaxSalary) {
+          pool = pool.filter(p => {
+            if (excludedSet.has(p.id)) return true;
+            if (simMinSalary && p.salary < simMinSalary) return false;
+            if (simMaxSalary && p.salary > simMaxSalary) return false;
+            return true;
+          });
         }
 
         const projOverrides: Record<number, number> = {};
@@ -1369,6 +1400,22 @@ export async function registerRoutes(
             totalSalary: data.lineup.reduce((s, p) => s + p.salary, 0),
           };
         });
+
+        if (simProjFloor) {
+          const origMapForFloor = new Map(allPlayers.map(op => [op.id, op]));
+          const beforeCount = scoredCandidates.length;
+          const filtered = scoredCandidates.filter(c => {
+            const totalOrigPts = c.lineup.reduce((sum, p) => sum + Number(origMapForFloor.get(p.id)?.projectedPoints ?? p.projectedPoints ?? 0), 0);
+            return totalOrigPts >= simProjFloor;
+          });
+          if (filtered.length > 0) {
+            scoredCandidates.length = 0;
+            scoredCandidates.push(...filtered);
+          }
+          if (beforeCount !== scoredCandidates.length) {
+            console.log(`[SimRegen] ProjFloor ${simProjFloor}: filtered ${beforeCount} -> ${scoredCandidates.length} candidates`);
+          }
+        }
 
         const sortFn: Record<string, (a: typeof scoredCandidates[0], b: typeof scoredCandidates[0]) => number> = {
           p90: (a, b) => b.p90Score - a.p90Score,

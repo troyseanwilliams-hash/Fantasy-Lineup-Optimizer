@@ -276,8 +276,8 @@
     });
 
     const simRegenMutation = useMutation({
-      mutationFn: async ({ ids, numSims, sortBy }: { ids: number[]; numSims: number; sortBy: string }) => {
-        const res = await apiRequest("POST", "/api/lineups/sim-regenerate", { ids, numSims, sortBy });
+      mutationFn: async (params: { ids: number[]; numSims: number; sortBy: string; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; globalMaxExposure?: number; projFloor?: number; minSalary?: number; maxSalary?: number }) => {
+        const res = await apiRequest("POST", "/api/lineups/sim-regenerate", params);
         return res.json();
       },
       onSuccess: (data) => {
@@ -708,25 +708,14 @@
                           <Trash2 className="w-4 h-4 mr-2" /> Delete {selectedIds.size}
                         </Button>
                         {isPaid && (
-                          <div className="flex items-center gap-1">
-                            <Button
-                              onClick={() => bulkGenerateMutation.mutate({ ids: Array.from(selectedIds), useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, globalMaxExposure: regenMaxExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined })}
-                              disabled={bulkGenerateMutation.isPending}
-                              className="bg-blue-600 hover:bg-blue-700 text-white"
-                              data-testid="bulk-generate-btn"
-                            >
-                              <Zap className="w-4 h-4 mr-2" /> {bulkGenerateMutation.isPending ? "Regenerating..." : `Regenerate ${selectedIds.size}`}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setShowRegenSettings(!showRegenSettings)}
-                              className={`h-9 w-9 ${showRegenSettings ? "text-amber-400" : "text-slate-400 hover:text-white"}`}
-                              data-testid="regen-settings-btn"
-                            >
-                              <Settings className="w-4 h-4" />
-                            </Button>
-                          </div>
+                          <Button
+                            onClick={() => bulkGenerateMutation.mutate({ ids: Array.from(selectedIds), useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, globalMaxExposure: regenMaxExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined })}
+                            disabled={bulkGenerateMutation.isPending}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            data-testid="bulk-generate-btn"
+                          >
+                            <Zap className="w-4 h-4 mr-2" /> {bulkGenerateMutation.isPending ? "Regenerating..." : `Regenerate ${selectedIds.size}`}
+                          </Button>
                         )}
                         {isPaid && (
                           <div className="flex items-center gap-1" data-testid="sim-actions-group">
@@ -756,7 +745,7 @@
                               {simScoreMutation.isPending ? "Scoring..." : "Score"}
                             </Button>
                             <Button
-                              onClick={() => simRegenMutation.mutate({ ids: Array.from(selectedIds), numSims: 200, sortBy: simMetric })}
+                              onClick={() => simRegenMutation.mutate({ ids: Array.from(selectedIds), numSims: 200, sortBy: simMetric, useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, globalMaxExposure: regenMaxExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined })}
                               disabled={simRegenMutation.isPending || simScoreMutation.isPending}
                               className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-md rounded-l-none text-xs"
                               data-testid="sim-regen-btn"
@@ -769,6 +758,17 @@
                               {simRegenMutation.isPending ? "ReSimming..." : `ReSim ${selectedIds.size}`}
                             </Button>
                           </div>
+                        )}
+                        {isPaid && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setShowRegenSettings(!showRegenSettings)}
+                            className={`h-9 w-9 ${showRegenSettings ? "text-amber-400" : "text-slate-400 hover:text-white"}`}
+                            data-testid="regen-settings-btn"
+                          >
+                            <Settings className="w-4 h-4" />
+                          </Button>
                         )}
                         {isPaid && (
                           <Button
@@ -809,7 +809,7 @@
 
             {showRegenSettings && selectedIds.size > 0 && isPaid && (
               <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl px-4 py-3" data-testid="regen-settings-panel">
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Regenerate Settings</p>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Optimization Settings</p>
                 <div className="flex flex-wrap items-center gap-4">
                   <div className="flex items-center gap-2">
                     <Switch checked={regenUseBoosts} onCheckedChange={setRegenUseBoosts} data-testid="regen-toggle-boosts" className="scale-90" />
