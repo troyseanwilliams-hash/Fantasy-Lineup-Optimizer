@@ -3355,6 +3355,14 @@ export async function registerRoutes(
 
       pool = pool.filter(p => !input.excludedPlayerIds.includes(p.id));
       pool = pool.filter(p => !isPlayerOut(p.injuryStatus));
+
+      const isDKSim = slate.platform === "draftkings";
+      if (isDKSim) {
+        const { inactiveIds: simInactiveIds } = await getInactivePlayerIds(allPlayers, sport);
+        const lockedSet = new Set(input.lockedPlayerIds);
+        pool = pool.filter(p => lockedSet.has(p.id) || !simInactiveIds.includes(p.id));
+      }
+
       if (input.playerMinSalary) pool = pool.filter(p => p.salary >= input.playerMinSalary!);
       if (input.playerMaxSalary) pool = pool.filter(p => p.salary <= input.playerMaxSalary!);
 
