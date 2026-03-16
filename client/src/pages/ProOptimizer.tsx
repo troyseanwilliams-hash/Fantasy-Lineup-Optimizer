@@ -1093,10 +1093,13 @@ export default function ProOptimizer() {
 
           {/* ── Sim Mode Toggle ────────────────────────────────────────────── */}
           <div className={`rounded-xl border transition-all overflow-hidden ${simMode ? "border-violet-500/30 bg-violet-500/5" : "border-slate-700/50 bg-slate-800/30"}`} data-testid="sim-mode-panel">
-            <button
+            <div
               onClick={() => setSimMode(v => !v)}
-              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-slate-800/40 transition-colors"
+              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-slate-800/40 transition-colors cursor-pointer"
               data-testid="btn-sim-mode-toggle"
+              role="button"
+              tabIndex={0}
+              onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSimMode(v => !v); } }}
             >
               <div className="flex items-center gap-2">
                 <Activity className={`w-3.5 h-3.5 ${simMode ? "text-violet-400" : "text-slate-500"}`} />
@@ -1116,7 +1119,7 @@ export default function ProOptimizer() {
                 onClick={e => e.stopPropagation()}
                 data-testid="switch-sim-mode"
               />
-            </button>
+            </div>
 
             {simMode && (
               <div className="px-3 pb-2 pt-1 space-y-2 border-t border-violet-500/10">
@@ -2138,7 +2141,7 @@ export default function ProOptimizer() {
                       { key: "index", label: "Order" },
                       { key: "projected", label: "Projected" },
                       { key: "salary", label: "Salary" },
-                      ...(generatedLineups.some(l => (l as any).simData?.p75Score) ? [
+                      ...(simMode || generatedLineups.some(l => (l as any).simData?.p75Score) ? [
                         { key: "ceiling", label: "P75" },
                         { key: "p90", label: "P90" },
                         { key: "median", label: "Median" },
