@@ -34,6 +34,7 @@ Preferred communication style: Simple, everyday language.
 - **DK Entries Import**: CSV import for DraftKings entries (Champion tier).
 - **Bulk Regenerate**: Regenerates multiple selected lineups using advanced optimization.
 - **Saved Lineup Sim Scoring**: Run Monte Carlo simulations on saved lineups to calculate P75/P90/median/composite scores. Sim data is cleared automatically when lineups are modified.
+- **Sim Regenerate**: Regenerate saved lineups using full Monte Carlo sim optimization, selecting the best candidates sorted by a user-chosen metric (P90, P75, Composite, Median, or Average).
 - **Monte Carlo Simulation Engine**: Game-script simulation for GPP lineup optimization, featuring a three-level variance model and sport-specific correlations (NFL QB cascade, MLB/NHL correlations). Includes Vegas context for variance scaling and DvP adjustments.
 - **Vegas Client**: Fetches game totals and implied team totals from The Odds API with ESPN scoreboard fallback.
 - **DvP Client**: Defense vs Position engine using ESPN public team stats API for projection multipliers.

@@ -1201,6 +1201,231 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/lineups/sim-regenerate", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    const { ids, numSims: rawNumSims, sortBy } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "No lineup IDs provided" });
+
+    const validSortKeys = ["p90", "p75", "composite", "median", "avg"];
+    const sortKey = validSortKeys.includes(sortBy) ? sortBy : "composite";
+
+    const sub = await storage.getSubscription(userId);
+    const dbUser = await storage.getUser(userId);
+    const isAdmin = dbUser?.isAdmin === true;
+    const tier = isAdmin ? "pro" : (sub?.tier || "free");
+    if (tier !== "pro" && tier !== "star") {
+      return res.status(403).json({ message: "Sharpshooter or Champion subscription required.", requiresUpgrade: true });
+    }
+
+    const maxSims = isAdmin ? 1000 : tier === "pro" ? 500 : 200;
+    const numSims = Math.min(Math.max(Number(rawNumSims) || 200, 50), maxSims);
+    const startTime = Date.now();
+    const MAX_RUNTIME_MS = 45000;
+
+    try {
+      const slateGroups = new Map<number, number[]>();
+      const lineupOwnership = new Map<number, any>();
+
+      const results: { id: number; status: string; error?: string }[] = [];
+
+      for (const id of ids) {
+        const lineup = await storage.getLineup(Number(id));
+        if (!lineup || lineup.userId !== userId) {
+          results.push({ id: Number(id), status: "skipped", error: "Not found or not yours" });
+          continue;
+        }
+        lineupOwnership.set(Number(id), lineup);
+        const group = slateGroups.get(lineup.slateId) || [];
+        group.push(Number(id));
+        slateGroups.set(lineup.slateId, group);
+      }
+
+      for (const [slateId, lineupIds] of slateGroups) {
+        const slate = await storage.getSlate(slateId);
+        if (!slate) {
+          lineupIds.forEach(id => results.push({ id, status: "skipped", error: "Slate not found" }));
+          continue;
+        }
+
+        const platform = (lineupOwnership.get(lineupIds[0])?.platform || "draftkings") as Platform;
+        let allPlayers = await storage.getPlayersBySlate(slateId);
+        if (allPlayers.length === 0) {
+          lineupIds.forEach(id => results.push({ id, status: "skipped", error: "No players in slate" }));
+          continue;
+        }
+
+        if (slate.platform === "draftkings") {
+          allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
+        }
+
+        const scoutMap = buildScoutMap(slate.sport);
+        let pool = allPlayers.map(p => {
+          let pts = Number(p.projectedPoints);
+          if (p.isConfirmedStarter) pts = Math.round(pts * 1.05 * 10) / 10;
+          pts = applyScoutToProjection(pts, p.name, scoutMap, false);
+          if (isPlayerOut(p.injuryStatus)) pts = 0;
+          else if (p.injuryStatus === "Questionable" || p.injuryStatus === "GTD") pts *= 0.75;
+          else if (p.injuryStatus === "Probable" || p.injuryStatus === "DTD") pts *= 0.9;
+          return { ...p, projectedPoints: pts.toString() };
+        });
+
+        pool = await applyActualAdjustedProjections(pool, slate.sport);
+        pool = await applyWinningLineupAdjustment(pool, slate.sport);
+
+        const regenProfile = await getHistoricalProfile(slate.sport);
+        if (regenProfile.ready) {
+          pool = applyHistoricalAdjustments(pool, regenProfile);
+        }
+
+        const baseExcluded = allPlayers.filter(p => isPlayerOut(p.injuryStatus)).map(p => p.id);
+        const isDK = slate.platform === "draftkings";
+        const { inactiveIds } = isDK ? await getInactivePlayerIds(allPlayers, slate.sport) : { inactiveIds: [] };
+        baseExcluded.push(...inactiveIds.filter(id => !baseExcluded.includes(id)));
+
+        const MAX_POOL_SIZE = 150;
+        const excludedSet = new Set(baseExcluded);
+        const eligiblePool = pool.filter(p => !excludedSet.has(p.id));
+        if (eligiblePool.length > MAX_POOL_SIZE) {
+          const sorted = [...eligiblePool].sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
+          pool = [...sorted.slice(0, MAX_POOL_SIZE), ...pool.filter(p => excludedSet.has(p.id))];
+        }
+
+        const projOverrides: Record<number, number> = {};
+        for (const p of pool) projOverrides[p.id] = Number(p.projectedPoints) ?? 0;
+
+        const opponentMap = buildOpponentMap(pool);
+        const [vegasContext, dvpContext] = await Promise.all([
+          Promise.race([buildVegasContext(pool, slate.sport), new Promise<null>(r => setTimeout(() => r(null), 3000))]),
+          Promise.race([buildDvPContext(opponentMap, slate.sport), new Promise<null>(r => setTimeout(() => r(null), 3000))]),
+        ]);
+
+        const dvpAdjusted = dvpContext
+          ? applyDvPToProjections(pool, projOverrides, opponentMap, dvpContext, slate.sport)
+          : projOverrides;
+
+        const sims = runSimulations(pool, slate.sport, numSims, dvpAdjusted, vegasContext ?? undefined);
+        console.log(`[SimRegen] Ran ${sims.length} sims for ${slate.sport} slate ${slateId}, pool: ${pool.length} players`);
+
+        const config = getPlatformConfig(slate.sport, platform);
+        const lineupMap = new Map<string, { lineup: Player[]; frequency: number; simScores: number[] }>();
+        let processedSims = 0;
+
+        for (let i = 0; i < sims.length; i++) {
+          if (Date.now() - startTime > MAX_RUNTIME_MS) {
+            console.log(`[SimRegen] Time cap reached after ${i} sims`);
+            break;
+          }
+          processedSims++;
+
+          const sim = sims[i];
+          const simPool = pool.map(p => {
+            const simProj = sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0;
+            const noise = simProj * (Math.random() * 0.06 - 0.03);
+            return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
+          });
+
+          const result = solveLineup(
+            simPool,
+            { slateId, lockedPlayerIds: [], excludedPlayerIds: baseExcluded, lineupCount: 1, maxSalary: config.salaryCap } as OptimizationConstraints,
+            slate.sport,
+            platform
+          );
+          if (result.error || result.lineup.length === 0) continue;
+
+          const key = result.lineup.map((p: Player) => p.id).sort().join(",");
+          const existing = lineupMap.get(key);
+          if (existing) {
+            existing.frequency++;
+            existing.simScores.push(result.totalProjectedPoints);
+          } else {
+            lineupMap.set(key, { lineup: result.lineup as Player[], frequency: 1, simScores: [result.totalProjectedPoints] });
+          }
+        }
+
+        if (lineupMap.size === 0) {
+          lineupIds.forEach(id => results.push({ id, status: "skipped", error: "No feasible lineups from sims" }));
+          continue;
+        }
+
+        const scoredCandidates = Array.from(lineupMap.entries()).map(([key, data]) => {
+          const allSimScores = sims.map(sim =>
+            data.lineup.reduce((sum, p) => sum + (sim.projections[p.id] || 0), 0)
+          ).sort((a, b) => a - b);
+
+          const n = allSimScores.length;
+          const avg = allSimScores.reduce((a, b) => a + b, 0) / n;
+          const p75 = allSimScores[Math.floor(n * 0.75)] ?? avg;
+          const p90 = allSimScores[Math.floor(n * 0.90)] ?? avg;
+          const med = allSimScores[Math.floor(n * 0.50)] ?? avg;
+          const simDenom = processedSims || sims.length;
+          const composite = avg * 0.35 + p75 * 0.35 + p90 * 0.20 + (data.frequency / simDenom) * 100 * 0.10;
+
+          return { key, lineup: data.lineup, frequency: data.frequency,
+            avgSimScore: Math.round(avg * 10) / 10, medianScore: Math.round(med * 10) / 10,
+            p75Score: Math.round(p75 * 10) / 10, p90Score: Math.round(p90 * 10) / 10,
+            compositeScore: Math.round(composite * 10) / 10,
+            freqPct: Math.round((data.frequency / simDenom) * 1000) / 10,
+            totalSalary: data.lineup.reduce((s, p) => s + p.salary, 0),
+          };
+        });
+
+        const sortFn: Record<string, (a: typeof scoredCandidates[0], b: typeof scoredCandidates[0]) => number> = {
+          p90: (a, b) => b.p90Score - a.p90Score,
+          p75: (a, b) => b.p75Score - a.p75Score,
+          composite: (a, b) => b.compositeScore - a.compositeScore,
+          median: (a, b) => b.medianScore - a.medianScore,
+          avg: (a, b) => b.avgSimScore - a.avgSimScore,
+        };
+        scoredCandidates.sort(sortFn[sortKey] || sortFn.composite);
+
+        const origMap = new Map(allPlayers.map(op => [op.id, op]));
+
+        for (let i = 0; i < lineupIds.length && i < scoredCandidates.length; i++) {
+          const candidate = scoredCandidates[i];
+          const lineupId = lineupIds[i];
+          const playerIds = candidate.lineup.map(p => p.id);
+          const playerSnapshot = candidate.lineup.map(p => {
+            const orig = origMap.get(p.id) || p;
+            return {
+              id: p.id, name: orig.name, team: orig.team, position: orig.position,
+              salary: orig.salary, fppg: orig.fppg, projectedPoints: orig.projectedPoints,
+              opponent: orig.opponent, gameInfo: orig.gameInfo,
+              draftKingsPlayerId: orig.draftKingsPlayerId,
+              boostScore: orig.boostScore, boostReason: orig.boostReason,
+            };
+          });
+
+          const origTotalPts = playerSnapshot.reduce((sum: number, p: any) => sum + Number(p.projectedPoints), 0);
+
+          const simData = {
+            avgSimScore: candidate.avgSimScore, medianScore: candidate.medianScore,
+            p75Score: candidate.p75Score, p90Score: candidate.p90Score,
+            compositeScore: candidate.compositeScore, freqPct: candidate.freqPct,
+          };
+          await db.update(lineupsTable).set({
+            playerIds, totalSalary: candidate.totalSalary,
+            totalProjectedPoints: origTotalPts.toFixed(1),
+            playerSnapshot, simData,
+          }).where(eq(lineupsTable.id, lineupId));
+
+          results.push({ id: lineupId, status: "updated" });
+        }
+
+        for (let i = scoredCandidates.length; i < lineupIds.length; i++) {
+          results.push({ id: lineupIds[i], status: "skipped", error: "Not enough sim candidates" });
+        }
+      }
+
+      const updatedCount = results.filter(r => r.status === "updated").length;
+      console.log(`[SimRegen] Completed: ${updatedCount}/${ids.length} lineups regenerated by ${sortKey}, ${numSims} sims, ${Date.now() - startTime}ms`);
+      res.json({ results, updated: updatedCount, total: ids.length, simsRun: numSims, sortBy: sortKey });
+    } catch (err: any) {
+      console.error("[SimRegen] Error:", err);
+      res.status(500).json({ message: err.message || "Sim regeneration failed" });
+    }
+  });
+
   app.post("/api/lineups/import-dk", async (req, res) => {
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const userId = getSessionUserId(req)!;

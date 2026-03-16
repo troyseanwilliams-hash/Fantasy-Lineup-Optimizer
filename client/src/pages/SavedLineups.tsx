@@ -138,6 +138,7 @@
     const [regenProjFloor, setRegenProjFloor] = useState<number | null>(null);
     const [regenMinSalary, setRegenMinSalary] = useState<number | null>(null);
     const [regenMaxSalary, setRegenMaxSalary] = useState<number | null>(null);
+    const [simMetric, setSimMetric] = useState<"composite" | "p90" | "p75" | "median" | "avg">("composite");
 
     const { data: lineups, isLoading } = useQuery<any[]>({
       queryKey: ["/api/lineups"],
@@ -271,6 +272,26 @@
       },
       onError: (err: any) => {
         toast({ title: "Sim Scoring Failed", description: err.message || "Could not score lineups.", variant: "destructive" });
+      }
+    });
+
+    const simRegenMutation = useMutation({
+      mutationFn: async ({ ids, numSims, sortBy }: { ids: number[]; numSims: number; sortBy: string }) => {
+        const res = await apiRequest("POST", "/api/lineups/sim-regenerate", { ids, numSims, sortBy });
+        return res.json();
+      },
+      onSuccess: (data) => {
+        const updated = data.updated || 0;
+        const skipped = (data.results || []).filter((r: any) => r.status !== "updated").length;
+        const metricLabel = { p90: "P90", p75: "P75", composite: "Composite", median: "Median", avg: "Average" }[data.sortBy] || data.sortBy;
+        let desc = `${updated} lineup${updated !== 1 ? "s" : ""} regenerated using ${data.simsRun} sims, optimized for ${metricLabel}.`;
+        if (skipped > 0) desc += ` ${skipped} skipped.`;
+        toast({ title: "Sim Regeneration Complete", description: desc });
+        setSelectedIds(new Set());
+        queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
+      },
+      onError: (err: any) => {
+        toast({ title: "Sim Regeneration Failed", description: err.message || "Could not regenerate lineups.", variant: "destructive" });
       }
     });
 
@@ -711,19 +732,46 @@
                           </div>
                         )}
                         {isPaid && (
-                          <Button
-                            onClick={() => simScoreMutation.mutate({ ids: Array.from(selectedIds), numSims: 200 })}
-                            disabled={simScoreMutation.isPending}
-                            className="bg-violet-600 hover:bg-violet-700 text-white"
-                            data-testid="sim-score-btn"
-                          >
-                            {simScoreMutation.isPending ? (
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            ) : (
-                              <Activity className="w-4 h-4 mr-2" />
-                            )}
-                            {simScoreMutation.isPending ? "Simulating..." : `Sim Score ${selectedIds.size}`}
-                          </Button>
+                          <div className="flex items-center gap-1" data-testid="sim-actions-group">
+                            <select
+                              value={simMetric}
+                              onChange={(e) => setSimMetric(e.target.value as any)}
+                              className="h-9 px-2 text-xs font-bold bg-slate-800 border border-violet-500/30 rounded-l-md text-violet-300 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                              data-testid="sim-metric-select"
+                            >
+                              <option value="composite">Composite</option>
+                              <option value="p90">P90</option>
+                              <option value="p75">P75</option>
+                              <option value="median">Median</option>
+                              <option value="avg">Average</option>
+                            </select>
+                            <Button
+                              onClick={() => simScoreMutation.mutate({ ids: Array.from(selectedIds), numSims: 200 })}
+                              disabled={simScoreMutation.isPending || simRegenMutation.isPending}
+                              className="bg-violet-600 hover:bg-violet-700 text-white rounded-none text-xs"
+                              data-testid="sim-score-btn"
+                            >
+                              {simScoreMutation.isPending ? (
+                                <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                              ) : (
+                                <Activity className="w-3.5 h-3.5 mr-1" />
+                              )}
+                              {simScoreMutation.isPending ? "Scoring..." : "Score"}
+                            </Button>
+                            <Button
+                              onClick={() => simRegenMutation.mutate({ ids: Array.from(selectedIds), numSims: 200, sortBy: simMetric })}
+                              disabled={simRegenMutation.isPending || simScoreMutation.isPending}
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-md rounded-l-none text-xs"
+                              data-testid="sim-regen-btn"
+                            >
+                              {simRegenMutation.isPending ? (
+                                <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                              ) : (
+                                <Zap className="w-3.5 h-3.5 mr-1" />
+                              )}
+                              {simRegenMutation.isPending ? "Regenerating..." : `Regen ${selectedIds.size}`}
+                            </Button>
+                          </div>
                         )}
                         {isPaid && (
                           <Button
