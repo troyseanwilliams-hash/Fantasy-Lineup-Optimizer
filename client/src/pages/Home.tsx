@@ -4,7 +4,7 @@ import {
   Zap, Newspaper, TrendingUp, ArrowRight, Clock, ExternalLink,
   ArrowUpRight, ArrowDownRight, Archive, Crown, Trophy, Dribbble,
   Activity, Target, Lock, Sparkles, Star, Flame, Shield, Swords, Flag,
-  Radio, Circle, Brain, Upload, BarChart3, Layers, Dice5
+  Radio, Circle, Brain, Upload, BarChart3, Layers, Dice5, HelpCircle
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { ACTIVE_SPORTS, SPORT_ORDER } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
+import { TutorialOverlay, useTutorial } from "@/components/TutorialOverlay";
 
 const SPORT_LOGO_PATH: Record<string, string> = {
   NBA: "nba", NHL: "nhl", MLB: "mlb", NFL: "nfl", GOLF: "golf", SOCCER: "soccer",
@@ -1020,6 +1021,7 @@ function QuickActions({ slateId, tier }: { slateId: number | null; tier: string 
 function AuthenticatedDashboard() {
   const { user } = useAuth();
   const [activeSport, setActiveSport] = useState(ACTIVE_SPORTS[0] || "NBA");
+  const { isActive: tutorialActive, startTutorial, endTutorial } = useTutorial();
 
   const { data: subData } = useQuery<{ tier: string }>({
     queryKey: ["/api/subscription"],
@@ -1035,6 +1037,20 @@ function AuthenticatedDashboard() {
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-6xl">
+      <TutorialOverlay isActive={tutorialActive} onEnd={endTutorial} />
+
+      <div className="flex items-center justify-between mb-0">
+        <div className="flex-1" />
+        <button
+          onClick={startTutorial}
+          className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-emerald-400 transition-colors"
+          data-testid="btn-replay-tutorial"
+        >
+          <HelpCircle className="w-3.5 h-3.5" />
+          App Tour
+        </button>
+      </div>
+
       <HeroBanner firstName={firstName} tier={tier} />
       <SportSelector activeSport={activeSport} onSelect={setActiveSport} />
 
