@@ -1438,12 +1438,24 @@ export async function registerRoutes(
       return res.status(403).json({ message: "DK Entries import is a Champion-only feature." });
     }
 
-    const { entries, sport, slateId } = req.body;
+    const { entries, sport } = req.body;
+    let { slateId } = req.body;
     if (!Array.isArray(entries) || entries.length === 0) {
       return res.status(400).json({ message: "No entries provided." });
     }
-    if (!sport || !slateId) {
-      return res.status(400).json({ message: "Sport and slateId are required." });
+    if (!sport) {
+      return res.status(400).json({ message: "Sport is required." });
+    }
+
+    if (!slateId) {
+      const allSlates = await storage.getSlates();
+      const dkSlate = allSlates.find(s => s.sport === sport && s.platform === "draftkings");
+      if (dkSlate) {
+        slateId = dkSlate.id;
+        console.log(`[DK Import] Auto-detected DK ${sport} slate ${slateId} (${dkSlate.name})`);
+      } else {
+        return res.status(400).json({ message: `No DraftKings ${sport} slate found. Try again after DK data refreshes.` });
+      }
     }
 
     const slate = await storage.getSlate(slateId);

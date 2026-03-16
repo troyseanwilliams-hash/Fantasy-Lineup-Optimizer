@@ -437,13 +437,10 @@
           return;
         }
 
-        const matchingSlate = slates?.find((s: any) => s.sport === sport);
-        if (!matchingSlate) {
-          toast({ title: "No Active Slate", description: `No active ${sport} slate found. Can only import entries for sports with live DK data.`, variant: "destructive" });
-          return;
-        }
+        const matchingSlate = slates?.find((s: any) => s.sport === sport && s.platform === "draftkings");
+        const slateId = matchingSlate?.id ?? null;
 
-        importMutation.mutate({ entries, sport, slateId: matchingSlate.id });
+        importMutation.mutate({ entries, sport, slateId });
       };
       reader.readAsText(file);
     }
