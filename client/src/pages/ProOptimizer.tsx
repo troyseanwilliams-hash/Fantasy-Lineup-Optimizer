@@ -269,6 +269,7 @@ export default function ProOptimizer() {
 
   const [savedIndices, setSavedIndices] = useState<Set<number>>(new Set());
   const [isSavingAll, setIsSavingAll] = useState(false);
+  const [saveTopCount, setSaveTopCount] = useState<number>(150);
 
   const saveLineupMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -686,6 +687,73 @@ export default function ProOptimizer() {
         description: failCount > 0
           ? `${successCount} added to vault, ${failCount} failed.`
           : `All ${successCount} lineup${successCount > 1 ? "s" : ""} added to your vault.`,
+      });
+    } else if (failCount > 0) {
+      toast({ title: "Save Failed", description: "Could not save lineups. Please try again.", variant: "destructive" });
+    }
+  };
+
+  const handleSaveTopX = async () => {
+    if (!user || sortedLineups.length === 0 || isSavingAll) return;
+    const count = Math.min(saveTopCount, sortedLineups.length);
+    const topLineups = sortedLineups.slice(0, count);
+    const unsaved = topLineups.filter(lu => !savedIndices.has(lu._origIdx));
+    if (unsaved.length === 0) {
+      toast({ title: "Already Saved", description: `Top ${count} lineups are already in your vault.` });
+      return;
+    }
+    setIsSavingAll(true);
+    const saveResults = await Promise.allSettled(
+      unsaved.map((lu) => {
+        const lineupPlayers = lu.lineup || [];
+        const sortLabel = lineupSortBy === "index" ? "" : ` [${lineupSortBy.toUpperCase()}]`;
+        return apiRequest("POST", "/api/lineups", {
+          userId: userId!,
+          slateId,
+          sport,
+          platform,
+          totalSalary: lu.totalSalary,
+          totalProjectedPoints: String(lu.totalProjectedPoints),
+          playerIds: lineupPlayers.map((p: Player) => p.id),
+          name: `${simMode ? "Sim" : "Pro"} Top${count}${sortLabel} #${sortedLineups.indexOf(lu) + 1} - ${sport} ${config.shortLabel}`,
+        }).then(async res => {
+          if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.message || "Failed to save");
+          }
+          return { origIdx: lu._origIdx };
+        });
+      })
+    );
+    let successCount = 0;
+    let failCount = 0;
+    let vaultLimitMsg: string | null = null;
+    for (let i = 0; i < saveResults.length; i++) {
+      const result = saveResults[i];
+      if (result.status === "fulfilled") {
+        successCount++;
+        setSavedIndices(prev => new Set(prev).add(unsaved[i]._origIdx));
+      } else {
+        failCount++;
+        const msg = (result as PromiseRejectedResult).reason?.message || "";
+        if ((msg.includes("limit") || msg.includes("maximum")) && !vaultLimitMsg) {
+          vaultLimitMsg = msg;
+        }
+      }
+    }
+    if (vaultLimitMsg) {
+      toast({ title: "Vault Limit Reached", description: vaultLimitMsg, variant: "destructive" });
+    }
+    queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/subscription"] });
+    setIsSavingAll(false);
+    if (successCount > 0) {
+      const sortName = lineupSortBy === "index" ? "order" : lineupSortBy === "ceiling" ? "P75" : lineupSortBy.toUpperCase();
+      toast({
+        title: `Top ${count} Saved!`,
+        description: failCount > 0
+          ? `${successCount} saved by ${sortName}, ${failCount} failed.`
+          : `${successCount} lineup${successCount > 1 ? "s" : ""} saved (sorted by ${sortName}).`,
       });
     } else if (failCount > 0) {
       toast({ title: "Save Failed", description: "Could not save lineups. Please try again.", variant: "destructive" });
@@ -2186,32 +2254,64 @@ export default function ProOptimizer() {
                   </div>
                 )}
 
-                {/* Sort Controls */}
+                {/* Sort Controls + Save Top X */}
                 {generatedLineups.length > 0 && (
-                  <div className="flex gap-2 mb-3 flex-wrap">
-                    <span className="text-[11px] font-black text-slate-400 uppercase self-center">Sort:</span>
-                    {[
-                      { key: "index", label: "Order", sim: false },
-                      { key: "projected", label: "Projected", sim: false },
-                      { key: "salary", label: "Salary", sim: false },
-                      { key: "ceiling", label: "P75", sim: true },
-                      { key: "p90", label: "P90", sim: true },
-                      { key: "median", label: "Median", sim: true },
-                      { key: "freq", label: "Freq%", sim: true },
-                    ].filter(opt => !opt.sim || (generatedLineups[0] as any)?.simData).map(opt => (
-                      <button
-                        key={opt.key}
-                        onClick={() => setLineupSortBy(opt.key as typeof lineupSortBy)}
-                        className={`px-2 py-1 rounded text-[10px] font-black transition-all border ${
-                          lineupSortBy === opt.key
-                            ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
-                            : "text-slate-400 border-slate-700/50 hover:text-slate-300"
-                        }`}
-                        data-testid={`sort-lineups-${opt.key}`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
+                  <div className="flex flex-col gap-2 mb-3">
+                    <div className="flex gap-2 flex-wrap items-center">
+                      <span className="text-[11px] font-black text-slate-400 uppercase self-center">Sort:</span>
+                      {[
+                        { key: "index", label: "Order", sim: false },
+                        { key: "projected", label: "Projected", sim: false },
+                        { key: "salary", label: "Salary", sim: false },
+                        { key: "ceiling", label: "P75", sim: true },
+                        { key: "p90", label: "P90", sim: true },
+                        { key: "median", label: "Median", sim: true },
+                        { key: "freq", label: "Freq%", sim: true },
+                      ].filter(opt => !opt.sim || (generatedLineups[0] as any)?.simData).map(opt => (
+                        <button
+                          key={opt.key}
+                          onClick={() => setLineupSortBy(opt.key as typeof lineupSortBy)}
+                          className={`px-2 py-1 rounded text-[10px] font-black transition-all border ${
+                            lineupSortBy === opt.key
+                              ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                              : "text-slate-400 border-slate-700/50 hover:text-slate-300"
+                          }`}
+                          data-testid={`sort-lineups-${opt.key}`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    {generatedLineups.length > 1 && (
+                      <div className="flex gap-2 items-center flex-wrap">
+                        <span className="text-[11px] font-black text-slate-400 uppercase self-center">Save Top:</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={sortedLineups.length}
+                          value={saveTopCount}
+                          onChange={e => setSaveTopCount(Math.max(1, Math.min(sortedLineups.length, parseInt(e.target.value) || 1)))}
+                          className="w-16 px-2 py-1 rounded text-[11px] font-black bg-slate-800 border border-slate-600/50 text-white tabular-nums text-center focus:border-amber-500/50 focus:outline-none"
+                          data-testid="input-save-top-count"
+                        />
+                        <span className="text-[10px] text-slate-500 self-center">of {sortedLineups.length}</span>
+                        <Button
+                          onClick={handleSaveTopX}
+                          disabled={isSavingAll || saveLineupMutation.isPending}
+                          variant="outline"
+                          size="sm"
+                          className="font-black text-[10px] h-7 px-3 border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
+                          data-testid="button-save-top-x"
+                        >
+                          {isSavingAll ? (
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          ) : (
+                            <SaveAll className="w-3 h-3 mr-1" />
+                          )}
+                          Save Top {Math.min(saveTopCount, sortedLineups.length)}{lineupSortBy !== "index" ? ` by ${lineupSortBy === "ceiling" ? "P75" : lineupSortBy === "projected" ? "Proj" : lineupSortBy.toUpperCase()}` : ""}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
 
