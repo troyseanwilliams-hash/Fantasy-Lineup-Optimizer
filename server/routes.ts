@@ -1286,14 +1286,22 @@ export async function registerRoutes(
         }
 
         if (useCeilingMode) {
-          pool = applyCeilingMode(pool, slate.sport);
+          try {
+            pool = applyCeilingMode(pool, slate.sport);
+          } catch (ceilErr: any) {
+            console.warn(`[SimRegen] Ceiling mode failed, skipping: ${ceilErr.message}`);
+          }
         }
 
         if (useLeverageMode) {
-          const bdlStats = await fetchBDLStats(slate.sport);
-          const ownershipResults = await calculateOwnership(pool, slate.sport, "gpp_large", bdlStats);
-          const playersWithOwnership = computeOwnershipForPlayers(pool, ownershipResults);
-          pool = applyLeverageMode(playersWithOwnership);
+          try {
+            const bdlStats = await fetchBDLStats(slate.sport);
+            const ownershipResults = await calculateOwnership(pool, slate.sport, "gpp_large", bdlStats);
+            const playersWithOwnership = computeOwnershipForPlayers(pool, ownershipResults);
+            pool = applyLeverageMode(playersWithOwnership);
+          } catch (levErr: any) {
+            console.warn(`[SimRegen] Leverage mode failed, skipping: ${levErr.message}`);
+          }
         }
 
         const baseExcluded = allPlayers.filter(p => isPlayerOut(p.injuryStatus)).map(p => p.id);
