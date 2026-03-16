@@ -631,6 +631,28 @@ export default function ShowdownBuilder() {
 
             {/* ── LEFT: Player Pool ── */}
             <div className="lg:col-span-3">
+              {/* ── Generate / Reset (top) ── */}
+              <div className="mb-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <Button
+                  onClick={() => optimizeMut.mutate()}
+                  disabled={optimizeMut.isPending}
+                  className="bg-amber-600 hover:bg-amber-700 font-bold flex-1 sm:flex-none"
+                  data-testid="btn-optimize-showdown-top"
+                >
+                  {optimizeMut.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Swords className="w-4 h-4 mr-2" />}
+                  Generate {lineupCount > 1 ? `${lineupCount} Lineups` : "Lineup"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={resetAll}
+                  className="border-slate-600 text-slate-300 hover:bg-slate-800"
+                  data-testid="btn-clear-locks-top"
+                >
+                  <RefreshCw className="w-4 h-4 mr-1" /> Reset All
+                </Button>
+              </div>
+
               <Card className="bg-slate-900 border-slate-700">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
@@ -1238,27 +1260,7 @@ export default function ShowdownBuilder() {
                 </div>
               )}
 
-              {/* ── Generate / Reset ── */}
-              <div className="mt-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                <Button
-                  onClick={() => optimizeMut.mutate()}
-                  disabled={optimizeMut.isPending}
-                  className="bg-amber-600 hover:bg-amber-700 font-bold flex-1 sm:flex-none"
-                  data-testid="btn-optimize-showdown"
-                >
-                  {optimizeMut.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Swords className="w-4 h-4 mr-2" />}
-                  Generate {lineupCount > 1 ? `${lineupCount} Lineups` : "Lineup"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={resetAll}
-                  className="border-slate-600 text-slate-300 hover:bg-slate-800"
-                  data-testid="btn-clear-locks"
-                >
-                  <RefreshCw className="w-4 h-4 mr-1" /> Reset All
-                </Button>
-              </div>
+              
             </div>
 
             {/* ── RIGHT: Generated Lineup ── */}
