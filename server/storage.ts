@@ -1,5 +1,21 @@
 import { db } from "./db";
 import { eq, and, inArray, lt, gte, desc, isNull, isNotNull, ne, sql } from "drizzle-orm";
+
+function getTodayLineupCutoff(): Date {
+  const now = new Date();
+  const etStr = now.toLocaleString("en-US", { timeZone: "America/New_York" });
+  const etDate = new Date(etStr);
+  const etHour = etDate.getHours();
+
+  const cutoff = new Date(etDate);
+  if (etHour < 5) {
+    cutoff.setDate(cutoff.getDate() - 1);
+  }
+  cutoff.setHours(5, 0, 0, 0);
+
+  const offsetMs = now.getTime() - etDate.getTime();
+  return new Date(cutoff.getTime() + offsetMs);
+}
 import {
   slates, players, lineups, subscriptions, props, alerts, prizePicksEntries, playerHistory, winningLineups, playerOverrides,
   lineupScores, alertDeliveries, notificationPreferences, performanceSnapshots,
@@ -246,8 +262,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getLineups(userId: string): Promise<Lineup[]> {
-    const now = new Date();
-    const activeSlateIds = await db.select({ id: slates.id }).from(slates).where(gte(slates.startTime, now));
+    const cutoff = getTodayLineupCutoff();
+    const activeSlateIds = await db.select({ id: slates.id }).from(slates).where(gte(slates.startTime, cutoff));
     if (activeSlateIds.length === 0) return [];
     const ids = activeSlateIds.map(s => s.id);
     return await db.select().from(lineups).where(
@@ -281,8 +297,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getLineupCount(userId: string): Promise<number> {
-    const now = new Date();
-    const activeSlateIds = await db.select({ id: slates.id }).from(slates).where(gte(slates.startTime, now));
+    const cutoff = getTodayLineupCutoff();
+    const activeSlateIds = await db.select({ id: slates.id }).from(slates).where(gte(slates.startTime, cutoff));
     if (activeSlateIds.length === 0) return 0;
     const ids = activeSlateIds.map(s => s.id);
     const rows = await db.select().from(lineups).where(
@@ -292,8 +308,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getLineupCountBySport(userId: string, sport: string): Promise<number> {
-    const now = new Date();
-    const activeSlateIds = await db.select({ id: slates.id }).from(slates).where(gte(slates.startTime, now));
+    const cutoff = getTodayLineupCutoff();
+    const activeSlateIds = await db.select({ id: slates.id }).from(slates).where(gte(slates.startTime, cutoff));
     if (activeSlateIds.length === 0) return 0;
     const ids = activeSlateIds.map(s => s.id);
     const rows = await db.select().from(lineups).where(
@@ -305,9 +321,10 @@ export class DatabaseStorage implements IStorage {
   async deleteExpiredLineups(): Promise<number> {
     const now = new Date();
     const etHour = parseInt(new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: "America/New_York" }).format(now));
-    if (etHour < 1) return 0;
+    if (etHour < 5 || etHour > 10) return 0;
 
-    const expiredSlateIds = await db.select({ id: slates.id }).from(slates).where(lt(slates.startTime, now));
+    const cutoff = getTodayLineupCutoff();
+    const expiredSlateIds = await db.select({ id: slates.id }).from(slates).where(lt(slates.startTime, cutoff));
     if (expiredSlateIds.length === 0) return 0;
     const ids = expiredSlateIds.map(s => s.id);
     const activeLineups = await db.select().from(lineups)
@@ -338,8 +355,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllActiveLineups(): Promise<Lineup[]> {
-    const now = new Date();
-    const activeSlateIds = await db.select({ id: slates.id }).from(slates).where(gte(slates.startTime, now));
+    const cutoff = getTodayLineupCutoff();
+    const activeSlateIds = await db.select({ id: slates.id }).from(slates).where(gte(slates.startTime, cutoff));
     if (activeSlateIds.length === 0) return [];
     const ids = activeSlateIds.map(s => s.id);
     return await db.select().from(lineups).where(inArray(lineups.slateId, ids));
