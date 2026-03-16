@@ -120,6 +120,7 @@ export default function ProOptimizer() {
   const [stackGameKey, setStackGameKey] = useState<string | null>(null);
   const [minStarRating, setMinStarRating] = useState<number>(0);
   const [lineupSwaps, setLineupSwaps] = useState<Record<string, Record<string, Player>>>({});
+  const [visibleLineupCount, setVisibleLineupCount] = useState(25);
   const [swappingTarget, setSwappingTarget] = useState<{ lineupIdx: number; slot: string } | null>(null);
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
   const [mobileView, setMobileView] = useState<"players" | "lineup">("players");
@@ -568,6 +569,7 @@ export default function ProOptimizer() {
     setSavedIndices(new Set());
     setLineupSwaps({});
     setSwappingTarget(null);
+    setVisibleLineupCount(25);
 
     if (simMode) {
       // ── Simulation mode: Monte Carlo game-script optimization ──────────────
@@ -2276,7 +2278,7 @@ export default function ProOptimizer() {
                       ].filter(opt => !opt.sim || (generatedLineups[0] as any)?.simData).map(opt => (
                         <button
                           key={opt.key}
-                          onClick={() => setLineupSortBy(opt.key as typeof lineupSortBy)}
+                          onClick={() => { setLineupSortBy(opt.key as typeof lineupSortBy); setVisibleLineupCount(25); }}
                           className={`px-2 py-1 rounded text-[10px] font-black transition-all border ${
                             lineupSortBy === opt.key
                               ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
@@ -2322,7 +2324,7 @@ export default function ProOptimizer() {
                 )}
 
                 <div className="space-y-3">
-                  {sortedLineups.map((lineupData) => {
+                  {sortedLineups.slice(0, visibleLineupCount).map((lineupData) => {
                     const idx = lineupData._origIdx;
                     const lineupPlayers = lineupData.lineup || [];
                     const slots = assignPlayersToSlots(lineupPlayers, config.slots, sport);
@@ -2477,6 +2479,28 @@ export default function ProOptimizer() {
                       </Card>
                     );
                   })}
+                  {visibleLineupCount < sortedLineups.length && (
+                    <div className="flex items-center justify-center gap-3 pt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setVisibleLineupCount(prev => Math.min(prev + 25, sortedLineups.length))}
+                        className="font-black text-xs border-slate-600/50 text-slate-300 hover:bg-slate-700/50"
+                        data-testid="button-load-more-lineups"
+                      >
+                        Show More ({Math.min(visibleLineupCount, sortedLineups.length)} of {sortedLineups.length})
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setVisibleLineupCount(sortedLineups.length)}
+                        className="font-black text-xs border-slate-600/50 text-slate-400 hover:bg-slate-700/50"
+                        data-testid="button-show-all-lineups"
+                      >
+                        Show All
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
