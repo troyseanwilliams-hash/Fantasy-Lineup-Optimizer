@@ -2823,7 +2823,7 @@ export async function registerRoutes(
     playerProjections:    z.record(z.string(), z.number()).optional(),
     playerMinSalary:      z.number().optional(),
     playerMaxSalary:      z.number().optional(),
-    lineupCount:          z.number().min(1).max(150).default(20),
+    lineupCount:          z.number().min(1).max(2000).default(20),
     numSims:              z.number().min(50).max(1000).default(200),
     globalMaxExposure:    z.number().min(1).max(100).optional(),
     enforceGameStack:     z.boolean().default(false),
@@ -2848,7 +2848,7 @@ export async function registerRoutes(
       }
 
       const input = simOptimizeSchema.parse(req.body);
-      const maxLineupCount = isAdmin ? 150 : tier === "pro" ? 150 : 20;
+      const maxLineupCount = isAdmin ? 2000 : tier === "pro" ? 1000 : 400;
       input.lineupCount = Math.min(input.lineupCount, maxLineupCount);
       const maxSims = isAdmin ? 1000 : tier === "pro" ? 500 : 200;
       input.numSims = Math.min(input.numSims, maxSims);
