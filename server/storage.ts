@@ -576,17 +576,35 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPlayerHistoryByName(playerName: string, sport: string, limit = 30): Promise<PlayerHistory[]> {
-    return await db.select().from(playerHistory)
-      .where(and(eq(playerHistory.playerName, playerName), eq(playerHistory.sport, sport)))
-      .orderBy(desc(playerHistory.slateDate))
-      .limit(limit);
+    const rows = await db.execute(sql`
+      SELECT DISTINCT ON (slate_date)
+        id, player_name AS "playerName", team, sport, position, salary,
+        projected_points AS "projectedPoints", actual_points AS "actualPoints",
+        slate_date AS "slateDate", slate_id AS "slateId",
+        draftkings_player_id AS "draftKingsPlayerId", ownership,
+        created_at AS "createdAt"
+      FROM player_history
+      WHERE player_name = ${playerName} AND sport = ${sport}
+      ORDER BY slate_date DESC, id DESC
+      LIMIT ${limit}
+    `);
+    return (rows.rows || rows) as unknown as PlayerHistory[];
   }
 
   async getPlayerHistoryBySport(sport: string, limit = 500): Promise<PlayerHistory[]> {
-    return await db.select().from(playerHistory)
-      .where(eq(playerHistory.sport, sport))
-      .orderBy(desc(playerHistory.slateDate))
-      .limit(limit);
+    const rows = await db.execute(sql`
+      SELECT DISTINCT ON (player_name, slate_date)
+        id, player_name AS "playerName", team, sport, position, salary,
+        projected_points AS "projectedPoints", actual_points AS "actualPoints",
+        slate_date AS "slateDate", slate_id AS "slateId",
+        draftkings_player_id AS "draftKingsPlayerId", ownership,
+        created_at AS "createdAt"
+      FROM player_history
+      WHERE sport = ${sport}
+      ORDER BY player_name, slate_date DESC, id DESC
+      LIMIT ${limit}
+    `);
+    return (rows.rows || rows) as unknown as PlayerHistory[];
   }
 
   async cleanOldPlayerHistory(daysToKeep: number): Promise<number> {
