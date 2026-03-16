@@ -3256,6 +3256,9 @@ export async function registerRoutes(
     stackGameKey:         z.string().optional(),
     minStarRating:        z.number().min(0).max(5).default(0),
     sortMetric:           z.enum(["composite", "p90", "p75", "median", "avg"]).default("composite"),
+    useBoosts:            z.boolean().default(true),
+    ceilingMode:          z.boolean().default(false),
+    leverageMode:         z.boolean().default(false),
   });
 
   app.post("/api/optimize/sim", async (req, res) => {
@@ -3302,12 +3305,19 @@ export async function registerRoutes(
       }
 
       const proScoutMap = buildScoutMap(slate.sport);
+      const applyBoosts = input.useBoosts !== false;
+      const useCeilingMode = input.ceilingMode === true;
+      const useLeverageMode = input.leverageMode === true;
 
       let pool = allPlayers.map(p => {
         let boostedPoints = Number(p.projectedPoints);
 
         if (p.isConfirmedStarter) {
           boostedPoints = Math.round(boostedPoints * 1.05 * 10) / 10;
+        }
+        if (applyBoosts && p.boostScore) {
+          const boostPct = Math.max(-0.15, Math.min(0.15, Number(p.boostScore) * 0.015));
+          boostedPoints = Math.round(boostedPoints * (1 + boostPct) * 10) / 10;
         }
         boostedPoints = applyScoutToProjection(boostedPoints, p.name, proScoutMap, false);
 
@@ -3321,6 +3331,33 @@ export async function registerRoutes(
 
         return { ...p, projectedPoints: boostedPoints.toString() };
       });
+
+      pool = await applyActualAdjustedProjections(pool, slate.sport);
+      pool = await applyWinningLineupAdjustment(pool, slate.sport);
+
+      const simProfile = await getHistoricalProfile(slate.sport);
+      if (simProfile.ready) {
+        pool = applyHistoricalAdjustments(pool, simProfile);
+      }
+
+      if (useCeilingMode) {
+        try {
+          pool = applyCeilingMode(pool, slate.sport);
+        } catch (ceilErr: any) {
+          console.warn(`[SimOptimizer] Ceiling mode failed, skipping: ${ceilErr.message}`);
+        }
+      }
+
+      if (useLeverageMode) {
+        try {
+          const bdlStats = await fetchBDLStats(slate.sport);
+          const ownershipResults = await calculateOwnership(pool, slate.sport, "gpp_large", bdlStats);
+          const playersWithOwnership = computeOwnershipForPlayers(pool, ownershipResults);
+          pool = applyLeverageMode(playersWithOwnership);
+        } catch (levErr: any) {
+          console.warn(`[SimOptimizer] Leverage mode failed, skipping: ${levErr.message}`);
+        }
+      }
 
       pool = pool.filter(p => !input.excludedPlayerIds.includes(p.id));
       pool = pool.filter(p => !isPlayerOut(p.injuryStatus));

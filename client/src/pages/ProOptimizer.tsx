@@ -594,6 +594,9 @@ export default function ProOptimizer() {
         globalMaxExposure: globalMaxExposure ?? undefined,
         minStarRating,
         sortMetric: simSortMetric,
+        useBoosts,
+        ceilingMode: projectionMode === "ceiling",
+        leverageMode,
       });
     } else {
       // ── Standard LP mode ───────────────────────────────────────────────────
