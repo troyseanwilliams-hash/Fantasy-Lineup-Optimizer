@@ -33,6 +33,7 @@ import PerformanceDashboard from "@/pages/PerformanceDashboard";
 import TrackRecord from "@/pages/TrackRecord";
 import ShowdownBuilder from "@/pages/ShowdownBuilder";
 import ScoutDashboard from "@/pages/ScoutDashboard";
+import SimGuide from "@/pages/SimGuide";
 
 import NotFound from "@/pages/not-found";
 import { Header } from "@/components/Header";
@@ -97,6 +98,7 @@ function Router() {
           <Route path="/showdown" component={ShowdownBuilder} />
           <Route path="/scout" component={ScoutDashboard} />
           <Route path="/admin" component={Admin} />
+          <Route path="/sim-guide" component={SimGuide} />
           <Route component={NotFound} />
         </Switch>
       </main>
