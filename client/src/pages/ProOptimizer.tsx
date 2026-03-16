@@ -426,6 +426,18 @@ export default function ProOptimizer() {
     });
   }, [rawGeneratedLineups, lineupSwaps, config.slots, sport]);
 
+  const sortedLineups = useMemo(() => {
+    const indexed = generatedLineups.map((lu, i) => ({ ...lu, _origIdx: i }));
+    if (lineupSortBy === "projected") {
+      indexed.sort((a, b) => (b.totalProjectedPoints || 0) - (a.totalProjectedPoints || 0));
+    } else if (lineupSortBy === "salary") {
+      indexed.sort((a, b) => (b.totalSalary || 0) - (a.totalSalary || 0));
+    } else if (lineupSortBy === "ceiling") {
+      indexed.sort((a, b) => ((b as any).simData?.p75Score || 0) - ((a as any).simData?.p75Score || 0));
+    }
+    return indexed;
+  }, [generatedLineups, lineupSortBy]);
+
   const handleProSwap = useCallback((lineupIdx: number, slot: string) => {
     if (swappingTarget?.lineupIdx === lineupIdx && swappingTarget?.slot === slot) {
       setSwappingTarget(null);
@@ -2122,7 +2134,8 @@ export default function ProOptimizer() {
                 )}
 
                 <div className="space-y-3">
-                  {generatedLineups.map((lineupData, idx) => {
+                  {sortedLineups.map((lineupData) => {
+                    const idx = lineupData._origIdx;
                     const lineupPlayers = lineupData.lineup || [];
                     const slots = assignPlayersToSlots(lineupPlayers, config.slots, sport);
                     const lineupGrade = lineupPlayers.length > 0
@@ -2276,7 +2289,7 @@ export default function ProOptimizer() {
                       </Card>
                     );
                   })}
-</div>
+                </div>
               </div>
             )}
 
