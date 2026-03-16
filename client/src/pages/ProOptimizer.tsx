@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useRoute, useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -113,6 +113,7 @@ export default function ProOptimizer() {
 
   // ── Simulation Mode ────────────────────────────────────────────────────────
   const [simMode, setSimMode] = useState(false);
+  const lineupsRef = useRef<HTMLDivElement>(null);
   const [numSims, setNumSims] = useState(200);
   const [enforceGameStack, setEnforceGameStack] = useState(false);
   const [stackGameKey, setStackGameKey] = useState<string | null>(null);
@@ -230,6 +231,7 @@ export default function ProOptimizer() {
           });
         }
       }
+      setTimeout(() => lineupsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
     },
   });
 
@@ -247,6 +249,7 @@ export default function ProOptimizer() {
           title: `${data.lineups.length} Sim Lineups Built`,
           description: `${data.simsRun} sims · ${data.uniqueLineups} unique lineups found · ${data.gamesRepresented} games represented`,
         });
+        setTimeout(() => lineupsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
       }
     },
     onError: (err: any) => {
@@ -2104,7 +2107,7 @@ export default function ProOptimizer() {
 
             {/* Generated Lineups */}
             {generatedLineups.length > 0 && (
-              <div data-testid="generated-lineups-section">
+              <div ref={lineupsRef} data-testid="generated-lineups-section">
                 <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
                   <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
                     {simMutation.data?.simsRun ? (
