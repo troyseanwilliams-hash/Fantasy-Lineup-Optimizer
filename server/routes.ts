@@ -3230,6 +3230,77 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/performance/today", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    try {
+      const lineups = await storage.getLineups(userId);
+      const scores = await storage.getLineupScores(userId);
+      const scoreMap = new Map(scores.map(s => [s.lineupId, s]));
+
+      type SportSummary = {
+        sport: string;
+        lineupCount: number;
+        bestProjected: number;
+        bestActual: number;
+        avgProjected: number;
+        avgSalaryUtil: number;
+        hasLiveScores: boolean;
+      };
+      const bySport: Record<string, SportSummary> = {};
+
+      for (const lineup of lineups) {
+        if (!bySport[lineup.sport]) {
+          bySport[lineup.sport] = {
+            sport: lineup.sport,
+            lineupCount: 0,
+            bestProjected: 0,
+            bestActual: 0,
+            avgProjected: 0,
+            avgSalaryUtil: 0,
+            hasLiveScores: false,
+          };
+        }
+        const s = bySport[lineup.sport];
+        s.lineupCount++;
+        const proj = parseFloat(lineup.totalProjectedPoints || "0");
+        s.avgProjected += proj;
+        if (proj > s.bestProjected) s.bestProjected = proj;
+
+        const slate = await storage.getSlate(lineup.slateId);
+        const cap = slate?.salaryCap || 50000;
+        s.avgSalaryUtil += cap > 0 ? (lineup.totalSalary || 0) / cap : 0;
+
+        const score = scoreMap.get(lineup.id);
+        if (score) {
+          const live = parseFloat(score.totalLivePoints || "0");
+          if (live > s.bestActual) s.bestActual = live;
+          if (live > 0) s.hasLiveScores = true;
+        }
+      }
+
+      const sportSummaries = Object.values(bySport).map(s => ({
+        ...s,
+        avgProjected: s.lineupCount > 0 ? Math.round((s.avgProjected / s.lineupCount) * 10) / 10 : 0,
+        bestProjected: Math.round(s.bestProjected * 10) / 10,
+        bestActual: Math.round(s.bestActual * 10) / 10,
+        avgSalaryUtil: s.lineupCount > 0 ? Math.round((s.avgSalaryUtil / s.lineupCount) * 1000) / 10 : 0,
+      }));
+
+      const lineupIdSet = new Set(lineups.map(l => l.id));
+      const scoredCount = scores.filter(s => lineupIdSet.has(s.lineupId)).length;
+
+      res.json({
+        totalLineups: lineups.length,
+        sportSummaries,
+        totalScored: scoredCount,
+      });
+    } catch (err) {
+      console.error("Today performance error:", err);
+      res.status(500).json({ message: "Failed to fetch today's performance" });
+    }
+  });
+
   app.get("/api/performance/aggregate", async (req, res) => {
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const userId = getSessionUserId(req)!;

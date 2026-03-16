@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, BarChart3, TrendingUp, Target, Activity, Trophy, ChevronDown, Calendar } from "lucide-react";
+import { Loader2, BarChart3, TrendingUp, Target, Activity, Trophy, Calendar, Zap, DollarSign, Crosshair } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { PerformanceSnapshot } from "@shared/schema";
 
@@ -19,6 +19,20 @@ interface AggregatePerformance {
   avgVsField: number;
   avgAccuracy: number;
   sportBreakdown: Record<string, { slates: number; avgVsOptimal: number; avgVsField: number; avgAccuracy: number }>;
+}
+
+interface TodayActivity {
+  totalLineups: number;
+  totalScored: number;
+  sportSummaries: Array<{
+    sport: string;
+    lineupCount: number;
+    bestProjected: number;
+    bestActual: number;
+    avgProjected: number;
+    avgSalaryUtil: number;
+    hasLiveScores: boolean;
+  }>;
 }
 
 export default function PerformanceDashboard() {
@@ -44,6 +58,12 @@ export default function PerformanceDashboard() {
       return res.json();
     },
     enabled: !!user,
+  });
+
+  const { data: today, isLoading: todayLoading } = useQuery<TodayActivity>({
+    queryKey: ["/api/performance/today"],
+    enabled: !!user,
+    refetchInterval: 60000,
   });
 
   const tier = subData?.tier || "free";
@@ -80,7 +100,9 @@ export default function PerformanceDashboard() {
     );
   }
 
-  const isLoading = aggLoading || snapLoading;
+  const isLoading = aggLoading || snapLoading || todayLoading;
+  const hasHistoricalData = aggregate && aggregate.totalSlates > 0;
+  const hasTodayData = today && today.totalLineups > 0;
 
   return (
     <div className="min-h-screen bg-[#0F172A]">
@@ -95,142 +117,235 @@ export default function PerformanceDashboard() {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
           </div>
-        ) : !aggregate || aggregate.totalSlates === 0 ? (
-          <Card className="bg-slate-900 border-slate-700">
-            <CardContent className="p-12 text-center" data-testid="perf-no-data">
-              <BarChart3 className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-              <h3 className="text-lg font-bold text-white mb-2">No Performance Data Yet</h3>
-              <p className="text-slate-400">Performance snapshots are generated after your lineups complete. Keep building and saving lineups!</p>
-            </CardContent>
-          </Card>
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6" data-testid="perf-overview-stats">
-              <Card className="bg-slate-900 border-slate-700">
-                <CardContent className="p-4 text-center">
-                  <Trophy className="w-6 h-6 text-amber-400 mx-auto mb-2" />
-                  <div className="text-2xl font-black text-white" data-testid="stat-total-slates">{aggregate.totalSlates}</div>
-                  <div className="text-xs text-slate-400">Slates Analyzed</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-slate-900 border-slate-700">
-                <CardContent className="p-4 text-center">
-                  <Target className="w-6 h-6 text-emerald-400 mx-auto mb-2" />
-                  <div className="text-2xl font-black text-emerald-400" data-testid="stat-vs-optimal">{aggregate.avgVsOptimal}%</div>
-                  <div className="text-xs text-slate-400">vs. Optimal</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-slate-900 border-slate-700">
-                <CardContent className="p-4 text-center">
-                  <TrendingUp className="w-6 h-6 text-blue-400 mx-auto mb-2" />
-                  <div className="text-2xl font-black text-blue-400" data-testid="stat-vs-field">{aggregate.avgVsField}%</div>
-                  <div className="text-xs text-slate-400">vs. Field Avg</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-slate-900 border-slate-700">
-                <CardContent className="p-4 text-center">
-                  <Activity className="w-6 h-6 text-cyan-400 mx-auto mb-2" />
-                  <div className="text-2xl font-black text-cyan-400" data-testid="stat-accuracy">{aggregate.avgAccuracy}%</div>
-                  <div className="text-xs text-slate-400">Proj. Accuracy</div>
-                </CardContent>
-              </Card>
-            </div>
+            {hasTodayData && (
+              <div className="mb-6" data-testid="perf-today-activity">
+                <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-4">
+                  <Zap className="w-5 h-5 text-amber-400" />
+                  Today's Activity
+                </h2>
 
-            {Object.keys(aggregate.sportBreakdown).length > 0 && (
-              <Card className="bg-slate-900 border-slate-700 mb-6" data-testid="perf-sport-breakdown">
-                <CardHeader>
-                  <CardTitle className="text-white text-lg">Sport Breakdown</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {Object.entries(aggregate.sportBreakdown).map(([sport, data]) => (
-                      <div key={sport} className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50" data-testid={`sport-breakdown-${sport.toLowerCase()}`}>
-                        <div className="flex items-center gap-3">
-                          <Badge variant="outline" className="border-emerald-500/30 text-emerald-400">{sport}</Badge>
-                          <span className="text-slate-400 text-sm">{data.slates} slates</span>
-                        </div>
-                        <div className="flex gap-6 text-sm">
-                          <div className="text-right">
-                            <span className="text-emerald-400 font-bold">{data.avgVsOptimal}%</span>
-                            <span className="text-slate-500 ml-1 text-xs">optimal</span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-blue-400 font-bold">{data.avgVsField}%</span>
-                            <span className="text-slate-500 ml-1 text-xs">field</span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-cyan-400 font-bold">{data.avgAccuracy}%</span>
-                            <span className="text-slate-500 ml-1 text-xs">accuracy</span>
-                          </div>
-                        </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
+                  <Card className="bg-slate-900 border-slate-700">
+                    <CardContent className="p-4 text-center">
+                      <Trophy className="w-6 h-6 text-amber-400 mx-auto mb-2" />
+                      <div className="text-2xl font-black text-white" data-testid="today-total-lineups">{today!.totalLineups}</div>
+                      <div className="text-xs text-slate-400">Active Lineups</div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-slate-900 border-slate-700">
+                    <CardContent className="p-4 text-center">
+                      <Crosshair className="w-6 h-6 text-emerald-400 mx-auto mb-2" />
+                      <div className="text-2xl font-black text-emerald-400" data-testid="today-sports">
+                        {today!.sportSummaries.length}
                       </div>
-                    ))}
-                  </div>
+                      <div className="text-xs text-slate-400">Sports</div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-slate-900 border-slate-700 col-span-2 sm:col-span-1">
+                    <CardContent className="p-4 text-center">
+                      <Activity className="w-6 h-6 text-cyan-400 mx-auto mb-2" />
+                      <div className="text-2xl font-black text-cyan-400" data-testid="today-scored">{today!.totalScored}</div>
+                      <div className="text-xs text-slate-400">Scored</div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="space-y-3">
+                  {today!.sportSummaries.map(s => (
+                    <Card key={s.sport} className="bg-slate-900 border-slate-700" data-testid={`today-sport-${s.sport.toLowerCase()}`}>
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <Badge variant="outline" className="border-emerald-500/30 text-emerald-400">{s.sport}</Badge>
+                            <span className="text-slate-400 text-sm">{s.lineupCount} lineup{s.lineupCount !== 1 ? "s" : ""}</span>
+                          </div>
+                          {s.hasLiveScores && (
+                            <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">LIVE</Badge>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <div className="text-slate-500 text-xs mb-1">Best Projected</div>
+                            <div className="text-white font-bold" data-testid={`today-best-proj-${s.sport.toLowerCase()}`}>{s.bestProjected} pts</div>
+                          </div>
+                          <div>
+                            <div className="text-slate-500 text-xs mb-1">Avg Projected</div>
+                            <div className="text-slate-300 font-bold">{s.avgProjected} pts</div>
+                          </div>
+                          <div>
+                            <div className="text-slate-500 text-xs mb-1">Best Actual</div>
+                            <div className={`font-bold ${s.bestActual > 0 ? "text-emerald-400" : "text-slate-500"}`}>
+                              {s.bestActual > 0 ? `${s.bestActual} pts` : "Pending"}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-slate-500 text-xs mb-1 flex items-center gap-1"><DollarSign className="w-3 h-3" />Salary Used</div>
+                            <div className="text-amber-400 font-bold">{s.avgSalaryUtil}%</div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {hasHistoricalData ? (
+              <>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-4">
+                  <TrendingUp className="w-5 h-5 text-blue-400" />
+                  Historical Performance
+                </h2>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6" data-testid="perf-overview-stats">
+                  <Card className="bg-slate-900 border-slate-700">
+                    <CardContent className="p-4 text-center">
+                      <Trophy className="w-6 h-6 text-amber-400 mx-auto mb-2" />
+                      <div className="text-2xl font-black text-white" data-testid="stat-total-slates">{aggregate!.totalSlates}</div>
+                      <div className="text-xs text-slate-400">Slates Analyzed</div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-slate-900 border-slate-700">
+                    <CardContent className="p-4 text-center">
+                      <Target className="w-6 h-6 text-emerald-400 mx-auto mb-2" />
+                      <div className="text-2xl font-black text-emerald-400" data-testid="stat-vs-optimal">{aggregate!.avgVsOptimal}%</div>
+                      <div className="text-xs text-slate-400">vs. Optimal</div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-slate-900 border-slate-700">
+                    <CardContent className="p-4 text-center">
+                      <TrendingUp className="w-6 h-6 text-blue-400 mx-auto mb-2" />
+                      <div className="text-2xl font-black text-blue-400" data-testid="stat-vs-field">{aggregate!.avgVsField}%</div>
+                      <div className="text-xs text-slate-400">vs. Field Avg</div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-slate-900 border-slate-700">
+                    <CardContent className="p-4 text-center">
+                      <Activity className="w-6 h-6 text-cyan-400 mx-auto mb-2" />
+                      <div className="text-2xl font-black text-cyan-400" data-testid="stat-accuracy">{aggregate!.avgAccuracy}%</div>
+                      <div className="text-xs text-slate-400">Proj. Accuracy</div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {Object.keys(aggregate!.sportBreakdown).length > 0 && (
+                  <Card className="bg-slate-900 border-slate-700 mb-6" data-testid="perf-sport-breakdown">
+                    <CardHeader>
+                      <CardTitle className="text-white text-lg">Sport Breakdown</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {Object.entries(aggregate!.sportBreakdown).map(([sport, data]) => (
+                          <div key={sport} className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50" data-testid={`sport-breakdown-${sport.toLowerCase()}`}>
+                            <div className="flex items-center gap-3">
+                              <Badge variant="outline" className="border-emerald-500/30 text-emerald-400">{sport}</Badge>
+                              <span className="text-slate-400 text-sm">{data.slates} slates</span>
+                            </div>
+                            <div className="flex gap-6 text-sm">
+                              <div className="text-right">
+                                <span className="text-emerald-400 font-bold">{data.avgVsOptimal}%</span>
+                                <span className="text-slate-500 ml-1 text-xs">optimal</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-blue-400 font-bold">{data.avgVsField}%</span>
+                                <span className="text-slate-500 ml-1 text-xs">field</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-cyan-400 font-bold">{data.avgAccuracy}%</span>
+                                <span className="text-slate-500 ml-1 text-xs">accuracy</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <Card className="bg-slate-900 border-slate-700" data-testid="perf-history">
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <CardTitle className="text-white text-lg flex items-center gap-2">
+                      <Calendar className="w-5 h-5 text-emerald-500" />
+                      Recent Slates
+                    </CardTitle>
+                    <div className="flex gap-2">
+                      <Button
+                        variant={selectedSport === "ALL" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setSelectedSport("ALL")}
+                        className={selectedSport === "ALL" ? "bg-emerald-600 hover:bg-emerald-700 h-7 text-xs" : "border-slate-600 text-slate-300 h-7 text-xs"}
+                        data-testid="perf-filter-all"
+                      >
+                        All
+                      </Button>
+                      {ACTIVE_SPORTS.map(sport => (
+                        <Button
+                          key={sport}
+                          variant={selectedSport === sport ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setSelectedSport(sport)}
+                          className={`${selectedSport === sport ? "bg-emerald-600 hover:bg-emerald-700" : "border-slate-600 text-slate-300"} h-7 text-xs hidden sm:inline-flex`}
+                          data-testid={`perf-filter-${sport.toLowerCase()}`}
+                        >
+                          {sport}
+                        </Button>
+                      ))}
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {(!snapshots || snapshots.length === 0) ? (
+                      <p className="text-slate-500 text-center py-8">No snapshot data for this filter.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-7 text-xs font-bold text-slate-500 uppercase px-3 hidden sm:grid">
+                          <span>Date</span>
+                          <span>Sport</span>
+                          <span className="text-right">Your Score</span>
+                          <span className="text-right">Optimal</span>
+                          <span className="text-right">Field Avg</span>
+                          <span className="text-right">Accuracy</span>
+                          <span className="text-right">Lineups</span>
+                        </div>
+                        {snapshots.map(snap => (
+                          <div key={snap.id} className="grid grid-cols-3 sm:grid-cols-7 gap-2 text-sm px-3 py-2 rounded hover:bg-slate-800/50 items-center" data-testid={`perf-snapshot-${snap.id}`}>
+                            <span className="text-slate-300">{snap.slateDate}</span>
+                            <span className="hidden sm:block">
+                              <Badge variant="outline" className="border-slate-600 text-slate-400 text-xs">{snap.sport}</Badge>
+                            </span>
+                            <span className="text-white font-bold text-right">{toNum(snap.userScore).toFixed(1)}</span>
+                            <span className="text-emerald-400 text-right hidden sm:block">{toNum(snap.optimalScore).toFixed(1)}</span>
+                            <span className="text-blue-400 text-right hidden sm:block">{toNum(snap.fieldAvgScore).toFixed(1)}</span>
+                            <span className="text-cyan-400 text-right hidden sm:block">{snap.projectionAccuracy ? `${toNum(snap.projectionAccuracy).toFixed(1)}%` : "—"}</span>
+                            <span className="text-slate-400 text-right">{snap.lineupCount}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            ) : !hasTodayData ? (
+              <Card className="bg-slate-900 border-slate-700">
+                <CardContent className="p-12 text-center" data-testid="perf-no-data">
+                  <BarChart3 className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+                  <h3 className="text-lg font-bold text-white mb-2">No Performance Data Yet</h3>
+                  <p className="text-slate-400 mb-4">Build and save lineups in the optimizer, and your performance stats will appear here once games complete.</p>
+                  <Button onClick={() => window.location.href = "/optimizer"} className="bg-emerald-600 hover:bg-emerald-700" data-testid="btn-go-optimizer">
+                    Go to Optimizer
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="bg-slate-900 border-slate-700 mt-6">
+                <CardContent className="p-8 text-center" data-testid="perf-pending-history">
+                  <Calendar className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                  <h3 className="text-base font-bold text-white mb-2">Historical Stats Coming Soon</h3>
+                  <p className="text-slate-400 text-sm">After today's games finish, your results vs. optimal and field averages will appear here.</p>
                 </CardContent>
               </Card>
             )}
-
-            <Card className="bg-slate-900 border-slate-700" data-testid="perf-history">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="text-white text-lg flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-emerald-500" />
-                  Recent Slates
-                </CardTitle>
-                <div className="flex gap-2">
-                  <Button
-                    variant={selectedSport === "ALL" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedSport("ALL")}
-                    className={selectedSport === "ALL" ? "bg-emerald-600 hover:bg-emerald-700 h-7 text-xs" : "border-slate-600 text-slate-300 h-7 text-xs"}
-                    data-testid="perf-filter-all"
-                  >
-                    All
-                  </Button>
-                  {ACTIVE_SPORTS.map(sport => (
-                    <Button
-                      key={sport}
-                      variant={selectedSport === sport ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setSelectedSport(sport)}
-                      className={`${selectedSport === sport ? "bg-emerald-600 hover:bg-emerald-700" : "border-slate-600 text-slate-300"} h-7 text-xs hidden sm:inline-flex`}
-                      data-testid={`perf-filter-${sport.toLowerCase()}`}
-                    >
-                      {sport}
-                    </Button>
-                  ))}
-                </div>
-              </CardHeader>
-              <CardContent>
-                {(!snapshots || snapshots.length === 0) ? (
-                  <p className="text-slate-500 text-center py-8">No snapshot data for this filter.</p>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-7 text-xs font-bold text-slate-500 uppercase px-3 hidden sm:grid">
-                      <span>Date</span>
-                      <span>Sport</span>
-                      <span className="text-right">Your Score</span>
-                      <span className="text-right">Optimal</span>
-                      <span className="text-right">Field Avg</span>
-                      <span className="text-right">Accuracy</span>
-                      <span className="text-right">Lineups</span>
-                    </div>
-                    {snapshots.map(snap => (
-                      <div key={snap.id} className="grid grid-cols-3 sm:grid-cols-7 gap-2 text-sm px-3 py-2 rounded hover:bg-slate-800/50 items-center" data-testid={`perf-snapshot-${snap.id}`}>
-                        <span className="text-slate-300">{snap.slateDate}</span>
-                        <span className="hidden sm:block">
-                          <Badge variant="outline" className="border-slate-600 text-slate-400 text-xs">{snap.sport}</Badge>
-                        </span>
-                        <span className="text-white font-bold text-right">{toNum(snap.userScore).toFixed(1)}</span>
-                        <span className="text-emerald-400 text-right hidden sm:block">{toNum(snap.optimalScore).toFixed(1)}</span>
-                        <span className="text-blue-400 text-right hidden sm:block">{toNum(snap.fieldAvgScore).toFixed(1)}</span>
-                        <span className="text-cyan-400 text-right hidden sm:block">{snap.projectionAccuracy ? `${toNum(snap.projectionAccuracy).toFixed(1)}%` : "—"}</span>
-                        <span className="text-slate-400 text-right">{snap.lineupCount}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
           </>
         )}
       </div>

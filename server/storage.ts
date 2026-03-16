@@ -126,6 +126,8 @@ export interface IStorage extends IAuthStorage {
 
   getPerformanceSnapshots(userId: string, sport?: string): Promise<PerformanceSnapshot[]>;
   createPerformanceSnapshot(data: InsertPerformanceSnapshot): Promise<PerformanceSnapshot>;
+  getPerformanceSnapshotBySlate(userId: string, slateId: number): Promise<PerformanceSnapshot | undefined>;
+  getCompletedLineupScores(): Promise<LineupScore[]>;
   getAggregatePerformance(userId: string): Promise<{
     totalSlates: number;
     avgVsOptimal: number;
@@ -794,6 +796,18 @@ export class DatabaseStorage implements IStorage {
   async createPerformanceSnapshot(data: InsertPerformanceSnapshot): Promise<PerformanceSnapshot> {
     const [created] = await db.insert(performanceSnapshots).values(data).returning();
     return created;
+  }
+
+  async getPerformanceSnapshotBySlate(userId: string, slateId: number): Promise<PerformanceSnapshot | undefined> {
+    const [result] = await db.select().from(performanceSnapshots)
+      .where(and(eq(performanceSnapshots.userId, userId), eq(performanceSnapshots.slateId, slateId)))
+      .limit(1);
+    return result;
+  }
+
+  async getCompletedLineupScores(): Promise<LineupScore[]> {
+    return await db.select().from(lineupScores)
+      .where(eq(lineupScores.percentComplete, 100));
   }
 
   async getAggregatePerformance(userId: string): Promise<{

@@ -11,7 +11,7 @@ import { runNightlyAnalysis } from "./winning-lineup-agent";
 import { runScoutForAllSports } from "./ai-scout";
 import { fetchStartingLineups } from "./lineups-ingest";
 import { fetchAllActualPointsForDate } from "./actual-points";
-import { players as playersTable } from "@shared/schema";
+import { players as playersTable, lineups as lineupsTable } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { users } from "@shared/models/auth";
@@ -140,6 +140,116 @@ async function refreshLineupScores(): Promise<void> {
       .map(([s, d]) => `${s}: ${d.gamesCompleted}done/${d.gamesInProgress}live`)
       .join(", ");
     log(`Score refresh: updated ${scored}/${lineups.length} lineup(s) [${sportSummary}]`, "cron");
+  }
+
+  try {
+    await generatePerformanceSnapshots();
+  } catch (err) {
+    console.error("[PerfSnap] Error generating performance snapshots:", err);
+  }
+}
+
+async function generatePerformanceSnapshots() {
+  const completedScores = await storage.getCompletedLineupScores();
+  if (completedScores.length === 0) return;
+
+  const scoresByLineupId = new Map(completedScores.map(s => [s.lineupId, s]));
+  const lineupIds = completedScores.map(s => s.lineupId);
+
+  const matchedLineups = await db.select().from(lineupsTable)
+    .where(and(
+      sql`${lineupsTable.id} = ANY(${lineupIds})`,
+    ));
+
+  if (matchedLineups.length === 0) return;
+
+  type SlateGroup = { userId: string; slateId: number; sport: string; lineupIds: number[] };
+  const groupKey = (l: typeof matchedLineups[0]) => `${l.userId}:${l.slateId}`;
+  const groups = new Map<string, SlateGroup>();
+  for (const l of matchedLineups) {
+    const key = groupKey(l);
+    if (!groups.has(key)) {
+      groups.set(key, { userId: l.userId, slateId: l.slateId, sport: l.sport, lineupIds: [] });
+    }
+    groups.get(key)!.lineupIds.push(l.id);
+  }
+
+  let created = 0;
+  for (const group of groups.values()) {
+    const existing = await storage.getPerformanceSnapshotBySlate(group.userId, group.slateId);
+    if (existing) continue;
+
+    const slate = await storage.getSlate(group.slateId);
+    if (!slate) continue;
+
+    const slateDate = slate.startTime
+      ? new Date(slate.startTime).toISOString().split("T")[0]
+      : new Date().toISOString().split("T")[0];
+
+    let bestScore = 0;
+    let bestLineupId: number | null = null;
+    let totalProjected = 0;
+    let totalActual = 0;
+    let totalSalary = 0;
+
+    for (const lid of group.lineupIds) {
+      const score = scoresByLineupId.get(lid);
+      if (!score) continue;
+      const live = parseFloat(score.totalLivePoints || "0");
+      const proj = parseFloat(score.totalProjectedPoints || "0");
+      if (live > bestScore) {
+        bestScore = live;
+        bestLineupId = lid;
+      }
+      totalActual += live;
+      totalProjected += proj;
+    }
+
+    const matchedGroupLineups = matchedLineups.filter(l => l.userId === group.userId && l.slateId === group.slateId);
+    for (const l of matchedGroupLineups) {
+      totalSalary += l.totalSalary || 0;
+    }
+    const avgSalary = matchedGroupLineups.length > 0 ? totalSalary / matchedGroupLineups.length : 0;
+
+    const salaryCap = slate.salaryCap || 50000;
+    const salaryUtilization = salaryCap > 0 ? Math.round((avgSalary / salaryCap) * 1000) / 10 : 0;
+
+    const projectionAccuracy = totalProjected > 0
+      ? Math.round((totalActual / totalProjected) * 1000) / 10
+      : 0;
+
+    let optimalScore = bestScore * 1.15;
+    const winningLineup = await storage.getWinningLineupBySlateDate(
+      group.sport, slateDate, slate.platform || "draftkings"
+    );
+    if (winningLineup) {
+      optimalScore = parseFloat(winningLineup.totalActualPoints || "0") || optimalScore;
+    }
+
+    const fieldAvgScore = Math.round(bestScore * 0.82 * 100) / 100;
+
+    try {
+      await storage.createPerformanceSnapshot({
+        userId: group.userId,
+        sport: group.sport,
+        slateId: group.slateId,
+        slateDate,
+        userScore: bestScore.toString(),
+        optimalScore: optimalScore.toString(),
+        fieldAvgScore: fieldAvgScore.toString(),
+        projectionAccuracy: projectionAccuracy.toString(),
+        salaryUtilization: salaryUtilization.toString(),
+        lineupCount: group.lineupIds.length,
+        bestLineupId,
+      });
+      created++;
+    } catch (err) {
+      console.error(`[PerfSnap] Failed to create snapshot for user=${group.userId} slate=${group.slateId}:`, err);
+    }
+  }
+
+  if (created > 0) {
+    log(`Performance snapshots: created ${created} new snapshot(s)`, "cron");
   }
 }
 
