@@ -21,7 +21,7 @@ import {
   Crown, TrendingUp, TrendingDown, AlertTriangle,
   ShieldAlert, Activity, SaveAll, Star, Flag, MapPin,
   Cloud, Sun, Wind, CloudRain, Droplets, Target,
-  Trophy, Flame, Award, BarChart3, Users, Percent, ArrowLeftRight, Plus
+  Trophy, Flame, Award, BarChart3, Users, Percent, ArrowLeftRight, Plus, DollarSign
 } from "lucide-react";
 import { gradeLineup, GRADE_COLORS } from "@/lib/lineup-grader";
 import { PlayerInfoHoverCard } from "@/components/PlayerInfoHoverCard";
@@ -111,6 +111,21 @@ export default function ProOptimizer() {
   const [globalMaxExposure, setGlobalMaxExposure] = useState<number | null>(null);
   const [leverageMode, setLeverageMode] = useState(false);
   const [projectionMode, setProjectionMode] = useState<"balanced" | "ceiling">("balanced");
+
+  // ── Contest Mode (Cash / GPP) ─────────────────────────────────────────────
+  // Drives projectionMode + leverageMode defaults; user can still override
+  // individual toggles after selecting a mode.
+  const [contestType, setContestType] = useState<"cash" | "gpp">("cash");
+  const handleContestTypeChange = (type: "cash" | "gpp") => {
+    setContestType(type);
+    if (type === "cash") {
+      setProjectionMode("balanced");
+      setLeverageMode(false);
+    } else {
+      setProjectionMode("ceiling");
+      // Only auto-enable leverage for Pro users
+    }
+  };
 
   // ── Simulation Mode ────────────────────────────────────────────────────────
   const [simMode, setSimMode] = useState(false);
@@ -928,8 +943,39 @@ export default function ProOptimizer() {
       {/* Top Controls Bar */}
       <div className="border-b border-slate-800 bg-slate-900/60 px-4 py-2">
         <div className="flex flex-col gap-2 md:gap-0">
-          {/* Row 1: Slate info + selector */}
+          {/* Row 1: Cash/GPP Mode + Slate info + selector */}
           <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide">
+
+            {/* ── Cash / GPP Mode Toggle ── */}
+            <div className="flex items-center bg-slate-800/80 border border-slate-700/60 rounded-lg p-0.5 flex-shrink-0" data-testid="contest-type-toggle">
+              <button
+                onClick={() => handleContestTypeChange("cash")}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-black transition-all ${
+                  contestType === "cash"
+                    ? "bg-emerald-600 text-white shadow-sm shadow-emerald-900/50"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+                data-testid="btn-cash-mode"
+              >
+                <DollarSign className="w-3 h-3" />
+                CASH
+              </button>
+              <button
+                onClick={() => handleContestTypeChange("gpp")}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-black transition-all ${
+                  contestType === "gpp"
+                    ? "bg-amber-500 text-black shadow-sm shadow-amber-900/50"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+                data-testid="btn-gpp-mode"
+              >
+                <Trophy className="w-3 h-3" />
+                GPP
+              </button>
+            </div>
+
+            <div className="h-4 w-px bg-slate-700 flex-shrink-0" />
+
             <Badge className={`text-[11px] font-black flex-shrink-0 ${pColors.bg} ${pColors.text} ${pColors.border}`} data-testid="badge-platform">
               {config.shortLabel} {sport}
             </Badge>
@@ -983,22 +1029,28 @@ export default function ProOptimizer() {
                   <LabelTip text="Apply AI Scout projection adjustments from live injury and news data."><label className="text-[10px] font-black text-slate-400 uppercase">Boosts</label></LabelTip>
                   <Switch checked={useBoosts} onCheckedChange={setUseBoosts} data-testid="toggle-boosts" className="scale-90" />
                 </div>
+                {/* Leverage: GPP-only control */}
+                {contestType === "gpp" && (
+                  <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
+                    <LabelTip text="Down-weight heavily-owned 'chalk' players and boost low-ownership plays for tournament differentiation."><label className="text-[10px] font-black text-amber-400 uppercase">Leverage</label></LabelTip>
+                    <Switch checked={leverageMode} onCheckedChange={setLeverageMode} data-testid="toggle-leverage" className="scale-90" />
+                  </div>
+                )}
+                {/* Mode: auto-set by contest type, user can still override */}
                 <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
-                  <LabelTip text="Down-weight heavily-owned 'chalk' players and boost low-ownership plays for tournament differentiation."><label className="text-[10px] font-black text-amber-400 uppercase">Leverage</label></LabelTip>
-                  <Switch checked={leverageMode} onCheckedChange={setLeverageMode} data-testid="toggle-leverage" className="scale-90" />
-                </div>
-                <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
-                  <LabelTip text="Balanced = safe, high-floor lineups for cash games. Ceiling = high-upside lineups targeting boom-or-bust GPP plays."><label className="text-[10px] font-black text-purple-400 uppercase">Mode</label></LabelTip>
+                  <LabelTip text="Balanced = safe, high-floor lineups for cash games. Ceiling = high-upside lineups targeting boom-or-bust GPP plays.">
+                    <label className={`text-[10px] font-black uppercase ${contestType === "gpp" ? "text-amber-400" : "text-emerald-400"}`}>Mode</label>
+                  </LabelTip>
                   <button
                     onClick={() => setProjectionMode(projectionMode === "balanced" ? "ceiling" : "balanced")}
                     className={`text-[10px] font-black px-2 py-0.5 rounded ${
                       projectionMode === "ceiling"
-                        ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
-                        : "bg-slate-700/50 text-slate-400 border border-slate-600/30"
+                        ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                        : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                     }`}
                     data-testid="button-projection-mode"
                   >
-                    {projectionMode === "ceiling" ? "CEILING" : "BALANCED"}
+                    {projectionMode === "ceiling" ? "CEILING" : "FLOOR"}
                   </button>
                 </div>
               </>
@@ -1096,22 +1148,24 @@ export default function ProOptimizer() {
                 <label className="text-[10px] font-black text-slate-400 uppercase">Boosts</label>
                 <Switch checked={useBoosts} onCheckedChange={setUseBoosts} data-testid="toggle-boosts-mobile" className="scale-90" />
               </div>
+              {contestType === "gpp" && (
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <label className="text-[10px] font-black text-amber-400 uppercase">Leverage</label>
+                  <Switch checked={leverageMode} onCheckedChange={setLeverageMode} data-testid="toggle-leverage-mobile" className="scale-90" />
+                </div>
+              )}
               <div className="flex items-center gap-1.5 flex-shrink-0">
-                <label className="text-[10px] font-black text-amber-400 uppercase">Leverage</label>
-                <Switch checked={leverageMode} onCheckedChange={setLeverageMode} data-testid="toggle-leverage-mobile" className="scale-90" />
-              </div>
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <label className="text-[10px] font-black text-purple-400 uppercase">Mode</label>
+                <label className={`text-[10px] font-black uppercase ${contestType === "gpp" ? "text-amber-400" : "text-emerald-400"}`}>Mode</label>
                 <button
                   onClick={() => setProjectionMode(projectionMode === "balanced" ? "ceiling" : "balanced")}
                   className={`text-[10px] font-black px-2 py-0.5 rounded ${
                     projectionMode === "ceiling"
-                      ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
-                      : "bg-slate-700/50 text-slate-400 border border-slate-600/30"
+                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                      : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                   }`}
                   data-testid="button-projection-mode-mobile"
                 >
-                  {projectionMode === "ceiling" ? "CEILING" : "BALANCED"}
+                  {projectionMode === "ceiling" ? "CEILING" : "FLOOR"}
                 </button>
               </div>
               <div className={`flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0 ${simMode ? "opacity-50 cursor-not-allowed" : ""}`}>
@@ -1231,7 +1285,7 @@ export default function ProOptimizer() {
           )}
 
           {/* ── Sim Mode Toggle ────────────────────────────────────────────── */}
-          <div className={`rounded-xl border transition-all overflow-hidden ${simMode ? "border-violet-500/30 bg-violet-500/5" : "border-slate-700/50 bg-slate-800/30"}`} data-testid="sim-mode-panel">
+          <div className={`rounded-xl border transition-all overflow-hidden ${simMode ? "border-violet-500/30 bg-violet-500/5" : contestType === "gpp" ? "border-amber-700/30 bg-slate-800/30" : "border-slate-700/50 bg-slate-800/30"}`} data-testid="sim-mode-panel">
             <div
               onClick={() => setSimMode(v => !v)}
               className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-slate-800/40 transition-colors cursor-pointer"
@@ -1367,6 +1421,8 @@ export default function ProOptimizer() {
               className={`font-black shadow-lg text-xs flex-1 md:flex-none ${
                 simMode
                   ? "bg-violet-500 text-white shadow-violet-500/20 hover:bg-violet-400"
+                  : contestType === "cash"
+                  ? "bg-emerald-600 text-white shadow-emerald-900/30 hover:bg-emerald-500"
                   : "bg-amber-500 text-black shadow-amber-500/20 hover:bg-amber-400"
               }`}
               data-testid="button-generate"
@@ -1375,8 +1431,10 @@ export default function ProOptimizer() {
                 <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
               ) : simMode ? (
                 <Activity className="w-3.5 h-3.5 mr-1.5" />
+              ) : contestType === "cash" ? (
+                <DollarSign className="w-3.5 h-3.5 mr-1.5" />
               ) : (
-                <Zap className="w-3.5 h-3.5 mr-1.5" />
+                <Trophy className="w-3.5 h-3.5 mr-1.5" />
               )}
               {slateHasStarted ? "SLATE LOCKED"
                 : isOptimizing && simMode ? `Simulating ${numSims}×…`
@@ -1608,9 +1666,10 @@ export default function ProOptimizer() {
                   <SortHeader label="Team" field="team" />
                   <SortHeader label="Salary" field="salary" />
                   <SortHeader label="Base Proj" field="projectedPoints" />
-                  <SortHeader label="Boosted Proj" field="boostedProj" />
+                  <SortHeader label={contestType === "cash" ? "Floor Proj" : "Ceiling Proj"} field="boostedProj" />
+                  {/* Own% is always shown in GPP mode (key differentiator), gated in Cash mode */}
                   {hasPaidAccess ? (
-                    <SortHeader label="Proj. Own%" field="ownershipProjection" />
+                    <SortHeader label={contestType === "gpp" ? "Proj. Own%" : "Own%"} field="ownershipProjection" className={contestType === "gpp" ? "text-amber-400" : ""} />
                   ) : (
                     <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-center">
                       <div className="flex items-center justify-center gap-1 text-amber-500/70">
@@ -1736,15 +1795,21 @@ export default function ProOptimizer() {
                       {hasPaidAccess ? (
                         <td className="px-3 py-2">
                           <div className="flex items-center gap-1" data-testid={`text-own-${player.id}`}>
-                            <Users className="w-3 h-3 text-slate-500" />
+                            <Users className={`w-3 h-3 ${contestType === "gpp" ? "text-amber-500/60" : "text-slate-500"}`} />
                             <span className={`font-mono text-[11px] font-bold ${
                               player.ownershipProjection >= 25 ? "text-red-400" :
                               player.ownershipProjection >= 15 ? "text-amber-400" :
                               player.ownershipProjection >= 8 ? "text-slate-300" :
-                              "text-emerald-400"
+                              contestType === "gpp" ? "text-emerald-400" : "text-emerald-400"
                             }`}>
                               {player.ownershipProjection.toFixed(1)}%
                             </span>
+                            {/* GPP: flag very low-owned players as contrarian value */}
+                            {contestType === "gpp" && player.ownershipProjection < 8 && player.ownershipProjection > 0 && (
+                              <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1 rounded" title="Low-owned contrarian play">
+                                CONTRA
+                              </span>
+                            )}
                           </div>
                         </td>
                       ) : (
