@@ -885,7 +885,7 @@ export default function SavedLineups() {
           </div>
 
           {showRegenSettings && selectedIds.size > 0 && isPaid && (
-            <div className={`border rounded-xl px-4 py-3 ${regenContestType === "cash" ? "bg-emerald-950/30 border-emerald-800/30" : "bg-amber-950/30 border-amber-800/30"}`} data-testid="regen-settings-panel">
+            <div className={`border rounded-xl px-4 py-3 ${regenContestType === "cash" ? "bg-emerald-950/60 border-emerald-700/60" : "bg-amber-950/60 border-amber-700/60"}`} data-testid="regen-settings-panel">
               <div className="flex items-center gap-2 mb-3">
                 {regenContestType === "cash" ? (
                   <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
