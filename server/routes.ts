@@ -4922,4 +4922,27 @@ export async function checkInjuryAlerts() {
       await storage.bulkCreateAlerts(newAlerts);
     }
   }
+
+  app.post("/api/admin/cleanup-review-lineups", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    const dbUser = await storage.getUser(userId);
+    if (!dbUser?.isAdmin) return res.sendStatus(403);
+
+    const { sport, hoursOld = 2 } = req.body;
+    if (!sport) return res.status(400).json({ error: "sport is required" });
+
+    const cutoff = new Date(Date.now() - hoursOld * 60 * 60 * 1000);
+    const deleted = await db.delete(lineups)
+      .where(
+        and(
+          eq(lineups.status, "review"),
+          eq(lineups.sport, sport),
+          lt(lineups.reviewedAt, cutoff)
+        )
+      )
+      .returning();
+
+    res.json({ deleted: deleted.length, sport, hoursOld });
+  });
 }
