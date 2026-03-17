@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { usePageMeta } from "@/hooks/use-page-meta";
 import {
   Zap, Target, TrendingUp, Shield, BarChart3, Users,
   Dribbble, Activity, Flag, ArrowRight, Sparkles
@@ -58,6 +59,11 @@ const REASONS = [
 ];
 
 export default function About() {
+  usePageMeta({
+    title: "About EliteLineup AI",
+    description: "Learn about EliteLineup AI, the advanced DFS lineup optimizer powered by Monte Carlo simulations, AI-driven prop analysis, and real-time data for DraftKings, FanDuel, and Yahoo.",
+    path: "/about",
+  });
   return (
     <div className="bg-[#0F172A] min-h-screen" data-testid="about-page">
       <div className="relative overflow-hidden">

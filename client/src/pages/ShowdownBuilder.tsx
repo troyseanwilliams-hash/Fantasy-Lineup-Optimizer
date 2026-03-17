@@ -20,6 +20,7 @@ import { InfoTip, LabelTip } from "@/components/InfoTip";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import type { Slate, Player } from "@shared/schema";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -115,6 +116,7 @@ const SHOWDOWN_SPORTS = ["NBA", "NFL"].filter(s => ACTIVE_SPORTS.includes(s as a
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function ShowdownBuilder() {
+  usePageMeta({ title: "Showdown Builder - Single-Game DFS Optimizer", description: "Optimize single-game DFS lineups for DraftKings Showdown and Captain mode contests.", path: "/showdown" });
   const { user } = useAuth();
   const { toast } = useToast();
 

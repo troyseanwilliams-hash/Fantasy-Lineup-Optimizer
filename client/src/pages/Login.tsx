@@ -6,10 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { usePageMeta } from "@/hooks/use-page-meta";
 import { Eye, EyeOff, Loader2, UserPlus, LogIn, Phone } from "lucide-react";
 import { LogoBanner } from "@/components/Logo";
 
 export default function Login() {
+  usePageMeta({ title: "Sign In", description: "Sign in or create an account on EliteLineup AI to access DFS lineup optimization tools.", path: "/login" });
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();

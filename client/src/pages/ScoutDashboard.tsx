@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { BOOST_WEIGHTS } from "@/hooks/useScoutBoosts";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 const SPORTS = ["NBA", "NFL", "MLB", "NHL", "GOLF"] as const;
 
@@ -90,6 +91,7 @@ function ScoutUpgradeGate() {
 }
 
 export default function ScoutDashboard() {
+  usePageMeta({ title: "AI Scout - Player Signal Dashboard", description: "AI-powered player signals detecting value spikes, injury impacts, and hot streaks.", path: "/scout" });
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();

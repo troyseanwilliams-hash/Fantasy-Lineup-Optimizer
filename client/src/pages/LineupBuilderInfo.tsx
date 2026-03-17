@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { usePageMeta } from "@/hooks/use-page-meta";
 import {
   Zap, ArrowRight, BarChart3, Layers, Download, Sparkles,
   Crown, Trophy, Check, X, Shield, Target, Activity,
@@ -91,6 +92,7 @@ const HOW_IT_WORKS = [
 ];
 
 export default function LineupBuilderInfo() {
+  usePageMeta({ title: "DFS Lineup Builder - Optimize Your DraftKings & FanDuel Lineups", description: "Build winning DFS lineups with AI-powered optimization. Supports DraftKings, FanDuel, and Yahoo across NBA, NFL, MLB, NHL, Golf, and Soccer.", path: "/lineup-builder" });
   return (
     <div className="bg-[#0F172A] min-h-screen" data-testid="lineup-builder-info-page">
       <div className="relative overflow-hidden">

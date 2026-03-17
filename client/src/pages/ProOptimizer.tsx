@@ -27,6 +27,7 @@ import { gradeLineup, GRADE_COLORS } from "@/lib/lineup-grader";
 import { PlayerInfoHoverCard } from "@/components/PlayerInfoHoverCard";
 import { ScoutPanel } from "@/components/ScoutPanel";
 import { InfoTip, LabelTip } from "@/components/InfoTip";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "boostedProj" | "ownershipProjection";
 type SortDir = "asc" | "desc";
@@ -83,6 +84,7 @@ function PlayerStarRating({ stars }: { stars: number }) {
 }
 
 export default function ProOptimizer() {
+  usePageMeta({ title: "Pro Optimizer - Monte Carlo Simulation", description: "Advanced DFS lineup optimization powered by Monte Carlo simulations.", path: "/optimizer-pro" });
   const [, params] = useRoute("/optimizer-pro/:id");
   const [, setLocation] = useLocation();
   const { user } = useAuth();

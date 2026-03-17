@@ -15,6 +15,7 @@ import {
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import { InfoTip, LabelTip } from "@/components/InfoTip";
 import { AFFILIATE_LINKS } from "@shared/affiliate-config";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 const SPORT_META: Record<string, { icon: typeof Dribbble; color: string; bgColor: string; accent: string }> = {
   NBA: { icon: Dribbble, color: "text-orange-400", bgColor: "bg-orange-500/20", accent: "orange" },
@@ -234,6 +235,7 @@ function NonProView() {
 }
 
 export default function ParlayBuilder() {
+  usePageMeta({ title: "Parlay Builder - Build Winning Parlays", description: "Build optimized parlay bets with AI-driven analysis across multiple sports.", path: "/parlays" });
   const { user, isLoading: authLoading } = useAuth();
   const [selectedSport, setSelectedSport] = useState<string>("ALL");
   const [parlayLegs, setParlayLegs] = useState<ParlayLeg[]>([]);

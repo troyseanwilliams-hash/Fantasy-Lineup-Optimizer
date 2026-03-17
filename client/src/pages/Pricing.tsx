@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { usePageMeta } from "@/hooks/use-page-meta";
 import { Check, Crown, Lock, Trophy, Sparkles, Calendar, Tag, Loader2, AlertTriangle, CreditCard, Gift, Dice5 } from "lucide-react";
 import { PaymentModal } from "@/components/PaymentForm";
 
@@ -14,6 +15,11 @@ type BillingCycle = "monthly" | "annual";
 export default function Pricing() {
   const { user } = useAuth();
   const { toast } = useToast();
+  usePageMeta({
+    title: "Pricing - DFS Optimizer Plans",
+    description: "Choose your EliteLineup AI plan. Free Contender tier, Sharpshooter at $19.99/mo, or Champion at $39.99/mo. Monte Carlo simulations, AI Scout, prop analysis, and more.",
+    path: "/pricing",
+  });
   const [billing, setBilling] = useState<BillingCycle>("monthly");
   const [paymentTier, setPaymentTier] = useState<"star" | "pro" | null>(null);
 

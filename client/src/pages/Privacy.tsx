@@ -1,7 +1,9 @@
 import { Link } from "wouter";
 import { ArrowLeft } from "lucide-react";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 export default function Privacy() {
+  usePageMeta({ title: "Privacy Policy", description: "EliteLineup AI privacy policy. Learn how we protect your data and handle your information.", path: "/privacy" });
   return (
     <div className="min-h-screen bg-[#0F172A] text-slate-300">
       <div className="container mx-auto px-4 py-12 max-w-4xl">

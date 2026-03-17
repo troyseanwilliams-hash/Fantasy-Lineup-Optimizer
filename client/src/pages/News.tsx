@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import { Button } from "@/components/ui/button";
 import { Newspaper, ExternalLink, Clock, Dribbble, Activity, Target, ArrowLeft, Shield, Flag, Trophy, Users, Circle } from "lucide-react";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 interface NewsArticle {
   id: string;
@@ -509,6 +510,7 @@ function StandardNewsContent({ sport, meta }: { sport: string; meta: typeof SPOR
 }
 
 export default function News() {
+  usePageMeta({ title: "Sports News - Latest Updates", description: "Latest sports news, injury updates, and analysis for DFS players.", path: "/news" });
   const params = useParams<{ sport: string }>();
   const sport = (params.sport || "NBA").toUpperCase();
   const meta = SPORT_META[sport] || SPORT_META.NBA;

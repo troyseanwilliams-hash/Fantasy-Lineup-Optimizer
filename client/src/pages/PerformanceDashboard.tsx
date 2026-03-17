@@ -8,6 +8,7 @@ import { Loader2, BarChart3, TrendingUp, Target, Activity, Trophy, Calendar, Zap
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { PerformanceSnapshot } from "@shared/schema";
 import { InfoTip, LabelTip } from "@/components/InfoTip";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 function toNum(v: string | number | null | undefined): number {
   if (v == null || v === "") return 0;
@@ -37,6 +38,7 @@ interface TodayActivity {
 }
 
 export default function PerformanceDashboard() {
+  usePageMeta({ title: "Performance Dashboard - Your DFS Stats", description: "View your DFS performance statistics, win rates, and historical lineup data.", path: "/performance" });
   const { user } = useAuth();
   const [selectedSport, setSelectedSport] = useState<string>("ALL");
 

@@ -17,6 +17,7 @@ import {
   Search, Bot, ChevronDown, ChevronUp, Loader2, Save, Vault, Clock,
   Brain, AlertTriangle, ArrowLeftRight
 } from "lucide-react";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 const PP_SPORTS = ["NBA", "NHL", "NFL", "MLB", "GOLF", "SOCCER"] as const;
 
@@ -272,6 +273,7 @@ function NonProView() {
 }
 
 export default function PrizePicksBuilder() {
+  usePageMeta({ title: "PrizePicks Optimizer - AI Entry Builder", description: "Build winning PrizePicks entries with AI-powered projections and analysis.", path: "/prizepicks" });
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [selectedSport, setSelectedSport] = useState<string>("NBA");

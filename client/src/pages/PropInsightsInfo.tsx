@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { usePageMeta } from "@/hooks/use-page-meta";
 import {
   Target, ArrowRight, ArrowUpRight, ArrowDownRight, Star, Flame,
   Crown, Trophy, Check, X, Zap, Sparkles, TrendingUp, Shield,
@@ -121,6 +122,7 @@ const PICK_TIERS = [
 ];
 
 export default function PropInsightsInfo() {
+  usePageMeta({ title: "Prop Bet Insights - AI-Powered Player Prop Analysis", description: "Get AI-driven player prop bet analysis across NBA, NFL, MLB, NHL, and more. Confidence-rated picks with real-time injury and matchup data.", path: "/prop-insights" });
   return (
     <div className="bg-[#0F172A] min-h-screen" data-testid="prop-insights-info-page">
       <div className="relative overflow-hidden">

@@ -1,8 +1,10 @@
 import { Link } from "wouter";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 export default function Terms() {
+  usePageMeta({ title: "Terms of Service", description: "EliteLineup AI terms of service. Read our terms and conditions for using the DFS lineup optimizer platform.", path: "/terms" });
   return (
     <div className="bg-[#0F172A] min-h-screen text-slate-300">
       <div className="container mx-auto px-4 py-12 max-w-4xl">

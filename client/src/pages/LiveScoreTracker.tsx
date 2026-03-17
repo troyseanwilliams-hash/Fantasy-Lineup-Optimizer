@@ -8,6 +8,7 @@ import { Loader2, Activity, TrendingUp, Clock, Trophy, RefreshCw, ChevronDown, C
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Lineup, LineupScore } from "@shared/schema";
 import { InfoTip, LabelTip } from "@/components/InfoTip";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 function toNum(v: string | number | null | undefined): number {
   if (v == null || v === "") return 0;
@@ -15,6 +16,7 @@ function toNum(v: string | number | null | undefined): number {
 }
 
 export default function LiveScoreTracker() {
+  usePageMeta({ title: "Live Score Tracker - Real-Time Lineup Tracking", description: "Track your DFS lineup performance in real-time with live scoring updates.", path: "/live-scores" });
   const { user } = useAuth();
   const [selectedSport, setSelectedSport] = useState<string>("ALL");
   const [expandedLineup, setExpandedLineup] = useState<number | null>(null);

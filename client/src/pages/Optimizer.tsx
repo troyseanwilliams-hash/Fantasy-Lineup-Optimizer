@@ -23,6 +23,7 @@ import { gradeLineup, GRADE_COLORS } from "@/lib/lineup-grader";
 import { PlayerInfoHoverCard } from "@/components/PlayerInfoHoverCard";
 import { ScoutPanel } from "@/components/ScoutPanel";
 import { InfoTip, LabelTip } from "@/components/InfoTip";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "fppg" | "value";
 type SortDir = "asc" | "desc";
@@ -62,6 +63,7 @@ const INJURY_COLORS: Record<string, string> = {
 };
 
 export default function Optimizer() {
+  usePageMeta({ title: "Lineup Optimizer", description: "Build optimized DFS lineups with the EliteLineup AI optimizer.", path: "/optimizer" });
   const [, params] = useRoute("/optimizer/:id");
   const [, setLocation] = useLocation();
   const { user } = useAuth();

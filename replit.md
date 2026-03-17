@@ -75,6 +75,14 @@ Preferred communication style: Simple, everyday language.
 - **Tiers**: Basic (free), Star, and Pro, with 7-day free trials.
 - **Payment**: Stripe Elements for upgrades and customer portal.
 
+### SEO
+- **Meta Tags**: Title, description, Open Graph, Twitter Card tags in `client/index.html` with per-page overrides via `usePageMeta` hook (`client/src/hooks/use-page-meta.ts`).
+- **Structured Data**: JSON-LD `WebApplication` schema with pricing tiers and feature list.
+- **Sitemap**: Dynamic XML sitemap at `/sitemap.xml` served from `server/routes.ts`.
+- **Robots.txt**: Served from `server/routes.ts`, blocks `/admin`, `/optimizer/`, `/optimizer-pro/`, `/api/`.
+- **Canonical URLs**: Set per-page via the `usePageMeta` hook.
+- **Pages with SEO**: Home, Pricing, About, Terms, Privacy, Login, Lineup Builder, Prop Insights, Track Record, Sim Guide.
+
 ## External Dependencies
 
 - **PostgreSQL Database**: Main data storage.

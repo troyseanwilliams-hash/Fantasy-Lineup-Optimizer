@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import type { Slate, Player, PlayerOverride } from "@shared/schema";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 const SPORT_COLORS: Record<string, { accent: string; bg: string; border: string; tab: string }> = {
   NBA: { accent: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/20", tab: "bg-orange-500" },
@@ -35,6 +36,7 @@ type SortField = "name" | "position" | "salary" | "projectedPoints" | "fppg" | "
 type SortDir = "asc" | "desc";
 
 export default function PlayerConfig() {
+  usePageMeta({ title: "Player Configuration - Custom Projections", description: "Customize player projections, lock players, and set exclusions for lineup optimization.", path: "/player-config" });
   const { user } = useAuth();
   const { toast } = useToast();
   const [selectedSport, setSelectedSport] = useState("NBA");

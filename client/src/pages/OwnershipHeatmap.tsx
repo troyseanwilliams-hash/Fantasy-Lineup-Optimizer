@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import type { Slate } from "@shared/schema";
 import { ACTIVE_SPORTS, getPlatformConfig } from "@shared/platform-config";
 import { InfoTip, LabelTip } from "@/components/InfoTip";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 interface OwnershipPlayer {
   id: number;
@@ -403,6 +404,7 @@ function PlayerRowWithHover({ player, idx, maxOwn, sport }: PlayerRowWithHoverPr
 }
 
 export default function OwnershipHeatmap() {
+  usePageMeta({ title: "Ownership Heatmap - Projected Player Ownership", description: "View projected player ownership percentages by position for DFS contests.", path: "/ownership" });
   const { user } = useAuth();
 
   const { data: slates } = useQuery<Slate[]>({

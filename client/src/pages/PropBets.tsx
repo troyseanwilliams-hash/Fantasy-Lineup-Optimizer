@@ -9,6 +9,7 @@ import { Lock, Crown, Zap, ArrowUpRight, ArrowDownRight, ExternalLink, Trophy, A
 import { useState } from "react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import { AFFILIATE_LINKS, AFFILIATE_PROMOS } from "@shared/affiliate-config";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 const SPORT_LOGO_PATH: Record<string, string> = {
   NBA: "nba", NHL: "nhl", MLB: "mlb", NFL: "nfl", GOLF: "golf", SOCCER: "soccer",
@@ -414,6 +415,7 @@ function getStatColor(statType: string): string {
 }
 
 export default function PropBets() {
+  usePageMeta({ title: "Prop Bets - Player Prop Analysis", description: "Analyze player prop bets across NBA, NFL, MLB, NHL, and more with AI-powered confidence ratings.", path: "/props" });
   const searchString = useSearch();
   const sportParam = new URLSearchParams(searchString).get("sport")?.toUpperCase() || null;
   const [ppSport, setPpSport] = useState<string>("NBA");

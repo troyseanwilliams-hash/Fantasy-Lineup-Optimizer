@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Bell, Mail, Smartphone, AlertTriangle, Trophy, Clock, Save } from "lucide-react";
 import { useForm } from "react-hook-form";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 interface NotifPrefs {
   emailEnabled: boolean;
@@ -23,6 +24,7 @@ interface NotifPrefs {
 }
 
 export default function NotificationPreferences() {
+  usePageMeta({ title: "Notification Preferences", description: "Configure your alert preferences for lineup updates and player news.", path: "/notifications" });
   const { user } = useAuth();
   const { toast } = useToast();
 

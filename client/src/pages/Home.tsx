@@ -7,6 +7,7 @@ import {
   Radio, Circle, Brain, Upload, BarChart3, Layers, Dice5, HelpCircle
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { usePageMeta } from "@/hooks/use-page-meta";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -1277,6 +1278,11 @@ function LandingTopPlays() {
 
 export default function Home() {
   const { user } = useAuth();
+  usePageMeta({
+    title: "EliteLineup AI - DFS Lineup Optimizer for DraftKings, FanDuel & Yahoo",
+    description: "AI-powered Daily Fantasy Sports lineup optimizer. Build winning lineups for NBA, NFL, MLB, NHL, Golf & Soccer with Monte Carlo simulations, prop analysis, and ownership projections.",
+    path: "/",
+  });
 
   if (!user) {
     return (

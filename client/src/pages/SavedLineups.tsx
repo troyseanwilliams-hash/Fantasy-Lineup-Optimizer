@@ -17,6 +17,7 @@ import { getPlatformConfig, assignPlayersToSlots, getSlotDisplayName, positionFi
 import type { Player } from "@shared/schema";
 import { PlayerInfoHoverCard } from "@/components/PlayerInfoHoverCard";
 import { InfoTip } from "@/components/InfoTip";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 type VaultSortKey = "newest" | "oldest" | "projection_high" | "projection_low" | "ownership_high" | "ownership_low" | "salary_high" | "salary_low" | "grade_high" | "grade_low" | "p75_high" | "p90_high" | "median_high" | "freq_high" | "composite_high";
 type VaultTab = "active" | "review";
@@ -123,6 +124,7 @@ function buildPlatformCSV(lineups: LineupWithPlayers[]): string {
 }
 
 export default function SavedLineups() {
+  usePageMeta({ title: "Saved Lineups - Your Lineup Vault", description: "Manage your saved DFS lineups, run simulations, and export for contest entry.", path: "/lineups" });
   const { user } = useAuth();
   const { toast } = useToast();
   const [expandedId, setExpandedId] = useState<number | null>(null);

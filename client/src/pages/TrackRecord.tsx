@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { usePageMeta } from "@/hooks/use-page-meta";
 import { Loader2, Award, TrendingUp, Target, BarChart3, Trophy, Layers, Activity } from "lucide-react";
 
 function toNum(v: string | number | null | undefined): number {
@@ -38,6 +39,7 @@ interface TrackRecordData {
 }
 
 export default function TrackRecord() {
+  usePageMeta({ title: "Track Record - Optimizer Performance History", description: "View EliteLineup AI's optimizer performance track record. See historical accuracy, win rates, and lineup performance data across all sports.", path: "/track-record" });
   const { user } = useAuth();
 
   const { data, isLoading } = useQuery<TrackRecordData>({

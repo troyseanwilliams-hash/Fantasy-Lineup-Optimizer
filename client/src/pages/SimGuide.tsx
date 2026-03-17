@@ -1,6 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { usePageMeta } from "@/hooks/use-page-meta";
 import {
   Zap, Target, Settings2, TrendingUp, BarChart3, Shield,
   ChevronRight, Download, Layers, Gauge, Users, Lock,
@@ -133,6 +134,7 @@ const BEHIND_THE_SCENES = [
 ];
 
 export default function SimGuide() {
+  usePageMeta({ title: "Monte Carlo Simulation Guide - DFS Strategy", description: "Learn how to use Monte Carlo simulations for DFS lineup optimization. Master GPP strategy with our comprehensive simulation guide.", path: "/sim-guide" });
   const handleDownload = () => {
     const content = generatePlainTextGuide();
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
