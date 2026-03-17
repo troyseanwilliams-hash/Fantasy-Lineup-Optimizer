@@ -712,9 +712,10 @@ export default function SavedLineups() {
                       {isPaid && (
                         <Button
                           onClick={() => bulkGenerateMutation.mutate({ ids: Array.from(selectedIds), useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, contestType: regenContestType, globalMaxExposure: regenMaxExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined })}
-                          disabled={bulkGenerateMutation.isPending}
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                          disabled={bulkGenerateMutation.isPending || regenContestType === "gpp"}
+                          className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
                           data-testid="bulk-generate-btn"
+                          title={regenContestType === "gpp" ? "Regenerate is for Cash lineups only" : ""}
                         >
                           <Zap className="w-4 h-4 mr-2" /> {bulkGenerateMutation.isPending ? "Regenerating..." : `Regenerate ${selectedIds.size}`}
                         </Button>
@@ -739,9 +740,10 @@ export default function SavedLineups() {
                           </select>
                           <Button
                             onClick={() => simScoreMutation.mutate({ ids: Array.from(selectedIds), numSims: 200 })}
-                            disabled={simScoreMutation.isPending || simRegenMutation.isPending}
-                            className="bg-violet-600 hover:bg-violet-700 text-white rounded-none text-xs"
+                            disabled={simScoreMutation.isPending || simRegenMutation.isPending || regenContestType === "cash"}
+                            className="bg-violet-600 hover:bg-violet-700 text-white rounded-none text-xs disabled:opacity-40"
                             data-testid="sim-score-btn"
+                            title={regenContestType === "cash" ? "Sim Score is for GPP lineups only" : ""}
                           >
                             {simScoreMutation.isPending ? (
                               <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
@@ -752,9 +754,10 @@ export default function SavedLineups() {
                           </Button>
                           <Button
                             onClick={() => simRegenMutation.mutate({ ids: Array.from(selectedIds), sortBy: simMetric, useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, contestType: regenContestType, globalMaxExposure: regenMaxExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined })}
-                            disabled={simRegenMutation.isPending || simScoreMutation.isPending}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-md rounded-l-none text-xs"
+                            disabled={simRegenMutation.isPending || simScoreMutation.isPending || regenContestType === "cash"}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-md rounded-l-none text-xs disabled:opacity-40"
                             data-testid="sim-regen-btn"
+                            title={regenContestType === "cash" ? "ReSim is for GPP lineups only" : ""}
                           >
                             {simRegenMutation.isPending ? (
                               <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
