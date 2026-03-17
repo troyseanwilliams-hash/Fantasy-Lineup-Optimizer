@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Lineup, LineupScore } from "@shared/schema";
 import { InfoTip, LabelTip } from "@/components/InfoTip";
 import { usePageMeta } from "@/hooks/use-page-meta";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 function toNum(v: string | number | null | undefined): number {
   if (v == null || v === "") return 0;
@@ -31,10 +32,17 @@ export default function LiveScoreTracker() {
     enabled: !!user,
   });
 
-  const { data: scores, isLoading: scoresLoading, refetch } = useQuery<LineupScore[]>({
+  const { data: scores, isLoading: scoresLoading } = useQuery<LineupScore[]>({
     queryKey: ["/api/lineup-scores"],
     enabled: !!user,
     refetchInterval: 60000,
+  });
+
+  const refreshMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/lineup-scores/refresh"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/lineup-scores"] });
+    },
   });
 
   const tier = subData?.tier || "free";
@@ -94,12 +102,13 @@ export default function LiveScoreTracker() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => refetch()}
+            onClick={() => refreshMutation.mutate()}
+            disabled={refreshMutation.isPending}
             className="border-slate-600 text-slate-300 hover:bg-slate-800"
             data-testid="btn-refresh-scores"
           >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
+            <RefreshCw className={`w-4 h-4 mr-2 ${refreshMutation.isPending ? "animate-spin" : ""}`} />
+            {refreshMutation.isPending ? "Refreshing..." : "Refresh"}
           </Button>
         </div>
 

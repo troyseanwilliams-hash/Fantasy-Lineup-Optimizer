@@ -3712,6 +3712,27 @@ export async function registerRoutes(
     }
   });
 
+  const scoreRefreshCooldowns = new Map<number, number>();
+  app.post("/api/lineup-scores/refresh", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    const now = Date.now();
+    const lastRefresh = scoreRefreshCooldowns.get(userId) || 0;
+    if (now - lastRefresh < 60_000) {
+      return res.status(429).json({ message: "Please wait at least 60 seconds between refreshes" });
+    }
+    scoreRefreshCooldowns.set(userId, now);
+    try {
+      const { refreshLineupScores } = await import("./index");
+      await refreshLineupScores();
+      const scores = await storage.getLineupScores(userId);
+      res.json({ message: "Scores refreshed", scores });
+    } catch (err: any) {
+      console.error("Manual score refresh error:", err);
+      res.status(500).json({ message: err.message || "Score refresh failed" });
+    }
+  });
+
   app.get("/api/lineup-scores/:lineupId", async (req, res) => {
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const userId = getSessionUserId(req)!;

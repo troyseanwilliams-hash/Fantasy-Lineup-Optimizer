@@ -373,15 +373,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getLineupsForScoring(): Promise<Lineup[]> {
-    const todayStart = new Date();
-    todayStart.setHours(todayStart.getHours() - 18, 0, 0, 0);
-    const slateRows = await db.select({ id: slates.id }).from(slates).where(
-      gte(slates.startTime, todayStart)
-    );
-    if (slateRows.length === 0) return [];
-    const ids = slateRows.map(s => s.id);
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
     return await db.select().from(lineups).where(
-      and(inArray(lineups.slateId, ids), inArray(lineups.status, ["active", "review"]))
+      and(
+        inArray(lineups.status, ["active", "review"]),
+        sql`(${lineups.createdAt} >= ${cutoff} OR ${lineups.reviewedAt} >= ${cutoff})`
+      )
     );
   }
 

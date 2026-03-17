@@ -33,8 +33,9 @@ function normalizeName(name: string): string {
     .trim();
 }
 
-async function refreshLineupScores(): Promise<void> {
+export async function refreshLineupScores(): Promise<void> {
   const lineups = await storage.getLineupsForScoring();
+  console.log(`[ScoreRefresh] Found ${lineups.length} lineup(s) to score`);
   if (lineups.length === 0) return;
 
   const sportSet = new Set(lineups.map(l => l.sport));
@@ -49,6 +50,7 @@ async function refreshLineupScores(): Promise<void> {
       const result = await fetchAllActualPointsForDate(sport, today);
       if (result.gamesTotal > 0) {
         sportPointsMaps.set(sport, result);
+        console.log(`[ScoreRefresh] ${sport}: ${result.gamesTotal} games, ${result.playerMap.size} players with data`);
       }
     } catch (err) {
       console.error(`[ScoreRefresh] Failed to fetch ${sport} actual points:`, err);
@@ -56,6 +58,7 @@ async function refreshLineupScores(): Promise<void> {
   }
 
   if (sportPointsMaps.size === 0) {
+    console.log("[ScoreRefresh] No games with data found for any sport today");
     return;
   }
 
@@ -66,13 +69,20 @@ async function refreshLineupScores(): Promise<void> {
     const actualData = sportPointsMaps.get(lineup.sport);
     if (!actualData || actualData.gamesTotal === 0) continue;
 
+    let rosterPlayers: any[] = [];
+
     if (!slateCache.has(lineup.slateId)) {
       const slatePlayers = await db.select().from(playersTable).where(eq(playersTable.slateId, lineup.slateId));
       slateCache.set(lineup.slateId, slatePlayers);
     }
     const allPlayers = slateCache.get(lineup.slateId)!;
+    rosterPlayers = allPlayers.filter(p => lineup.playerIds.includes(p.id));
 
-    const rosterPlayers = allPlayers.filter(p => lineup.playerIds.includes(p.id));
+    if (rosterPlayers.length === 0 && lineup.playerSnapshot && Array.isArray(lineup.playerSnapshot) && (lineup.playerSnapshot as any[]).length > 0) {
+      rosterPlayers = lineup.playerSnapshot as any[];
+      console.log(`[ScoreRefresh] Lineup ${lineup.id}: using playerSnapshot (${rosterPlayers.length} players) — slate players unavailable`);
+    }
+
     if (rosterPlayers.length === 0) continue;
 
     const playerScores: Array<{
