@@ -7,7 +7,7 @@ import { storage } from "./storage";
 import { getEasternToday } from "./balldontlie";
 import { fetchPrizePicksProjections, getSupportedPPSports } from "./prizepicks";
 import { refreshRecentlyPlayed } from "./espn-activity";
-import { runNightlyAnalysis } from "./winning-lineup-agent";
+import { runNightlyAnalysis, runBackfill } from "./winning-lineup-agent";
 import { runScoutForAllSports } from "./ai-scout";
 import { fetchStartingLineups } from "./lineups-ingest";
 import { fetchAllActualPointsForDate } from "./actual-points";
@@ -494,6 +494,14 @@ app.use((req, res, next) => {
               } catch (err) {
                 console.error(`Startup ${task.sport} ${task.date} analysis failed:`, err);
               }
+            }
+
+            // Backfill last 2 days of winning lineup data
+            try {
+              const backfillResult = await runBackfill(2);
+              log(`[WinningAgent Backfill] ${backfillResult.succeeded}/${backfillResult.attempted} successful, ${backfillResult.skipped} skipped`, "cron");
+            } catch (err) {
+              console.error("Startup winning lineup backfill failed:", err);
             }
           } catch (err) {
             console.error("Startup winning lineup fixes failed:", err);

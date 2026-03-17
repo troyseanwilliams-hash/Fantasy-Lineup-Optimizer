@@ -134,28 +134,13 @@ export default function SavedLineups() {
   const [regenUseBoosts, setRegenUseBoosts] = useState(true);
   const [regenCeilingMode, setRegenCeilingMode] = useState(false);
   const [regenLeverageMode, setRegenLeverageMode] = useState(false);
-  const [regenContestType, setRegenContestType] = useState<"cash" | "gpp">("cash");
+  const [regenContestType, setRegenContestType] = useState<"cash" | "gpp">("gpp");
   const [showRegenSettings, setShowRegenSettings] = useState(false);
   const [regenMaxExposure, setRegenMaxExposure] = useState<number | null>(null);
   const [regenProjFloor, setRegenProjFloor] = useState<number | null>(null);
   const [regenMinSalary, setRegenMinSalary] = useState<number | null>(null);
   const [regenMaxSalary, setRegenMaxSalary] = useState<number | null>(null);
   const [simMetric, setSimMetric] = useState<"composite" | "p90" | "p75" | "median" | "avg">("composite");
-
-  // When contest type changes, adjust sort default and regen settings
-  const handleVaultContestTypeChange = (type: "cash" | "gpp") => {
-    setRegenContestType(type);
-    if (type === "cash") {
-      setRegenCeilingMode(false);
-      setRegenLeverageMode(false);
-      // Default sort for cash: projection (floor matters)
-      setVaultSort("projection_high");
-    } else {
-      setRegenCeilingMode(true);
-      // Default sort for GPP: composite sim score when available, else projection
-      setVaultSort(hasSimLineups ? "composite_high" : "projection_high");
-    }
-  };
 
   const { data: lineups, isLoading } = useQuery<any[]>({
     queryKey: ["/api/lineups"],
@@ -663,57 +648,6 @@ export default function SavedLineups() {
                 <p className="text-slate-400 text-sm mt-1">Your optimized winning combinations. Expand, swap, and export.</p>
               </div>
             </div>
-
-            {/* ── Cash / GPP Mode Selector ── */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-center bg-slate-800/80 border border-slate-700/50 rounded-xl p-1 gap-0.5" data-testid="vault-contest-type-toggle">
-                <button
-                  onClick={() => handleVaultContestTypeChange("cash")}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-black transition-all ${
-                    regenContestType === "cash"
-                      ? "bg-emerald-600 text-white shadow-md shadow-emerald-900/40"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
-                  data-testid="vault-contest-cash"
-                >
-                  <DollarSign className="w-4 h-4" />
-                  Cash Game
-                </button>
-                <button
-                  onClick={() => handleVaultContestTypeChange("gpp")}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-black transition-all ${
-                    regenContestType === "gpp"
-                      ? "bg-amber-500 text-black shadow-md shadow-amber-900/40"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
-                  data-testid="vault-contest-gpp"
-                >
-                  <Trophy className="w-4 h-4" />
-                  GPP / Tournament
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Contest Mode Context Banner ── */}
-          {regenContestType === "cash" ? (
-            <div className="mb-6 bg-emerald-950/40 border border-emerald-800/30 rounded-xl px-4 py-3 flex items-center gap-3" data-testid="cash-mode-banner">
-              <DollarSign className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <div>
-                <p className="text-xs font-black text-emerald-300 uppercase tracking-wider">Cash Game Mode</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Sorted by projection floor · Regeneration uses balanced projections for consistency</p>
-              </div>
-            </div>
-          ) : (
-            <div className="mb-6 bg-amber-950/40 border border-amber-800/30 rounded-xl px-4 py-3 flex items-center gap-3" data-testid="gpp-mode-banner">
-              <Flame className="w-4 h-4 text-amber-400 flex-shrink-0" />
-              <div>
-                <p className="text-xs font-black text-amber-300 uppercase tracking-wider">GPP / Tournament Mode</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Sorted by sim composite · Regeneration uses ceiling projections and leverage for upside</p>
-              </div>
-            </div>
-          )}
-
             <div className="flex items-center gap-3 flex-wrap">
               {lineups && lineups.length > 0 && (
                 <>
@@ -725,34 +659,29 @@ export default function SavedLineups() {
                       className="bg-transparent border-none text-xs font-bold text-slate-300 outline-none cursor-pointer pr-1"
                       data-testid="vault-sort-select"
                     >
-                      {/* Cash-first sorts */}
-                      {regenContestType === "cash" && (
+                      <option value="newest">Newest First</option>
+                      <option value="oldest">Oldest First</option>
+                      <option value="projection_high">Projection: High → Low</option>
+                      <option value="projection_low">Projection: Low → High</option>
+                      {isPaid ? (
                         <>
-                          <option value="projection_high">⭐ Projection: High → Low</option>
-                          <option value="salary_high">Salary: High → Low</option>
-                          <option value="salary_low">Salary: Low → High</option>
-                          <option value="grade_high">Grade: Best → Worst</option>
-                          <option value="grade_low">Grade: Worst → Best</option>
-                          {hasSimLineups && <option value="median_high">Sim Median: High → Low</option>}
-                          <option value="projection_low">Projection: Low → High</option>
-                          <option value="newest">Newest First</option>
-                          <option value="oldest">Oldest First</option>
+                          <option value="ownership_high">Proj. Ownership: High → Low</option>
+                          <option value="ownership_low">Proj. Ownership: Low → High</option>
                         </>
+                      ) : (
+                        <option value="newest" disabled>🔒 Proj. Ownership Sort (Sharpshooter+)</option>
                       )}
-                      {/* GPP-first sorts */}
-                      {regenContestType === "gpp" && (
+                      <option value="salary_high">Salary: High → Low</option>
+                      <option value="salary_low">Salary: Low → High</option>
+                      <option value="grade_high">Grade: Best → Worst</option>
+                      <option value="grade_low">Grade: Worst → Best</option>
+                      {hasSimLineups && (
                         <>
-                          {hasSimLineups && <option value="composite_high">⭐ Sim Composite: High → Low</option>}
-                          {hasSimLineups && <option value="p90_high">Sim P90: High → Low</option>}
-                          {hasSimLineups && <option value="p75_high">Sim P75: High → Low</option>}
-                          {hasSimLineups && <option value="freq_high">Sim Freq%: High → Low</option>}
-                          <option value="projection_high">Projection: High → Low</option>
-                          {isPaid && <option value="ownership_high">Proj. Ownership: High → Low</option>}
-                          {isPaid && <option value="ownership_low">Proj. Ownership: Low → High</option>}
-                          <option value="grade_high">Grade: Best → Worst</option>
-                          <option value="salary_high">Salary: High → Low</option>
-                          <option value="newest">Newest First</option>
-                          <option value="oldest">Oldest First</option>
+                          <option value="p75_high">Sim P75: High → Low</option>
+                          <option value="p90_high">Sim P90: High → Low</option>
+                          <option value="median_high">Sim Median: High → Low</option>
+                          <option value="freq_high">Sim Freq%: High → Low</option>
+                          <option value="composite_high">Sim Composite: High → Low</option>
                         </>
                       )}
                     </select>
@@ -885,39 +814,43 @@ export default function SavedLineups() {
           </div>
 
           {showRegenSettings && selectedIds.size > 0 && isPaid && (
-            <div className={`border rounded-xl px-4 py-3 ${regenContestType === "cash" ? "bg-emerald-950/30 border-emerald-800/30" : "bg-amber-950/30 border-amber-800/30"}`} data-testid="regen-settings-panel">
-              <div className="flex items-center gap-2 mb-3">
-                {regenContestType === "cash" ? (
-                  <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-                ) : (
-                  <Trophy className="w-3.5 h-3.5 text-amber-400" />
-                )}
-                <p className={`text-[10px] font-black uppercase tracking-widest ${regenContestType === "cash" ? "text-emerald-400" : "text-amber-400"}`}>
-                  {regenContestType === "cash" ? "Cash Game" : "GPP / Tournament"} Optimization Settings
-                </p>
-              </div>
+            <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl px-4 py-3" data-testid="regen-settings-panel">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Optimization Settings</p>
               <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1 bg-slate-900/60 rounded-lg p-0.5" data-testid="regen-contest-type">
+                    <button
+                      onClick={() => setRegenContestType("cash")}
+                      className={`px-3 py-1 text-xs font-black rounded-md transition-all ${regenContestType === "cash" ? "bg-emerald-600 text-white" : "text-slate-400 hover:text-white"}`}
+                      data-testid="regen-contest-cash"
+                    >
+                      Cash
+                    </button>
+                    <button
+                      onClick={() => setRegenContestType("gpp")}
+                      className={`px-3 py-1 text-xs font-black rounded-md transition-all ${regenContestType === "gpp" ? "bg-orange-600 text-white" : "text-slate-400 hover:text-white"}`}
+                      data-testid="regen-contest-gpp"
+                    >
+                      GPP
+                    </button>
+                  </div>
+                  <InfoTip text="Cash = favors consistent, high-floor players. GPP = favors high-ceiling upside players and excludes questionable/GTD players." side="bottom" />
+                </div>
                 <div className="flex items-center gap-2">
                   <Switch checked={regenUseBoosts} onCheckedChange={setRegenUseBoosts} data-testid="regen-toggle-boosts" className="scale-90" />
                   <span className="text-xs font-bold text-slate-300">Boosts</span>
                   <InfoTip text="Apply data-driven projection boosts based on player value, consistency, salary trends, and matchup strength." side="bottom" />
                 </div>
-                {/* Ceiling Mode: GPP only */}
-                {regenContestType === "gpp" && (
-                  <div className="flex items-center gap-2">
-                    <Switch checked={regenCeilingMode} onCheckedChange={setRegenCeilingMode} data-testid="regen-toggle-ceiling" className="scale-90" />
-                    <span className="text-xs font-bold text-amber-300">Ceiling Mode</span>
-                    <InfoTip text="Inflates projections for high-salary, high-upside players to target tournament-winning ceilings." side="bottom" />
-                  </div>
-                )}
-                {/* Leverage: GPP only */}
-                {regenContestType === "gpp" && (
-                  <div className="flex items-center gap-2">
-                    <Switch checked={regenLeverageMode} onCheckedChange={setRegenLeverageMode} data-testid="regen-toggle-leverage" className="scale-90" />
-                    <span className="text-xs font-bold text-amber-300">Leverage</span>
-                    <InfoTip text="Adjusts projections based on ownership — boosts low-owned players and reduces chalk to create contrarian lineups." side="bottom" />
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  <Switch checked={regenCeilingMode} onCheckedChange={setRegenCeilingMode} data-testid="regen-toggle-ceiling" className="scale-90" />
+                  <span className="text-xs font-bold text-slate-300">Ceiling Mode</span>
+                  <InfoTip text="Inflates projections for high-salary, high-upside players to target tournament-winning ceilings." side="bottom" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch checked={regenLeverageMode} onCheckedChange={setRegenLeverageMode} data-testid="regen-toggle-leverage" className="scale-90" />
+                  <span className="text-xs font-bold text-slate-300">Leverage</span>
+                  <InfoTip text="Adjusts projections based on ownership — boosts low-owned players and reduces chalk to create contrarian lineups." side="bottom" />
+                </div>
                 <div className="flex items-center gap-2 min-w-[180px]">
                   <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Exposure</span>
                   <InfoTip text="Limits how often any single player can appear across your lineups. Lower = more diverse lineups." side="bottom" />
@@ -1017,6 +950,7 @@ export default function SavedLineups() {
             </div>
           )}
         </div>
+      </div>
 
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center gap-2 mb-6" data-testid="vault-tabs">
@@ -1094,7 +1028,6 @@ export default function SavedLineups() {
                     isSelected={selectedIds.has(lineup.id)}
                     onToggleSelect={() => toggleSelect(lineup.id)}
                     grade={lineupGrades.get(lineup.id)}
-                    contestType={regenContestType}
                   />
                 ))}
               </div>
@@ -1419,7 +1352,6 @@ function LineupCard({
   isSelected,
   onToggleSelect,
   grade,
-  contestType = "cash",
 }: {
   lineup: any;
   isExpanded: boolean;
@@ -1435,7 +1367,6 @@ function LineupCard({
   isSelected: boolean;
   onToggleSelect: () => void;
   grade?: LineupGrade;
-  contestType?: "cash" | "gpp";
 }) {
   const { data: lineupDetail, isLoading: detailLoading } = useQuery<LineupWithPlayers>({
     queryKey: ["/api/lineups", lineup.id],
@@ -1453,10 +1384,7 @@ function LineupCard({
   const pc = getPlatformColors(platform);
 
   return (
-    <Card className={`bg-slate-800/20 transition-all hover:border-slate-600/50 ${
-      isSelected ? "ring-2 ring-emerald-500/50 border-emerald-500/30" :
-      contestType === "gpp" ? "border-amber-800/30" : "border-slate-700/40"
-    }`} data-testid={`lineup-card-${lineup.id}`}>
+    <Card className={`bg-slate-800/20 border-slate-700/40 transition-all hover:border-slate-600/50 ${isSelected ? "ring-2 ring-emerald-500/50 border-emerald-500/30" : ""}`} data-testid={`lineup-card-${lineup.id}`}>
       <div
         className="flex justify-between items-center p-5 cursor-pointer select-none"
         onClick={onToggleExpand}
@@ -1475,23 +1403,11 @@ function LineupCard({
             )}
           </button>
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${pc.bg} border ${pc.border}`}>
-            {contestType === "cash" ? (
-              <DollarSign className={`w-5 h-5 ${pc.text}`} />
-            ) : (
-              <Trophy className={`w-5 h-5 ${pc.text}`} />
-            )}
+            <Trophy className={`w-5 h-5 ${pc.text}`} />
           </div>
           <div>
             <div className="flex items-center gap-2 mb-0.5">
               <h3 className="text-base font-black text-white">{lineup.name || "Optimized Lineup"}</h3>
-              {/* Mode pill */}
-              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${
-                contestType === "cash"
-                  ? "bg-emerald-900/60 text-emerald-400 border border-emerald-800/40"
-                  : "bg-amber-900/60 text-amber-400 border border-amber-800/40"
-              }`}>
-                {contestType === "cash" ? "Cash" : "GPP"}
-              </span>
             </div>
             <div className="flex items-center gap-2">
               <Badge className={`${pc.bg} ${pc.text} ${pc.border} text-[10px] font-black uppercase`}>
@@ -1516,85 +1432,65 @@ function LineupCard({
 
         <div className="flex items-center gap-5">
           <div className="hidden sm:flex items-center gap-4">
-            {/* ── Cash Mode: Proj → Grade → Own% → Salary ── */}
-            {contestType === "cash" && (
-              <>
-                <div className="text-right">
-                  <p className="text-[10px] font-black text-emerald-500/70 uppercase tracking-widest">Proj</p>
-                  <p className="text-lg font-black text-emerald-400 tabular-nums" data-testid={`lineup-proj-${lineup.id}`}>{Number(lineup.totalProjectedPoints).toFixed(1)}</p>
-                </div>
-                {grade && (
-                  <div className="text-center" data-testid={`lineup-grade-${lineup.id}`}>
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Grade</p>
-                    <div className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-lg font-black ${GRADE_COLORS[grade.grade]?.bg || ""} ${GRADE_COLORS[grade.grade]?.text || "text-slate-400"} ${GRADE_COLORS[grade.grade]?.border || ""} border`}>
-                      {grade.grade === "S" && <Star className="w-3.5 h-3.5 fill-current" />}
-                      {grade.grade}
-                    </div>
-                  </div>
-                )}
-                <div className="text-right">
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Salary</p>
-                  <p className="text-lg font-black text-white tabular-nums" data-testid={`lineup-salary-${lineup.id}`}>${lineup.totalSalary.toLocaleString()}</p>
-                </div>
-              </>
+            <div className="text-right">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Proj</p>
+              <p className="text-lg font-black text-emerald-400 tabular-nums" data-testid={`lineup-proj-${lineup.id}`}>{Number(lineup.totalProjectedPoints).toFixed(1)}</p>
+            </div>
+            {isPaid ? (
+              <div className="text-right">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Proj. Own%</p>
+                <p className={`text-lg font-black tabular-nums ${
+                  (lineup.totalOwnership ?? 0) >= 150 ? "text-red-400" :
+                  (lineup.totalOwnership ?? 0) >= 100 ? "text-amber-400" :
+                  "text-purple-400"
+                }`} data-testid={`lineup-own-${lineup.id}`}>
+                  {(lineup.totalOwnership ?? 0).toFixed(0)}%
+                </p>
+              </div>
+            ) : (
+              <div className="text-right">
+                <p className="text-[10px] font-black text-amber-500/70 uppercase tracking-widest flex items-center justify-end gap-1">
+                  <Lock className="w-2.5 h-2.5" />Own%
+                </p>
+                <p className="text-lg font-black tabular-nums text-slate-600 blur-[3px] select-none">
+                  {Math.round(Math.sin(lineup.id * 17) * 30 + 80)}%
+                </p>
+              </div>
             )}
-
-            {/* ── GPP Mode: Sim data front-and-center → Proj → Own% → Salary ── */}
-            {contestType === "gpp" && (
-              <>
-                {lineup.simData && (lineup.simData.p75Score != null || lineup.simData.p90Score != null) ? (
-                  <div className="flex items-center gap-2 px-2 py-1 bg-amber-500/10 rounded-lg border border-amber-500/20">
-                    {lineup.simData.compositeScore != null && (
-                      <div className="text-right">
-                        <p className="text-[8px] font-black text-amber-500/70 uppercase tracking-widest">Composite</p>
-                        <p className="text-sm font-black text-amber-400 tabular-nums">{lineup.simData.compositeScore}</p>
-                      </div>
-                    )}
-                    {lineup.simData.p90Score != null && (
-                      <div className="text-right">
-                        <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">P90</p>
-                        <p className="text-sm font-black text-amber-300 tabular-nums">{lineup.simData.p90Score}</p>
-                      </div>
-                    )}
-                    {lineup.simData.freqPct != null && (
-                      <div className="text-right">
-                        <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Freq</p>
-                        <p className="text-sm font-black text-violet-400 tabular-nums">{lineup.simData.freqPct}%</p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-right">
-                    <p className="text-[10px] font-black text-amber-500/70 uppercase tracking-widest">Proj</p>
-                    <p className="text-lg font-black text-amber-400 tabular-nums" data-testid={`lineup-proj-${lineup.id}`}>{Number(lineup.totalProjectedPoints).toFixed(1)}</p>
-                  </div>
-                )}
-                {isPaid ? (
-                  <div className="text-right">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Own%</p>
-                    <p className={`text-lg font-black tabular-nums ${
-                      (lineup.totalOwnership ?? 0) >= 150 ? "text-red-400" :
-                      (lineup.totalOwnership ?? 0) >= 100 ? "text-amber-400" :
-                      "text-purple-400"
-                    }`} data-testid={`lineup-own-${lineup.id}`}>
-                      {(lineup.totalOwnership ?? 0).toFixed(0)}%
-                    </p>
-                  </div>
-                ) : (
-                  <div className="text-right">
-                    <p className="text-[10px] font-black text-amber-500/70 uppercase tracking-widest flex items-center justify-end gap-1">
-                      <Lock className="w-2.5 h-2.5" />Own%
-                    </p>
-                    <p className="text-lg font-black tabular-nums text-slate-600 blur-[3px] select-none">
-                      {Math.round(Math.sin(lineup.id * 17) * 30 + 80)}%
-                    </p>
-                  </div>
-                )}
-                <div className="text-right">
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Salary</p>
-                  <p className="text-lg font-black text-white tabular-nums" data-testid={`lineup-salary-${lineup.id}`}>${lineup.totalSalary.toLocaleString()}</p>
+            <div className="text-right">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Salary</p>
+              <p className="text-lg font-black text-white tabular-nums" data-testid={`lineup-salary-${lineup.id}`}>${lineup.totalSalary.toLocaleString()}</p>
+            </div>
+            {grade && (
+              <div className="text-center" data-testid={`lineup-grade-${lineup.id}`}>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Grade</p>
+                <div className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-lg font-black ${GRADE_COLORS[grade.grade]?.bg || ""} ${GRADE_COLORS[grade.grade]?.text || "text-slate-400"} ${GRADE_COLORS[grade.grade]?.border || ""} border`}>
+                  {grade.grade === "S" && <Star className="w-3.5 h-3.5 fill-current" />}
+                  {grade.grade}
                 </div>
-              </>
+              </div>
+            )}
+            {lineup.simData && (lineup.simData.p75Score != null || lineup.simData.p90Score != null) && (
+              <div className="flex items-center gap-2 px-2 py-1 bg-indigo-500/10 rounded-lg border border-indigo-500/20">
+                {lineup.simData.p75Score != null && (
+                  <div className="text-right">
+                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">P75</p>
+                    <p className="text-sm font-black text-emerald-400 tabular-nums">{lineup.simData.p75Score}</p>
+                  </div>
+                )}
+                {lineup.simData.p90Score != null && (
+                  <div className="text-right">
+                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">P90</p>
+                    <p className="text-sm font-black text-amber-400 tabular-nums">{lineup.simData.p90Score}</p>
+                  </div>
+                )}
+                {lineup.simData.freqPct != null && (
+                  <div className="text-right">
+                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Freq</p>
+                    <p className="text-sm font-black text-violet-400 tabular-nums">{lineup.simData.freqPct}%</p>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
