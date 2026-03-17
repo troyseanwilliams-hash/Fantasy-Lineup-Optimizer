@@ -441,28 +441,62 @@ export async function analyzeCompletedSlate(sport: string, slateDate: string, pl
 export async function runNightlyAnalysis(): Promise<string[]> {
   const results: string[] = [];
   const sports = WIN_AGENT_SPORTS;
-
-  const todayET = getEasternToday();
-  const d = new Date(todayET + "T12:00:00Z");
-  d.setUTCDate(d.getUTCDate() - 1);
-  const dateStr = d.toISOString().split("T")[0];
-
-  console.log(`[WinningAgent] Starting nightly analysis for ${dateStr}`);
-
   const platforms: Array<"draftkings" | "fanduel" | "yahoo"> = ["draftkings", "fanduel", "yahoo"];
 
-  for (const sport of sports) {
-    for (const platform of platforms) {
-      try {
-        const result = await analyzeCompletedSlate(sport, dateStr, platform);
-        results.push(`${sport}/${platform}: ${result.message}`);
-      } catch (err: any) {
-        results.push(`${sport}/${platform}: Error - ${err.message}`);
-      }
-    }
+  const todayET = getEasternToday();
+  const baseDate = new Date(todayET + "T12:00:00Z");
+
+  // Analyze last 2 days to catch any missing data
+  const dates: string[] = [];
+  for (let i = 1; i <= 2; i++) {
+    const d = new Date(baseDate);
+    d.setUTCDate(d.getUTCDate() - i);
+    dates.push(d.toISOString().split("T")[0]);
   }
 
-  console.log(`[WinningAgent] Nightly analysis complete:`, results);
+  console.log(`[WinningAgent] Starting nightly analysis for dates: ${dates.join(", ")}`);
+
+  for (const dateStr of dates) {
+    const dateResults: Promise<{ sport: string; platform: string; message: string }>[] = [];
+
+    for (const sport of sports) {
+      for (const platform of platforms) {
+        dateResults.push(
+          (async () => {
+            try {
+              // Check if already analyzed to avoid reprocessing
+              const existing = await storage.getWinningLineupBySlateDate(sport, dateStr, platform);
+              if (existing) {
+                return { sport, platform, message: `${sport}/${platform}: already analyzed` };
+              }
+
+              const result = await analyzeCompletedSlate(sport, dateStr, platform);
+              return { sport, platform, message: `${sport}/${platform}: ${result.message}` };
+            } catch (err: any) {
+              const msg = err.message || String(err);
+              console.error(`[WinningAgent] ${sport}/${platform} ${dateStr} failed:`, msg);
+              return { sport, platform, message: `${sport}/${platform}: Error - ${msg}` };
+            }
+          })()
+        );
+      }
+    }
+
+    // Run all sport/platform combos in parallel for this date
+    const dateResultsSettled = await Promise.allSettled(dateResults);
+    for (const r of dateResultsSettled) {
+      if (r.status === "fulfilled") {
+        results.push(r.value.message);
+      } else {
+        results.push(`Error: ${(r as PromiseRejectedResult).reason?.message}`);
+      }
+    }
+
+    // Small delay between dates to avoid overwhelming ESPN API
+    await new Promise(res => setTimeout(res, 500));
+  }
+
+  console.log(`[WinningAgent] Nightly analysis complete (${results.length} combos processed):`, results.slice(0, 10));
   return results;
 }
 
