@@ -396,6 +396,20 @@ app.use((req, res, next) => {
         try {
           await seedDefaultUser();
 
+          try {
+            const cutoff = new Date(Date.now() - 3 * 60 * 60 * 1000);
+            const staleReview = await db.select({ id: lineupsTable.id }).from(lineupsTable)
+              .where(and(eq(lineupsTable.status, "review"), lt(lineupsTable.reviewedAt, cutoff)));
+            if (staleReview.length > 0) {
+              for (const row of staleReview) {
+                await storage.deleteLineup(row.id);
+              }
+              log(`Startup cleanup: deleted ${staleReview.length} stale review lineup(s)`, "cron");
+            }
+          } catch (cleanupErr) {
+            console.error("Startup review lineup cleanup failed:", cleanupErr);
+          }
+
           const unpaidSubs = await storage.getUnpaidPremiumSubscriptions();
           if (unpaidSubs.length > 0) {
             const graceDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
