@@ -1459,6 +1459,7 @@ export async function registerRoutes(
         scoredCandidates.sort(sortFn[sortKey] || sortFn.composite);
 
         const origMap = new Map(allPlayers.map(op => [op.id, op]));
+        const boostedMap = new Map(pool.map(bp => [bp.id, bp]));
 
         const selectedCandidates: typeof scoredCandidates = [];
         const playerAppearances: Record<number, number> = {};
@@ -1498,16 +1499,18 @@ export async function registerRoutes(
           const playerIds = candidate.lineup.map(p => p.id);
           const playerSnapshot = candidate.lineup.map(p => {
             const orig = origMap.get(p.id) || p;
+            const boosted = boostedMap.get(p.id);
             return {
               id: p.id, name: orig.name, team: orig.team, position: orig.position,
-              salary: orig.salary, fppg: orig.fppg, projectedPoints: orig.projectedPoints,
+              salary: orig.salary, fppg: orig.fppg,
+              projectedPoints: boosted ? boosted.projectedPoints : orig.projectedPoints,
               opponent: orig.opponent, gameInfo: orig.gameInfo,
               draftKingsPlayerId: orig.draftKingsPlayerId,
               boostScore: orig.boostScore, boostReason: orig.boostReason,
             };
           });
 
-          const origTotalPts = playerSnapshot.reduce((sum: number, p: any) => sum + Number(p.projectedPoints), 0);
+          const totalPts = playerSnapshot.reduce((sum: number, p: any) => sum + Number(p.projectedPoints), 0);
 
           const simData = {
             avgSimScore: candidate.avgSimScore, medianScore: candidate.medianScore,
@@ -1516,7 +1519,7 @@ export async function registerRoutes(
           };
           await db.update(lineupsTable).set({
             playerIds, totalSalary: candidate.totalSalary,
-            totalProjectedPoints: origTotalPts.toFixed(1),
+            totalProjectedPoints: totalPts.toFixed(1),
             playerSnapshot, simData,
           }).where(eq(lineupsTable.id, lineupId));
 
