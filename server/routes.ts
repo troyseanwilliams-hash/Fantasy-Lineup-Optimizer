@@ -4380,14 +4380,7 @@ function buildPositionVariables(position: string, sport: string): Record<string,
   return vars;
 }
 
-const SPORT_MIN_SALARY: Record<string, number> = {
-  NBA: 3000, NHL: 2500, MLB: 2000, NFL: 3000, GOLF: 5000, SOCCER: 2000,
-};
-
-const INACTIVE_VALUE_THRESHOLD = 6.0;
-
 async function getInactivePlayerIds(players: Player[], sport: string): Promise<{ inactiveIds: number[]; zeroPointCount: number }> {
-  const minSalary = SPORT_MIN_SALARY[sport] || 3000;
   const inactiveIds: number[] = [];
 
   let recentlyPlayed = getRecentlyPlayedCache(sport);
@@ -4406,19 +4399,8 @@ async function getInactivePlayerIds(players: Player[], sport: string): Promise<{
     console.error(`[Zero-Point Filter] Error fetching zero-point players:`, err);
   }
 
-  const outPlayersByTeamPos = new Map<string, string[]>();
-  for (const p of players) {
-    if (isPlayerOut(p.injuryStatus)) {
-      const positions = p.position.split("/");
-      for (const pos of positions) {
-        const key = `${p.team}_${pos}`;
-        if (!outPlayersByTeamPos.has(key)) outPlayersByTeamPos.set(key, []);
-        outPlayersByTeamPos.get(key)!.push(p.name);
-      }
-    }
-  }
-
   let zeroPointCount = 0;
+  let notRecentCount = 0;
   for (const p of players) {
     if (isPlayerOut(p.injuryStatus) || p.injuryStatus === "Questionable" || p.injuryStatus === "GTD") continue;
 
@@ -4428,38 +4410,18 @@ async function getInactivePlayerIds(players: Player[], sport: string): Promise<{
       continue;
     }
 
-    const fppg = Number(p.fppg) || 0;
-    const valuePer1K = fppg > 0 ? (fppg * 1000) / p.salary : 0;
-
-    if (valuePer1K >= 7.0) {
-      inactiveIds.push(p.id);
-      continue;
-    }
-
     if (recentlyPlayed && recentlyPlayed.size > 0) {
       const normalized = normalizePlayerName(p.name);
       if (!recentlyPlayed.has(normalized)) {
         inactiveIds.push(p.id);
-        continue;
-      }
-    }
-
-    if (p.salary <= minSalary * 1.1 && valuePer1K >= INACTIVE_VALUE_THRESHOLD) {
-      const positions = p.position.split("/");
-      const hasOutTeammate = positions.some(pos => {
-        const key = `${p.team}_${pos}`;
-        return outPlayersByTeamPos.has(key);
-      });
-
-      if (!hasOutTeammate) {
-        inactiveIds.push(p.id);
+        notRecentCount++;
         continue;
       }
     }
   }
 
   if (inactiveIds.length > 0) {
-    console.log(`[Inactive Filter] ${sport}: Excluded ${inactiveIds.length} inactive/non-recent players from pool (${zeroPointCount} zero-point)`);
+    console.log(`[Inactive Filter] ${sport}: Excluded ${inactiveIds.length} players (${zeroPointCount} zero-point, ${notRecentCount} not played in last 7 days)`);
   }
 
   return { inactiveIds, zeroPointCount };
