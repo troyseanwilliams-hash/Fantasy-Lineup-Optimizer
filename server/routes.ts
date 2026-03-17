@@ -865,12 +865,26 @@ export async function registerRoutes(
     const { ids } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: "No lineup IDs provided" });
     let deleted = 0;
+    const errors: string[] = [];
     for (const id of ids) {
-      const lineup = await storage.getLineup(Number(id));
-      if (lineup && lineup.userId === userId) {
+      try {
+        const lineup = await storage.getLineup(Number(id));
+        if (!lineup) {
+          errors.push(`Lineup ${id}: not found`);
+          continue;
+        }
+        if (lineup.userId !== userId) {
+          errors.push(`Lineup ${id}: forbidden`);
+          continue;
+        }
         await storage.deleteLineup(Number(id));
         deleted++;
+      } catch (err: any) {
+        errors.push(`Lineup ${id}: ${err.message}`);
       }
+    }
+    if (errors.length > 0) {
+      return res.status(400).json({ deleted, errors });
     }
     res.json({ deleted });
   });
