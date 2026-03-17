@@ -885,7 +885,7 @@ export default function SavedLineups() {
           </div>
 
           {showRegenSettings && selectedIds.size > 0 && isPaid && (
-            <div className={`border rounded-xl px-4 py-3 ${regenContestType === "cash" ? "bg-emerald-950/60 border-emerald-700/60" : "bg-amber-950/60 border-amber-700/60"}`} data-testid="regen-settings-panel">
+            <div className={`border rounded-xl px-4 py-3 ${regenContestType === "cash" ? "bg-emerald-950/30 border-emerald-800/30" : "bg-amber-950/30 border-amber-800/30"}`} data-testid="regen-settings-panel">
               <div className="flex items-center gap-2 mb-3">
                 {regenContestType === "cash" ? (
                   <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
@@ -899,7 +899,7 @@ export default function SavedLineups() {
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2">
                   <Switch checked={regenUseBoosts} onCheckedChange={setRegenUseBoosts} data-testid="regen-toggle-boosts" className="scale-90" />
-                  <span className="text-xs font-bold text-white">Boosts</span>
+                  <span className="text-xs font-bold text-slate-300">Boosts</span>
                   <InfoTip text="Apply data-driven projection boosts based on player value, consistency, salary trends, and matchup strength." side="bottom" />
                 </div>
                 {/* Ceiling Mode: GPP only */}
@@ -919,7 +919,7 @@ export default function SavedLineups() {
                   </div>
                 )}
                 <div className="flex items-center gap-2 min-w-[180px]">
-                  <span className="text-xs font-bold text-white whitespace-nowrap">Exposure</span>
+                  <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Exposure</span>
                   <InfoTip text="Limits how often any single player can appear across your lineups. Lower = more diverse lineups." side="bottom" />
                   <Slider
                     value={[regenMaxExposure ?? 100]}
@@ -935,7 +935,7 @@ export default function SavedLineups() {
                   </span>
                 </div>
                 <div className="flex items-center gap-2 min-w-[180px]">
-                  <span className="text-xs font-bold text-white whitespace-nowrap">Proj Floor</span>
+                  <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Proj Floor</span>
                   <InfoTip text="Minimum total projected points a lineup must hit to be kept. Filters out low-scoring lineups." side="bottom" />
                   <Slider
                     value={[regenProjFloor ?? 0]}
@@ -951,7 +951,7 @@ export default function SavedLineups() {
                   </span>
                 </div>
                 <div className="flex items-center gap-2 min-w-[180px]">
-                  <span className="text-xs font-bold text-white whitespace-nowrap">Min Salary</span>
+                  <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Min Salary</span>
                   <InfoTip text="Only include players with salary at or above this amount in the player pool." side="bottom" />
                   <Slider
                     value={[regenMinSalary ?? 3000]}
@@ -967,7 +967,7 @@ export default function SavedLineups() {
                   </span>
                 </div>
                 <div className="flex items-center gap-2 min-w-[180px]">
-                  <span className="text-xs font-bold text-white whitespace-nowrap">Max Salary</span>
+                  <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Max Salary</span>
                   <InfoTip text="Only include players with salary at or below this amount in the player pool." side="bottom" />
                   <Slider
                     value={[regenMaxSalary ?? 12000]}
