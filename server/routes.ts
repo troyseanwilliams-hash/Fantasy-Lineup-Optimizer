@@ -4933,16 +4933,21 @@ export async function checkInjuryAlerts() {
     if (!sport) return res.status(400).json({ error: "sport is required" });
 
     const cutoff = new Date(Date.now() - hoursOld * 60 * 60 * 1000);
-    const deleted = await db.delete(lineups)
+    const toDelete = await db.select({ id: lineups.id }).from(lineups)
       .where(
         and(
           eq(lineups.status, "review"),
           eq(lineups.sport, sport),
           lt(lineups.reviewedAt, cutoff)
         )
-      )
-      .returning();
+      );
 
-    res.json({ deleted: deleted.length, sport, hoursOld });
+    let deleted = 0;
+    for (const row of toDelete) {
+      await storage.deleteLineup(row.id);
+      deleted++;
+    }
+
+    res.json({ deleted, sport, hoursOld });
   });
 }

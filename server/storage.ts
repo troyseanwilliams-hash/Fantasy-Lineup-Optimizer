@@ -290,6 +290,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteLineup(id: number): Promise<void> {
+    await db.delete(lineupScores).where(eq(lineupScores.lineupId, id));
     await db.delete(alerts).where(eq(alerts.lineupId, id));
     await db.delete(lineups).where(eq(lineups.id, id));
   }
@@ -435,10 +436,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteOldReviewLineups(cutoffDate: Date): Promise<number> {
-    const deleted = await db.delete(lineups)
-      .where(and(eq(lineups.status, "review"), lt(lineups.reviewedAt, cutoffDate)))
-      .returning();
-    return deleted.length;
+    const toDelete = await db.select({ id: lineups.id }).from(lineups)
+      .where(and(eq(lineups.status, "review"), lt(lineups.reviewedAt, cutoffDate)));
+    for (const row of toDelete) {
+      await this.deleteLineup(row.id);
+    }
+    return toDelete.length;
   }
 
   async getSubscription(userId: string): Promise<Subscription | undefined> {
