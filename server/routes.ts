@@ -1307,12 +1307,13 @@ export async function registerRoutes(
           }
         }
 
-        const baseExcluded = allPlayers
-          .filter(p => isPlayerOut(p.injuryStatus))
-          .map(p => p.id);
+        pool = pool.filter(p => !isPlayerOut(p.injuryStatus));
 
-        const excludedSet = new Set(baseExcluded);
-        pool = pool.filter(p => !excludedSet.has(p.id));
+        const isDKRegen = slate.platform === "draftkings";
+        if (isDKRegen) {
+          const { inactiveIds: regenInactiveIds } = await getInactivePlayerIds(allPlayers, slate.sport);
+          pool = pool.filter(p => !regenInactiveIds.includes(p.id));
+        }
 
         const simProjFloor = typeof projFloor === "number" && projFloor > 0 ? projFloor : null;
         const simMinSalary = typeof minSalary === "number" ? minSalary : undefined;
@@ -1384,7 +1385,7 @@ export async function registerRoutes(
         }
 
         const scoredCandidates = Array.from(lineupMap.entries()).map(([key, data]) => {
-          const allSimScores = sims.slice(0, processedSims).map(sim =>
+          const allSimScores = sims.map(sim =>
             data.lineup.reduce((sum, p) => sum + (sim.projections[p.id] || 0), 0)
           ).sort((a, b) => a - b);
 
@@ -1393,14 +1394,13 @@ export async function registerRoutes(
           const p75 = allSimScores[Math.floor(n * 0.75)] ?? avg;
           const p90 = allSimScores[Math.floor(n * 0.90)] ?? avg;
           const med = allSimScores[Math.floor(n * 0.50)] ?? avg;
-          const simDenom = processedSims || sims.length;
-          const composite = avg * 0.35 + p75 * 0.35 + p90 * 0.20 + (data.frequency / simDenom) * 100 * 0.10;
+          const composite = avg * 0.35 + p75 * 0.35 + p90 * 0.20 + (data.frequency / sims.length) * 100 * 0.10;
 
           return { key, lineup: data.lineup, frequency: data.frequency,
             avgSimScore: Math.round(avg * 10) / 10, medianScore: Math.round(med * 10) / 10,
             p75Score: Math.round(p75 * 10) / 10, p90Score: Math.round(p90 * 10) / 10,
             compositeScore: Math.round(composite * 10) / 10,
-            freqPct: Math.round((data.frequency / simDenom) * 1000) / 10,
+            freqPct: Math.round((data.frequency / sims.length) * 1000) / 10,
             totalSalary: data.lineup.reduce((s, p) => s + p.salary, 0),
           };
         });
@@ -1432,8 +1432,40 @@ export async function registerRoutes(
 
         const origMap = new Map(allPlayers.map(op => [op.id, op]));
 
-        for (let i = 0; i < lineupIds.length && i < scoredCandidates.length; i++) {
-          const candidate = scoredCandidates[i];
+        const selectedCandidates: typeof scoredCandidates = [];
+        const playerAppearances: Record<number, number> = {};
+        const targetCount = Math.min(lineupIds.length, scoredCandidates.length);
+
+        for (const candidate of scoredCandidates) {
+          if (selectedCandidates.length >= targetCount) break;
+
+          let violatesExposure = false;
+          if (globalMaxExposure !== undefined && globalMaxExposure !== null && selectedCandidates.length > 0) {
+            for (const p of candidate.lineup) {
+              const appearances = (playerAppearances[p.id] || 0) + 1;
+              const pct = (appearances / targetCount) * 100;
+              if (pct > globalMaxExposure) { violatesExposure = true; break; }
+            }
+          }
+          if (violatesExposure) continue;
+
+          selectedCandidates.push(candidate);
+          for (const p of candidate.lineup) {
+            playerAppearances[p.id] = (playerAppearances[p.id] || 0) + 1;
+          }
+        }
+
+        if (selectedCandidates.length < targetCount) {
+          for (const candidate of scoredCandidates) {
+            if (selectedCandidates.length >= targetCount) break;
+            if (!selectedCandidates.find(s => s.key === candidate.key)) {
+              selectedCandidates.push(candidate);
+            }
+          }
+        }
+
+        for (let i = 0; i < lineupIds.length && i < selectedCandidates.length; i++) {
+          const candidate = selectedCandidates[i];
           const lineupId = lineupIds[i];
           const playerIds = candidate.lineup.map(p => p.id);
           const playerSnapshot = candidate.lineup.map(p => {
@@ -1463,7 +1495,7 @@ export async function registerRoutes(
           results.push({ id: lineupId, status: "updated" });
         }
 
-        for (let i = scoredCandidates.length; i < lineupIds.length; i++) {
+        for (let i = selectedCandidates.length; i < lineupIds.length; i++) {
           results.push({ id: lineupIds[i], status: "skipped", error: "Not enough sim candidates" });
         }
       }
