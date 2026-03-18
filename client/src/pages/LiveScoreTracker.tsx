@@ -81,12 +81,18 @@ export default function LiveScoreTracker() {
 
   const isLoading = lineupsLoading || scoresLoading;
   const activeLineups = (lineups || []).filter(l => l.status === "active" || l.status === "review");
-  const filteredLineups = selectedSport === "ALL" ? activeLineups : activeLineups.filter(l => l.sport === selectedSport);
+  const sportFiltered = selectedSport === "ALL" ? activeLineups : activeLineups.filter(l => l.sport === selectedSport);
 
   const scoreMap = new Map<number, LineupScore>();
   for (const s of (scores || [])) {
     scoreMap.set(s.lineupId, s);
   }
+
+  const filteredLineups = [...sportFiltered].sort((a, b) => {
+    const aScore = toNum(scoreMap.get(a.id)?.totalLivePoints);
+    const bScore = toNum(scoreMap.get(b.id)?.totalLivePoints);
+    return bScore - aScore;
+  });
 
   return (
     <div className="min-h-screen bg-[#0F172A]">
