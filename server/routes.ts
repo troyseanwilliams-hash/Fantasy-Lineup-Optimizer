@@ -4539,6 +4539,8 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
     }
   }
 
+  const gameMap = new Map<string, string[]>();
+
   pool.forEach(p => {
     if (constraints.excludedPlayerIds.includes(p.id)) return;
 
@@ -4574,7 +4576,33 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
       model.constraints[`lock_${variableName}`] = { equal: 1 };
       variable[`lock_${variableName}`] = 1;
     }
+
+    const gameKey = (p.gameInfo || "").replace(/\s*\d{1,2}:\d{2}\s*(AM|PM)\s*ET\s*$/i, "").trim();
+    if (gameKey) {
+      if (!gameMap.has(gameKey)) gameMap.set(gameKey, []);
+      gameMap.get(gameKey)!.push(variableName);
+    }
   });
+
+  const gameKeys = Array.from(gameMap.keys());
+  if (gameKeys.length >= 2) {
+    model.constraints["minGames"] = { min: 2 };
+    let gi = 0;
+    for (const [gameKey, playerVars] of gameMap.entries()) {
+      const indicatorName = `game_${gi}`;
+      model.variables[indicatorName] = { minGames: 1 };
+      model.ints[indicatorName] = 1;
+      model.constraints[`bound_${indicatorName}`] = { max: 1 };
+      model.variables[indicatorName][`bound_${indicatorName}`] = 1;
+      const linkName = `gamelink_${gi}`;
+      model.constraints[linkName] = { max: 0 };
+      model.variables[indicatorName][linkName] = -config.rosterSize;
+      for (const pv of playerVars) {
+        model.variables[pv][linkName] = 1;
+      }
+      gi++;
+    }
+  }
 
   const result: any = solver.Solve(model);
 
