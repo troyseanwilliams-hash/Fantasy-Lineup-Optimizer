@@ -203,20 +203,42 @@ export default function SavedLineups() {
     const selectedLineups = lineups.filter((l: any) => selectedIds.has(l.id));
     const total = selectedLineups.length;
     if (total === 0) return [];
-    const counts = new Map<string, { name: string; position: string; team: string; salary: number; count: number }>();
+    const counts = new Map<string, {
+      name: string; position: string; team: string; salary: number; count: number;
+      projSum: number; fppgSum: number; opponent: string; gameInfo: string;
+      boostScore: number; boostReason: string; injuryStatus: string | null;
+      isConfirmedStarter: boolean; recentActualAvg: number | null; gamesTracked: number | null;
+      winLineupCount: number | null; winLineupTotal: number | null; winAvgActual: number | null; winAvgValue: number | null;
+    }>();
     for (const lu of selectedLineups) {
       const snap = lu.playerSnapshot && Array.isArray(lu.playerSnapshot) ? lu.playerSnapshot as any[] : [];
       for (const p of snap) {
         const key = p.name || "";
         if (!key) continue;
         if (!counts.has(key)) {
-          counts.set(key, { name: p.name, position: p.position || "", team: p.team || "", salary: p.salary || 0, count: 0 });
+          counts.set(key, {
+            name: p.name, position: p.position || "", team: p.team || "", salary: p.salary || 0, count: 0,
+            projSum: 0, fppgSum: 0, opponent: p.opponent || "", gameInfo: p.gameInfo || "",
+            boostScore: Number(p.boostScore) || 0, boostReason: p.boostReason || "",
+            injuryStatus: p.injuryStatus || null, isConfirmedStarter: !!p.isConfirmedStarter,
+            recentActualAvg: p.recentActualAvg ?? null, gamesTracked: p.gamesTracked ?? null,
+            winLineupCount: p.winLineupCount ?? null, winLineupTotal: p.winLineupTotal ?? null,
+            winAvgActual: p.winAvgActual ?? null, winAvgValue: p.winAvgValue ?? null,
+          });
         }
-        counts.get(key)!.count++;
+        const entry = counts.get(key)!;
+        entry.count++;
+        entry.projSum += Number(p.projectedPoints) || 0;
+        entry.fppgSum += Number(p.fppg || p.projectedPoints) || 0;
       }
     }
     return Array.from(counts.values())
-      .map(p => ({ ...p, pct: Math.round((p.count / total) * 100) }))
+      .map(p => ({
+        ...p,
+        pct: Math.round((p.count / total) * 100),
+        avgProj: p.projSum / p.count,
+        avgFppg: p.fppgSum / p.count,
+      }))
       .sort((a, b) => b.pct - a.pct || b.count - a.count);
   }, [lineups, selectedIds]);
 
@@ -1066,17 +1088,73 @@ export default function SavedLineups() {
                             <th className="text-left py-2 px-2">Pos</th>
                             <th className="text-left py-2 px-2">Team</th>
                             <th className="text-right py-2 px-2">Salary</th>
+                            <th className="text-center py-2 px-2 w-40">Proj vs FPPG</th>
                             <th className="text-right py-2 px-2">Count</th>
                             <th className="text-right py-2 px-2 w-32">Exposure</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {exposureData.map((p, i) => (
+                          {exposureData.map((p, i) => {
+                            const maxBar = Math.max(p.avgProj, p.avgFppg, 1);
+                            const projWidth = (p.avgProj / maxBar) * 100;
+                            const fppgWidth = (p.avgFppg / maxBar) * 100;
+                            const diff = p.avgProj - p.avgFppg;
+                            return (
                             <tr key={p.name} className="border-b border-slate-800/30 hover:bg-slate-800/30" data-testid={`exposure-row-${i}`}>
-                              <td className="py-1.5 px-2 font-medium text-white text-xs">{p.name}</td>
+                              <td className="py-1.5 px-2 font-medium text-white text-xs">
+                                <PlayerInfoHoverCard
+                                  player={{
+                                    name: p.name,
+                                    team: p.team,
+                                    position: p.position,
+                                    salary: p.salary,
+                                    projectedPoints: p.avgProj,
+                                    fppg: p.avgFppg,
+                                    opponent: p.opponent || null,
+                                    gameInfo: p.gameInfo || null,
+                                    boostScore: p.boostScore,
+                                    boostReason: p.boostReason || null,
+                                    injuryStatus: p.injuryStatus,
+                                    isConfirmedStarter: p.isConfirmedStarter,
+                                    recentActualAvg: p.recentActualAvg,
+                                    gamesTracked: p.gamesTracked,
+                                    winLineupCount: p.winLineupCount,
+                                    winLineupTotal: p.winLineupTotal,
+                                    winAvgActual: p.winAvgActual,
+                                    winAvgValue: p.winAvgValue,
+                                  }}
+                                >
+                                  <span className="cursor-pointer hover:text-cyan-400 transition-colors underline decoration-dotted decoration-slate-600 underline-offset-2">
+                                    {p.name}
+                                  </span>
+                                </PlayerInfoHoverCard>
+                              </td>
                               <td className="py-1.5 px-2 text-slate-400 text-xs">{p.position}</td>
                               <td className="py-1.5 px-2 text-slate-400 text-xs">{p.team}</td>
                               <td className="py-1.5 px-2 text-right text-slate-300 text-xs">${p.salary.toLocaleString()}</td>
+                              <td className="py-1.5 px-2">
+                                <div className="flex flex-col gap-0.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[9px] text-emerald-400 font-bold w-7 text-right">{p.avgProj.toFixed(1)}</span>
+                                    <div className="flex-1 h-2 bg-slate-700/50 rounded-sm overflow-hidden">
+                                      <div className="h-full bg-emerald-500 rounded-sm" style={{ width: `${projWidth}%` }} />
+                                    </div>
+                                    <span className="text-[8px] text-slate-500 w-6">Proj</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[9px] text-blue-400 font-bold w-7 text-right">{p.avgFppg.toFixed(1)}</span>
+                                    <div className="flex-1 h-2 bg-slate-700/50 rounded-sm overflow-hidden">
+                                      <div className="h-full bg-blue-500 rounded-sm" style={{ width: `${fppgWidth}%` }} />
+                                    </div>
+                                    <span className="text-[8px] text-slate-500 w-6">FPPG</span>
+                                  </div>
+                                  <div className="text-center">
+                                    <span className={`text-[9px] font-black ${diff >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                                      {diff >= 0 ? "+" : ""}{diff.toFixed(1)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </td>
                               <td className="py-1.5 px-2 text-right text-slate-300 text-xs">{p.count}/{selectedIds.size}</td>
                               <td className="py-1.5 px-2 text-right">
                                 <div className="flex items-center justify-end gap-2">
@@ -1092,7 +1170,8 @@ export default function SavedLineups() {
                                 </div>
                               </td>
                             </tr>
-                          ))}
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
