@@ -500,6 +500,58 @@ export async function runNightlyAnalysis(): Promise<string[]> {
   return results;
 }
 
+export async function runNightlyDKBackfill(): Promise<string[]> {
+  const results: string[] = [];
+  const sports = WIN_AGENT_SPORTS;
+  const platform = "draftkings" as const;
+
+  const todayET = getEasternToday();
+  const baseDate = new Date(todayET + "T12:00:00Z");
+
+  const dates: string[] = [];
+  for (let i = 1; i <= 14; i++) {
+    const d = new Date(baseDate);
+    d.setUTCDate(d.getUTCDate() - i);
+    dates.push(d.toISOString().split("T")[0]);
+  }
+
+  let filled = 0;
+  let skipped = 0;
+
+  console.log(`[WinningAgent] DK backfill: checking ${dates.length} days × ${sports.length} sports`);
+
+  for (const dateStr of dates) {
+    const dateResults = await Promise.allSettled(
+      sports.map(async (sport) => {
+        const existing = await storage.getWinningLineupBySlateDate(sport, dateStr, platform);
+        if (existing) {
+          skipped++;
+          return `${dateStr} ${sport}: exists`;
+        }
+        const result = await analyzeCompletedSlate(sport, dateStr, platform);
+        if (result.success) {
+          filled++;
+          return `${dateStr} ${sport}: FILLED — ${result.message}`;
+        }
+        return `${dateStr} ${sport}: ${result.message}`;
+      })
+    );
+
+    for (const r of dateResults) {
+      const msg = r.status === "fulfilled" ? r.value : `Error: ${(r as PromiseRejectedResult).reason?.message}`;
+      if (!msg.includes("exists")) results.push(msg);
+    }
+
+    await new Promise(res => setTimeout(res, 300));
+  }
+
+  console.log(`[WinningAgent] DK backfill complete — filled:${filled} skipped:${skipped}`);
+  if (filled > 0) {
+    results.unshift(`Filled ${filled} missing DK winning lineups`);
+  }
+  return results;
+}
+
 /**
  * runBackfill
  *

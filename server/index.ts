@@ -789,6 +789,21 @@ app.use((req, res, next) => {
       });
       log("Scheduled 4 AM ET player history cleanup cron job", "cron");
 
+      cron.schedule("30 4 * * *", async () => {
+        try {
+          log("Starting nightly DK winning lineup backfill (14 days)", "cron");
+          const { runNightlyDKBackfill } = await import("./winning-lineup-agent");
+          const results = await runNightlyDKBackfill();
+          results.forEach(r => log(`[DKBackfill] ${r}`, "cron"));
+          log(`DK backfill complete — ${results.length} action(s)`, "cron");
+        } catch (err) {
+          console.error("DK winning lineup backfill failed:", err);
+        }
+      }, {
+        timezone: "America/New_York",
+      });
+      log("Scheduled 4:30 AM ET nightly DK winning lineup backfill (14 days)", "cron");
+
       startIngestScheduler();
     },
   );
