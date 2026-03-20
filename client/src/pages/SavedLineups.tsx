@@ -206,7 +206,7 @@ export default function SavedLineups() {
     if (total === 0) return [];
     const counts = new Map<string, {
       name: string; position: string; team: string; salary: number; count: number;
-      projSum: number; fppgSum: number; opponent: string; gameInfo: string;
+      projSum: number; actualAvg: number | null; opponent: string; gameInfo: string;
       boostScore: number; boostReason: string; injuryStatus: string | null;
       isConfirmedStarter: boolean; recentActualAvg: number | null; gamesTracked: number | null;
       winLineupCount: number | null; winLineupTotal: number | null; winAvgActual: number | null; winAvgValue: number | null;
@@ -219,7 +219,7 @@ export default function SavedLineups() {
         if (!counts.has(key)) {
           counts.set(key, {
             name: p.name, position: p.position || "", team: p.team || "", salary: p.salary || 0, count: 0,
-            projSum: 0, fppgSum: 0, opponent: p.opponent || "", gameInfo: p.gameInfo || "",
+            projSum: 0, actualAvg: p.recentActualAvg ?? null, opponent: p.opponent || "", gameInfo: p.gameInfo || "",
             boostScore: Number(p.boostScore) || 0, boostReason: p.boostReason || "",
             injuryStatus: p.injuryStatus || null, isConfirmedStarter: !!p.isConfirmedStarter,
             recentActualAvg: p.recentActualAvg ?? null, gamesTracked: p.gamesTracked ?? null,
@@ -230,7 +230,6 @@ export default function SavedLineups() {
         const entry = counts.get(key)!;
         entry.count++;
         entry.projSum += Number(p.projectedPoints) || 0;
-        entry.fppgSum += Number(p.fppg || p.projectedPoints) || 0;
       }
     }
     return Array.from(counts.values())
@@ -238,7 +237,7 @@ export default function SavedLineups() {
         ...p,
         pct: Math.round((p.count / total) * 100),
         avgProj: p.projSum / p.count,
-        avgFppg: p.fppgSum / p.count,
+        avgActual: p.actualAvg,
       }))
       .sort((a, b) => b.pct - a.pct || b.count - a.count);
   }, [lineups, selectedIds]);
@@ -1094,17 +1093,19 @@ export default function SavedLineups() {
                             <th className="text-left py-2 px-2">Pos</th>
                             <th className="text-left py-2 px-2">Team</th>
                             <th className="text-right py-2 px-2">Salary</th>
-                            <th className="text-center py-2 px-2 w-40">Proj vs FPPG</th>
+                            <th className="text-center py-2 px-2 w-40">Proj vs Actual</th>
                             <th className="text-right py-2 px-2">Count</th>
                             <th className="text-right py-2 px-2 w-32">Exposure</th>
                           </tr>
                         </thead>
                         <tbody>
                           {exposureData.map((p, i) => {
-                            const maxBar = Math.max(p.avgProj, p.avgFppg, 1);
+                            const hasActual = p.avgActual != null && p.avgActual > 0;
+                            const actualVal = hasActual ? p.avgActual! : null;
+                            const maxBar = Math.max(p.avgProj, actualVal || 0, 1);
                             const projWidth = (p.avgProj / maxBar) * 100;
-                            const fppgWidth = (p.avgFppg / maxBar) * 100;
-                            const diff = p.avgProj - p.avgFppg;
+                            const actualWidth = actualVal ? (actualVal / maxBar) * 100 : 0;
+                            const diff = actualVal ? p.avgProj - actualVal : null;
                             return (
                             <tr key={p.name} className="border-b border-slate-800/30 hover:bg-slate-800/30" data-testid={`exposure-row-${i}`}>
                               <td className="py-1.5 px-2 font-medium text-white text-xs">
@@ -1115,7 +1116,7 @@ export default function SavedLineups() {
                                     position: p.position,
                                     salary: p.salary,
                                     projectedPoints: p.avgProj,
-                                    fppg: p.avgFppg,
+                                    fppg: actualVal || p.avgProj,
                                     opponent: p.opponent || null,
                                     gameInfo: p.gameInfo || null,
                                     boostScore: p.boostScore,
@@ -1147,17 +1148,29 @@ export default function SavedLineups() {
                                     </div>
                                     <span className="text-[8px] text-slate-500 w-6">Proj</span>
                                   </div>
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-[9px] text-blue-400 font-bold w-7 text-right">{p.avgFppg.toFixed(1)}</span>
-                                    <div className="flex-1 h-2 bg-slate-700/50 rounded-sm overflow-hidden">
-                                      <div className="h-full bg-blue-500 rounded-sm" style={{ width: `${fppgWidth}%` }} />
+                                  {hasActual ? (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[9px] text-blue-400 font-bold w-7 text-right">{actualVal!.toFixed(1)}</span>
+                                      <div className="flex-1 h-2 bg-slate-700/50 rounded-sm overflow-hidden">
+                                        <div className="h-full bg-blue-500 rounded-sm" style={{ width: `${actualWidth}%` }} />
+                                      </div>
+                                      <span className="text-[8px] text-slate-500 w-6">Avg</span>
                                     </div>
-                                    <span className="text-[8px] text-slate-500 w-6">FPPG</span>
-                                  </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[9px] text-slate-600 font-bold w-7 text-right">—</span>
+                                      <div className="flex-1 h-2 bg-slate-700/50 rounded-sm overflow-hidden" />
+                                      <span className="text-[8px] text-slate-600 w-6">Avg</span>
+                                    </div>
+                                  )}
                                   <div className="text-center">
-                                    <span className={`text-[9px] font-black ${diff >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                                      {diff >= 0 ? "+" : ""}{diff.toFixed(1)}
-                                    </span>
+                                    {diff != null ? (
+                                      <span className={`text-[9px] font-black ${diff >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                                        {diff >= 0 ? "+" : ""}{diff.toFixed(1)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-[9px] text-slate-600">No history</span>
+                                    )}
                                   </div>
                                 </div>
                               </td>

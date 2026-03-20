@@ -561,6 +561,41 @@ export async function registerRoutes(
       return { ...lineup, totalOwnership: Math.round(rosterOwn * 10) / 10, isOrphaned };
     }));
 
+    const snapshotNames = new Set<string>();
+    for (const lu of enriched) {
+      const snap = lu.playerSnapshot && Array.isArray(lu.playerSnapshot) ? lu.playerSnapshot as any[] : [];
+      for (const p of snap) { if (p.name) snapshotNames.add(p.name); }
+    }
+    if (snapshotNames.size > 0) {
+      try {
+        const historyRows = await storage.getRecentPlayerHistory(Array.from(snapshotNames));
+        const actualMap = new Map<string, { actualPoints: number; gamesTracked: number }>();
+        for (const h of historyRows) {
+          const existing = actualMap.get(h.playerName);
+          if (!existing) {
+            actualMap.set(h.playerName, { actualPoints: Number(h.actualPoints), gamesTracked: 1 });
+          } else if (existing.gamesTracked < 5) {
+            actualMap.set(h.playerName, {
+              actualPoints: (existing.actualPoints * existing.gamesTracked + Number(h.actualPoints)) / (existing.gamesTracked + 1),
+              gamesTracked: existing.gamesTracked + 1,
+            });
+          }
+        }
+        for (const lu of enriched) {
+          const snap = lu.playerSnapshot && Array.isArray(lu.playerSnapshot) ? lu.playerSnapshot as any[] : [];
+          for (const p of snap) {
+            const actual = actualMap.get(p.name);
+            if (actual) {
+              (p as any).recentActualAvg = Math.round(actual.actualPoints * 10) / 10;
+              (p as any).gamesTracked = actual.gamesTracked;
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[Lineups] snapshot enrichment error:", err);
+      }
+    }
+
     res.json(enriched);
   });
 

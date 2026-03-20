@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, inArray, lt, gte, desc, isNull, isNotNull, ne, sql } from "drizzle-orm";
+import { eq, and, inArray, lt, gt, gte, desc, isNull, isNotNull, ne, sql } from "drizzle-orm";
 
 function getTodayLineupCutoff(): Date {
   const now = new Date();
@@ -96,6 +96,7 @@ export interface IStorage extends IAuthStorage {
   bulkInsertPlayerHistory(records: InsertPlayerHistory[]): Promise<void>;
   getPlayerHistoryByName(playerName: string, sport: string, limit?: number): Promise<PlayerHistory[]>;
   getPlayerHistoryBySport(sport: string, limit?: number): Promise<PlayerHistory[]>;
+  getRecentPlayerHistory(playerNames: string[]): Promise<PlayerHistory[]>;
   cleanOldPlayerHistory(daysToKeep: number): Promise<number>;
   updatePlayerHistoryActualPoints(sport: string, slateDate: string, playerName: string, actualPoints: string): Promise<void>;
   batchUpdatePlayerHistoryActualPoints(sport: string, slateDate: string, updates: Array<{ playerName: string; actualPoints: string }>): Promise<void>;
@@ -592,6 +593,22 @@ export class DatabaseStorage implements IStorage {
       LIMIT ${limit}
     `);
     return (rows.rows || rows) as unknown as PlayerHistory[];
+  }
+
+  async getRecentPlayerHistory(playerNames: string[]): Promise<PlayerHistory[]> {
+    if (playerNames.length === 0) return [];
+    const rows = await db.select()
+      .from(playerHistory)
+      .where(
+        and(
+          inArray(playerHistory.playerName, playerNames),
+          isNotNull(playerHistory.actualPoints),
+          gt(playerHistory.actualPoints, "0")
+        )
+      )
+      .orderBy(desc(playerHistory.slateDate))
+      .limit(1000);
+    return rows as unknown as PlayerHistory[];
   }
 
   async getPlayerHistoryBySport(sport: string, limit = 500): Promise<PlayerHistory[]> {
