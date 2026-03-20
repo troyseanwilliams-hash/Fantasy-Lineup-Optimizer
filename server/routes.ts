@@ -4987,6 +4987,54 @@ export async function seedDatabase(forceRefresh = false) {
     }
   }
 
+  const graceCutoffAlt = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  const refreshedSlates = await storage.getSlates();
+  const nonMainDkSlates = refreshedSlates.filter(
+    s => s.platform === "draftkings" && !s.isMain && s.isActive !== false && s.draftGroupId
+      && new Date(s.startTime) > graceCutoffAlt
+  );
+  for (const altSlate of nonMainDkSlates) {
+    const altPlayers = await storage.getPlayersBySlate(altSlate.id);
+    if (altPlayers.length > 0) continue;
+
+    try {
+      const altData = await fetchDKSlateByDraftGroup(altSlate.sport, altSlate.draftGroupId!);
+      if (!altData || altData.dkPlayers.length === 0) {
+        console.log(`[DK] No draftables for non-main ${altSlate.sport} slate ${altSlate.id} (DG ${altSlate.draftGroupId})`);
+        continue;
+      }
+
+      if (altData.slateDate) {
+        await db.update(slates).set({ startTime: new Date(altData.slateDate) }).where(eq(slates.id, altSlate.id));
+      }
+
+      const createdPlayers = await storage.bulkCreatePlayers(
+        altData.dkPlayers.map((p: any) => ({ ...p, slateId: altSlate.id })) as any
+      );
+      console.log(`[DK] Repopulated non-main ${altSlate.sport} slate ${altSlate.id} (${altSlate.name}) with ${createdPlayers.length} players`);
+
+      const today2 = getEasternToday();
+      try {
+        const historyRecords = createdPlayers.map(p => ({
+          playerName: p.name,
+          team: p.team,
+          sport: altSlate.sport,
+          position: p.position,
+          salary: p.salary,
+          projectedPoints: p.projectedPoints,
+          slateDate: today2,
+          slateId: altSlate.id,
+          draftKingsPlayerId: p.draftKingsPlayerId,
+        }));
+        await storage.bulkInsertPlayerHistory(historyRecords);
+      } catch (err) {
+        console.error(`[History] Failed to save non-main ${altSlate.sport} snapshots:`, err);
+      }
+    } catch (err) {
+      console.error(`[DK] Error repopulating non-main ${altSlate.sport} slate ${altSlate.id}:`, err);
+    }
+  }
+
   const today = getEasternToday();
   const existingProps = await storage.getPropsByDate(today);
   if (existingProps.length === 0) {
