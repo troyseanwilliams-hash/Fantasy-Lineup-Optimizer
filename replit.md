@@ -32,6 +32,7 @@ Preferred communication style: Simple, everyday language.
 - **Sim Pool Parity**: Both Pro Optimizer Sim and Vault ReSim use the full player pool (no artificial trimming) with identical projection pipelines (boosts, ceiling, leverage, historical, DvP, Vegas).
 - **Player Swap**: One-click player swaps within generated lineups and PrizePicks entries.
 - **DK Entries Import**: CSV import for DraftKings entries (Champion tier).
+- **Slate Override**: Vault Regenerate and ReSim support overriding the player pool slate, with a frontend slate selector dropdown and backend sport/platform compatibility validation.
 - **Bulk Regenerate**: Regenerates multiple selected lineups using advanced optimization.
 - **Saved Lineup Sim Scoring**: Run Monte Carlo simulations on saved lineups to calculate P75/P90/median/composite scores. Sim data is cleared automatically when lineups are modified.
 - **Sim Regenerate**: Regenerate saved lineups using full Monte Carlo sim optimization, selecting the best candidates sorted by a user-chosen metric (P90, P75, Composite, Median, or Average).

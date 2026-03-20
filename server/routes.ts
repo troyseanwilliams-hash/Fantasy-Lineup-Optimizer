@@ -980,6 +980,7 @@ export async function registerRoutes(
     const projFloor = typeof req.body.projFloor === "number" && req.body.projFloor > 0 ? req.body.projFloor : null;
     const minSalary = typeof req.body.minSalary === "number" ? req.body.minSalary : undefined;
     const maxSalary = typeof req.body.maxSalary === "number" ? req.body.maxSalary : undefined;
+    const overrideSlateId = typeof req.body.slateId === "number" ? req.body.slateId : null;
 
     for (const id of ids) {
       const lineup = await storage.getLineup(Number(id));
@@ -988,9 +989,17 @@ export async function registerRoutes(
         continue;
       }
 
-      let cached = slateCache.get(lineup.slateId);
+      const effectiveSlateId = overrideSlateId || lineup.slateId;
+      if (overrideSlateId) {
+        const overrideSlate = await storage.getSlate(overrideSlateId);
+        if (overrideSlate && (overrideSlate.sport !== lineup.sport || overrideSlate.platform !== (lineup.platform || "draftkings"))) {
+          results.push({ id, status: "skipped", error: "Override slate sport/platform does not match lineup" });
+          continue;
+        }
+      }
+      let cached = slateCache.get(effectiveSlateId);
       if (!cached) {
-        const slate = await storage.getSlate(lineup.slateId);
+        const slate = await storage.getSlate(effectiveSlateId);
         if (!slate) {
           results.push({ id, status: "skipped", error: "Slate no longer available" });
           continue;
@@ -1001,7 +1010,7 @@ export async function registerRoutes(
         }
 
         const platform = (lineup.platform || "draftkings") as Platform;
-        let allPlayers = await storage.getPlayersBySlate(lineup.slateId);
+        let allPlayers = await storage.getPlayersBySlate(effectiveSlateId);
         if (allPlayers.length === 0) {
           results.push({ id, status: "skipped", error: "Slate data was refreshed. Generate new lineups from the current slate first." });
           continue;
@@ -1071,7 +1080,7 @@ export async function registerRoutes(
         console.log(`[BulkGenerate] ${slate.sport} slate ${slate.id}: ${allPlayers.length} total, ${baseExcluded.length} excluded, ${eligibleCount} eligible with proj > 0, minSal=${minSalary ?? 'none'}, maxSal=${maxSalary ?? 'none'}`);
 
         cached = { slate, pool, allPlayers, baseExcluded, platform };
-        slateCache.set(lineup.slateId, cached);
+        slateCache.set(effectiveSlateId, cached);
       }
 
       const { slate, pool, baseExcluded, platform } = cached;
@@ -1109,7 +1118,7 @@ export async function registerRoutes(
         const bulkContestType = req.body.contestType === "gpp" ? "gpp" : "cash";
         const solveResult = solveLineup(
           salaryFilteredPool,
-          { slateId: lineup.slateId, platform, lockedPlayerIds: [], excludedPlayerIds: iterationExcluded, maxSalary: undefined, minSalary: undefined, playerProjections: {}, contestType: bulkContestType } as any,
+          { slateId: effectiveSlateId, platform, lockedPlayerIds: [], excludedPlayerIds: iterationExcluded, maxSalary: undefined, minSalary: undefined, playerProjections: {}, contestType: bulkContestType } as any,
           slate.sport,
           platform
         );
@@ -1147,12 +1156,15 @@ export async function registerRoutes(
         }
         const correlationScore = computeCorrelationBonus(solveResult.lineup as Player[], slate.sport);
 
-        await storage.updateLineup(Number(id), {
+        const updatePayload: any = {
           playerIds,
           totalSalary: solveResult.totalSalary,
           totalProjectedPoints: origTotalPts.toFixed(1),
           playerSnapshot,
-        });
+        };
+        if (overrideSlateId) updatePayload.slateId = overrideSlateId;
+
+        await storage.updateLineup(Number(id), updatePayload);
 
         results.push({ id, status: "updated" });
         updated = true;
@@ -1275,9 +1287,10 @@ export async function registerRoutes(
   app.post("/api/lineups/sim-regenerate", async (req, res) => {
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const userId = getSessionUserId(req)!;
-    const { ids, sortBy, useBoosts, ceilingMode, leverageMode, outperformerMode, contestType: rawContestType, globalMaxExposure, projFloor, minSalary, maxSalary } = req.body;
+    const { ids, sortBy, useBoosts, ceilingMode, leverageMode, outperformerMode, contestType: rawContestType, globalMaxExposure, projFloor, minSalary, maxSalary, slateId: bodySlateId } = req.body;
     const simContestType = rawContestType === "gpp" ? "gpp" : "cash";
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "No lineup IDs provided" });
+    const overrideSlateId = typeof bodySlateId === "number" ? bodySlateId : null;
 
     const validSortKeys = ["p90", "p75", "composite", "median", "avg"];
     const sortKey = validSortKeys.includes(sortBy) ? sortBy : "composite";
@@ -1295,7 +1308,7 @@ export async function registerRoutes(
     const startTime = Date.now();
     const MAX_RUNTIME_MS = isAdmin ? 90000 : 60000;
 
-    console.log(`[SimRegen] Starting: ${ids.length} lineups, ${numSims} sims (tier=${tier}), sortBy=${sortKey}, contest=${simContestType}, boosts=${useBoosts}, ceiling=${ceilingMode}, leverage=${leverageMode}, opm=${outperformerMode}, exposure=${globalMaxExposure}, projFloor=${projFloor}, minSal=${minSalary}, maxSal=${maxSalary}`);
+    console.log(`[SimRegen] Starting: ${ids.length} lineups, ${numSims} sims (tier=${tier}), sortBy=${sortKey}, contest=${simContestType}, boosts=${useBoosts}, ceiling=${ceilingMode}, leverage=${leverageMode}, opm=${outperformerMode}, exposure=${globalMaxExposure}, projFloor=${projFloor}, minSal=${minSalary}, maxSal=${maxSalary}, overrideSlate=${overrideSlateId}`);
 
     try {
       const slateGroups = new Map<number, number[]>();
@@ -1310,9 +1323,17 @@ export async function registerRoutes(
           continue;
         }
         lineupOwnership.set(Number(id), lineup);
-        const group = slateGroups.get(lineup.slateId) || [];
+        if (overrideSlateId) {
+          const overrideSlate = await storage.getSlate(overrideSlateId);
+          if (overrideSlate && (overrideSlate.sport !== lineup.sport || overrideSlate.platform !== (lineup.platform || "draftkings"))) {
+            results.push({ id: Number(id), status: "skipped", error: "Override slate sport/platform does not match lineup" });
+            continue;
+          }
+        }
+        const effectiveSlateId = overrideSlateId || lineup.slateId;
+        const group = slateGroups.get(effectiveSlateId) || [];
         group.push(Number(id));
-        slateGroups.set(lineup.slateId, group);
+        slateGroups.set(effectiveSlateId, group);
       }
 
       for (const [slateId, lineupIds] of slateGroups) {
@@ -1570,11 +1591,13 @@ export async function registerRoutes(
             p75Score: candidate.p75Score, p90Score: candidate.p90Score,
             compositeScore: candidate.compositeScore, freqPct: candidate.freqPct,
           };
-          await db.update(lineupsTable).set({
+          const simUpdatePayload: any = {
             playerIds, totalSalary: candidate.totalSalary,
             totalProjectedPoints: totalPts.toFixed(1),
             playerSnapshot, simData,
-          }).where(eq(lineupsTable.id, lineupId));
+          };
+          if (overrideSlateId) simUpdatePayload.slateId = overrideSlateId;
+          await db.update(lineupsTable).set(simUpdatePayload).where(eq(lineupsTable.id, lineupId));
 
           results.push({ id: lineupId, status: "updated" });
         }

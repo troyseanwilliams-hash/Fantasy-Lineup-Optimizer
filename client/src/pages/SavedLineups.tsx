@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye, AlertTriangle, Upload, Settings, RefreshCw, FileUp, Star, Activity, Loader2, Flame, Percent, BarChart3 } from "lucide-react";
 import { gradeLineup, GRADE_COLORS, type LineupGrade } from "@/lib/lineup-grader";
@@ -14,7 +14,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { getPlatformConfig, assignPlayersToSlots, getSlotDisplayName, positionFitsSlot } from "@shared/platform-config";
-import type { Player } from "@shared/schema";
+import type { Player, Slate } from "@shared/schema";
 import { PlayerInfoHoverCard } from "@/components/PlayerInfoHoverCard";
 import { InfoTip } from "@/components/InfoTip";
 import { usePageMeta } from "@/hooks/use-page-meta";
@@ -144,6 +144,7 @@ export default function SavedLineups() {
   const [regenProjFloor, setRegenProjFloor] = useState<number | null>(null);
   const [regenMinSalary, setRegenMinSalary] = useState<number | null>(null);
   const [regenMaxSalary, setRegenMaxSalary] = useState<number | null>(null);
+  const [regenSlateId, setRegenSlateId] = useState<number | null>(null);
   const [simMetric, setSimMetric] = useState<"composite" | "p90" | "p75" | "median" | "avg">("composite");
 
   const { data: lineups, isLoading } = useQuery<any[]>({
@@ -155,6 +156,39 @@ export default function SavedLineups() {
     staleTime: VAULT_STALE_TIME,
     refetchOnWindowFocus: false,
   });
+
+  const { data: allSlates } = useQuery<Slate[]>({
+    queryKey: ["/api/slates"],
+    staleTime: 300000,
+    refetchOnWindowFocus: false,
+  });
+
+  const selectedLineupSport = useMemo(() => {
+    if (!lineups || selectedIds.size === 0) return null;
+    const first = lineups.find((l: any) => selectedIds.has(l.id));
+    return first?.sport || null;
+  }, [lineups, selectedIds]);
+
+  const selectedLineupPlatform = useMemo(() => {
+    if (!lineups || selectedIds.size === 0) return null;
+    const first = lineups.find((l: any) => selectedIds.has(l.id));
+    return first?.platform || "draftkings";
+  }, [lineups, selectedIds]);
+
+  const availableSlates = useMemo(() => {
+    if (!allSlates || !selectedLineupSport || !selectedLineupPlatform) return [];
+    return allSlates.filter(
+      (s: any) =>
+        s.sport === selectedLineupSport &&
+        s.platform === selectedLineupPlatform
+    );
+  }, [allSlates, selectedLineupSport, selectedLineupPlatform]);
+
+  useEffect(() => {
+    if (regenSlateId && availableSlates.length > 0 && !availableSlates.find((s: any) => s.id === regenSlateId)) {
+      setRegenSlateId(null);
+    }
+  }, [availableSlates, regenSlateId]);
 
   const lineupGrades = useMemo(() => {
     const map = new Map<number, LineupGrade>();
@@ -287,8 +321,8 @@ export default function SavedLineups() {
   });
 
   const bulkGenerateMutation = useMutation({
-    mutationFn: async ({ ids, useBoosts, ceilingMode, leverageMode, outperformerMode, globalMaxExposure, projFloor, minSalary, maxSalary }: { ids: number[]; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; outperformerMode?: boolean; globalMaxExposure?: number; projFloor?: number; minSalary?: number; maxSalary?: number }) => {
-      const res = await apiRequest("POST", "/api/lineups/bulk-generate", { ids, useBoosts: useBoosts !== false, ceilingMode: ceilingMode || false, leverageMode: leverageMode || false, outperformerMode: outperformerMode || false, globalMaxExposure: globalMaxExposure ?? undefined, projFloor: projFloor ?? undefined, minSalary: minSalary ?? undefined, maxSalary: maxSalary ?? undefined });
+    mutationFn: async ({ ids, useBoosts, ceilingMode, leverageMode, outperformerMode, globalMaxExposure, projFloor, minSalary, maxSalary, slateId }: { ids: number[]; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; outperformerMode?: boolean; globalMaxExposure?: number; projFloor?: number; minSalary?: number; maxSalary?: number; slateId?: number }) => {
+      const res = await apiRequest("POST", "/api/lineups/bulk-generate", { ids, useBoosts: useBoosts !== false, ceilingMode: ceilingMode || false, leverageMode: leverageMode || false, outperformerMode: outperformerMode || false, globalMaxExposure: globalMaxExposure ?? undefined, projFloor: projFloor ?? undefined, minSalary: minSalary ?? undefined, maxSalary: maxSalary ?? undefined, slateId: slateId ?? undefined });
       return res.json();
     },
     onSuccess: (data) => {
@@ -325,7 +359,7 @@ export default function SavedLineups() {
   });
 
   const simRegenMutation = useMutation({
-    mutationFn: async (params: { ids: number[]; numSims?: number; sortBy: string; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; outperformerMode?: boolean; contestType?: string; globalMaxExposure?: number; projFloor?: number; minSalary?: number; maxSalary?: number }) => {
+    mutationFn: async (params: { ids: number[]; numSims?: number; sortBy: string; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; outperformerMode?: boolean; contestType?: string; globalMaxExposure?: number; projFloor?: number; minSalary?: number; maxSalary?: number; slateId?: number }) => {
       const res = await apiRequest("POST", "/api/lineups/sim-regenerate", params);
       return res.json();
     },
@@ -758,7 +792,7 @@ export default function SavedLineups() {
                       </Button>
                       {isPaid && (
                         <Button
-                          onClick={() => bulkGenerateMutation.mutate({ ids: Array.from(selectedIds), useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, outperformerMode: regenOutperformerMode, contestType: regenContestType, globalMaxExposure: regenMaxExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined })}
+                          onClick={() => bulkGenerateMutation.mutate({ ids: Array.from(selectedIds), useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, outperformerMode: regenOutperformerMode, contestType: regenContestType, globalMaxExposure: regenMaxExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined, slateId: regenSlateId ?? undefined })}
                           disabled={bulkGenerateMutation.isPending || regenContestType === "gpp"}
                           className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
                           data-testid="bulk-generate-btn"
@@ -800,7 +834,7 @@ export default function SavedLineups() {
                             {simScoreMutation.isPending ? "Scoring..." : "Score"}
                           </Button>
                           <Button
-                            onClick={() => simRegenMutation.mutate({ ids: Array.from(selectedIds), sortBy: simMetric, useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, outperformerMode: regenOutperformerMode, contestType: regenContestType, globalMaxExposure: regenMaxExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined })}
+                            onClick={() => simRegenMutation.mutate({ ids: Array.from(selectedIds), sortBy: simMetric, useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, outperformerMode: regenOutperformerMode, contestType: regenContestType, globalMaxExposure: regenMaxExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined, slateId: regenSlateId ?? undefined })}
                             disabled={simRegenMutation.isPending || simScoreMutation.isPending || regenContestType === "cash"}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-md rounded-l-none text-xs disabled:opacity-40"
                             data-testid="sim-regen-btn"
@@ -970,6 +1004,23 @@ export default function SavedLineups() {
                     {regenMaxSalary ? `$${(regenMaxSalary / 1000).toFixed(1)}K` : "Off"}
                   </span>
                 </div>
+                {availableSlates.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Slate</span>
+                    <InfoTip text="Override the player pool slate used during regeneration. Defaults to the lineup's original slate." side="bottom" />
+                    <select
+                      value={regenSlateId ?? ""}
+                      onChange={(e) => setRegenSlateId(e.target.value ? Number(e.target.value) : null)}
+                      className="bg-slate-800 border border-slate-700 text-xs text-slate-200 rounded-md px-2 py-1 max-w-[200px]"
+                      data-testid="regen-select-slate"
+                    >
+                      <option value="">Original Slate</option>
+                      {availableSlates.map((s: any) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
           )}
