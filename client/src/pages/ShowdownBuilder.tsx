@@ -891,8 +891,8 @@ export default function ShowdownBuilder() {
                           <div className="flex items-center gap-2">
                             <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
                             <div>
-                              <LabelTip text="Boost players who consistently beat their projections and penalize chronic underperformers."><p className="text-xs font-bold text-white">Outperformer Mode</p></LabelTip>
-                              <p className="text-[10px] text-slate-500">Favors players who exceed projections historically</p>
+                              <LabelTip text="Outperformer Mode — boosts players who consistently meet or exceed their projections and penalizes those who consistently miss."><p className="text-xs font-bold text-white">OPM</p></LabelTip>
+                              <p className="text-[10px] text-slate-500">Favors players who meet or exceed projections</p>
                             </div>
                           </div>
                           <Switch checked={outperformerMode} onCheckedChange={setOutperformerMode} data-testid="toggle-outperformer" />

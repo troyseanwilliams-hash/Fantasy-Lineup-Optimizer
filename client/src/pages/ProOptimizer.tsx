@@ -992,7 +992,7 @@ export default function ProOptimizer() {
                   <Switch checked={leverageMode} onCheckedChange={setLeverageMode} data-testid="toggle-leverage" className="scale-90" />
                 </div>
                 <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
-                  <LabelTip text="Boost players who consistently beat their projections and penalize chronic underperformers. Uses recency-weighted actual vs projected ratios."><label className="text-[10px] font-black text-cyan-400 uppercase">Outperformer</label></LabelTip>
+                  <LabelTip text="Outperformer Mode — boosts players who consistently meet or exceed their projections and penalizes those who consistently miss."><label className="text-[10px] font-black text-cyan-400 uppercase">OPM</label></LabelTip>
                   <Switch checked={outperformerMode} onCheckedChange={setOutperformerMode} data-testid="toggle-outperformer" className="scale-90" />
                 </div>
                 <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
@@ -1109,7 +1109,7 @@ export default function ProOptimizer() {
                 <Switch checked={leverageMode} onCheckedChange={setLeverageMode} data-testid="toggle-leverage-mobile" className="scale-90" />
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0">
-                <label className="text-[10px] font-black text-cyan-400 uppercase">Outperformer</label>
+                <LabelTip text="Outperformer Mode — boosts players who consistently meet or exceed their projections and penalizes those who consistently miss."><label className="text-[10px] font-black text-cyan-400 uppercase">OPM</label></LabelTip>
                 <Switch checked={outperformerMode} onCheckedChange={setOutperformerMode} data-testid="toggle-outperformer-mobile" className="scale-90" />
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0">

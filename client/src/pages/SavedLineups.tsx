@@ -904,8 +904,8 @@ export default function SavedLineups() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Switch checked={regenOutperformerMode} onCheckedChange={setRegenOutperformerMode} data-testid="regen-toggle-outperformer" className="scale-90" />
-                  <span className="text-xs font-bold text-cyan-400">Outperformer</span>
-                  <InfoTip text="Boosts players who consistently beat their projections and penalizes chronic underperformers." side="bottom" />
+                  <span className="text-xs font-bold text-cyan-400">OPM</span>
+                  <InfoTip text="Outperformer Mode — boosts players who consistently meet or exceed their projections and penalizes those who consistently miss." side="bottom" />
                 </div>
                 <div className="flex items-center gap-2 min-w-[180px]">
                   <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Exposure</span>

@@ -1320,8 +1320,8 @@ export default function Optimizer() {
           <div className="flex items-center justify-between mt-2 px-1" data-testid="outperformer-toggle">
             <div className="flex items-center gap-1.5">
               <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="text-[11px] font-black text-slate-300">Outperformer Mode</span>
-              <InfoTip text="Boosts players who consistently beat their projections and penalizes those who consistently miss. Uses recency-weighted historical actual vs. projected ratios." side="bottom" />
+              <span className="text-[11px] font-black text-cyan-400">OPM</span>
+              <InfoTip text="Outperformer Mode — boosts players who consistently meet or exceed their projections and penalizes those who consistently miss. Uses recency-weighted historical actual vs. projected ratios." side="bottom" />
             </div>
             <Switch checked={outperformerMode} onCheckedChange={setOutperformerMode} data-testid="toggle-outperformer" className="scale-90" />
           </div>

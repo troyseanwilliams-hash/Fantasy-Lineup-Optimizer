@@ -448,18 +448,20 @@ export async function applyOutperformerMode(
     const totalWeight = recencyWeights.reduce((a, b) => a + b, 0);
     const ratios = withActuals.map(h => Number(h.actualPoints!) / Math.max(1, Number(h.projectedPoints)));
     const weightedRatio = ratios.reduce((sum, r, i) => sum + r * recencyWeights[i], 0) / totalWeight;
-    const beatsCount = ratios.filter(r => r >= 1.0).length;
-    const beatRate = beatsCount / ratios.length;
+    const meetsOrBeatsCount = ratios.filter(r => r >= 1.0).length;
+    const meetRate = meetsOrBeatsCount / ratios.length;
 
     let multiplier = 1.0;
 
-    if (weightedRatio >= 1.15 && beatRate >= 0.6) {
+    if (weightedRatio >= 1.15 && meetRate >= 0.6) {
       multiplier = 1.0 + Math.min(0.20, (weightedRatio - 1.0) * 0.5);
-    } else if (weightedRatio >= 1.05 && beatRate >= 0.5) {
+    } else if (weightedRatio >= 1.05 && meetRate >= 0.5) {
       multiplier = 1.0 + Math.min(0.12, (weightedRatio - 1.0) * 0.4);
-    } else if (weightedRatio <= 0.85 && beatRate <= 0.4) {
+    } else if (weightedRatio >= 0.98 && meetRate >= 0.6) {
+      multiplier = 1.0 + Math.min(0.06, meetRate * 0.08);
+    } else if (weightedRatio <= 0.85 && meetRate <= 0.3) {
       multiplier = 1.0 + Math.max(-0.20, (weightedRatio - 1.0) * 0.5);
-    } else if (weightedRatio <= 0.92 && beatRate <= 0.45) {
+    } else if (weightedRatio <= 0.92 && meetRate <= 0.4) {
       multiplier = 1.0 + Math.max(-0.12, (weightedRatio - 1.0) * 0.4);
     }
 
