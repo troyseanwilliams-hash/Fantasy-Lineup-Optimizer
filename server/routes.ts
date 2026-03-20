@@ -968,7 +968,7 @@ export async function registerRoutes(
         const platform = (lineup.platform || "draftkings") as Platform;
         let allPlayers = await storage.getPlayersBySlate(lineup.slateId);
         if (allPlayers.length === 0) {
-          results.push({ id, status: "skipped", error: "No players in slate" });
+          results.push({ id, status: "skipped", error: "Slate data was refreshed. Generate new lineups from the current slate first." });
           continue;
         }
 
@@ -1169,7 +1169,7 @@ export async function registerRoutes(
           if (!slate) { results.push({ id, status: "skipped", error: "Slate not found" }); continue; }
 
           let allPlayers = await storage.getPlayersBySlate(lineup.slateId);
-          if (allPlayers.length === 0) { results.push({ id, status: "skipped", error: "No players in slate" }); continue; }
+          if (allPlayers.length === 0) { results.push({ id, status: "skipped", error: "Slate data was refreshed. Generate new lineups from the current slate first." }); continue; }
 
           if (slate.platform === "draftkings") {
             allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
@@ -1260,7 +1260,7 @@ export async function registerRoutes(
     const startTime = Date.now();
     const MAX_RUNTIME_MS = isAdmin ? 90000 : 60000;
 
-    console.log(`[SimRegen] Starting: ${ids.length} lineups, ${numSims} sims (tier=${tier}), sortBy=${sortKey}, contest=${simContestType}, boosts=${useBoosts}, ceiling=${ceilingMode}, leverage=${leverageMode}, exposure=${globalMaxExposure}, projFloor=${projFloor}, minSal=${minSalary}, maxSal=${maxSalary}`);
+    console.log(`[SimRegen] Starting: ${ids.length} lineups, ${numSims} sims (tier=${tier}), sortBy=${sortKey}, contest=${simContestType}, boosts=${useBoosts}, ceiling=${ceilingMode}, leverage=${leverageMode}, opm=${outperformerMode}, exposure=${globalMaxExposure}, projFloor=${projFloor}, minSal=${minSalary}, maxSal=${maxSalary}`);
 
     try {
       const slateGroups = new Map<number, number[]>();
@@ -1290,7 +1290,8 @@ export async function registerRoutes(
         const platform = (lineupOwnership.get(lineupIds[0])?.platform || "draftkings") as Platform;
         let allPlayers = await storage.getPlayersBySlate(slateId);
         if (allPlayers.length === 0) {
-          lineupIds.forEach(id => results.push({ id, status: "skipped", error: "No players in slate" }));
+          console.log(`[SimRegen] Slate ${slateId} has no players — likely refreshed. Skipping ${lineupIds.length} lineups.`);
+          lineupIds.forEach(id => results.push({ id, status: "skipped", error: "Slate data was refreshed. Generate new lineups from the current slate first." }));
           continue;
         }
 

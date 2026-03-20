@@ -431,18 +431,24 @@ export async function applyOutperformerMode(
     historyByName.set(h.playerName, existing);
   }
 
-  return players.map(p => {
+  let boostedCount = 0;
+  let penalizedCount = 0;
+  let unchangedCount = 0;
+  let noHistoryCount = 0;
+  let zeroProjCount = 0;
+
+  const result = players.map(p => {
     const proj = Number(p.projectedPoints);
-    if (proj <= 0) return p;
+    if (proj <= 0) { zeroProjCount++; return p; }
 
     const hist = historyByName.get(p.name);
-    if (!hist || hist.length < 3) return p;
+    if (!hist || hist.length < 3) { noHistoryCount++; return p; }
 
     const withActuals = hist
       .filter(h => h.actualPoints != null && Number(h.actualPoints) > 0)
       .slice(0, 10);
 
-    if (withActuals.length < 3) return p;
+    if (withActuals.length < 3) { noHistoryCount++; return p; }
 
     const recencyWeights = withActuals.map((_, i) => Math.pow(0.80, i));
     const totalWeight = recencyWeights.reduce((a, b) => a + b, 0);
@@ -465,9 +471,16 @@ export async function applyOutperformerMode(
       multiplier = 1.0 + Math.max(-0.12, (weightedRatio - 1.0) * 0.4);
     }
 
+    if (multiplier > 1.0) boostedCount++;
+    else if (multiplier < 1.0) penalizedCount++;
+    else unchangedCount++;
+
     const adjusted = Math.round(proj * multiplier * 10) / 10;
     return { ...p, projectedPoints: adjusted.toString() };
   });
+
+  console.log(`[OPM] ${sport}: ${players.length} players | history=${history.length} records, ${historyByName.size} names | boosted=${boostedCount}, penalized=${penalizedCount}, unchanged=${unchangedCount}, noHistory=${noHistoryCount}, zeroProj=${zeroProjCount}`);
+  return result;
 }
 
 export function computeCorrelationBonus(
