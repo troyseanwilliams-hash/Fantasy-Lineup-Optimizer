@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -114,6 +114,30 @@ export default function WinningLineups() {
   const isAdmin = user?.isAdmin === true;
   const tier = isAdmin ? "pro" : (subData?.tier || "free");
   const isChampion = tier === "pro";
+
+  const { data: availability } = useQuery<{ sport: string; platform: string; count: number }[]>({
+    queryKey: ["/api/winning-lineups-availability"],
+    enabled: !!user,
+  });
+
+  const availableSports = [...new Set((availability || []).map(a => a.sport))].sort(
+    (a, b) => SPORTS.indexOf(a) - SPORTS.indexOf(b)
+  );
+  const availablePlatforms = [...new Set(
+    (availability || []).filter(a => a.sport === selectedSport).map(a => a.platform as PlatformType)
+  )].sort((a, b) => PLATFORMS.indexOf(a) - PLATFORMS.indexOf(b));
+
+  useEffect(() => {
+    if (availableSports.length > 0 && !availableSports.includes(selectedSport)) {
+      setSelectedSport(availableSports[0]);
+    }
+  }, [availableSports.join(",")]);
+
+  useEffect(() => {
+    if (availablePlatforms.length > 0 && !availablePlatforms.includes(selectedPlatform)) {
+      setSelectedPlatform(availablePlatforms[0]);
+    }
+  }, [availablePlatforms.join(","), selectedSport]);
 
   const { data: lineups, isLoading: lineupsLoading } = useQuery<WinningLineup[]>({
     queryKey: ["/api/winning-lineups", selectedSport, selectedPlatform],
@@ -286,7 +310,7 @@ export default function WinningLineups() {
       </div>
 
       <div className="flex gap-2 flex-wrap">
-        {SPORTS.map((sport) => (
+        {(isAdmin ? SPORTS : availableSports).map((sport) => (
           <Button
             key={sport}
             variant={selectedSport === sport ? "default" : "outline"}
@@ -294,17 +318,22 @@ export default function WinningLineups() {
             className={
               selectedSport === sport
                 ? "bg-emerald-600 text-white font-bold hover:bg-emerald-500"
-                : "border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800"
+                : availableSports.includes(sport)
+                  ? "border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800"
+                  : "border-slate-800 text-slate-600 hover:text-slate-400 hover:bg-slate-800/50"
             }
             data-testid={`button-sport-${sport.toLowerCase()}`}
           >
             {sport}
+            {isAdmin && !availableSports.includes(sport) && (
+              <span className="ml-1 text-[9px] text-slate-600">0</span>
+            )}
           </Button>
         ))}
       </div>
 
       <div className="flex gap-2 flex-wrap" data-testid="platform-selector">
-        {PLATFORMS.map((p) => (
+        {(isAdmin ? PLATFORMS : availablePlatforms).map((p) => (
           <Button
             key={p}
             variant={selectedPlatform === p ? "default" : "outline"}
@@ -313,11 +342,16 @@ export default function WinningLineups() {
             className={
               selectedPlatform === p
                 ? "bg-amber-600 text-white font-bold hover:bg-amber-500"
-                : "border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800"
+                : availablePlatforms.includes(p)
+                  ? "border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800"
+                  : "border-slate-800 text-slate-600 hover:text-slate-400 hover:bg-slate-800/50"
             }
             data-testid={`button-platform-${p}`}
           >
             {PLATFORM_LABELS[p]}
+            {isAdmin && !availablePlatforms.includes(p) && (
+              <span className="ml-1 text-[9px] text-slate-600">0</span>
+            )}
           </Button>
         ))}
       </div>

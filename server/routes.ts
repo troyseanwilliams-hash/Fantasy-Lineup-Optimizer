@@ -3,7 +3,7 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
 import { users, subscriptions, slates, lineups as lineupsTable } from "@shared/schema";
-import { eq, and, lt } from "drizzle-orm";
+import { eq, and, lt, sql } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
@@ -2177,6 +2177,22 @@ export async function registerRoutes(
       });
     } catch (err) {
       res.status(500).json({ message: "Failed to compute insights" });
+    }
+  });
+
+  app.get("/api/winning-lineups-availability", async (req, res) => {
+    try {
+      if (!isLoggedIn(req)) return res.sendStatus(401);
+      const rows = await db.execute(sql`
+        SELECT sport, platform, COUNT(*)::int as count
+        FROM winning_lineups
+        GROUP BY sport, platform
+        ORDER BY sport, platform
+      `);
+      const data = (rows.rows || rows) as { sport: string; platform: string; count: number }[];
+      res.json(data);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to fetch availability" });
     }
   });
 
