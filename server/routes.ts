@@ -977,7 +977,7 @@ export async function registerRoutes(
 
     const results: { id: number; status: string; error?: string }[] = [];
 
-    const slateCache = new Map<number, { slate: any; pool: Player[]; allPlayers: Player[]; baseExcluded: number[]; platform: Platform }>();
+    const slateCache = new Map<number, { slate: any; pool: Player[]; allPlayers: Player[]; baseExcluded: number[]; platform: Platform; lockedOverrideIds: number[] }>();
     const usedLineupKeys = new Set<string>();
     const playerAppearances: Record<number, number> = {};
     const totalCount = ids.length;
@@ -1030,8 +1030,19 @@ export async function registerRoutes(
         const useLeverageMode = req.body.leverageMode === true;
         const regenScoutMap = buildScoutMap(slate.sport);
 
-        let pool = allPlayers.map(p => {
-          let pts = Number(p.projectedPoints);
+        const bulkOverrides = await storage.getPlayerOverrides(userId, effectiveSlateId);
+        const bulkOverrideMap = new Map(bulkOverrides.map(o => [o.playerId, o]));
+        const bulkOverrideExcluded = new Set(bulkOverrides.filter(o => o.isExcluded).map(o => o.playerId));
+        const bulkOverrideLocked = new Set(bulkOverrides.filter(o => o.isLocked).map(o => o.playerId));
+
+        let pool = allPlayers
+          .filter(p => !bulkOverrideExcluded.has(p.id))
+          .map(p => {
+          const override = bulkOverrideMap.get(p.id);
+          let pts = override?.customProjection != null ? Number(override.customProjection) : Number(p.projectedPoints);
+          if (override?.boostPercent && override.boostPercent > 0) {
+            pts = Math.round(pts * (1 + override.boostPercent / 100) * 10) / 10;
+          }
           if (p.isConfirmedStarter) {
             pts = Math.round(pts * 1.05 * 10) / 10;
           }
@@ -1039,7 +1050,7 @@ export async function registerRoutes(
             const boostPct = Math.max(-0.15, Math.min(0.15, Number(p.boostScore) * 0.015));
             pts = Math.round(pts * (1 + boostPct) * 10) / 10;
           }
-          pts = applyScoutToProjection(pts, p.name, regenScoutMap);
+          pts = applyScoutToProjection(pts, p.name, regenScoutMap, override?.customProjection != null);
           if (isPlayerOut(p.injuryStatus)) pts = 0;
           else if (p.injuryStatus === "Questionable" || p.injuryStatus === "GTD") pts *= 0.75;
           else if (p.injuryStatus === "Probable" || p.injuryStatus === "DTD") pts *= 0.9;
@@ -1084,11 +1095,11 @@ export async function registerRoutes(
         const eligibleCount = pool.filter(p => Number(p.projectedPoints) > 0).length;
         console.log(`[BulkGenerate] ${slate.sport} slate ${slate.id}: ${allPlayers.length} total, ${baseExcluded.length} excluded, ${eligibleCount} eligible with proj > 0, minSal=${minSalary ?? 'none'}, maxSal=${maxSalary ?? 'none'}`);
 
-        cached = { slate, pool, allPlayers, baseExcluded, platform };
+        cached = { slate, pool, allPlayers, baseExcluded, platform, lockedOverrideIds: [...bulkOverrideLocked] };
         slateCache.set(effectiveSlateId, cached);
       }
 
-      const { slate, pool, baseExcluded, platform } = cached;
+      const { slate, pool, baseExcluded, platform, lockedOverrideIds } = cached;
       const iteration = results.filter(r => r.status === "updated").length;
       const maxAttempts = 10;
       let updated = false;
@@ -1112,8 +1123,10 @@ export async function registerRoutes(
           }
         }
 
+        const lockedSet = new Set(lockedOverrideIds);
         const salaryFilteredPool = (minSalary || maxSalary)
           ? perturbedPool.filter(p => {
+              if (lockedSet.has(p.id)) return true;
               if (minSalary && p.salary < minSalary) return false;
               if (maxSalary && p.salary > maxSalary) return false;
               return true;
@@ -1123,7 +1136,7 @@ export async function registerRoutes(
         const bulkContestType = req.body.contestType === "gpp" ? "gpp" : "cash";
         const solveResult = solveLineup(
           salaryFilteredPool,
-          { slateId: effectiveSlateId, platform, lockedPlayerIds: [], excludedPlayerIds: iterationExcluded, maxSalary: undefined, minSalary: undefined, playerProjections: {}, contestType: bulkContestType } as any,
+          { slateId: effectiveSlateId, platform, lockedPlayerIds: lockedOverrideIds, excludedPlayerIds: iterationExcluded, maxSalary: undefined, minSalary: undefined, playerProjections: {}, contestType: bulkContestType } as any,
           slate.sport,
           platform
         );
@@ -1365,14 +1378,26 @@ export async function registerRoutes(
         const useLeverageMode = leverageMode === true;
         const useOutperformerMode = outperformerMode === true;
         const scoutMap = buildScoutMap(slate.sport);
-        let pool = allPlayers.map(p => {
-          let pts = Number(p.projectedPoints);
+
+        const simRegenOverrides = await storage.getPlayerOverrides(userId, slateId);
+        const simRegenOverrideMap = new Map(simRegenOverrides.map(o => [o.playerId, o]));
+        const simRegenExcluded = new Set(simRegenOverrides.filter(o => o.isExcluded).map(o => o.playerId));
+        const simRegenLocked = new Set(simRegenOverrides.filter(o => o.isLocked).map(o => o.playerId));
+
+        let pool = allPlayers
+          .filter(p => !simRegenExcluded.has(p.id))
+          .map(p => {
+          const override = simRegenOverrideMap.get(p.id);
+          let pts = override?.customProjection != null ? Number(override.customProjection) : Number(p.projectedPoints);
+          if (override?.boostPercent && override.boostPercent > 0) {
+            pts = Math.round(pts * (1 + override.boostPercent / 100) * 10) / 10;
+          }
           if (p.isConfirmedStarter) pts = Math.round(pts * 1.05 * 10) / 10;
           if (applyBoosts && p.boostScore) {
             const boostPct = Math.max(-0.15, Math.min(0.15, Number(p.boostScore) * 0.015));
             pts = Math.round(pts * (1 + boostPct) * 10) / 10;
           }
-          pts = applyScoutToProjection(pts, p.name, scoutMap, false);
+          pts = applyScoutToProjection(pts, p.name, scoutMap, override?.customProjection != null);
           if (isPlayerOut(p.injuryStatus)) pts = 0;
           else if (p.injuryStatus === "Questionable" || p.injuryStatus === "GTD") pts *= 0.75;
           else if (p.injuryStatus === "Probable" || p.injuryStatus === "DTD") pts *= 0.9;
@@ -1428,6 +1453,7 @@ export async function registerRoutes(
 
         if (simMinSalary || simMaxSalary) {
           pool = pool.filter(p => {
+            if (simRegenLocked.has(p.id)) return true;
             if (simMinSalary && p.salary < simMinSalary) return false;
             if (simMaxSalary && p.salary > simMaxSalary) return false;
             return true;
@@ -1470,7 +1496,7 @@ export async function registerRoutes(
 
           const result = solveLineup(
             simPool,
-            { slateId, lockedPlayerIds: [], excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
+            { slateId, lockedPlayerIds: [...simRegenLocked], excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
             slate.sport,
             platform
           );
