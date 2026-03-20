@@ -450,7 +450,12 @@ export default function WinningLineups() {
                     <div className="flex items-center gap-4">
                       <Trophy className="w-5 h-5 text-amber-400 shrink-0" />
                       <div>
-                        <div className="text-white font-bold">{lineup.slateDate}</div>
+                        <div className="text-white font-bold flex items-center gap-2">
+                          {lineup.slateDate}
+                          <Badge variant="outline" className="text-[10px] border-slate-600 text-slate-400">
+                            {lineup.platform === "fanduel" ? "FD" : lineup.platform === "yahoo" ? "Yahoo" : "DK"}
+                          </Badge>
+                        </div>
                         <div className="text-xs text-slate-500 mt-0.5">
                           ${lineup.totalSalary.toLocaleString()} / ${lineup.salaryCap.toLocaleString()} cap
                         </div>

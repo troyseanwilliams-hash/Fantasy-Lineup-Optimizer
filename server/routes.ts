@@ -2075,7 +2075,8 @@ export async function registerRoutes(
       }
 
       const sport = req.params.sport.toUpperCase();
-      const lineups = await storage.getWinningLineups(sport, 90);
+      const platform = (req.query.platform as string) || undefined;
+      const lineups = await storage.getWinningLineups(sport, 90, platform);
 
       if (lineups.length === 0) {
         return res.json({ sport, count: 0, aggregated: null });
@@ -2175,7 +2176,8 @@ export async function registerRoutes(
 
       const sport = req.params.sport.toUpperCase();
       const limit = parseInt(req.query.limit as string) || 30;
-      const lineups = await storage.getWinningLineups(sport, limit);
+      const platform = (req.query.platform as string) || undefined;
+      const lineups = await storage.getWinningLineups(sport, limit, platform);
       res.json(lineups);
     } catch (err) {
       res.status(500).json({ message: "Failed to fetch winning lineups" });

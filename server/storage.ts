@@ -102,7 +102,7 @@ export interface IStorage extends IAuthStorage {
   getZeroPointPlayerNames(sport: string, minAppearances?: number): Promise<string[]>;
 
   createWinningLineup(data: InsertWinningLineup): Promise<WinningLineup>;
-  getWinningLineups(sport?: string, limit?: number): Promise<WinningLineup[]>;
+  getWinningLineups(sport?: string, limit?: number, platform?: string): Promise<WinningLineup[]>;
   getWinningLineupsBySport(sport: string): Promise<WinningLineup[]>;
   getWinningLineupBySlateDate(sport: string, slateDate: string, platform?: string): Promise<WinningLineup | undefined>;
   deleteWinningLineup(id: number): Promise<void>;
@@ -671,14 +671,12 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async getWinningLineups(sport?: string, limit = 30): Promise<WinningLineup[]> {
-    if (sport) {
-      return await db.select().from(winningLineups)
-        .where(eq(winningLineups.sport, sport))
-        .orderBy(desc(winningLineups.slateDate))
-        .limit(limit);
-    }
+  async getWinningLineups(sport?: string, limit = 30, platform?: string): Promise<WinningLineup[]> {
+    const conditions = [];
+    if (sport) conditions.push(eq(winningLineups.sport, sport));
+    if (platform) conditions.push(eq(winningLineups.platform, platform));
     return await db.select().from(winningLineups)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(winningLineups.slateDate))
       .limit(limit);
   }
