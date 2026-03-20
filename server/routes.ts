@@ -4063,6 +4063,22 @@ export async function registerRoutes(
     res.json({ props: visibleProps, tier, totalCount: sorted.length, lockedCount, maxPerSport });
   });
 
+  app.get("/api/active-sports", async (req, res) => {
+    try {
+      const userId = getSessionUserId(req);
+      if (!userId) return res.status(401).json({ error: "Authentication required" });
+      const allSlates = await storage.getSlates();
+      const activeSports = [...new Set(
+        allSlates
+          .filter((s: any) => s.isActive !== false && s.sport)
+          .map((s: any) => s.sport.toUpperCase())
+      )].sort();
+      res.json(activeSports);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get("/api/scout/status", async (req, res) => {
     try {
       const userId = getSessionUserId(req);

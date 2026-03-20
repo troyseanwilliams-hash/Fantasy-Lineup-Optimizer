@@ -115,6 +115,21 @@ export default function ScoutDashboard() {
     }
   }
 
+  const { data: activeSportsData } = useQuery<string[]>({
+    queryKey: ["/api/active-sports"],
+    enabled: entitled,
+  });
+
+  const displaySports = activeSportsData && activeSportsData.length > 0
+    ? SPORTS.filter(s => activeSportsData.includes(s))
+    : SPORTS;
+
+  useEffect(() => {
+    if (displaySports.length > 0 && !displaySports.includes(activeSport as any)) {
+      setActiveSport(displaySports[0]);
+    }
+  }, [displaySports.join(",")]);
+
   const { data: status } = useQuery<any>({
     queryKey: ["/api/scout/status"],
     enabled: entitled,
@@ -249,7 +264,7 @@ export default function ScoutDashboard() {
         </div>
 
         <div className="flex flex-wrap gap-2 items-center">
-          {SPORTS.map(s => {
+          {displaySports.map(s => {
             const ss = status?.per_sport?.[s];
             return (
               <button
