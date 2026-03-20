@@ -9,7 +9,7 @@ import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import solver from "javascript-lp-solver";
 import { getPlatformConfig, ACTIVE_SPORTS, assignPlayersToSlots, type Platform } from "@shared/platform-config";
-import { computeBoostScores, computeCorrelationBonus, applyCeilingMode, applyLeverageMode, applyActualAdjustedProjections, applyWinningLineupAdjustment } from "./boost-engine";
+import { computeBoostScores, computeCorrelationBonus, applyCeilingMode, applyLeverageMode, applyActualAdjustedProjections, applyWinningLineupAdjustment, applyOutperformerMode } from "./boost-engine";
 import { getHistoricalProfile, applyHistoricalAdjustments } from "./historical-adjustments";
 
 function getSessionUserId(req: Request): string | null {
@@ -489,6 +489,10 @@ export async function registerRoutes(
 
       pool = await applyActualAdjustedProjections(pool, slate.sport);
       pool = await applyWinningLineupAdjustment(pool, slate.sport);
+
+      if (constraints.outperformerMode) {
+        pool = await applyOutperformerMode(pool, slate.sport);
+      }
 
       const salaryFilteredPool = (constraints.playerMinSalary || constraints.playerMaxSalary)
         ? pool.filter(p => {
@@ -996,6 +1000,10 @@ export async function registerRoutes(
         pool = await applyActualAdjustedProjections(pool, slate.sport);
         pool = await applyWinningLineupAdjustment(pool, slate.sport);
 
+        if (req.body.outperformerMode === true) {
+          pool = await applyOutperformerMode(pool, slate.sport);
+        }
+
         const regenProfile = await getHistoricalProfile(slate.sport);
         if (regenProfile.ready) {
           pool = applyHistoricalAdjustments(pool, regenProfile);
@@ -1232,7 +1240,7 @@ export async function registerRoutes(
   app.post("/api/lineups/sim-regenerate", async (req, res) => {
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const userId = getSessionUserId(req)!;
-    const { ids, sortBy, useBoosts, ceilingMode, leverageMode, contestType: rawContestType, globalMaxExposure, projFloor, minSalary, maxSalary } = req.body;
+    const { ids, sortBy, useBoosts, ceilingMode, leverageMode, outperformerMode, contestType: rawContestType, globalMaxExposure, projFloor, minSalary, maxSalary } = req.body;
     const simContestType = rawContestType === "gpp" ? "gpp" : "cash";
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "No lineup IDs provided" });
 
@@ -1293,6 +1301,7 @@ export async function registerRoutes(
         const applyBoosts = useBoosts !== false;
         const useCeilingMode = ceilingMode === true;
         const useLeverageMode = leverageMode === true;
+        const useOutperformerMode = outperformerMode === true;
         const scoutMap = buildScoutMap(slate.sport);
         let pool = allPlayers.map(p => {
           let pts = Number(p.projectedPoints);
@@ -1310,6 +1319,14 @@ export async function registerRoutes(
 
         pool = await applyActualAdjustedProjections(pool, slate.sport);
         pool = await applyWinningLineupAdjustment(pool, slate.sport);
+
+        if (useOutperformerMode) {
+          try {
+            pool = await applyOutperformerMode(pool, slate.sport);
+          } catch (opErr: any) {
+            console.warn(`[SimRegen] Outperformer mode failed, skipping: ${opErr.message}`);
+          }
+        }
 
         const regenProfile = await getHistoricalProfile(slate.sport);
         if (regenProfile.ready) {
@@ -3105,6 +3122,11 @@ export async function registerRoutes(
       pool = await applyActualAdjustedProjections(pool, slate.sport);
       pool = await applyWinningLineupAdjustment(pool, slate.sport);
 
+      if (constraints.outperformerMode) {
+        pool = await applyOutperformerMode(pool, slate.sport);
+        console.log(`[ProOptimizer] Applied outperformer mode for ${slate.sport}`);
+      }
+
       const historicalProfile = await getHistoricalProfile(slate.sport);
       if (historicalProfile.ready) {
         pool = applyHistoricalAdjustments(pool, historicalProfile);
@@ -3311,6 +3333,7 @@ export async function registerRoutes(
     useBoosts:            z.boolean().default(true),
     ceilingMode:          z.boolean().default(false),
     leverageMode:         z.boolean().default(false),
+    outperformerMode:     z.boolean().default(false),
   });
 
   app.post("/api/optimize/sim", async (req, res) => {
@@ -3360,6 +3383,7 @@ export async function registerRoutes(
       const applyBoosts = input.useBoosts !== false;
       const useCeilingMode = input.ceilingMode === true;
       const useLeverageMode = input.leverageMode === true;
+      const useOutperformerMode = input.outperformerMode === true;
 
       let pool = allPlayers.map(p => {
         let boostedPoints = Number(p.projectedPoints);
@@ -3386,6 +3410,14 @@ export async function registerRoutes(
 
       pool = await applyActualAdjustedProjections(pool, slate.sport);
       pool = await applyWinningLineupAdjustment(pool, slate.sport);
+
+      if (useOutperformerMode) {
+        try {
+          pool = await applyOutperformerMode(pool, slate.sport);
+        } catch (opErr: any) {
+          console.warn(`[SimOptimizer] Outperformer mode failed, skipping: ${opErr.message}`);
+        }
+      }
 
       const simProfile = await getHistoricalProfile(slate.sport);
       if (simProfile.ready) {

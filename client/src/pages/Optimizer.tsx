@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { PlayerHistoryCard } from "@/components/PlayerHistoryCard";
 import {
   Lock, Unlock, X, Zap, RefreshCw, Save, Search, Download,
@@ -90,6 +91,7 @@ export default function Optimizer() {
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
   const [projectedPointsFloor, setProjectedPointsFloor] = useState<number | null>(null);
   const [contestType, setContestType] = useState<"cash" | "gpp">("cash");
+  const [outperformerMode, setOutperformerMode] = useState(false);
   const [mobileView, setMobileView] = useState<"players" | "lineup">("players");
 
   const [platform, setPlatform] = useState<Platform>("draftkings");
@@ -378,6 +380,7 @@ export default function Optimizer() {
       playerProjections: Object.keys(mergedProjections).length > 0 ? mergedProjections : undefined,
       projectedPointsFloor: projectedPointsFloor ?? undefined,
       contestType,
+      outperformerMode,
     });
   };
 
@@ -1313,6 +1316,15 @@ export default function Optimizer() {
           <p className="text-[9px] text-slate-500 text-center mt-0.5" data-testid="text-contest-desc">
             {contestType === "cash" ? "Safe, high-floor lineups for cash games" : "High-ceiling, differentiated lineups for tournaments"}
           </p>
+
+          <div className="flex items-center justify-between mt-2 px-1" data-testid="outperformer-toggle">
+            <div className="flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="text-[11px] font-black text-slate-300">Outperformer Mode</span>
+              <InfoTip text="Boosts players who consistently beat their projections and penalizes those who consistently miss. Uses recency-weighted historical actual vs. projected ratios." side="bottom" />
+            </div>
+            <Switch checked={outperformerMode} onCheckedChange={setOutperformerMode} data-testid="toggle-outperformer" className="scale-90" />
+          </div>
 
           {slateHasStarted && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center mt-1.5" data-testid="slate-locked-msg">

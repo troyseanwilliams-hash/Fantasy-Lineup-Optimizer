@@ -7,6 +7,7 @@ import { getShowdownConfig, getEffectiveSalary, getShowdownProjectedPoints, type
 import type { Player } from "@shared/schema";
 import { getCachedSignals } from "./ai-scout";
 import { runSimulations, detectStack } from "./simulation-engine";
+import { applyOutperformerMode } from "./boost-engine";
 
 function getSessionUserId(req: Request): string | null {
   return (req.session as any)?.userId || null;
@@ -109,13 +110,12 @@ const showdownOptimizeSchema = z.object({
   gameFilter: z.string().optional(),
   projectionMode: z.enum(["balanced", "ceiling"]).default("balanced"),
   leverageMode: z.boolean().default(false),
+  outperformerMode: z.boolean().default(false),
   useBoosts: z.boolean().default(false),
   globalMaxExposure: z.number().min(1).max(100).optional(),
-  // Merged projection overrides (custom + scout boosts pre-merged by client)
   playerProjections: z.record(z.string(), z.number()).optional(),
   playerMinSalary: z.number().optional(),
   playerMaxSalary: z.number().optional(),
-  // Per-player settings (new)
   perPlayerMaxExposure: z.record(z.string(), z.number()).optional(),
   ownershipOverrides: z.record(z.string(), z.number()).optional(),
   fadedPlayerIds: z.array(z.number()).default([]),
@@ -169,6 +169,10 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
       if (!scoutMap.has(key) || Math.abs(sig.boost_weight) > Math.abs(scoutMap.get(key)!)) {
         scoutMap.set(key, sig.boost_weight);
       }
+    }
+
+    if (input.outperformerMode) {
+      pool = await applyOutperformerMode(pool, input.sport);
     }
 
     const FADE_MULTIPLIER = 0.5;
@@ -376,6 +380,7 @@ const showdownSimSchema = z.object({
   gameFilter: z.string().optional(),
   projectionMode: z.enum(["balanced", "ceiling"]).default("balanced"),
   leverageMode: z.boolean().default(false),
+  outperformerMode: z.boolean().default(false),
   useBoosts: z.boolean().default(false),
   globalMaxExposure: z.number().min(1).max(100).optional(),
   playerProjections: z.record(z.string(), z.number()).optional(),
@@ -450,6 +455,10 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
       if (!scoutMap.has(key) || Math.abs(sig.boost_weight) > Math.abs(scoutMap.get(key)!)) {
         scoutMap.set(key, sig.boost_weight);
       }
+    }
+
+    if (input.outperformerMode) {
+      pool = await applyOutperformerMode(pool, input.sport);
     }
 
     const FADE_MULTIPLIER = 0.5;

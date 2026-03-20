@@ -173,6 +173,7 @@ export default function ShowdownBuilder() {
   const [lineupCount, setLineupCount] = useState(1);
   const [projectionMode, setProjectionMode] = useState<"balanced" | "ceiling">("balanced");
   const [leverageMode, setLeverageMode] = useState(false);
+  const [outperformerMode, setOutperformerMode] = useState(false);
   const [useBoosts, setUseBoosts] = useState(false);
   const [globalMaxExposure, setGlobalMaxExposure] = useState<number | null>(null);
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
@@ -431,6 +432,7 @@ export default function ShowdownBuilder() {
       gameFilter: gameFilter || undefined,
       projectionMode,
       leverageMode,
+      outperformerMode,
       useBoosts,
       globalMaxExposure: globalMaxExposure ?? undefined,
       playerProjections: Object.keys(mergedProjections).length > 0 ? mergedProjections : undefined,
@@ -617,7 +619,7 @@ export default function ShowdownBuilder() {
 
   const activeLineup = generatedLineups[activeLineupIdx];
 
-  const anyActiveConfig = projectionMode !== "balanced" || leverageMode || useBoosts
+  const anyActiveConfig = projectionMode !== "balanced" || leverageMode || outperformerMode || useBoosts
     || !!globalMaxExposure || !!salaryRange || customizedCount > 0;
 
   // ── Unauthenticated guard ──────────────────────────────────────────────────
@@ -883,6 +885,17 @@ export default function ShowdownBuilder() {
                             </div>
                           </div>
                           <Switch checked={leverageMode} onCheckedChange={setLeverageMode} data-testid="toggle-leverage" />
+                        </div>
+
+                        <div className="flex items-center justify-between bg-slate-800/40 rounded-lg px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
+                            <div>
+                              <LabelTip text="Boost players who consistently beat their projections and penalize chronic underperformers."><p className="text-xs font-bold text-white">Outperformer Mode</p></LabelTip>
+                              <p className="text-[10px] text-slate-500">Favors players who exceed projections historically</p>
+                            </div>
+                          </div>
+                          <Switch checked={outperformerMode} onCheckedChange={setOutperformerMode} data-testid="toggle-outperformer" />
                         </div>
 
                         {/* AI Boosts */}

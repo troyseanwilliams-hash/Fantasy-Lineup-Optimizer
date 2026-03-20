@@ -417,6 +417,57 @@ export async function computeBoostScores(
   return results;
 }
 
+export async function applyOutperformerMode(
+  players: Player[],
+  sport: string
+): Promise<Player[]> {
+  if (players.length === 0) return players;
+
+  const history = await storage.getPlayerHistoryBySport(sport, 5000);
+  const historyByName = new Map<string, PlayerHistory[]>();
+  for (const h of history) {
+    const existing = historyByName.get(h.playerName) || [];
+    existing.push(h);
+    historyByName.set(h.playerName, existing);
+  }
+
+  return players.map(p => {
+    const proj = Number(p.projectedPoints);
+    if (proj <= 0) return p;
+
+    const hist = historyByName.get(p.name);
+    if (!hist || hist.length < 3) return p;
+
+    const withActuals = hist
+      .filter(h => h.actualPoints != null && Number(h.actualPoints) > 0)
+      .slice(0, 10);
+
+    if (withActuals.length < 3) return p;
+
+    const recencyWeights = withActuals.map((_, i) => Math.pow(0.80, i));
+    const totalWeight = recencyWeights.reduce((a, b) => a + b, 0);
+    const ratios = withActuals.map(h => Number(h.actualPoints!) / Math.max(1, Number(h.projectedPoints)));
+    const weightedRatio = ratios.reduce((sum, r, i) => sum + r * recencyWeights[i], 0) / totalWeight;
+    const beatsCount = ratios.filter(r => r >= 1.0).length;
+    const beatRate = beatsCount / ratios.length;
+
+    let multiplier = 1.0;
+
+    if (weightedRatio >= 1.15 && beatRate >= 0.6) {
+      multiplier = 1.0 + Math.min(0.20, (weightedRatio - 1.0) * 0.5);
+    } else if (weightedRatio >= 1.05 && beatRate >= 0.5) {
+      multiplier = 1.0 + Math.min(0.12, (weightedRatio - 1.0) * 0.4);
+    } else if (weightedRatio <= 0.85 && beatRate <= 0.4) {
+      multiplier = 1.0 + Math.max(-0.20, (weightedRatio - 1.0) * 0.5);
+    } else if (weightedRatio <= 0.92 && beatRate <= 0.45) {
+      multiplier = 1.0 + Math.max(-0.12, (weightedRatio - 1.0) * 0.4);
+    }
+
+    const adjusted = Math.round(proj * multiplier * 10) / 10;
+    return { ...p, projectedPoints: adjusted.toString() };
+  });
+}
+
 export function computeCorrelationBonus(
   lineup: Player[],
   sport: string

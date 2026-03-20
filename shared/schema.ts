@@ -361,15 +361,14 @@ export const optimizationConstraintSchema = z.object({
   platform: z.enum(["draftkings", "fanduel", "yahoo"]).optional(),
   lockedPlayerIds: z.array(z.number()).default([]),
   excludedPlayerIds: z.array(z.number()).default([]),
-  // Total lineup salary bounds (applied to the sum of all player salaries).
   totalMinSalary: z.number().optional(),
   totalMaxSalary: z.number().optional(),
-  // Per-player salary filter (excludes individual players outside this range).
   playerMinSalary: z.number().optional(),
   playerMaxSalary: z.number().optional(),
   playerProjections: z.record(z.string(), z.number()).optional(),
   projectedPointsFloor: z.number().min(0).optional(),
   contestType: z.enum(["cash", "gpp"]).default("cash"),
+  outperformerMode: z.boolean().default(false),
 });
 
 export type OptimizationConstraints = z.infer<typeof optimizationConstraintSchema>;
