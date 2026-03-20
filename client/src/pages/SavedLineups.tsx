@@ -175,14 +175,22 @@ export default function SavedLineups() {
     return first?.platform || "draftkings";
   }, [lineups, selectedIds]);
 
+  const selectedLineupSlateId = useMemo(() => {
+    if (!lineups || selectedIds.size === 0) return null;
+    const first = lineups.find((l: any) => selectedIds.has(l.id));
+    return first?.slateId || null;
+  }, [lineups, selectedIds]);
+
   const availableSlates = useMemo(() => {
     if (!allSlates || !selectedLineupSport || !selectedLineupPlatform) return [];
     return allSlates.filter(
       (s: any) =>
         s.sport === selectedLineupSport &&
-        s.platform === selectedLineupPlatform
+        s.platform === selectedLineupPlatform &&
+        s.id !== selectedLineupSlateId &&
+        (s.playerCount === undefined || s.playerCount > 0)
     );
-  }, [allSlates, selectedLineupSport, selectedLineupPlatform]);
+  }, [allSlates, selectedLineupSport, selectedLineupPlatform, selectedLineupSlateId]);
 
   useEffect(() => {
     if (regenSlateId && availableSlates.length > 0 && !availableSlates.find((s: any) => s.id === regenSlateId)) {
@@ -1016,7 +1024,7 @@ export default function SavedLineups() {
                     >
                       <option value="">Original Slate</option>
                       {availableSlates.map((s: any) => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
+                        <option key={s.id} value={s.id}>{s.name}{s.playerCount !== undefined ? ` (${s.playerCount} players)` : ""}</option>
                       ))}
                     </select>
                   </div>

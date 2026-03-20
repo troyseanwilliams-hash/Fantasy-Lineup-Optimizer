@@ -127,15 +127,20 @@ export async function registerRoutes(
             if (!a.isMain && b.isMain) return 1;
           }
           return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
-        })
-        .map(s => ({
+        });
+
+      const enriched = await Promise.all(active.map(async (s) => {
+        const players = await storage.getPlayersBySlate(s.id);
+        return {
           ...s,
           label:        (s as any).label        ?? s.name,
           gameType:     (s as any).gameType     ?? "Classic",
           gameCount:    (s as any).gameCount    ?? 0,
           contestCount: (s as any).contestCount ?? 0,
-        }));
-      res.json(active);
+          playerCount:  players.length,
+        };
+      }));
+      res.json(enriched);
     } catch (err) {
       console.error("Slates error:", err);
       res.status(500).json({ message: "Failed to fetch slates" });
