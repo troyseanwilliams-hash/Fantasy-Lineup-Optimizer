@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye, AlertTriangle, Upload, Settings, RefreshCw, FileUp, Star, Activity, Loader2, Flame, Percent } from "lucide-react";
+import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye, AlertTriangle, Upload, Settings, RefreshCw, FileUp, Star, Activity, Loader2, Flame, Percent, BarChart3 } from "lucide-react";
 import { gradeLineup, GRADE_COLORS, type LineupGrade } from "@/lib/lineup-grader";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
@@ -138,6 +138,7 @@ export default function SavedLineups() {
   const [regenLeverageMode, setRegenLeverageMode] = useState(false);
   const [regenContestType, setRegenContestType] = useState<"cash" | "gpp">("gpp");
   const [showRegenSettings, setShowRegenSettings] = useState(false);
+  const [showExposure, setShowExposure] = useState(true);
   const [regenMaxExposure, setRegenMaxExposure] = useState<number | null>(null);
   const [regenProjFloor, setRegenProjFloor] = useState<number | null>(null);
   const [regenMinSalary, setRegenMinSalary] = useState<number | null>(null);
@@ -196,6 +197,28 @@ export default function SavedLineups() {
     if (!lineups) return false;
     return lineups.some((lu: any) => lu.simData && (lu.simData.p75Score != null || lu.simData.p90Score != null));
   }, [lineups]);
+
+  const exposureData = useMemo(() => {
+    if (!lineups || selectedIds.size === 0) return [];
+    const selectedLineups = lineups.filter((l: any) => selectedIds.has(l.id));
+    const total = selectedLineups.length;
+    if (total === 0) return [];
+    const counts = new Map<string, { name: string; position: string; team: string; salary: number; count: number }>();
+    for (const lu of selectedLineups) {
+      const snap = lu.playerSnapshot && Array.isArray(lu.playerSnapshot) ? lu.playerSnapshot as any[] : [];
+      for (const p of snap) {
+        const key = p.name || "";
+        if (!key) continue;
+        if (!counts.has(key)) {
+          counts.set(key, { name: p.name, position: p.position || "", team: p.team || "", salary: p.salary || 0, count: 0 });
+        }
+        counts.get(key)!.count++;
+      }
+    }
+    return Array.from(counts.values())
+      .map(p => ({ ...p, pct: Math.round((p.count / total) * 100) }))
+      .sort((a, b) => b.pct - a.pct || b.count - a.count);
+  }, [lineups, selectedIds]);
 
   const { data: subscription } = useQuery<any>({
     queryKey: ["/api/subscription"],
@@ -1013,6 +1036,70 @@ export default function SavedLineups() {
                 </div>
               </div>
             </a>
+
+            {exposureData.length > 0 && (
+              <div className="bg-slate-800/40 border border-slate-700/30 rounded-xl mb-6 overflow-hidden" data-testid="exposure-panel">
+                <button
+                  onClick={() => setShowExposure(!showExposure)}
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-800/60 transition-colors"
+                  data-testid="exposure-toggle"
+                >
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-cyan-400" />
+                    <span className="text-sm font-black text-white">Player Exposure</span>
+                    <Badge variant="outline" className="border-cyan-500/20 text-cyan-400 text-[10px]">
+                      {selectedIds.size} lineup{selectedIds.size !== 1 ? "s" : ""}
+                    </Badge>
+                    <Badge variant="outline" className="border-slate-600 text-slate-400 text-[10px]">
+                      {exposureData.length} player{exposureData.length !== 1 ? "s" : ""}
+                    </Badge>
+                  </div>
+                  {showExposure ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                </button>
+                {showExposure && (
+                  <div className="px-4 pb-4">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm" data-testid="exposure-table">
+                        <thead>
+                          <tr className="text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-700/50">
+                            <th className="text-left py-2 px-2">Player</th>
+                            <th className="text-left py-2 px-2">Pos</th>
+                            <th className="text-left py-2 px-2">Team</th>
+                            <th className="text-right py-2 px-2">Salary</th>
+                            <th className="text-right py-2 px-2">Count</th>
+                            <th className="text-right py-2 px-2 w-32">Exposure</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {exposureData.map((p, i) => (
+                            <tr key={p.name} className="border-b border-slate-800/30 hover:bg-slate-800/30" data-testid={`exposure-row-${i}`}>
+                              <td className="py-1.5 px-2 font-medium text-white text-xs">{p.name}</td>
+                              <td className="py-1.5 px-2 text-slate-400 text-xs">{p.position}</td>
+                              <td className="py-1.5 px-2 text-slate-400 text-xs">{p.team}</td>
+                              <td className="py-1.5 px-2 text-right text-slate-300 text-xs">${p.salary.toLocaleString()}</td>
+                              <td className="py-1.5 px-2 text-right text-slate-300 text-xs">{p.count}/{selectedIds.size}</td>
+                              <td className="py-1.5 px-2 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full ${p.pct >= 75 ? "bg-red-500" : p.pct >= 50 ? "bg-amber-500" : p.pct >= 25 ? "bg-cyan-500" : "bg-emerald-500"}`}
+                                      style={{ width: `${p.pct}%` }}
+                                    />
+                                  </div>
+                                  <span className={`text-xs font-black min-w-[32px] text-right ${p.pct >= 75 ? "text-red-400" : p.pct >= 50 ? "text-amber-400" : p.pct >= 25 ? "text-cyan-400" : "text-emerald-400"}`}>
+                                    {p.pct}%
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {sortedLineups.length > 0 ? (
               <div className="flex flex-col gap-5">
