@@ -1,6 +1,6 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye, AlertTriangle, Upload, Settings, RefreshCw, FileUp, Star, Activity, Loader2, Flame, Percent, BarChart3 } from "lucide-react";
+import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye, AlertTriangle, Upload, Settings, RefreshCw, FileUp, Star, Activity, Loader2, Flame, Percent, BarChart3, Ban } from "lucide-react";
 import { gradeLineup, GRADE_COLORS, type LineupGrade } from "@/lib/lineup-grader";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
@@ -252,6 +252,7 @@ export default function SavedLineups() {
       boostScore: number; boostReason: string; injuryStatus: string | null;
       isConfirmedStarter: boolean; recentActualAvg: number | null; gamesTracked: number | null;
       winLineupCount: number | null; winLineupTotal: number | null; winAvgActual: number | null; winAvgValue: number | null;
+      playerId: number | null;
     }>();
     for (const lu of selectedLineups) {
       const snap = lu.playerSnapshot && Array.isArray(lu.playerSnapshot) ? lu.playerSnapshot as any[] : [];
@@ -267,11 +268,13 @@ export default function SavedLineups() {
             recentActualAvg: p.recentActualAvg ?? null, gamesTracked: p.gamesTracked ?? null,
             winLineupCount: p.winLineupCount ?? null, winLineupTotal: p.winLineupTotal ?? null,
             winAvgActual: p.winAvgActual ?? null, winAvgValue: p.winAvgValue ?? null,
+            playerId: p.id ?? null,
           });
         }
         const entry = counts.get(key)!;
         entry.count++;
         entry.projSum += Number(p.projectedPoints) || 0;
+        if (!entry.playerId && p.id) entry.playerId = p.id;
       }
     }
     return Array.from(counts.values())
@@ -293,6 +296,41 @@ export default function SavedLineups() {
   const tier = subscription?.tier || "free";
   const isPro = tier === "pro";
   const isPaid = tier === "pro" || tier === "star";
+
+  const effectiveSlateId = regenSlateId || selectedLineupSlateId;
+
+  const { data: slateOverrides } = useQuery<any[]>({
+    queryKey: ["/api/player-overrides", effectiveSlateId],
+    enabled: !!effectiveSlateId && isPaid,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
+  });
+
+  const excludedPlayerIds = useMemo(() => {
+    if (!slateOverrides) return new Set<number>();
+    return new Set(slateOverrides.filter((o: any) => o.isExcluded).map((o: any) => o.playerId));
+  }, [slateOverrides]);
+
+  const toggleExcludeMutation = useMutation({
+    mutationFn: async ({ playerId, exclude, slateId }: { playerId: number; exclude: boolean; slateId: number }) => {
+      const existing = slateOverrides?.find((o: any) => o.playerId === playerId);
+      const body = {
+        isExcluded: exclude,
+        isLocked: existing?.isLocked || false,
+        boostPercent: existing?.boostPercent || 0,
+        customProjection: existing?.customProjection != null ? Number(existing.customProjection) : null,
+        notes: existing?.notes || null,
+      };
+      const res = await apiRequest("PUT", `/api/player-overrides/${slateId}/${playerId}`, body);
+      return res.json();
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/player-overrides", variables.slateId] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to update exclusion", description: err.message || "Could not save player override.", variant: "destructive" });
+    }
+  });
 
   const { data: reviewLineups, isLoading: reviewLoading } = useQuery<any[]>({
     queryKey: ["/api/lineups/review"],
@@ -1139,6 +1177,11 @@ export default function SavedLineups() {
                     <Badge variant="outline" className="border-slate-600 text-slate-400 text-[10px]">
                       {exposureData.length} player{exposureData.length !== 1 ? "s" : ""}
                     </Badge>
+                    {excludedPlayerIds.size > 0 && (
+                      <Badge variant="outline" className="border-red-500/30 text-red-400 text-[10px]" data-testid="exposure-excluded-count">
+                        <Ban className="w-3 h-3 mr-1" />{excludedPlayerIds.size} excluded
+                      </Badge>
+                    )}
                   </div>
                   {showExposure ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
                 </button>
@@ -1148,6 +1191,7 @@ export default function SavedLineups() {
                       <table className="w-full text-sm" data-testid="exposure-table">
                         <thead>
                           <tr className="text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-700/50">
+                            <th className="text-center py-2 px-1 w-10">Excl</th>
                             <th className="text-left py-2 px-2">Player</th>
                             <th className="text-left py-2 px-2">Pos</th>
                             <th className="text-left py-2 px-2">Team</th>
@@ -1166,7 +1210,21 @@ export default function SavedLineups() {
                             const actualWidth = actualVal ? (actualVal / maxBar) * 100 : 0;
                             const diff = actualVal ? p.avgProj - actualVal : null;
                             return (
-                            <tr key={p.name} className="border-b border-slate-800/30 hover:bg-slate-800/30" data-testid={`exposure-row-${i}`}>
+                            <tr key={p.name} className={`border-b border-slate-800/30 hover:bg-slate-800/30 ${p.playerId && excludedPlayerIds.has(p.playerId) ? "opacity-50" : ""}`} data-testid={`exposure-row-${i}`}>
+                              <td className="py-1.5 px-1 text-center">
+                                {p.playerId && isPaid ? (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); if (effectiveSlateId) toggleExcludeMutation.mutate({ playerId: p.playerId!, exclude: !excludedPlayerIds.has(p.playerId!), slateId: effectiveSlateId }); }}
+                                    className={`p-0.5 rounded transition-colors ${excludedPlayerIds.has(p.playerId) ? "text-red-400 hover:text-red-300 bg-red-500/10" : "text-slate-600 hover:text-red-400"}`}
+                                    title={excludedPlayerIds.has(p.playerId) ? "Click to include" : "Click to exclude"}
+                                    data-testid={`exposure-exclude-${i}`}
+                                  >
+                                    <Ban className="w-3.5 h-3.5" />
+                                  </button>
+                                ) : (
+                                  <span className="text-slate-700">—</span>
+                                )}
+                              </td>
                               <td className="py-1.5 px-2 font-medium text-white text-xs">
                                 <PlayerInfoHoverCard
                                   player={{
@@ -1253,6 +1311,41 @@ export default function SavedLineups() {
                         </tbody>
                       </table>
                     </div>
+                    {excludedPlayerIds.size > 0 && isPaid && selectedIds.size > 0 && (
+                      <div className="mt-3 flex items-center gap-3 pt-3 border-t border-slate-700/30">
+                        <div className="flex items-center gap-2 text-xs text-red-400">
+                          <Ban className="w-3.5 h-3.5" />
+                          <span className="font-bold">{excludedPlayerIds.size} player{excludedPlayerIds.size !== 1 ? "s" : ""} excluded</span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 text-xs h-7 px-3"
+                          disabled={simRegenMutation.isPending}
+                          onClick={() => simRegenMutation.mutate({
+                            ids: Array.from(selectedIds),
+                            sortBy: simMetric,
+                            useBoosts: regenUseBoosts,
+                            ceilingMode: regenCeilingMode,
+                            leverageMode: regenLeverageMode,
+                            outperformerMode: regenOutperformerMode,
+                            contestType: regenContestType,
+                            globalMaxExposure: regenMaxExposure ?? undefined,
+                            projFloor: regenProjFloor ?? undefined,
+                            minSalary: regenMinSalary ?? undefined,
+                            maxSalary: regenMaxSalary ?? undefined,
+                            slateId: regenSlateId ?? undefined,
+                          })}
+                          data-testid="exposure-resim-btn"
+                        >
+                          {simRegenMutation.isPending ? (
+                            <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Running...</>
+                          ) : (
+                            <><RefreshCw className="w-3 h-3 mr-1" />ReSim Without Excluded</>
+                          )}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
