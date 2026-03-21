@@ -155,8 +155,7 @@ export default function SavedLineups() {
   });
 
   const { data: allSlates } = useQuery<Slate[]>({
-    queryKey: ["/api/slates", { includeStarted: true }],
-    queryFn: () => fetch("/api/slates?includeStarted=true", { credentials: "include" }).then(r => r.json()),
+    queryKey: ["/api/slates?includeStarted=true"],
     staleTime: 300000,
     refetchOnMount: "always",
     refetchOnWindowFocus: false,
