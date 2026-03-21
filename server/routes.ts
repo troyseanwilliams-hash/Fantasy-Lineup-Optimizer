@@ -366,7 +366,13 @@ export async function registerRoutes(
     const slateId = parseInt(req.params.slateId);
     if (isNaN(slateId)) return res.status(400).json({ message: "Invalid slate ID" });
     const overrides = await storage.getPlayerOverrides(userId, slateId);
-    res.json(overrides);
+    const slatePlayers = await storage.getPlayersBySlate(slateId);
+    const playerDkMap = new Map<number, number>();
+    for (const p of slatePlayers) {
+      if (p.draftKingsPlayerId) playerDkMap.set(p.id, p.draftKingsPlayerId);
+    }
+    const enriched = overrides.map((o: any) => ({ ...o, dkPlayerId: playerDkMap.get(o.playerId) ?? null }));
+    res.json(enriched);
   });
 
   const playerOverrideBodySchema = z.object({
@@ -375,6 +381,7 @@ export async function registerRoutes(
     isExcluded: z.boolean().default(false),
     isLocked: z.boolean().default(false),
     notes: z.string().max(200).nullable().optional(),
+    dkPlayerId: z.number().int().positive().optional(),
   });
 
   app.put("/api/player-overrides/:slateId/:playerId", async (req, res) => {
@@ -387,11 +394,16 @@ export async function registerRoutes(
     const tier = isAdmin ? "pro" : (sub?.tier || "free");
     if (tier === "free") return res.status(403).json({ message: "Sharpshooter or Champion required" });
     const slateId = parseInt(req.params.slateId);
-    const playerId = parseInt(req.params.playerId);
+    let playerId = parseInt(req.params.playerId);
     if (isNaN(slateId) || isNaN(playerId)) return res.status(400).json({ message: "Invalid IDs" });
     const parsed = playerOverrideBodySchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid request body", errors: parsed.error.flatten() });
-    const { customProjection, boostPercent, isExcluded, isLocked, notes } = parsed.data;
+    const { customProjection, boostPercent, isExcluded, isLocked, notes, dkPlayerId } = parsed.data;
+    if (dkPlayerId) {
+      const slatePlayers = await storage.getPlayersBySlate(slateId);
+      const current = slatePlayers.find(p => p.draftKingsPlayerId === dkPlayerId);
+      if (current) playerId = current.id;
+    }
     const override = await storage.upsertPlayerOverride({
       userId,
       slateId,

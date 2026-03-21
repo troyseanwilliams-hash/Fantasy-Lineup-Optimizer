@@ -251,6 +251,7 @@ export default function SavedLineups() {
       isConfirmedStarter: boolean; recentActualAvg: number | null; gamesTracked: number | null;
       winLineupCount: number | null; winLineupTotal: number | null; winAvgActual: number | null; winAvgValue: number | null;
       playerId: number | null;
+      dkPlayerId: number | null;
     }>();
     for (const lu of selectedLineups) {
       const snap = lu.playerSnapshot && Array.isArray(lu.playerSnapshot) ? lu.playerSnapshot as any[] : [];
@@ -267,6 +268,7 @@ export default function SavedLineups() {
             winLineupCount: p.winLineupCount ?? null, winLineupTotal: p.winLineupTotal ?? null,
             winAvgActual: p.winAvgActual ?? null, winAvgValue: p.winAvgValue ?? null,
             playerId: p.id ?? null,
+            dkPlayerId: p.draftKingsPlayerId ?? null,
           });
         }
         const entry = counts.get(key)!;
@@ -309,16 +311,28 @@ export default function SavedLineups() {
     return new Set(slateOverrides.filter((o: any) => o.isExcluded).map((o: any) => o.playerId));
   }, [slateOverrides]);
 
+  const excludedDkPlayerIds = useMemo(() => {
+    if (!slateOverrides) return new Set<number>();
+    return new Set(slateOverrides.filter((o: any) => o.isExcluded && o.dkPlayerId).map((o: any) => o.dkPlayerId));
+  }, [slateOverrides]);
+
+  const isPlayerExcluded = (playerId: number | null, dkPlayerId: number | null) => {
+    if (playerId && excludedPlayerIds.has(playerId)) return true;
+    if (dkPlayerId && excludedDkPlayerIds.has(dkPlayerId)) return true;
+    return false;
+  };
+
   const toggleExcludeMutation = useMutation({
-    mutationFn: async ({ playerId, exclude, slateId }: { playerId: number; exclude: boolean; slateId: number }) => {
+    mutationFn: async ({ playerId, exclude, slateId, dkPlayerId }: { playerId: number; exclude: boolean; slateId: number; dkPlayerId?: number }) => {
       const existing = slateOverrides?.find((o: any) => o.playerId === playerId);
-      const body = {
+      const body: any = {
         isExcluded: exclude,
         isLocked: existing?.isLocked || false,
         boostPercent: existing?.boostPercent || 0,
         customProjection: existing?.customProjection != null ? Number(existing.customProjection) : null,
         notes: existing?.notes || null,
       };
+      if (dkPlayerId) body.dkPlayerId = dkPlayerId;
       const res = await apiRequest("PUT", `/api/player-overrides/${slateId}/${playerId}`, body);
       return res.json();
     },
@@ -1236,13 +1250,13 @@ export default function SavedLineups() {
                             const actualWidth = actualVal ? (actualVal / maxBar) * 100 : 0;
                             const diff = actualVal ? p.avgProj - actualVal : null;
                             return (
-                            <tr key={p.name} className={`border-b border-slate-800/30 hover:bg-slate-800/30 ${p.playerId && excludedPlayerIds.has(p.playerId) ? "opacity-50" : ""}`} data-testid={`exposure-row-${i}`}>
+                            <tr key={p.name} className={`border-b border-slate-800/30 hover:bg-slate-800/30 ${isPlayerExcluded(p.playerId, p.dkPlayerId) ? "opacity-50" : ""}`} data-testid={`exposure-row-${i}`}>
                               <td className="py-1.5 px-1 text-center">
                                 {p.playerId && isPaid ? (
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); if (effectiveSlateId) toggleExcludeMutation.mutate({ playerId: p.playerId!, exclude: !excludedPlayerIds.has(p.playerId!), slateId: effectiveSlateId }); }}
-                                    className={`p-0.5 rounded transition-colors ${excludedPlayerIds.has(p.playerId) ? "text-red-400 hover:text-red-300 bg-red-500/10" : "text-slate-600 hover:text-red-400"}`}
-                                    title={excludedPlayerIds.has(p.playerId) ? "Click to include" : "Click to exclude"}
+                                    onClick={(e) => { e.stopPropagation(); if (effectiveSlateId) toggleExcludeMutation.mutate({ playerId: p.playerId!, exclude: !isPlayerExcluded(p.playerId, p.dkPlayerId), slateId: effectiveSlateId, dkPlayerId: p.dkPlayerId ?? undefined }); }}
+                                    className={`p-0.5 rounded transition-colors ${isPlayerExcluded(p.playerId, p.dkPlayerId) ? "text-red-400 hover:text-red-300 bg-red-500/10" : "text-slate-600 hover:text-red-400"}`}
+                                    title={isPlayerExcluded(p.playerId, p.dkPlayerId) ? "Click to include" : "Click to exclude"}
                                     data-testid={`exposure-exclude-${i}`}
                                   >
                                     <Ban className="w-3.5 h-3.5" />
