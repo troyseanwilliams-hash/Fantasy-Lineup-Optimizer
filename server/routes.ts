@@ -132,13 +132,21 @@ export async function registerRoutes(
 
       const enriched = await Promise.all(active.map(async (s) => {
         const players = await storage.getPlayersBySlate(s.id);
+        const gameSet = new Set<string>();
+        for (const p of players) {
+          if (p.gameInfo) {
+            const matchup = p.gameInfo.split(/\s/)[0];
+            if (matchup && matchup.includes("@")) gameSet.add(matchup);
+          }
+        }
         return {
           ...s,
           label:        (s as any).label        ?? s.name,
           gameType:     (s as any).gameType     ?? "Classic",
-          gameCount:    (s as any).gameCount    ?? 0,
+          gameCount:    (s as any).gameCount    ?? gameSet.size,
           contestCount: (s as any).contestCount ?? 0,
           playerCount:  players.length,
+          games:        Array.from(gameSet).sort(),
         };
       }));
       res.json(enriched);

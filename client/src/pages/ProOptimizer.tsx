@@ -972,9 +972,14 @@ export default function ProOptimizer() {
                 const locked = new Date(s.startTime) <= new Date();
                 const userTier = subData?.tier || "free";
                 const isGated = !s.isMain && userTier !== "pro" && !userIsAdmin;
+                const platform = s.platform === "fanduel" ? "FD" : "DK";
+                const time = new Date(s.startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+                const date = new Date(s.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                const gc = (s as any).gameCount ?? 0;
+                const games = gc > 0 ? ` (${gc}G)` : "";
                 return (
                   <option key={s.id} value={s.id} disabled={isGated}>
-                    {s.isMain ? "★ " : ""}{locked ? "🔒 " : ""}{s.platform === "fanduel" ? "FD" : "DK"} - {s.name}{locked ? " (Locked)" : ""}{isGated ? " (CHAMPION)" : ""}
+                    {s.isMain ? "★ " : ""}{platform} - {(s as any).label || s.name} — {date} {time}{games}{locked ? " 🔒" : ""}{isGated ? " (CHAMPION)" : ""}
                   </option>
                 );
               })}
@@ -1524,6 +1529,22 @@ export default function ProOptimizer() {
               {filteredPlayers.length} players
             </div>
           </div>
+
+          {slate && (slate as any).games?.length > 0 && !isGolf && (
+            <div className={`px-3 sm:px-4 py-1.5 border-b bg-slate-950/80 ${pColors.border} flex items-center gap-2 overflow-x-auto`} data-testid="pro-slate-games-strip">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex-shrink-0">Games:</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {((slate as any).games as string[]).map((g: string) => (
+                  <span key={g} className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${pColors.border} bg-slate-800/60 text-slate-300`}>
+                    {g}
+                  </span>
+                ))}
+              </div>
+              <span className="text-[10px] font-bold text-slate-600 flex-shrink-0 ml-auto">
+                {new Date(slate.startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" })}
+              </span>
+            </div>
+          )}
 
           {/* Golf Tournament Cards */}
           {isGolf && golfTournamentCards && (

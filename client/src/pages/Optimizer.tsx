@@ -41,11 +41,14 @@ function formatCap(cap: number, plat: Platform): string {
 
 function getSlateLabel(s: Slate): string {
   const label = (s as any).label as string | undefined;
-  if (label) return label;
   const locked = new Date(s.startTime) <= new Date();
   const platform = s.platform === "fanduel" ? "FD" : "DK";
+  const time = new Date(s.startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" });
   const date = new Date(s.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  return `${platform} - ${s.name} — ${date}${locked ? " (Locked)" : ""}`;
+  const gc = (s as any).gameCount ?? 0;
+  const games = gc > 0 ? ` (${gc}G)` : "";
+  const name = label || s.name;
+  return `${platform} - ${name} — ${date} ${time}${games}${locked ? " 🔒" : ""}`;
 }
 
 const INJURY_COLORS: Record<string, string> = {
@@ -631,10 +634,12 @@ export default function Optimizer() {
             />
             {slate && (
               <div className="hidden sm:flex items-center gap-2" data-testid="slate-date">
-
                 <span className={`text-xs font-black ${pColors.text} opacity-70`}>
-                  {new Date(slate.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+                  {new Date(slate.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} — {new Date(slate.startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" })}
                 </span>
+                {(slate as any).gameCount > 0 && (
+                  <span className="text-[10px] font-bold text-slate-500">({(slate as any).gameCount}G)</span>
+                )}
               </div>
             )}
             <div className="ml-auto flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto mt-1.5 sm:mt-0">
@@ -655,18 +660,33 @@ export default function Optimizer() {
                 data-testid="slate-selector"
               >
                 {sportSlates.map(s => {
-                  const locked = new Date(s.startTime) <= new Date();
                   const userTier = subData?.tier || "free";
                   const isGated = !s.isMain && userTier !== "pro" && !userIsAdmin;
                   return (
                     <option key={s.id} value={s.id} disabled={isGated}>
-                      {s.isMain ? "★ " : ""}{locked ? "🔒 " : ""}{getSlateLabel(s)}{isGated ? " (CHAMPION)" : ""}
+                      {s.isMain ? "★ " : ""}{getSlateLabel(s)}{isGated ? " (CHAMPION)" : ""}
                     </option>
                   );
                 })}
               </select>
             </div>
           </div>
+
+          {slate && (slate as any).games?.length > 0 && !isGolf && (
+            <div className={`px-3 sm:px-4 py-1.5 border-b bg-slate-950/80 ${pColors.border} flex items-center gap-2 overflow-x-auto`} data-testid="slate-games-strip">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex-shrink-0">Games:</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {((slate as any).games as string[]).map((g: string) => (
+                  <span key={g} className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${pColors.border} bg-slate-800/60 text-slate-300`}>
+                    {g}
+                  </span>
+                ))}
+              </div>
+              <span className="text-[10px] font-bold text-slate-600 flex-shrink-0 ml-auto">
+                {new Date(slate.startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" })}
+              </span>
+            </div>
+          )}
 
           {/* Game Scoreboard Cards / Golf Tournament Cards */}
           <div className={`relative z-10 px-3 sm:px-4 pb-2 sm:pb-3 pt-2 sm:pt-3 border-b bg-slate-950 ${pColors.border}`}>
