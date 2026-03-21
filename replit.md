@@ -43,7 +43,7 @@ Preferred communication style: Simple, everyday language.
 - **Manual Stack Game Selector**: Allows users to select a specific game in Sim Mode for a 15% projection boost to players in that game.
 - **Winning Lineup Agent**: Automated nightly analysis to construct "perfect hindsight" optimal lineups using actual ESPN box score data for supported sports.
 - **Inactive Player Filter**: Automatically excludes inactive or low-productivity players.
-- **Player Configuration**: Per-user, per-slate overrides for custom projections, boosts, locks, or exclusions.
+- **Player Configuration**: Per-user, per-slate overrides for custom projections, boosts, locks, or exclusions. Includes platform selector (DraftKings/FanDuel/Yahoo) defaulting to DraftKings. Uses `includeStarted=true` to show all active slates regardless of grace period.
 - **Lineup Grading**: Client-side engine assigns grades based on projected score, efficiency, construction, ceiling, and player health.
 - **Live Score Tracker**: Real-time tracking of lineup performance with per-player scoring breakdowns using ESPN box scores.
 - **Notification Preferences**: Configurable email/SMS alerts.

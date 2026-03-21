@@ -40,6 +40,7 @@ export default function PlayerConfig() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [selectedSport, setSelectedSport] = useState("NBA");
+  const [selectedPlatform, setSelectedPlatform] = useState("draftkings");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState<SortField>("salary");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -57,12 +58,24 @@ export default function PlayerConfig() {
   const hasPaidAccess = isPro || isStar || user?.isAdmin;
 
   const { data: slates } = useQuery<Slate[]>({
-    queryKey: ["/api/slates"],
+    queryKey: ["/api/slates", "config"],
+    queryFn: async () => {
+      const res = await fetch("/api/slates?includeStarted=true");
+      if (!res.ok) throw new Error("Failed to fetch slates");
+      return res.json();
+    },
     enabled: !!user,
   });
 
   const mainSlates = slates?.filter(s => s.isMain) || [];
-  const currentSlate = mainSlates.find(s => s.sport === selectedSport);
+  const sportSlates = mainSlates.filter(s => s.sport === selectedSport);
+  const platformOrder = ["draftkings", "fanduel", "yahoo"];
+  const availablePlatforms = [...new Set(sportSlates.map(s => s.platform))].sort(
+    (a, b) => platformOrder.indexOf(a) - platformOrder.indexOf(b)
+  );
+  const currentSlate = sportSlates.find(s => s.platform === selectedPlatform)
+    || sportSlates.find(s => s.platform === "draftkings")
+    || sportSlates[0];
   const slateId = currentSlate?.id;
 
   const { data: players, isLoading: playersLoading } = useQuery<Player[]>({
@@ -319,7 +332,7 @@ export default function PlayerConfig() {
             return (
               <button
                 key={sport}
-                onClick={() => { setSelectedSport(sport); setSearchQuery(""); setPositionFilter("ALL"); }}
+                onClick={() => { setSelectedSport(sport); setSelectedPlatform("draftkings"); setSearchQuery(""); setPositionFilter("ALL"); }}
                 disabled={!hasSlate}
                 className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
                   selectedSport === sport
@@ -335,6 +348,27 @@ export default function PlayerConfig() {
             );
           })}
         </div>
+
+        {availablePlatforms.length > 1 && (
+          <div className="flex gap-2 mb-4">
+            {availablePlatforms.map(plat => {
+              const label = plat === "draftkings" ? "DraftKings" : plat === "fanduel" ? "FanDuel" : "Yahoo";
+              const isActive = (currentSlate?.platform || selectedPlatform) === plat;
+              return (
+                <button
+                  key={plat}
+                  onClick={() => setSelectedPlatform(plat)}
+                  className={`px-3 py-1.5 rounded text-xs font-bold transition ${
+                    isActive ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                  }`}
+                  data-testid={`platform-tab-${plat}`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {!currentSlate ? (
           <Card className="p-8 bg-slate-900/50 border-slate-700 text-center">
