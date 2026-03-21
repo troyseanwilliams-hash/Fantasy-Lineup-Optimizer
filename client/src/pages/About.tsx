@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { usePageMeta } from "@/hooks/use-page-meta";
 import {
   Zap, Target, TrendingUp, Shield, BarChart3, Users,
-  Dribbble, Activity, Flag, ArrowRight, Sparkles
+  Dribbble, Activity, Flag, ArrowRight, Sparkles, Mail
 } from "lucide-react";
 
 const FEATURES = [
@@ -169,6 +169,31 @@ export default function About() {
             </Card>
           ))}
         </div>
+      </section>
+
+      <section className="container mx-auto px-4 pb-20" data-testid="section-contact">
+        <div className="flex items-center gap-2.5 mb-8">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500/30 to-blue-500/20 flex items-center justify-center">
+            <Mail className="w-4 h-4 text-cyan-400" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-white tracking-tight">Contact & Support</h2>
+            <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">We're here to help</p>
+          </div>
+        </div>
+        <Card className="bg-slate-800/40 border-border p-6 md:p-8" data-testid="card-contact">
+          <p className="text-slate-300 leading-relaxed mb-4">
+            Have a question, suggestion, or need help with your account? Our team is ready to assist you. Reach out and we'll get back to you as soon as possible.
+          </p>
+          <a
+            href="mailto:support@elitelineupai.com"
+            className="inline-flex items-center gap-2 text-emerald-400 hover:text-emerald-300 font-bold transition-colors"
+            data-testid="link-support-email"
+          >
+            <Mail className="w-4 h-4" />
+            support@elitelineupai.com
+          </a>
+        </Card>
       </section>
 
       <section className="container mx-auto px-4 pb-20" data-testid="section-cta">

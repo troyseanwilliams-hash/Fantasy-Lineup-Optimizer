@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { LogoBanner } from "@/components/Logo";
+import { Mail } from "lucide-react";
 
 export function Footer() {
   return (
@@ -10,9 +11,17 @@ export function Footer() {
             <div className="mb-4">
               <LogoBanner height={35} />
             </div>
-            <p className="text-slate-400 max-w-sm mb-6">
+            <p className="text-slate-400 max-w-sm mb-4">
               Empowering DFS players and sports bettors with AI-driven insights and real-time data analysis for smarter decisions.
             </p>
+            <a
+              href="mailto:support@elitelineupai.com"
+              className="inline-flex items-center gap-2 text-emerald-400 hover:text-emerald-300 text-sm font-semibold transition-colors"
+              data-testid="footer-support-email"
+            >
+              <Mail className="w-4 h-4" />
+              support@elitelineupai.com
+            </a>
           </div>
           <div>
             <h4 className="text-white font-semibold mb-4" data-testid="footer-product-heading">Product</h4>
@@ -26,6 +35,7 @@ export function Footer() {
             <h4 className="text-white font-semibold mb-4" data-testid="footer-company-heading">Company</h4>
             <ul className="space-y-2">
               <li><Link href="/about" className="text-slate-400 hover:text-white text-sm transition-colors" data-testid="footer-link-about">About Us</Link></li>
+              <li><a href="mailto:support@elitelineupai.com" className="text-slate-400 hover:text-white text-sm transition-colors" data-testid="footer-link-contact">Contact Support</a></li>
               <li><Link href="/terms" className="text-slate-400 hover:text-white text-sm transition-colors" data-testid="footer-link-terms">Terms of Service</Link></li>
               <li><Link href="/privacy" className="text-slate-400 hover:text-white text-sm transition-colors" data-testid="footer-link-privacy">Privacy Policy</Link></li>
             </ul>
