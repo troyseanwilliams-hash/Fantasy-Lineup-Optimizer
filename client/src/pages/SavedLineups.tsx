@@ -1055,17 +1055,45 @@ export default function SavedLineups() {
                     <select
                       value={regenSlateId ?? ""}
                       onChange={(e) => setRegenSlateId(e.target.value ? Number(e.target.value) : null)}
-                      className="bg-slate-800 border border-slate-700 text-xs text-slate-200 rounded-md px-2 py-1 max-w-[200px]"
+                      className="bg-slate-800 border border-slate-700 text-xs text-slate-200 rounded-md px-2 py-1 max-w-[320px]"
                       data-testid="regen-select-slate"
                     >
                       <option value="">Original Slate</option>
-                      {availableSlates.map((s: any) => (
-                        <option key={s.id} value={s.id}>{s.name}{s.playerCount !== undefined ? ` (${s.playerCount} players)` : ""}</option>
-                      ))}
+                      {availableSlates.map((s: any) => {
+                        const platform = s.platform === "fanduel" ? "FD" : s.platform === "yahoo" ? "YH" : "DK";
+                        const time = new Date(s.startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+                        const date = new Date(s.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                        const gc = s.gameCount ?? 0;
+                        const games = gc > 0 ? ` (${gc}G)` : "";
+                        return (
+                          <option key={s.id} value={s.id}>
+                            {platform} - {s.label || s.name} — {date} {time}{games}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                 )}
               </div>
+              {(() => {
+                const selectedSlate = regenSlateId ? availableSlates.find((s: any) => s.id === regenSlateId) : null;
+                if (!selectedSlate || !(selectedSlate as any).games?.length) return null;
+                return (
+                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-700/30 overflow-x-auto" data-testid="regen-games-strip">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex-shrink-0">Games:</span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {((selectedSlate as any).games as string[]).map((g: string) => (
+                        <span key={g} className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-600/40 bg-slate-800/60 text-slate-300">
+                          {g}
+                        </span>
+                      ))}
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-600 flex-shrink-0 ml-auto">
+                      {new Date((selectedSlate as any).startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" })}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
