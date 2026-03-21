@@ -1332,6 +1332,7 @@ export async function registerRoutes(
     try {
       const slateGroups = new Map<number, number[]>();
       const lineupOwnership = new Map<number, any>();
+      let totalSimsRun = 0;
 
       const results: { id: number; status: string; error?: string }[] = [];
 
@@ -1474,15 +1475,37 @@ export async function registerRoutes(
           ? applyDvPToProjections(pool, projOverrides, opponentMap, dvpContext, slate.sport)
           : projOverrides;
 
-        const CALIBRATION_BATCH = 10;
-        const calibrationSims = runSimulations(pool, slate.sport, CALIBRATION_BATCH, dvpAdjusted, vegasContext ?? undefined);
         const config = getPlatformConfig(slate.sport, platform);
         const lineupMap = new Map<string, { lineup: Player[]; frequency: number; simScores: number[] }>();
+
+        const positionGroups = new Map<string, Player[]>();
+        for (const p of pool) {
+          for (const pos of p.position.split("/")) {
+            const group = positionGroups.get(pos) || [];
+            group.push(p);
+            positionGroups.set(pos, group);
+          }
+        }
+        const keepIds = new Set<number>();
+        for (const p of pool) { if (simRegenLocked.has(p.id)) keepIds.add(p.id); }
+        const topPerPos = slate.sport === "GOLF" ? 50 : 20;
+        const cheapReserve = 5;
+        for (const [, players] of positionGroups) {
+          players.sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
+          for (let i = 0; i < Math.min(players.length, topPerPos); i++) keepIds.add(players[i].id);
+          const bySalary = [...players].sort((a, b) => a.salary - b.salary);
+          for (let i = 0; i < Math.min(bySalary.length, cheapReserve); i++) keepIds.add(bySalary[i].id);
+        }
+        let lpPool = pool.filter(p => keepIds.has(p.id));
+        console.log(`[SimRegen] Pool trimmed: ${pool.length} → ${lpPool.length} players for LP solving`);
+
+        const CALIBRATION_BATCH = 10;
+        const calibrationSims = runSimulations(pool, slate.sport, CALIBRATION_BATCH, dvpAdjusted, vegasContext ?? undefined);
 
         const calStart = Date.now();
         for (let i = 0; i < calibrationSims.length; i++) {
           const sim = calibrationSims[i];
-          const simPool = pool.map(p => {
+          const simPool = lpPool.map(p => {
             const simProj = sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0;
             const noise = simProj * (Math.random() * 0.06 - 0.03);
             return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
@@ -1500,22 +1523,43 @@ export async function registerRoutes(
         }
         const calElapsed = Date.now() - calStart;
         const msPerSolve = Math.max(1, calElapsed / CALIBRATION_BATCH);
-        const elapsedSoFar = Date.now() - startTime;
-        const remainingBudget = LP_BUDGET_MS - elapsedSoFar;
-        const adaptiveSims = Math.min(tierSims - CALIBRATION_BATCH, Math.max(50, Math.floor(remainingBudget / msPerSolve)));
+
+        if (lineupMap.size === 0 && lpPool.length < pool.length) {
+          console.log(`[SimRegen] Trimmed pool infeasible, falling back to full pool (${pool.length} players)`);
+          lpPool = pool;
+          for (let i = 0; i < calibrationSims.length; i++) {
+            const sim = calibrationSims[i];
+            const simPool = lpPool.map(p => {
+              const simProj = sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0;
+              const noise = simProj * (Math.random() * 0.06 - 0.03);
+              return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
+            });
+            const result = solveLineup(simPool, { slateId, lockedPlayerIds: [...simRegenLocked], excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints, slate.sport, platform);
+            if (result.error || result.lineup.length === 0) continue;
+            const key = result.lineup.map((p: Player) => p.id).sort().join(",");
+            const existing = lineupMap.get(key);
+            if (existing) { existing.frequency++; existing.simScores.push(result.totalProjectedPoints); }
+            else { lineupMap.set(key, { lineup: result.lineup as Player[], frequency: 1, simScores: [result.totalProjectedPoints] }); }
+          }
+        }
+
+        const remainingBudget = Math.max(0, LP_BUDGET_MS - calElapsed);
+        const adaptiveSims = Math.min(tierSims - CALIBRATION_BATCH, Math.max(40, Math.floor(remainingBudget / msPerSolve)));
         const totalTargetSims = CALIBRATION_BATCH + adaptiveSims;
 
         const remainingSims = runSimulations(pool, slate.sport, adaptiveSims, dvpAdjusted, vegasContext ?? undefined);
         const allSims = [...calibrationSims, ...remainingSims];
-        console.log(`[SimRegen] ${slate.sport} slate ${slateId}: pool=${pool.length}, ${msPerSolve.toFixed(0)}ms/solve, adaptive=${totalTargetSims} sims (tier max ${tierSims})`);
+        console.log(`[SimRegen] ${slate.sport} slate ${slateId}: lpPool=${lpPool.length}, ${msPerSolve.toFixed(0)}ms/solve, adaptive=${totalTargetSims} sims (tier max ${tierSims})`);
+        totalSimsRun += totalTargetSims;
 
+        let actualSimsSolved = CALIBRATION_BATCH;
         for (let i = CALIBRATION_BATCH; i < allSims.length; i++) {
           if (Date.now() - startTime > MAX_RUNTIME_MS) {
-            console.log(`[SimRegen] Hard time cap reached after ${i} sims`);
+            console.log(`[SimRegen] Hard time cap reached after ${actualSimsSolved} sims`);
             break;
           }
           const sim = allSims[i];
-          const simPool = pool.map(p => {
+          const simPool = lpPool.map(p => {
             const simProj = sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0;
             const noise = simProj * (Math.random() * 0.06 - 0.03);
             return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
@@ -1525,6 +1569,7 @@ export async function registerRoutes(
             { slateId, lockedPlayerIds: [...simRegenLocked], excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
             slate.sport, platform
           );
+          actualSimsSolved++;
           if (result.error || result.lineup.length === 0) continue;
           const key = result.lineup.map((p: Player) => p.id).sort().join(",");
           const existing = lineupMap.get(key);
@@ -1682,7 +1727,7 @@ export async function registerRoutes(
       const updatedCount = results.filter(r => r.status === "updated").length;
       const totalElapsed = Date.now() - startTime;
       console.log(`[SimRegen] Completed: ${updatedCount}/${ids.length} lineups regenerated by ${sortKey}, ${totalElapsed}ms`);
-      res.json({ results, updated: updatedCount, total: ids.length, simsRun: tierSims, sortBy: sortKey });
+      res.json({ results, updated: updatedCount, total: ids.length, simsRun: totalSimsRun || tierSims, sortBy: sortKey });
     } catch (err: any) {
       console.error("[SimRegen] Error:", err);
       res.status(500).json({ message: err.message || "Sim regeneration failed" });
@@ -3642,6 +3687,27 @@ export async function registerRoutes(
         console.log(`[SimOptimizer] Manual stack target: ${stackKey} — boosted ${matchedCount} players by 15%`);
       }
 
+      const simPosGroups = new Map<string, Player[]>();
+      for (const p of pool) {
+        for (const pos of p.position.split("/")) {
+          const g = simPosGroups.get(pos) || [];
+          g.push(p);
+          simPosGroups.set(pos, g);
+        }
+      }
+      const simKeepIds = new Set<number>();
+      for (const pid of input.lockedPlayerIds) simKeepIds.add(pid);
+      const simTopPerPos = sport === "GOLF" ? 50 : 20;
+      const simCheapReserve = 5;
+      for (const [, players] of simPosGroups) {
+        players.sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
+        for (let i = 0; i < Math.min(players.length, simTopPerPos); i++) simKeepIds.add(players[i].id);
+        const bySalary = [...players].sort((a, b) => a.salary - b.salary);
+        for (let i = 0; i < Math.min(bySalary.length, simCheapReserve); i++) simKeepIds.add(bySalary[i].id);
+      }
+      let lpSimPool = pool.filter(p => simKeepIds.has(p.id));
+      console.log(`[SimOptimizer] Pool trimmed: ${pool.length} → ${lpSimPool.length} players for LP solving`);
+
       console.log(`[SimOptimizer] Starting ${input.numSims} sims for ${sport} slate ${input.slateId}, pool: ${pool.length} players, requesting ${input.lineupCount} lineups`);
 
       const opponentMap = buildOpponentMap(pool);
@@ -3690,7 +3756,7 @@ export async function registerRoutes(
       const calT0 = Date.now();
       for (let i = 0; i < calSims.length; i++) {
         const sim = calSims[i];
-        const simPool = pool.map(p => {
+        const simPool = lpSimPool.map(p => {
           const simProj = sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0;
           const noise = simProj * (Math.random() * 0.06 - 0.03);
           return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
@@ -3704,10 +3770,30 @@ export async function registerRoutes(
       }
       const calMs = Date.now() - calT0;
       const msPerLP = Math.max(1, calMs / SIM_CAL_BATCH);
-      const simBudgetLeft = LP_BUDGET_MS - (Date.now() - startTime);
-      const adaptiveCount = Math.min(input.numSims - SIM_CAL_BATCH, Math.max(50, Math.floor(simBudgetLeft / msPerLP)));
+
+      if (lineupMap.size === 0 && lpSimPool.length < pool.length) {
+        console.log(`[SimOptimizer] Trimmed pool infeasible, falling back to full pool (${pool.length} players)`);
+        lpSimPool = pool;
+        for (let i = 0; i < calSims.length; i++) {
+          const sim = calSims[i];
+          const simPool = lpSimPool.map(p => {
+            const simProj = sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0;
+            const noise = simProj * (Math.random() * 0.06 - 0.03);
+            return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
+          });
+          const result = solveLineup(simPool, simConstraintsBase, sport, platform);
+          if (result.error || result.lineup.length === 0) continue;
+          const key = result.lineup.map((p: Player) => p.id).sort().join(",");
+          const existing = lineupMap.get(key);
+          if (existing) { existing.frequency++; existing.simScores.push(result.totalProjectedPoints); }
+          else { lineupMap.set(key, { lineup: result.lineup as Player[], frequency: 1, simScores: [result.totalProjectedPoints] }); }
+        }
+      }
+
+      const simBudgetLeft = Math.max(0, LP_BUDGET_MS - calMs);
+      const adaptiveCount = Math.min(input.numSims - SIM_CAL_BATCH, Math.max(40, Math.floor(simBudgetLeft / msPerLP)));
       const totalSimTarget = SIM_CAL_BATCH + adaptiveCount;
-      console.log(`[SimOptimizer] Adaptive: ${msPerLP.toFixed(0)}ms/solve, pool=${pool.length}, target=${totalSimTarget} sims (tier max ${input.numSims})`);
+      console.log(`[SimOptimizer] Adaptive: ${msPerLP.toFixed(0)}ms/solve, lpPool=${lpSimPool.length}, target=${totalSimTarget} sims (tier max ${input.numSims})`);
 
       const remainingSims = runSimulations(pool, sport, adaptiveCount, dvpAdjustedOverrides, vegasContext ?? undefined);
       const sims = [...calSims, ...remainingSims];
@@ -3718,7 +3804,7 @@ export async function registerRoutes(
           break;
         }
         const sim = sims[i];
-        const simPool = pool.map(p => {
+        const simPool = lpSimPool.map(p => {
           const simProj = sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0;
           const noise = simProj * (Math.random() * 0.06 - 0.03);
           return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
