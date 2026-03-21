@@ -135,15 +135,23 @@ export async function registerRoutes(
         const gameSet = new Set<string>();
         for (const p of players) {
           if (p.gameInfo) {
-            const matchup = p.gameInfo.split(/\s/)[0];
-            if (matchup && matchup.includes("@")) gameSet.add(matchup);
+            const vsMatch = p.gameInfo.match(/^(\w{2,5})\s+vs\s+(\w{2,5})\s/i);
+            if (vsMatch) {
+              gameSet.add(`${vsMatch[1]}v${vsMatch[2]}`);
+              continue;
+            }
+            const atMatch = p.gameInfo.match(/^(\w{2,5})\s*@\s*(\w{2,5})\s/);
+            if (atMatch) {
+              gameSet.add(`${atMatch[1]}@${atMatch[2]}`);
+            }
           }
         }
+        const storedGC = (s as any).gameCount ?? 0;
         return {
           ...s,
           label:        (s as any).label        ?? s.name,
           gameType:     (s as any).gameType     ?? "Classic",
-          gameCount:    (s as any).gameCount    ?? gameSet.size,
+          gameCount:    gameSet.size || storedGC,
           contestCount: (s as any).contestCount ?? 0,
           playerCount:  players.length,
           games:        Array.from(gameSet).sort(),
