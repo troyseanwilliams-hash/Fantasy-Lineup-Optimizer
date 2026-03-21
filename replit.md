@@ -36,7 +36,7 @@ Preferred communication style: Simple, everyday language.
 - **Slate Override**: Vault Regenerate and ReSim support overriding the player pool slate, with a frontend slate selector dropdown and backend sport/platform compatibility validation.
 - **Bulk Regenerate**: Regenerates multiple selected lineups using advanced optimization.
 - **Saved Lineup Sim Scoring**: Run Monte Carlo simulations on saved lineups to calculate P75/P90/median/composite scores. Sim data is cleared automatically when lineups are modified.
-- **Sim Regenerate**: Regenerate saved lineups using full Monte Carlo sim optimization, selecting the best candidates sorted by a user-chosen metric (P90, P75, Composite, Median, or Average).
+- **Sim Regenerate**: Regenerate saved lineups using full Monte Carlo sim optimization, selecting the best candidates sorted by a user-chosen metric (P90, P75, Composite, Median, or Average). Optimized scoring with candidate limiting and typed arrays to stay within production HTTP timeouts.
 - **Monte Carlo Simulation Engine**: Game-script simulation for GPP lineup optimization, featuring a three-level variance model and sport-specific correlations (NFL QB cascade, MLB/NHL correlations). Includes Vegas context for variance scaling and DvP adjustments.
 - **Vegas Client**: Fetches game totals and implied team totals from The Odds API with ESPN scoreboard fallback.
 - **DvP Client**: Defense vs Position engine using ESPN public team stats API for projection multipliers.

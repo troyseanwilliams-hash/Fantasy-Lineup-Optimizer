@@ -1212,8 +1212,8 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Sharpshooter or Champion subscription required for simulation scoring.", requiresUpgrade: true });
     }
 
-    const maxSims = isAdmin ? 1500 : tier === "pro" ? 500 : 200;
-    const numSims = isAdmin ? 1500 : Math.min(Math.max(Number(rawNumSims) || 200, 50), maxSims);
+    const maxSims = isAdmin ? 750 : tier === "pro" ? 500 : 200;
+    const numSims = Math.min(Math.max(Number(rawNumSims) || 200, 50), maxSims);
     const startTime = Date.now();
 
     try {
@@ -1322,10 +1322,10 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Sharpshooter or Champion subscription required.", requiresUpgrade: true });
     }
 
-    const tierSims = isAdmin ? 1500 : tier === "pro" ? 500 : 200;
+    const tierSims = isAdmin ? 750 : tier === "pro" ? 500 : 200;
     const numSims = tierSims;
     const startTime = Date.now();
-    const MAX_RUNTIME_MS = isAdmin ? 90000 : 60000;
+    const MAX_RUNTIME_MS = 45000;
 
     console.log(`[SimRegen] Starting: ${ids.length} lineups, ${numSims} sims (tier=${tier}), sortBy=${sortKey}, contest=${simContestType}, boosts=${useBoosts}, ceiling=${ceilingMode}, leverage=${leverageMode}, opm=${outperformerMode}, exposure=${globalMaxExposure}, projFloor=${projFloor}, minSal=${minSalary}, maxSal=${maxSalary}, overrideSlate=${overrideSlateId}`);
 
@@ -1518,23 +1518,44 @@ export async function registerRoutes(
           continue;
         }
 
-        const scoredCandidates = Array.from(lineupMap.entries()).map(([key, data]) => {
-          const allSimScores = sims.map(sim =>
-            data.lineup.reduce((sum, p) => sum + (sim.projections[p.id] || 0), 0)
-          ).sort((a, b) => a - b);
+        const candidateLimit = Math.max(lineupIds.length * 5, 60);
+        let candidateEntries = Array.from(lineupMap.entries());
+        if (candidateEntries.length > candidateLimit) {
+          candidateEntries.sort((a, b) => b[1].frequency - a[1].frequency);
+          candidateEntries = candidateEntries.slice(0, candidateLimit);
+        }
+        console.log(`[SimRegen] Scoring ${candidateEntries.length} of ${lineupMap.size} candidates (limit ${candidateLimit})`);
 
-          const n = allSimScores.length;
-          const avg = allSimScores.reduce((a, b) => a + b, 0) / n;
+        const simProjectionArrays = sims.map(sim => sim.projections);
+        const numSimsActual = simProjectionArrays.length;
+
+        const scoredCandidates = candidateEntries.map(([key, data]) => {
+          const playerIds = data.lineup.map(p => p.id);
+          const allSimScores = new Float64Array(numSimsActual);
+          for (let si = 0; si < numSimsActual; si++) {
+            const proj = simProjectionArrays[si];
+            let total = 0;
+            for (let pi = 0; pi < playerIds.length; pi++) {
+              total += proj[playerIds[pi]] || 0;
+            }
+            allSimScores[si] = total;
+          }
+          allSimScores.sort();
+
+          const n = numSimsActual;
+          let sum = 0;
+          for (let i = 0; i < n; i++) sum += allSimScores[i];
+          const avg = sum / n;
           const p75 = allSimScores[Math.floor(n * 0.75)] ?? avg;
           const p90 = allSimScores[Math.floor(n * 0.90)] ?? avg;
           const med = allSimScores[Math.floor(n * 0.50)] ?? avg;
-          const composite = avg * 0.35 + p75 * 0.35 + p90 * 0.20 + (data.frequency / sims.length) * 100 * 0.10;
+          const composite = avg * 0.35 + p75 * 0.35 + p90 * 0.20 + (data.frequency / n) * 100 * 0.10;
 
           return { key, lineup: data.lineup, frequency: data.frequency,
             avgSimScore: Math.round(avg * 10) / 10, medianScore: Math.round(med * 10) / 10,
             p75Score: Math.round(p75 * 10) / 10, p90Score: Math.round(p90 * 10) / 10,
             compositeScore: Math.round(composite * 10) / 10,
-            freqPct: Math.round((data.frequency / sims.length) * 1000) / 10,
+            freqPct: Math.round((data.frequency / n) * 1000) / 10,
             totalSalary: data.lineup.reduce((s, p) => s + p.salary, 0),
           };
         });
@@ -3462,8 +3483,8 @@ export async function registerRoutes(
       const input = simOptimizeSchema.parse(req.body);
       const maxLineupCount = isAdmin ? 2000 : tier === "pro" ? 1000 : 400;
       input.lineupCount = Math.min(input.lineupCount, maxLineupCount);
-      const maxSims = isAdmin ? 1500 : tier === "pro" ? 500 : 200;
-      input.numSims = isAdmin ? 1500 : Math.min(input.numSims, maxSims);
+      const maxSims = isAdmin ? 750 : tier === "pro" ? 500 : 200;
+      input.numSims = Math.min(input.numSims, maxSims);
 
       const slate = await storage.getSlate(input.slateId);
       if (!slate) return res.status(404).json({ message: "Slate not found" });
