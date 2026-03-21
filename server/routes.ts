@@ -118,10 +118,9 @@ export async function registerRoutes(
   app.get(api.slates.list.path, async (req, res) => {
     try {
       const allSlates = await storage.getSlates();
-      const includeAll = req.query.includeStarted === "true";
       const graceCutoff = new Date(Date.now() - 3 * 60 * 60 * 1000);
       const active = allSlates
-        .filter(s => s.isActive !== false && (includeAll || new Date(s.startTime) > graceCutoff))
+        .filter(s => s.isActive !== false)
         .sort((a, b) => {
           if (a.sport === b.sport && a.platform === b.platform) {
             if (a.isMain && !b.isMain) return -1;
