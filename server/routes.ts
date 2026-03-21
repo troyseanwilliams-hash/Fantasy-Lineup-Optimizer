@@ -1323,11 +1323,11 @@ export async function registerRoutes(
     }
 
     const tierSims = isAdmin ? 750 : tier === "pro" ? 500 : 200;
-    const numSims = tierSims;
     const startTime = Date.now();
-    const MAX_RUNTIME_MS = 45000;
+    const LP_BUDGET_MS = 20000;
+    const MAX_RUNTIME_MS = 35000;
 
-    console.log(`[SimRegen] Starting: ${ids.length} lineups, ${numSims} sims (tier=${tier}), sortBy=${sortKey}, contest=${simContestType}, boosts=${useBoosts}, ceiling=${ceilingMode}, leverage=${leverageMode}, opm=${outperformerMode}, exposure=${globalMaxExposure}, projFloor=${projFloor}, minSal=${minSalary}, maxSal=${maxSalary}, overrideSlate=${overrideSlateId}`);
+    console.log(`[SimRegen] Starting: ${ids.length} lineups, max ${tierSims} sims (tier=${tier}), sortBy=${sortKey}, contest=${simContestType}, boosts=${useBoosts}, ceiling=${ceilingMode}, leverage=${leverageMode}, opm=${outperformerMode}, exposure=${globalMaxExposure}, projFloor=${projFloor}, minSal=${minSalary}, maxSal=${maxSalary}, overrideSlate=${overrideSlateId}`);
 
     try {
       const slateGroups = new Map<number, number[]>();
@@ -1474,43 +1474,62 @@ export async function registerRoutes(
           ? applyDvPToProjections(pool, projOverrides, opponentMap, dvpContext, slate.sport)
           : projOverrides;
 
-        const sims = runSimulations(pool, slate.sport, numSims, dvpAdjusted, vegasContext ?? undefined);
-        console.log(`[SimRegen] Ran ${sims.length} sims for ${slate.sport} slate ${slateId}, pool: ${pool.length} players`);
-
+        const CALIBRATION_BATCH = 10;
+        const calibrationSims = runSimulations(pool, slate.sport, CALIBRATION_BATCH, dvpAdjusted, vegasContext ?? undefined);
         const config = getPlatformConfig(slate.sport, platform);
         const lineupMap = new Map<string, { lineup: Player[]; frequency: number; simScores: number[] }>();
-        let processedSims = 0;
 
-        for (let i = 0; i < sims.length; i++) {
-          if (Date.now() - startTime > MAX_RUNTIME_MS) {
-            console.log(`[SimRegen] Time cap reached after ${i} sims`);
-            break;
-          }
-          processedSims++;
-
-          const sim = sims[i];
+        const calStart = Date.now();
+        for (let i = 0; i < calibrationSims.length; i++) {
+          const sim = calibrationSims[i];
           const simPool = pool.map(p => {
             const simProj = sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0;
             const noise = simProj * (Math.random() * 0.06 - 0.03);
             return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
           });
-
           const result = solveLineup(
             simPool,
             { slateId, lockedPlayerIds: [...simRegenLocked], excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
-            slate.sport,
-            platform
+            slate.sport, platform
           );
           if (result.error || result.lineup.length === 0) continue;
-
           const key = result.lineup.map((p: Player) => p.id).sort().join(",");
           const existing = lineupMap.get(key);
-          if (existing) {
-            existing.frequency++;
-            existing.simScores.push(result.totalProjectedPoints);
-          } else {
-            lineupMap.set(key, { lineup: result.lineup as Player[], frequency: 1, simScores: [result.totalProjectedPoints] });
+          if (existing) { existing.frequency++; existing.simScores.push(result.totalProjectedPoints); }
+          else { lineupMap.set(key, { lineup: result.lineup as Player[], frequency: 1, simScores: [result.totalProjectedPoints] }); }
+        }
+        const calElapsed = Date.now() - calStart;
+        const msPerSolve = Math.max(1, calElapsed / CALIBRATION_BATCH);
+        const elapsedSoFar = Date.now() - startTime;
+        const remainingBudget = LP_BUDGET_MS - elapsedSoFar;
+        const adaptiveSims = Math.min(tierSims - CALIBRATION_BATCH, Math.max(50, Math.floor(remainingBudget / msPerSolve)));
+        const totalTargetSims = CALIBRATION_BATCH + adaptiveSims;
+
+        const remainingSims = runSimulations(pool, slate.sport, adaptiveSims, dvpAdjusted, vegasContext ?? undefined);
+        const allSims = [...calibrationSims, ...remainingSims];
+        console.log(`[SimRegen] ${slate.sport} slate ${slateId}: pool=${pool.length}, ${msPerSolve.toFixed(0)}ms/solve, adaptive=${totalTargetSims} sims (tier max ${tierSims})`);
+
+        for (let i = CALIBRATION_BATCH; i < allSims.length; i++) {
+          if (Date.now() - startTime > MAX_RUNTIME_MS) {
+            console.log(`[SimRegen] Hard time cap reached after ${i} sims`);
+            break;
           }
+          const sim = allSims[i];
+          const simPool = pool.map(p => {
+            const simProj = sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0;
+            const noise = simProj * (Math.random() * 0.06 - 0.03);
+            return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
+          });
+          const result = solveLineup(
+            simPool,
+            { slateId, lockedPlayerIds: [...simRegenLocked], excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
+            slate.sport, platform
+          );
+          if (result.error || result.lineup.length === 0) continue;
+          const key = result.lineup.map((p: Player) => p.id).sort().join(",");
+          const existing = lineupMap.get(key);
+          if (existing) { existing.frequency++; existing.simScores.push(result.totalProjectedPoints); }
+          else { lineupMap.set(key, { lineup: result.lineup as Player[], frequency: 1, simScores: [result.totalProjectedPoints] }); }
         }
 
         if (lineupMap.size === 0) {
@@ -1526,7 +1545,7 @@ export async function registerRoutes(
         }
         console.log(`[SimRegen] Scoring ${candidateEntries.length} of ${lineupMap.size} candidates (limit ${candidateLimit})`);
 
-        const simProjectionArrays = sims.map(sim => sim.projections);
+        const simProjectionArrays = allSims.map(sim => sim.projections);
         const numSimsActual = simProjectionArrays.length;
 
         const scoredCandidates = candidateEntries.map(([key, data]) => {
@@ -1661,8 +1680,9 @@ export async function registerRoutes(
       }
 
       const updatedCount = results.filter(r => r.status === "updated").length;
-      console.log(`[SimRegen] Completed: ${updatedCount}/${ids.length} lineups regenerated by ${sortKey}, ${numSims} sims, ${Date.now() - startTime}ms`);
-      res.json({ results, updated: updatedCount, total: ids.length, simsRun: numSims, sortBy: sortKey });
+      const totalElapsed = Date.now() - startTime;
+      console.log(`[SimRegen] Completed: ${updatedCount}/${ids.length} lineups regenerated by ${sortKey}, ${totalElapsed}ms`);
+      res.json({ results, updated: updatedCount, total: ids.length, simsRun: tierSims, sortBy: sortKey });
     } catch (err: any) {
       console.error("[SimRegen] Error:", err);
       res.status(500).json({ message: err.message || "Sim regeneration failed" });
@@ -3650,54 +3670,65 @@ export async function registerRoutes(
       const vegasApplied = vegasContext !== null;
       const dvpApplied   = dvpContext !== null;
 
-      const sims = runSimulations(pool, sport, input.numSims, dvpAdjustedOverrides, vegasContext ?? undefined);
-
+      const LP_BUDGET_MS = 18000;
+      const SIM_CAL_BATCH = 10;
+      const calSims = runSimulations(pool, sport, SIM_CAL_BATCH, dvpAdjustedOverrides, vegasContext ?? undefined);
       const lineupMap = new Map<string, {
         lineup:    Player[];
         frequency: number;
         simScores: number[];
       }>();
 
-      for (let i = 0; i < sims.length; i++) {
+      const simConstraintsBase = {
+        slateId: input.slateId,
+        lockedPlayerIds: input.lockedPlayerIds,
+        excludedPlayerIds: input.excludedPlayerIds,
+        lineupCount: 1,
+        maxSalary: config.salaryCap,
+      } as OptimizationConstraints;
+
+      const calT0 = Date.now();
+      for (let i = 0; i < calSims.length; i++) {
+        const sim = calSims[i];
+        const simPool = pool.map(p => {
+          const simProj = sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0;
+          const noise = simProj * (Math.random() * 0.06 - 0.03);
+          return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
+        });
+        const result = solveLineup(simPool, simConstraintsBase, sport, platform);
+        if (result.error || result.lineup.length === 0) continue;
+        const key = result.lineup.map((p: Player) => p.id).sort().join(",");
+        const existing = lineupMap.get(key);
+        if (existing) { existing.frequency++; existing.simScores.push(result.totalProjectedPoints); }
+        else { lineupMap.set(key, { lineup: result.lineup as Player[], frequency: 1, simScores: [result.totalProjectedPoints] }); }
+      }
+      const calMs = Date.now() - calT0;
+      const msPerLP = Math.max(1, calMs / SIM_CAL_BATCH);
+      const simBudgetLeft = LP_BUDGET_MS - (Date.now() - startTime);
+      const adaptiveCount = Math.min(input.numSims - SIM_CAL_BATCH, Math.max(50, Math.floor(simBudgetLeft / msPerLP)));
+      const totalSimTarget = SIM_CAL_BATCH + adaptiveCount;
+      console.log(`[SimOptimizer] Adaptive: ${msPerLP.toFixed(0)}ms/solve, pool=${pool.length}, target=${totalSimTarget} sims (tier max ${input.numSims})`);
+
+      const remainingSims = runSimulations(pool, sport, adaptiveCount, dvpAdjustedOverrides, vegasContext ?? undefined);
+      const sims = [...calSims, ...remainingSims];
+
+      for (let i = SIM_CAL_BATCH; i < sims.length; i++) {
         if (Date.now() - startTime > MAX_RUNTIME_MS) {
           console.log(`[SimOptimizer] Time cap reached after ${i} sims`);
           break;
         }
-
         const sim = sims[i];
-
-        const simConstraints = {
-          slateId: input.slateId,
-          lockedPlayerIds: input.lockedPlayerIds,
-          excludedPlayerIds: input.excludedPlayerIds,
-          lineupCount: 1,
-          maxSalary: config.salaryCap,
-        } as OptimizationConstraints;
-
         const simPool = pool.map(p => {
           const simProj = sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0;
           const noise = simProj * (Math.random() * 0.06 - 0.03);
-          return {
-            ...p,
-            projectedPoints: Math.max(0, simProj + noise).toString(),
-          };
+          return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
         });
-
-        const result = solveLineup(simPool, simConstraints, sport, platform);
+        const result = solveLineup(simPool, simConstraintsBase, sport, platform);
         if (result.error || result.lineup.length === 0) continue;
-
         const key = result.lineup.map((p: Player) => p.id).sort().join(",");
         const existing = lineupMap.get(key);
-        if (existing) {
-          existing.frequency++;
-          existing.simScores.push(result.totalProjectedPoints);
-        } else {
-          lineupMap.set(key, {
-            lineup:    result.lineup as Player[],
-            frequency: 1,
-            simScores: [result.totalProjectedPoints],
-          });
-        }
+        if (existing) { existing.frequency++; existing.simScores.push(result.totalProjectedPoints); }
+        else { lineupMap.set(key, { lineup: result.lineup as Player[], frequency: 1, simScores: [result.totalProjectedPoints] }); }
       }
 
       if (lineupMap.size === 0) {
@@ -3708,25 +3739,36 @@ export async function registerRoutes(
         });
       }
 
-      const uniqueLineups = Array.from(lineupMap.entries()).map(([key, data]) => {
-        const allSimScores = sims.map(sim =>
-          data.lineup.reduce((sum, p) => sum + (sim.projections[p.id] || 0), 0)
-        ).sort((a, b) => a - b);
+      const simProjArrays = sims.map(s => s.projections);
+      const nSims = simProjArrays.length;
 
-        const n   = allSimScores.length;
-        const avg = allSimScores.reduce((a, b) => a + b, 0) / n;
+      const uniqueLineups = Array.from(lineupMap.entries()).map(([key, data]) => {
+        const pids = data.lineup.map(p => p.id);
+        const allSimScores = new Float64Array(nSims);
+        for (let si = 0; si < nSims; si++) {
+          const proj = simProjArrays[si];
+          let total = 0;
+          for (let pi = 0; pi < pids.length; pi++) total += proj[pids[pi]] || 0;
+          allSimScores[si] = total;
+        }
+        allSimScores.sort();
+
+        const n   = nSims;
+        let sumV = 0;
+        for (let i = 0; i < n; i++) sumV += allSimScores[i];
+        const avg = sumV / n;
         const p75 = allSimScores[Math.floor(n * 0.75)] ?? avg;
         const p90 = allSimScores[Math.floor(n * 0.90)] ?? avg;
         const med = allSimScores[Math.floor(n * 0.50)] ?? avg;
 
-        const composite = avg * 0.35 + p75 * 0.35 + p90 * 0.20 + (data.frequency / sims.length) * 100 * 0.10;
+        const composite = avg * 0.35 + p75 * 0.35 + p90 * 0.20 + (data.frequency / nSims) * 100 * 0.10;
         const stack = detectStack(data.lineup);
 
         return {
           lineup:       data.lineup,
           key,
           frequency:    data.frequency,
-          freqPct:      Math.round((data.frequency / sims.length) * 1000) / 10,
+          freqPct:      Math.round((data.frequency / nSims) * 1000) / 10,
           avgSimScore:  Math.round(avg * 10) / 10,
           medianScore:  Math.round(med * 10) / 10,
           p75Score:     Math.round(p75 * 10) / 10,
