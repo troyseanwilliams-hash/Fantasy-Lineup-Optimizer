@@ -4946,7 +4946,7 @@ export async function seedDatabase(forceRefresh = false) {
     }
 
     if (existingSlate && !shouldReplace && existingPlayerCount === 0 && seed.dkPlayers.length > 0) {
-      await storage.deletePlayersBySlate(existingSlate.id);
+      const { oldIdToDkId } = await storage.deletePlayersBySlate(existingSlate.id);
       const updatedSlate = await storage.updateSlateData(existingSlate.id, {
         name: seed.dkSlate.name!,
         startTime: seed.dkSlate.startTime!,
@@ -4955,6 +4955,8 @@ export async function seedDatabase(forceRefresh = false) {
       const createdPlayers = await storage.bulkCreatePlayers(
         seed.dkPlayers.map((p: any) => ({ ...p, slateId: existingSlate.id })) as any
       );
+      const migratedOverrides = await storage.migratePlayerOverrides(existingSlate.id, oldIdToDkId);
+      if (migratedOverrides > 0) console.log(`[DK] Migrated ${migratedOverrides} player overrides for ${seed.sport} slate ${existingSlate.id}`);
       console.log(`[DK] Repopulated empty ${seed.sport} slate ${existingSlate.id} with ${createdPlayers.length} players`);
 
       const today = getEasternToday();
@@ -4982,7 +4984,7 @@ export async function seedDatabase(forceRefresh = false) {
     const staleSlateStillExists = slateWasRemoved && (await storage.getSlate(existingSlate?.id as number)) !== undefined;
 
     if (staleSlateStillExists) {
-      await storage.deletePlayersBySlate(existingSlate!.id);
+      const { oldIdToDkId: staleOldIdToDkId } = await storage.deletePlayersBySlate(existingSlate!.id);
       const updatedSlate = await storage.updateSlateData(existingSlate!.id, {
         name: seed.dkSlate.name!,
         startTime: seed.dkSlate.startTime!,
@@ -4991,6 +4993,8 @@ export async function seedDatabase(forceRefresh = false) {
       const createdPlayers = await storage.bulkCreatePlayers(
         seed.dkPlayers.map((p: any) => ({ ...p, slateId: existingSlate!.id })) as any
       );
+      const staleMigrated = await storage.migratePlayerOverrides(existingSlate!.id, staleOldIdToDkId);
+      if (staleMigrated > 0) console.log(`[DK] Migrated ${staleMigrated} player overrides for stale ${seed.sport} slate ${existingSlate!.id}`);
       console.log(`[DK] Repopulated stale ${seed.sport} slate ${existingSlate!.id} with ${createdPlayers.length} players`);
 
       const today = getEasternToday();

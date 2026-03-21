@@ -43,7 +43,8 @@ export interface IStorage extends IAuthStorage {
   createSlate(slate: InsertSlate): Promise<Slate>;
   clearAllSlatesAndPlayers(): Promise<void>;
   deleteSlateAndPlayers(slateId: number): Promise<void>;
-  deletePlayersBySlate(slateId: number): Promise<void>;
+  deletePlayersBySlate(slateId: number): Promise<{ oldIdToDkId: Map<number, number> }>;
+  migratePlayerOverrides(slateId: number, oldIdToDkId: Map<number, number>): Promise<number>;
   updateSlateDraftGroupId(slateId: number, draftGroupId: number): Promise<void>;
   updatePlayerDraftKingsId(playerId: number, draftKingsPlayerId: number): Promise<void>;
 
@@ -205,15 +206,62 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async deletePlayersBySlate(slateId: number): Promise<void> {
-    const slatePlayers = await db.select({ id: players.id }).from(players).where(eq(players.slateId, slateId));
+  async deletePlayersBySlate(slateId: number): Promise<{ oldIdToDkId: Map<number, number> }> {
+    const slatePlayers = await db.select({ id: players.id, draftKingsPlayerId: players.draftKingsPlayerId }).from(players).where(eq(players.slateId, slateId));
+    const oldIdToDkId = new Map<number, number>();
     if (slatePlayers.length > 0) {
       const playerIds = slatePlayers.map(p => p.id);
+      for (const p of slatePlayers) {
+        if (p.draftKingsPlayerId) oldIdToDkId.set(p.id, p.draftKingsPlayerId);
+      }
       await db.update(props).set({ playerId: null }).where(inArray(props.playerId, playerIds));
       await db.update(alerts).set({ playerId: null }).where(inArray(alerts.playerId, playerIds));
     }
-    await db.delete(playerOverrides).where(eq(playerOverrides.slateId, slateId));
     await db.delete(players).where(eq(players.slateId, slateId));
+    return { oldIdToDkId };
+  }
+
+  async migratePlayerOverrides(slateId: number, oldIdToDkId: Map<number, number>): Promise<number> {
+    const overrides = await db.select().from(playerOverrides).where(eq(playerOverrides.slateId, slateId));
+    if (overrides.length === 0) return 0;
+
+    const currentPlayers = await db.select({ id: players.id, draftKingsPlayerId: players.draftKingsPlayerId })
+      .from(players).where(eq(players.slateId, slateId));
+    if (currentPlayers.length === 0) {
+      await db.delete(playerOverrides).where(eq(playerOverrides.slateId, slateId));
+      return 0;
+    }
+
+    const existingPlayerIds = new Set(currentPlayers.map(p => p.id));
+    const staleOverrides = overrides.filter(o => !existingPlayerIds.has(o.playerId));
+    if (staleOverrides.length === 0) return 0;
+
+    const dkIdToNewPlayerId = new Map<number, number>();
+    for (const p of currentPlayers) {
+      if (p.draftKingsPlayerId) dkIdToNewPlayerId.set(p.draftKingsPlayerId, p.id);
+    }
+
+    let migrated = 0;
+    const usedNewIds = new Set(overrides.filter(o => existingPlayerIds.has(o.playerId)).map(o => o.playerId));
+
+    for (const override of staleOverrides) {
+      const dkId = oldIdToDkId.get(override.playerId);
+      if (!dkId) {
+        await db.delete(playerOverrides).where(eq(playerOverrides.id, override.id));
+        continue;
+      }
+      const newPlayerId = dkIdToNewPlayerId.get(dkId);
+      if (!newPlayerId || usedNewIds.has(newPlayerId)) {
+        await db.delete(playerOverrides).where(eq(playerOverrides.id, override.id));
+        continue;
+      }
+      await db.update(playerOverrides).set({ playerId: newPlayerId })
+        .where(eq(playerOverrides.id, override.id));
+      usedNewIds.add(newPlayerId);
+      migrated++;
+    }
+
+    return migrated;
   }
 
   async updateSlateDraftGroupId(slateId: number, draftGroupId: number): Promise<void> {

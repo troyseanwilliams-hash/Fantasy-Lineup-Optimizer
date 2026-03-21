@@ -719,8 +719,10 @@ export async function ingestYahooSlate(sport: YahooSport): Promise<{
     return { success: false, slateId: slate.id, message: `[Yahoo/${sport}] All players filtered (no valid salary data)` };
   }
 
-  await storage.deletePlayersBySlate(slate.id);
+  const { oldIdToDkId: yahooOldIdMap } = await storage.deletePlayersBySlate(slate.id);
   await storage.bulkCreatePlayers(insertPlayers);
+  const yahooMigrated = await storage.migratePlayerOverrides(slate.id, yahooOldIdMap);
+  if (yahooMigrated > 0) console.log(`[Yahoo Ingest] Migrated ${yahooMigrated} player overrides for ${sport}`);
 
   console.log(`[Yahoo Ingest] ✓ ${sport}: ${insertPlayers.length} players (${source})`);
   return {
@@ -741,8 +743,10 @@ export async function ingestYahooCSV(csvText: string, sport: YahooSport): Promis
   const slate = await upsertYahooSlate(sport, label, new Date());
   const insertPlayers = buildInsertPlayers(playerRows, slate.id);
 
-  await storage.deletePlayersBySlate(slate.id);
+  const { oldIdToDkId: csvOldIdMap } = await storage.deletePlayersBySlate(slate.id);
   await storage.bulkCreatePlayers(insertPlayers);
+  const csvMigrated = await storage.migratePlayerOverrides(slate.id, csvOldIdMap);
+  if (csvMigrated > 0) console.log(`[Yahoo CSV] Migrated ${csvMigrated} player overrides`);
 
   return {
     success: true, slateId: slate.id, playerCount: insertPlayers.length,

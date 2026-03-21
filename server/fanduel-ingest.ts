@@ -494,8 +494,10 @@ export async function ingestFanDuelSlate(sport: FDSport): Promise<{
     return { success: false, slateId: slate.id, message: `[FD/${sport}] Players all filtered (bad salary data?)` };
   }
 
-  await storage.deletePlayersBySlate(slate.id);
+  const { oldIdToDkId: fdOldIdMap } = await storage.deletePlayersBySlate(slate.id);
   await storage.bulkCreatePlayers(insertPlayers);
+  const fdMigrated = await storage.migratePlayerOverrides(slate.id, fdOldIdMap);
+  if (fdMigrated > 0) console.log(`[FD Ingest] Migrated ${fdMigrated} player overrides for ${sport}`);
 
   console.log(`[FD Ingest] ✓ ${sport}: ${insertPlayers.length} players (${source})`);
   return { success: true, slateId: slate.id, playerCount: insertPlayers.length, message: `Loaded ${insertPlayers.length} FanDuel ${sport} players via ${source}`, source };
