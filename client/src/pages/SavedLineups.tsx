@@ -149,17 +149,15 @@ export default function SavedLineups() {
 
   const { data: lineups, isLoading } = useQuery<any[]>({
     queryKey: ["/api/lineups"],
-    // Lineups only change when the user mutates them — all mutations call
-    // queryClient.invalidateQueries so fresh data is always fetched after a write.
-    // Background refetches on window focus were causing the vault list to
-    // re-render mid-session, closing the expanded card and interrupting swaps.
     staleTime: VAULT_STALE_TIME,
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
   });
 
   const { data: allSlates } = useQuery<Slate[]>({
     queryKey: ["/api/slates"],
     staleTime: 300000,
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
   });
 
