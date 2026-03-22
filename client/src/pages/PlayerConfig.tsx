@@ -199,15 +199,24 @@ export default function PlayerConfig() {
       boostPercent: existing?.boostPercent || 0,
       isExcluded: existing?.isExcluded || false,
       isLocked: existing?.isLocked || false,
+      minExposure: existing?.minExposure ?? null,
       maxExposure: existing?.maxExposure ?? null,
       notes: existing?.notes || null,
     };
   }
 
-  function handleExposureChange(player: Player, field: "maxExposure", value: string) {
+  function handleExposureChange(player: Player, field: "minExposure" | "maxExposure", value: string) {
     const d = getOverrideData(player.id);
     const parsed = value === "" ? null : parseInt(value, 10);
     if (parsed !== null && (isNaN(parsed) || parsed < 0 || parsed > 100)) return;
+    if (field === "minExposure" && parsed !== null && d.maxExposure !== null && parsed > d.maxExposure) {
+      toast({ title: "Invalid", description: "Min exposure cannot exceed max exposure.", variant: "destructive" });
+      return;
+    }
+    if (field === "maxExposure" && parsed !== null && d.minExposure !== null && parsed < d.minExposure) {
+      toast({ title: "Invalid", description: "Max exposure cannot be less than min exposure.", variant: "destructive" });
+      return;
+    }
     upsertMutation.mutate({ playerId: player.id, data: { ...d, [field]: parsed } });
   }
 
@@ -453,6 +462,7 @@ export default function PlayerConfig() {
                         <th className="px-3 py-3 text-left text-xs font-bold text-cyan-400 uppercase hidden lg:table-cell">Avg</th>
                         <th className="px-3 py-3 text-center text-xs font-bold text-slate-400 uppercase">Boost</th>
                         <th className="px-3 py-3 text-center text-xs font-bold text-slate-400 uppercase">Custom Proj</th>
+                        <th className="px-3 py-3 text-center text-xs font-bold text-emerald-400 uppercase">Min%</th>
                         <th className="px-3 py-3 text-center text-xs font-bold text-cyan-400 uppercase">Max%</th>
                         <th className="px-3 py-3 text-center text-xs font-bold text-slate-400 uppercase">Status</th>
                         <th className="px-3 py-3 text-center text-xs font-bold text-slate-400 uppercase">Actions</th>
@@ -589,6 +599,18 @@ export default function PlayerConfig() {
                                 min={0}
                                 max={100}
                                 placeholder="—"
+                                value={override?.minExposure ?? ""}
+                                onChange={e => handleExposureChange(player, "minExposure", e.target.value)}
+                                className="w-16 h-7 text-xs bg-slate-800 border-emerald-500/30 text-emerald-400 text-center font-mono"
+                                data-testid={`min-exposure-${player.id}`}
+                              />
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                placeholder="—"
                                 value={override?.maxExposure ?? ""}
                                 onChange={e => handleExposureChange(player, "maxExposure", e.target.value)}
                                 className="w-16 h-7 text-xs bg-slate-800 border-cyan-500/30 text-cyan-400 text-center font-mono"
@@ -711,9 +733,14 @@ export default function PlayerConfig() {
                                 )}
                               </div>
                             )}
-                            {override?.maxExposure != null && (
+                            {(override?.minExposure != null || override?.maxExposure != null) && (
                               <div className="flex items-center gap-2 mt-1 text-xs">
-                                <span className="text-cyan-400 font-mono font-bold">Max {override.maxExposure}%</span>
+                                {override?.minExposure != null && (
+                                  <span className="text-emerald-400 font-mono font-bold">Min {override.minExposure}%</span>
+                                )}
+                                {override?.maxExposure != null && (
+                                  <span className="text-cyan-400 font-mono font-bold">Max {override.maxExposure}%</span>
+                                )}
                               </div>
                             )}
                           </div>

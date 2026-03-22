@@ -409,6 +409,7 @@ export async function registerRoutes(
     boostPercent: z.number().int().refine(v => [0, 5, 10, 15, 20].includes(v), { message: "Boost must be 0, 5, 10, 15, or 20" }).default(0),
     isExcluded: z.boolean().default(false),
     isLocked: z.boolean().default(false),
+    minExposure: z.number().int().min(0).max(100).nullable().optional(),
     maxExposure: z.number().int().min(0).max(100).nullable().optional(),
     notes: z.string().max(200).nullable().optional(),
     dkPlayerId: z.number().int().positive().optional(),
@@ -428,7 +429,10 @@ export async function registerRoutes(
     if (isNaN(slateId) || isNaN(playerId)) return res.status(400).json({ message: "Invalid IDs" });
     const parsed = playerOverrideBodySchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid request body", errors: parsed.error.flatten() });
-    const { customProjection, boostPercent, isExcluded, isLocked, maxExposure, notes, dkPlayerId } = parsed.data;
+    const { customProjection, boostPercent, isExcluded, isLocked, minExposure, maxExposure, notes, dkPlayerId } = parsed.data;
+    if (minExposure != null && maxExposure != null && minExposure > maxExposure) {
+      return res.status(400).json({ message: "Min exposure cannot exceed max exposure" });
+    }
     if (dkPlayerId) {
       const slatePlayers = await storage.getPlayersBySlate(slateId);
       const current = slatePlayers.find(p => p.draftKingsPlayerId === dkPlayerId);
@@ -442,7 +446,7 @@ export async function registerRoutes(
       boostPercent: boostPercent || 0,
       isExcluded: isExcluded || false,
       isLocked: isLocked || false,
-      minExposure: null,
+      minExposure: minExposure ?? null,
       maxExposure: maxExposure ?? null,
       notes: notes || null,
     });
