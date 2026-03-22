@@ -199,8 +199,25 @@ export default function PlayerConfig() {
       boostPercent: existing?.boostPercent || 0,
       isExcluded: existing?.isExcluded || false,
       isLocked: existing?.isLocked || false,
+      minExposure: existing?.minExposure ?? null,
+      maxExposure: existing?.maxExposure ?? null,
       notes: existing?.notes || null,
     };
+  }
+
+  function handleExposureChange(player: Player, field: "minExposure" | "maxExposure", value: string) {
+    const d = getOverrideData(player.id);
+    const parsed = value === "" ? null : parseInt(value, 10);
+    if (parsed !== null && (isNaN(parsed) || parsed < 0 || parsed > 100)) return;
+    if (field === "minExposure" && parsed !== null && d.maxExposure !== null && parsed > d.maxExposure) {
+      toast({ title: "Invalid", description: "Min exposure cannot exceed max exposure.", variant: "destructive" });
+      return;
+    }
+    if (field === "maxExposure" && parsed !== null && d.minExposure !== null && parsed < d.minExposure) {
+      toast({ title: "Invalid", description: "Max exposure cannot be less than min exposure.", variant: "destructive" });
+      return;
+    }
+    upsertMutation.mutate({ playerId: player.id, data: { ...d, [field]: parsed } });
   }
 
   function handleToggleExclude(player: Player) {
@@ -445,6 +462,8 @@ export default function PlayerConfig() {
                         <th className="px-3 py-3 text-left text-xs font-bold text-cyan-400 uppercase hidden lg:table-cell">Avg</th>
                         <th className="px-3 py-3 text-center text-xs font-bold text-slate-400 uppercase">Boost</th>
                         <th className="px-3 py-3 text-center text-xs font-bold text-slate-400 uppercase">Custom Proj</th>
+                        <th className="px-3 py-3 text-center text-xs font-bold text-emerald-400 uppercase">Min%</th>
+                        <th className="px-3 py-3 text-center text-xs font-bold text-cyan-400 uppercase">Max%</th>
                         <th className="px-3 py-3 text-center text-xs font-bold text-slate-400 uppercase">Status</th>
                         <th className="px-3 py-3 text-center text-xs font-bold text-slate-400 uppercase">Actions</th>
                       </tr>
@@ -574,6 +593,30 @@ export default function PlayerConfig() {
                                 </div>
                               )}
                             </td>
+                            <td className="px-3 py-2.5 text-center">
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                placeholder="—"
+                                value={override?.minExposure ?? ""}
+                                onChange={e => handleExposureChange(player, "minExposure", e.target.value)}
+                                className="w-16 h-7 text-xs bg-slate-800 border-emerald-500/30 text-emerald-400 text-center font-mono"
+                                data-testid={`min-exposure-${player.id}`}
+                              />
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                placeholder="—"
+                                value={override?.maxExposure ?? ""}
+                                onChange={e => handleExposureChange(player, "maxExposure", e.target.value)}
+                                className="w-16 h-7 text-xs bg-slate-800 border-cyan-500/30 text-cyan-400 text-center font-mono"
+                                data-testid={`max-exposure-${player.id}`}
+                              />
+                            </td>
                             <td className="px-3 py-2.5">
                               <div className="flex items-center gap-1 justify-center">
                                 {override?.isLocked && (
@@ -690,6 +733,16 @@ export default function PlayerConfig() {
                                 )}
                               </div>
                             )}
+                            {(override?.minExposure != null || override?.maxExposure != null) && (
+                              <div className="flex items-center gap-2 mt-1 text-xs">
+                                {override?.minExposure != null && (
+                                  <span className="text-emerald-400 font-mono font-bold">Min {override.minExposure}%</span>
+                                )}
+                                {override?.maxExposure != null && (
+                                  <span className="text-cyan-400 font-mono font-bold">Max {override.maxExposure}%</span>
+                                )}
+                              </div>
+                            )}
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             <button
@@ -753,26 +806,52 @@ export default function PlayerConfig() {
                           </div>
                         </div>
                         {isEditing && (
-                          <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-700">
-                            <span className="text-xs text-slate-400">Custom Projection:</span>
-                            <Input
-                              type="number"
-                              step="0.1"
-                              value={editProjection}
-                              onChange={e => setEditProjection(e.target.value)}
-                              className="w-24 h-7 text-xs bg-slate-800 border-slate-600 text-white font-mono"
-                              autoFocus
-                              data-testid={`mobile-edit-input-${player.id}`}
-                            />
-                            <Button
-                              size="sm"
-                              className="h-7 px-2 bg-emerald-600 hover:bg-emerald-700 text-xs"
-                              onClick={() => handleSaveProjection(player)}
-                              data-testid={`mobile-save-proj-${player.id}`}
-                            >
-                              <Check className="w-3 h-3" />
-                            </Button>
-                          </div>
+                          <>
+                            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-700">
+                              <span className="text-xs text-slate-400">Custom Projection:</span>
+                              <Input
+                                type="number"
+                                step="0.1"
+                                value={editProjection}
+                                onChange={e => setEditProjection(e.target.value)}
+                                className="w-24 h-7 text-xs bg-slate-800 border-slate-600 text-white font-mono"
+                                autoFocus
+                                data-testid={`mobile-edit-input-${player.id}`}
+                              />
+                              <Button
+                                size="sm"
+                                className="h-7 px-2 bg-emerald-600 hover:bg-emerald-700 text-xs"
+                                onClick={() => handleSaveProjection(player)}
+                                data-testid={`mobile-save-proj-${player.id}`}
+                              >
+                                <Check className="w-3 h-3" />
+                              </Button>
+                            </div>
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className="text-xs text-emerald-400">Min%</span>
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                placeholder="—"
+                                value={override?.minExposure ?? ""}
+                                onChange={e => handleExposureChange(player, "minExposure", e.target.value)}
+                                className="w-16 h-7 text-xs bg-slate-800 border-emerald-500/30 text-emerald-400 text-center font-mono"
+                                data-testid={`mobile-min-exposure-${player.id}`}
+                              />
+                              <span className="text-xs text-cyan-400">Max%</span>
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                placeholder="—"
+                                value={override?.maxExposure ?? ""}
+                                onChange={e => handleExposureChange(player, "maxExposure", e.target.value)}
+                                className="w-16 h-7 text-xs bg-slate-800 border-cyan-500/30 text-cyan-400 text-center font-mono"
+                                data-testid={`mobile-max-exposure-${player.id}`}
+                              />
+                            </div>
+                          </>
                         )}
                       </Card>
                     );

@@ -409,6 +409,8 @@ export async function registerRoutes(
     boostPercent: z.number().int().refine(v => [0, 5, 10, 15, 20].includes(v), { message: "Boost must be 0, 5, 10, 15, or 20" }).default(0),
     isExcluded: z.boolean().default(false),
     isLocked: z.boolean().default(false),
+    minExposure: z.number().int().min(0).max(100).nullable().optional(),
+    maxExposure: z.number().int().min(0).max(100).nullable().optional(),
     notes: z.string().max(200).nullable().optional(),
     dkPlayerId: z.number().int().positive().optional(),
   });
@@ -427,7 +429,10 @@ export async function registerRoutes(
     if (isNaN(slateId) || isNaN(playerId)) return res.status(400).json({ message: "Invalid IDs" });
     const parsed = playerOverrideBodySchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid request body", errors: parsed.error.flatten() });
-    const { customProjection, boostPercent, isExcluded, isLocked, notes, dkPlayerId } = parsed.data;
+    const { customProjection, boostPercent, isExcluded, isLocked, minExposure, maxExposure, notes, dkPlayerId } = parsed.data;
+    if (minExposure != null && maxExposure != null && minExposure > maxExposure) {
+      return res.status(400).json({ message: "Min exposure cannot exceed max exposure" });
+    }
     if (dkPlayerId) {
       const slatePlayers = await storage.getPlayersBySlate(slateId);
       const current = slatePlayers.find(p => p.draftKingsPlayerId === dkPlayerId);
@@ -441,6 +446,8 @@ export async function registerRoutes(
       boostPercent: boostPercent || 0,
       isExcluded: isExcluded || false,
       isLocked: isLocked || false,
+      minExposure: minExposure ?? null,
+      maxExposure: maxExposure ?? null,
       notes: notes || null,
     });
     res.json(override);
@@ -1034,7 +1041,7 @@ export async function registerRoutes(
 
     const results: { id: number; status: string; error?: string }[] = [];
 
-    const slateCache = new Map<number, { slate: any; pool: Player[]; allPlayers: Player[]; baseExcluded: number[]; platform: Platform; lockedOverrideIds: number[] }>();
+    const slateCache = new Map<number, { slate: any; pool: Player[]; allPlayers: Player[]; baseExcluded: number[]; platform: Platform; lockedOverrideIds: number[]; overrideExposure: Record<string, { min?: number; max?: number }> }>();
     const usedLineupKeys = new Set<string>();
     const playerAppearances: Record<number, number> = {};
     const totalCount = ids.length;
@@ -1153,11 +1160,18 @@ export async function registerRoutes(
         const eligibleCount = pool.filter(p => Number(p.projectedPoints) > 0).length;
         console.log(`[BulkGenerate] ${slate.sport} slate ${slate.id}: ${allPlayers.length} total, ${baseExcluded.length} excluded, ${eligibleCount} eligible with proj > 0, minSal=${minSalary ?? 'none'}, maxSal=${maxSalary ?? 'none'}`);
 
-        cached = { slate, pool, allPlayers, baseExcluded, platform, lockedOverrideIds: [...bulkOverrideLocked] };
+        const bulkOverrideExposure: Record<string, { min?: number; max?: number }> = {};
+        for (const o of bulkOverrides) {
+          if (o.minExposure != null || o.maxExposure != null) {
+            bulkOverrideExposure[o.playerId.toString()] = { min: o.minExposure ?? undefined, max: o.maxExposure ?? undefined };
+          }
+        }
+
+        cached = { slate, pool, allPlayers, baseExcluded, platform, lockedOverrideIds: [...bulkOverrideLocked], overrideExposure: bulkOverrideExposure };
         slateCache.set(effectiveSlateId, cached);
       }
 
-      const { slate, pool, baseExcluded, platform, lockedOverrideIds } = cached;
+      const { slate, pool, baseExcluded, platform, lockedOverrideIds, overrideExposure } = cached;
       const iteration = results.filter(r => r.status === "updated").length;
       const maxAttempts = 10;
       let updated = false;
@@ -1175,20 +1189,26 @@ export async function registerRoutes(
           for (const p of pool) {
             const appearances = playerAppearances[p.id] || 0;
             const currentExposure = totalCount > 0 ? (appearances / totalCount) * 100 : 0;
-            if (currentExposure >= globalMaxExposure) {
+            const playerMaxExp = overrideExposure[p.id.toString()]?.max;
+            const effectiveMax = playerMaxExp ?? globalMaxExposure;
+            if (currentExposure >= effectiveMax) {
               iterationExcluded.push(p.id);
             }
           }
         }
 
         const bulkMinLocks: number[] = [];
-        if (globalMinExposureBulk && globalMinExposureBulk > 0 && iteration > 0) {
+        const hasAnyMin = (globalMinExposureBulk && globalMinExposureBulk > 0) || Object.values(overrideExposure).some(v => v.min != null && v.min > 0);
+        if (hasAnyMin && iteration > 0) {
           for (const p of pool) {
             if (iterationExcluded.includes(p.id)) continue;
             if (lockedOverrideIds.includes(p.id)) continue;
             const appearances = playerAppearances[p.id] || 0;
+            const playerMinExp = overrideExposure[p.id.toString()]?.min;
+            const effectiveMin = playerMinExp ?? (globalMinExposureBulk && appearances > 0 ? globalMinExposureBulk : undefined);
+            if (effectiveMin === undefined || effectiveMin <= 0) continue;
             const remaining = totalCount - iteration;
-            const neededApp = Math.ceil((globalMinExposureBulk / 100) * totalCount);
+            const neededApp = Math.ceil((effectiveMin / 100) * totalCount);
             if (appearances < neededApp && (appearances + remaining) <= neededApp) {
               bulkMinLocks.push(p.id);
             }
@@ -1456,6 +1476,13 @@ export async function registerRoutes(
         const simRegenOverrideMap = new Map(simRegenOverrides.map(o => [o.playerId, o]));
         const simRegenExcluded = new Set(simRegenOverrides.filter(o => o.isExcluded).map(o => o.playerId));
         const simRegenLocked = new Set(simRegenOverrides.filter(o => o.isLocked).map(o => o.playerId));
+
+        const simRegenOverrideExposure: Record<string, { min?: number; max?: number }> = {};
+        for (const o of simRegenOverrides) {
+          if (o.minExposure != null || o.maxExposure != null) {
+            simRegenOverrideExposure[o.playerId.toString()] = { min: o.minExposure ?? undefined, max: o.maxExposure ?? undefined };
+          }
+        }
 
         let pool = allPlayers
           .filter(p => !simRegenExcluded.has(p.id))
@@ -1731,11 +1758,13 @@ export async function registerRoutes(
           if (selectedCandidates.length >= targetCount) break;
 
           let violatesExposure = false;
-          if (globalMaxExposure !== undefined && globalMaxExposure !== null && selectedCandidates.length > 0) {
+          if (selectedCandidates.length > 0) {
             for (const p of candidate.lineup) {
               const appearances = (playerAppearances[p.id] || 0) + 1;
               const pct = (appearances / targetCount) * 100;
-              if (pct > globalMaxExposure) { violatesExposure = true; break; }
+              const playerMaxExp = simRegenOverrideExposure?.[p.id.toString()]?.max;
+              const effectiveMax = playerMaxExp ?? globalMaxExposure;
+              if (effectiveMax !== undefined && effectiveMax !== null && pct > effectiveMax) { violatesExposure = true; break; }
             }
           }
           if (violatesExposure) continue;
@@ -1755,14 +1784,15 @@ export async function registerRoutes(
           }
         }
 
-        const hasMinExp = (globalMinExposure !== undefined && globalMinExposure !== null) || (minExposureLimits && Object.keys(minExposureLimits).length > 0);
+        const hasMinExp = (globalMinExposure !== undefined && globalMinExposure !== null) || (minExposureLimits && Object.keys(minExposureLimits).length > 0) || Object.values(simRegenOverrideExposure).some(v => v.min != null && v.min > 0);
         if (hasMinExp && selectedCandidates.length > 1) {
           const finalApp: Record<number, number> = {};
           for (const c of selectedCandidates) for (const p of c.lineup) finalApp[p.id] = (finalApp[p.id] || 0) + 1;
           const selectedPids = new Set(Object.keys(finalApp).map(Number));
+          for (const pid of Object.keys(simRegenOverrideExposure).map(Number)) selectedPids.add(pid);
           const underExposed: { id: number; needed: number }[] = [];
           for (const pid of selectedPids) {
-            const pMin = minExposureLimits?.[pid.toString()];
+            const pMin = minExposureLimits?.[pid.toString()] ?? simRegenOverrideExposure[pid.toString()]?.min;
             const effMin = typeof pMin === "number" ? pMin : (typeof globalMinExposure === "number" && (finalApp[pid] || 0) > 0 ? globalMinExposure : undefined);
             if (effMin !== undefined && effMin > 0) {
               const needed = Math.ceil((effMin / 100) * selectedCandidates.length);
@@ -3390,6 +3420,18 @@ export async function registerRoutes(
       constraints.lockedPlayerIds = [...new Set([...constraints.lockedPlayerIds, ...proOverrideLocked])];
       constraints.excludedPlayerIds = [...new Set([...constraints.excludedPlayerIds, ...proOverrideExcluded])];
 
+      for (const o of proUserOverrides) {
+        const pid = o.playerId.toString();
+        if (o.maxExposure != null && !constraints.exposureLimits?.[pid]) {
+          if (!constraints.exposureLimits) constraints.exposureLimits = {};
+          constraints.exposureLimits[pid] = o.maxExposure;
+        }
+        if (o.minExposure != null && !constraints.minExposureLimits?.[pid]) {
+          if (!constraints.minExposureLimits) constraints.minExposureLimits = {};
+          constraints.minExposureLimits[pid] = o.minExposure;
+        }
+      }
+
       const proScoutMap = buildScoutMap(slate.sport);
 
       let pool = allPlayers.map(p => {
@@ -3709,9 +3751,24 @@ export async function registerRoutes(
       const useLeverageMode = input.leverageMode === true;
       const useOutperformerMode = input.outperformerMode === true;
 
-      let pool = allPlayers.map(p => {
-        let boostedPoints = Number(p.projectedPoints);
+      const simUserOverrides = await storage.getPlayerOverrides(userId, input.slateId);
+      const simUserOverrideMap = new Map(simUserOverrides.map(o => [o.playerId, o]));
+      const simOverrideExposure: Record<string, { min?: number; max?: number }> = {};
+      for (const o of simUserOverrides) {
+        if (o.isExcluded) input.excludedPlayerIds.push(o.playerId);
+        if (o.isLocked && !input.lockedPlayerIds.includes(o.playerId)) input.lockedPlayerIds.push(o.playerId);
+        if (o.minExposure != null || o.maxExposure != null) {
+          simOverrideExposure[o.playerId.toString()] = { min: o.minExposure ?? undefined, max: o.maxExposure ?? undefined };
+        }
+      }
 
+      let pool = allPlayers.map(p => {
+        const override = simUserOverrideMap.get(p.id);
+        let boostedPoints = override?.customProjection != null ? Number(override.customProjection) : Number(p.projectedPoints);
+
+        if (override?.boostPercent && override.boostPercent > 0) {
+          boostedPoints = Math.round(boostedPoints * (1 + override.boostPercent / 100) * 10) / 10;
+        }
         if (p.isConfirmedStarter) {
           boostedPoints = Math.round(boostedPoints * 1.05 * 10) / 10;
         }
@@ -3719,7 +3776,7 @@ export async function registerRoutes(
           const boostPct = Math.max(-0.15, Math.min(0.15, Number(p.boostScore) * 0.015));
           boostedPoints = Math.round(boostedPoints * (1 + boostPct) * 10) / 10;
         }
-        boostedPoints = applyScoutToProjection(boostedPoints, p.name, proScoutMap, false);
+        boostedPoints = applyScoutToProjection(boostedPoints, p.name, proScoutMap, override?.customProjection != null);
 
         if (isPlayerOut(p.injuryStatus)) {
           boostedPoints = 0;
@@ -4015,11 +4072,13 @@ export async function registerRoutes(
         if (selected.length >= targetCount) break;
 
         let violatesExposure = false;
-        if (input.globalMaxExposure !== undefined && selected.length > 0) {
+        if (selected.length > 0) {
           for (const p of lu.lineup) {
             const appearances = (playerAppearances[p.id] || 0) + 1;
             const pct = (appearances / targetCount) * 100;
-            if (pct > input.globalMaxExposure) { violatesExposure = true; break; }
+            const playerMaxExp = simOverrideExposure[p.id.toString()]?.max;
+            const effectiveMax = playerMaxExp ?? input.globalMaxExposure;
+            if (effectiveMax !== undefined && pct > effectiveMax) { violatesExposure = true; break; }
           }
         }
         if (violatesExposure) continue;
@@ -4037,7 +4096,7 @@ export async function registerRoutes(
         }
       }
 
-      const hasMinExposure = (input.globalMinExposure !== undefined) || (input.minExposureLimits && Object.keys(input.minExposureLimits).length > 0);
+      const hasMinExposure = (input.globalMinExposure !== undefined) || (input.minExposureLimits && Object.keys(input.minExposureLimits).length > 0) || Object.values(simOverrideExposure).some(v => v.min != null && v.min > 0);
       if (hasMinExposure && selected.length > 1) {
         const finalAppearances: Record<number, number> = {};
         for (const lu of selected) {
@@ -4047,8 +4106,9 @@ export async function registerRoutes(
         }
         const underExposedIds: { id: number; needed: number }[] = [];
         const selectedPlayerIds = new Set(Object.keys(finalAppearances).map(Number));
+        for (const pid of Object.keys(simOverrideExposure).map(Number)) selectedPlayerIds.add(pid);
         for (const pid of selectedPlayerIds) {
-          const playerMin = input.minExposureLimits?.[pid.toString()];
+          const playerMin = input.minExposureLimits?.[pid.toString()] ?? simOverrideExposure[pid.toString()]?.min;
           const effectiveMin = playerMin ?? (input.globalMinExposure !== undefined && (finalAppearances[pid] || 0) > 0 ? input.globalMinExposure : undefined);
           if (effectiveMin !== undefined && effectiveMin > 0) {
             const needed = Math.ceil((effectiveMin / 100) * selected.length);

@@ -260,6 +260,8 @@ export const playerOverrides = pgTable("player_overrides", {
   boostPercent: integer("boost_percent").notNull().default(0),
   isExcluded: boolean("is_excluded").notNull().default(false),
   isLocked: boolean("is_locked").notNull().default(false),
+  minExposure: integer("min_exposure"),
+  maxExposure: integer("max_exposure"),
   notes: text("notes"),
   // Note: kept current via the player_overrides_updated_at trigger. See migration note.
   updatedAt: timestamp("updated_at").defaultNow(),
