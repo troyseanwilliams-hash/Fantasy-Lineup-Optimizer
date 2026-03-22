@@ -1623,6 +1623,15 @@ export async function registerRoutes(
           return locks;
         }
 
+        const baselineResult = solveLineup(
+          lpPool,
+          { slateId, lockedPlayerIds: [...simRegenLocked], excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
+          slate.sport, platform
+        );
+        const baselineTotal = baselineResult.totalProjectedPoints || 0;
+        const autoFloor = baselineTotal > 0 ? Math.round(baselineTotal * 0.85 * 10) / 10 : 0;
+        console.log(`[SimRegen] Baseline optimal: ${baselineTotal.toFixed(1)} pts, auto floor: ${autoFloor}`);
+
         const CALIBRATION_BATCH = 10;
         const calibrationSims = runSimulations(pool, slate.sport, CALIBRATION_BATCH, dvpAdjusted, vegasContext ?? undefined);
 
@@ -1631,8 +1640,10 @@ export async function registerRoutes(
           const sim = calibrationSims[i];
           const simPool = lpPool.map(p => {
             const simProj = sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0;
-            const noise = simProj * (Math.random() * 0.06 - 0.03);
-            return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
+            const baseProj = Number(p.projectedPoints) ?? 0;
+            const blended = simProj * 0.7 + baseProj * 0.3;
+            const noise = blended * (Math.random() * 0.06 - 0.03);
+            return { ...p, projectedPoints: Math.max(0, blended + noise).toString() };
           });
           const simLocks = getSimLocks(i, 200);
           const result = solveLineup(
@@ -1656,8 +1667,10 @@ export async function registerRoutes(
             const sim = calibrationSims[i];
             const simPool = lpPool.map(p => {
               const simProj = sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0;
-              const noise = simProj * (Math.random() * 0.06 - 0.03);
-              return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
+              const baseProj = Number(p.projectedPoints) ?? 0;
+              const blended = simProj * 0.7 + baseProj * 0.3;
+              const noise = blended * (Math.random() * 0.06 - 0.03);
+              return { ...p, projectedPoints: Math.max(0, blended + noise).toString() };
             });
             const fbLocks = getSimLocks(i, 200);
             const result = solveLineup(simPool, { slateId, lockedPlayerIds: fbLocks, excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints, slate.sport, platform);
@@ -1690,8 +1703,10 @@ export async function registerRoutes(
           const sim = allSims[i];
           const simPool = lpPool.map(p => {
             const simProj = sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0;
-            const noise = simProj * (Math.random() * 0.06 - 0.03);
-            return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
+            const baseProj = Number(p.projectedPoints) ?? 0;
+            const blended = simProj * 0.7 + baseProj * 0.3;
+            const noise = blended * (Math.random() * 0.06 - 0.03);
+            return { ...p, projectedPoints: Math.max(0, blended + noise).toString() };
           });
           const mainLocks = getSimLocks(i, totalTargetSims);
           const result = solveLineup(
@@ -1754,19 +1769,20 @@ export async function registerRoutes(
           };
         });
 
-        if (simProjFloor) {
-          const origMapForFloor = new Map(allPlayers.map(op => [op.id, op]));
+        const effectiveFloor = simProjFloor ? Math.max(simProjFloor, autoFloor) : autoFloor;
+        if (effectiveFloor > 0) {
+          const boostedFloorMap = new Map(pool.map(bp => [bp.id, bp]));
           const beforeCount = scoredCandidates.length;
           const filtered = scoredCandidates.filter(c => {
-            const totalOrigPts = c.lineup.reduce((sum, p) => sum + Number(origMapForFloor.get(p.id)?.projectedPoints ?? p.projectedPoints ?? 0), 0);
-            return totalOrigPts >= simProjFloor;
+            const totalBoostedPts = c.lineup.reduce((sum, p) => sum + Number(boostedFloorMap.get(p.id)?.projectedPoints ?? p.projectedPoints ?? 0), 0);
+            return totalBoostedPts >= effectiveFloor;
           });
-          if (filtered.length > 0) {
+          if (filtered.length >= Math.min(lineupIds.length, 3)) {
             scoredCandidates.length = 0;
             scoredCandidates.push(...filtered);
           }
           if (beforeCount !== scoredCandidates.length) {
-            console.log(`[SimRegen] ProjFloor ${simProjFloor}: filtered ${beforeCount} -> ${scoredCandidates.length} candidates`);
+            console.log(`[SimRegen] ProjFloor ${effectiveFloor.toFixed(1)} (auto=${autoFloor}): filtered ${beforeCount} -> ${scoredCandidates.length} candidates`);
           }
         }
 
