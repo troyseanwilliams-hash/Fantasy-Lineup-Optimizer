@@ -442,6 +442,7 @@ export default function PlayerConfig() {
                             </div>
                           </th>
                         ))}
+                        <th className="px-3 py-3 text-left text-xs font-bold text-cyan-400 uppercase hidden lg:table-cell">Avg</th>
                         <th className="px-3 py-3 text-center text-xs font-bold text-slate-400 uppercase">Boost</th>
                         <th className="px-3 py-3 text-center text-xs font-bold text-slate-400 uppercase">Custom Proj</th>
                         <th className="px-3 py-3 text-center text-xs font-bold text-slate-400 uppercase">Status</th>
@@ -499,6 +500,16 @@ export default function PlayerConfig() {
                               </div>
                             </td>
                             <td className="px-3 py-2.5 text-blue-400 text-xs font-mono font-bold">{player.value.toFixed(1)}x</td>
+                            <td className="px-3 py-2.5 hidden lg:table-cell">
+                              {(player as any).recentActualAvg != null ? (
+                                <div className="flex flex-col">
+                                  <span className="font-mono text-xs font-bold text-cyan-400" data-testid={`config-actual-avg-${player.id}`}>{(player as any).recentActualAvg}</span>
+                                  <span className="text-[9px] text-slate-500">{(player as any).gamesTracked}g</span>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-slate-600">—</span>
+                              )}
+                            </td>
                             <td className="px-3 py-2.5 text-center">
                               <button
                                 onClick={() => handleCycleBoost(player)}
@@ -661,6 +672,9 @@ export default function PlayerConfig() {
                               <span className="font-mono text-white font-bold">${player.salary?.toLocaleString()}</span>
                               <span className="font-mono text-slate-400">FPPG {player.fppg}</span>
                               <span className="font-mono text-emerald-400 font-bold">{Number(player.projectedPoints).toFixed(1)} pts</span>
+                              {(player as any).recentActualAvg != null && (
+                                <span className="font-mono text-cyan-400 font-bold">{(player as any).recentActualAvg}<span className="text-slate-500">/{(player as any).gamesTracked}g</span></span>
+                              )}
                               <span className="font-mono text-blue-400 font-bold">{player.value.toFixed(1)}x</span>
                             </div>
                             {(override?.customProjection != null || boostPct > 0) && (

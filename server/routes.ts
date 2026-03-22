@@ -284,6 +284,35 @@ export async function registerRoutes(
     const bdlStats = slate ? await fetchBDLStats(slate.sport) : {};
     const ownershipResults = slate ? await calculateOwnership(players, slate.sport, "gpp_large", bdlStats) : [];
     const playersWithOwnership = computeOwnershipForPlayers(players, ownershipResults);
+
+    const playerNames = playersWithOwnership.map((p: any) => p.name).filter(Boolean);
+    if (playerNames.length > 0) {
+      try {
+        const historyRows = await storage.getRecentPlayerHistory(playerNames);
+        const actualMap = new Map<string, { actualPoints: number; gamesTracked: number }>();
+        for (const h of historyRows) {
+          const existing = actualMap.get(h.playerName);
+          if (!existing) {
+            actualMap.set(h.playerName, { actualPoints: Number(h.actualPoints), gamesTracked: 1 });
+          } else if (existing.gamesTracked < 5) {
+            actualMap.set(h.playerName, {
+              actualPoints: (existing.actualPoints * existing.gamesTracked + Number(h.actualPoints)) / (existing.gamesTracked + 1),
+              gamesTracked: existing.gamesTracked + 1,
+            });
+          }
+        }
+        for (const p of playersWithOwnership) {
+          const actual = actualMap.get((p as any).name);
+          if (actual) {
+            (p as any).recentActualAvg = Math.round(actual.actualPoints * 10) / 10;
+            (p as any).gamesTracked = actual.gamesTracked;
+          }
+        }
+      } catch (err) {
+        console.error("[Players] history enrichment error:", err);
+      }
+    }
+
     res.json(playersWithOwnership);
   });
   

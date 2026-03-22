@@ -914,6 +914,7 @@ export default function Optimizer() {
                 <SortHeader label="Opp" field="team" className="hidden lg:table-cell" />
                 <SortHeader label="Salary" field="salary" />
                 <SortHeader label="FPPG" field="fppg" />
+                <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-cyan-400 hidden lg:table-cell">Avg</th>
                 <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400">My Proj</th>
                 <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-amber-400 text-center">
                   <div className="flex items-center justify-center gap-1">
@@ -1027,6 +1028,16 @@ export default function Optimizer() {
                       )}
                     </td>
                     <td className="px-3 py-2 font-mono text-xs text-slate-400">{player.fppg}</td>
+                    <td className="px-3 py-2 hidden lg:table-cell">
+                      {(player as any).recentActualAvg != null ? (
+                        <div className="flex flex-col items-end">
+                          <span className="font-mono text-xs font-bold text-cyan-400" data-testid={`actual-avg-${player.id}`}>{(player as any).recentActualAvg}</span>
+                          <span className="text-[9px] text-slate-500">{(player as any).gamesTracked}g</span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-slate-600">—</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2">
                       <div className="flex flex-col items-end gap-0.5">
                         <Input
@@ -1199,6 +1210,9 @@ export default function Optimizer() {
                   <span className="text-[11px] font-mono font-bold text-white">{platform === "yahoo" ? `$${player.salary}` : `$${player.salary.toLocaleString()}`}</span>
                   <span className={`text-[11px] font-mono font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>{Number(player.projectedPoints).toFixed(1)}</span>
                   <span className="text-[10px] font-mono text-slate-500">{player.fppg}</span>
+                  {(player as any).recentActualAvg != null && (
+                    <span className="text-[10px] font-mono font-bold text-cyan-400" data-testid={`mobile-actual-avg-${player.id}`}>{(player as any).recentActualAvg}<span className="text-slate-500">/{(player as any).gamesTracked}g</span></span>
+                  )}
                   <span className="text-[10px] font-mono font-bold text-blue-400 ml-auto">{player.value.toFixed(1)}x</span>
                 </div>
               </div>
