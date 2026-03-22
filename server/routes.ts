@@ -409,7 +409,6 @@ export async function registerRoutes(
     boostPercent: z.number().int().refine(v => [0, 5, 10, 15, 20].includes(v), { message: "Boost must be 0, 5, 10, 15, or 20" }).default(0),
     isExcluded: z.boolean().default(false),
     isLocked: z.boolean().default(false),
-    minExposure: z.number().int().min(0).max(100).nullable().optional(),
     maxExposure: z.number().int().min(0).max(100).nullable().optional(),
     notes: z.string().max(200).nullable().optional(),
     dkPlayerId: z.number().int().positive().optional(),
@@ -429,10 +428,7 @@ export async function registerRoutes(
     if (isNaN(slateId) || isNaN(playerId)) return res.status(400).json({ message: "Invalid IDs" });
     const parsed = playerOverrideBodySchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid request body", errors: parsed.error.flatten() });
-    const { customProjection, boostPercent, isExcluded, isLocked, minExposure, maxExposure, notes, dkPlayerId } = parsed.data;
-    if (minExposure != null && maxExposure != null && minExposure > maxExposure) {
-      return res.status(400).json({ message: "Min exposure cannot exceed max exposure" });
-    }
+    const { customProjection, boostPercent, isExcluded, isLocked, maxExposure, notes, dkPlayerId } = parsed.data;
     if (dkPlayerId) {
       const slatePlayers = await storage.getPlayersBySlate(slateId);
       const current = slatePlayers.find(p => p.draftKingsPlayerId === dkPlayerId);
@@ -446,7 +442,7 @@ export async function registerRoutes(
       boostPercent: boostPercent || 0,
       isExcluded: isExcluded || false,
       isLocked: isLocked || false,
-      minExposure: minExposure ?? null,
+      minExposure: null,
       maxExposure: maxExposure ?? null,
       notes: notes || null,
     });
@@ -1046,7 +1042,7 @@ export async function registerRoutes(
     const playerAppearances: Record<number, number> = {};
     const totalCount = ids.length;
     const globalMaxExposure = typeof req.body.globalMaxExposure === "number" ? req.body.globalMaxExposure : 80;
-    const globalMinExposureBulk = typeof req.body.globalMinExposure === "number" ? req.body.globalMinExposure : undefined;
+    
     const projFloor = typeof req.body.projFloor === "number" && req.body.projFloor > 0 ? req.body.projFloor : null;
     const minSalary = typeof req.body.minSalary === "number" ? req.body.minSalary : undefined;
     const maxSalary = typeof req.body.maxSalary === "number" ? req.body.maxSalary : undefined;
@@ -1160,10 +1156,10 @@ export async function registerRoutes(
         const eligibleCount = pool.filter(p => Number(p.projectedPoints) > 0).length;
         console.log(`[BulkGenerate] ${slate.sport} slate ${slate.id}: ${allPlayers.length} total, ${baseExcluded.length} excluded, ${eligibleCount} eligible with proj > 0, minSal=${minSalary ?? 'none'}, maxSal=${maxSalary ?? 'none'}`);
 
-        const bulkOverrideExposure: Record<string, { min?: number; max?: number }> = {};
+        const bulkOverrideExposure: Record<string, { max?: number }> = {};
         for (const o of bulkOverrides) {
-          if (o.minExposure != null || o.maxExposure != null) {
-            bulkOverrideExposure[o.playerId.toString()] = { min: o.minExposure ?? undefined, max: o.maxExposure ?? undefined };
+          if (o.maxExposure != null) {
+            bulkOverrideExposure[o.playerId.toString()] = { max: o.maxExposure ?? undefined };
           }
         }
 
@@ -1197,25 +1193,8 @@ export async function registerRoutes(
           }
         }
 
-        const bulkMinLocks: number[] = [];
-        const hasAnyMin = (globalMinExposureBulk && globalMinExposureBulk > 0) || Object.values(overrideExposure).some(v => v.min != null && v.min > 0);
-        if (hasAnyMin && iteration > 0) {
-          for (const p of pool) {
-            if (iterationExcluded.includes(p.id)) continue;
-            if (lockedOverrideIds.includes(p.id)) continue;
-            const appearances = playerAppearances[p.id] || 0;
-            const playerMinExp = overrideExposure[p.id.toString()]?.min;
-            const effectiveMin = playerMinExp ?? (globalMinExposureBulk && appearances > 0 ? globalMinExposureBulk : undefined);
-            if (effectiveMin === undefined || effectiveMin <= 0) continue;
-            const remaining = totalCount - iteration;
-            const neededApp = Math.ceil((effectiveMin / 100) * totalCount);
-            if (appearances < neededApp && (appearances + remaining) <= neededApp) {
-              bulkMinLocks.push(p.id);
-            }
-          }
-        }
 
-        const lockedSet = new Set([...lockedOverrideIds, ...bulkMinLocks]);
+        const lockedSet = new Set([...lockedOverrideIds]);
         const salaryFilteredPool = (minSalary || maxSalary)
           ? perturbedPool.filter(p => {
               if (lockedSet.has(p.id)) return true;
@@ -1397,7 +1376,7 @@ export async function registerRoutes(
   app.post("/api/lineups/sim-regenerate", async (req, res) => {
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const userId = getSessionUserId(req)!;
-    const { ids, sortBy, useBoosts, ceilingMode, leverageMode, outperformerMode, contestType: rawContestType, globalMaxExposure, globalMinExposure, minExposureLimits, projFloor, minSalary, maxSalary, slateId: bodySlateId } = req.body;
+    const { ids, sortBy, useBoosts, ceilingMode, leverageMode, outperformerMode, contestType: rawContestType, globalMaxExposure, projFloor, minSalary, maxSalary, slateId: bodySlateId } = req.body;
     const simContestType = rawContestType === "gpp" ? "gpp" : "cash";
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "No lineup IDs provided" });
     const overrideSlateId = typeof bodySlateId === "number" ? bodySlateId : null;
@@ -1418,7 +1397,7 @@ export async function registerRoutes(
     const LP_BUDGET_MS = 20000;
     const MAX_RUNTIME_MS = 35000;
 
-    console.log(`[SimRegen] Starting: ${ids.length} lineups, max ${tierSims} sims (tier=${tier}), sortBy=${sortKey}, contest=${simContestType}, boosts=${useBoosts}, ceiling=${ceilingMode}, leverage=${leverageMode}, opm=${outperformerMode}, maxExp=${globalMaxExposure}, minExp=${globalMinExposure}, projFloor=${projFloor}, minSal=${minSalary}, maxSal=${maxSalary}, overrideSlate=${overrideSlateId}`);
+    console.log(`[SimRegen] Starting: ${ids.length} lineups, max ${tierSims} sims (tier=${tier}), sortBy=${sortKey}, contest=${simContestType}, boosts=${useBoosts}, ceiling=${ceilingMode}, leverage=${leverageMode}, opm=${outperformerMode}, maxExp=${globalMaxExposure}, projFloor=${projFloor}, minSal=${minSalary}, maxSal=${maxSalary}, overrideSlate=${overrideSlateId}`);
 
     try {
       const slateGroups = new Map<number, number[]>();
@@ -1477,10 +1456,10 @@ export async function registerRoutes(
         const simRegenExcluded = new Set(simRegenOverrides.filter(o => o.isExcluded).map(o => o.playerId));
         const simRegenLocked = new Set(simRegenOverrides.filter(o => o.isLocked).map(o => o.playerId));
 
-        const simRegenOverrideExposure: Record<string, { min?: number; max?: number }> = {};
+        const simRegenOverrideExposure: Record<string, { max?: number }> = {};
         for (const o of simRegenOverrides) {
-          if (o.minExposure != null || o.maxExposure != null) {
-            simRegenOverrideExposure[o.playerId.toString()] = { min: o.minExposure ?? undefined, max: o.maxExposure ?? undefined };
+          if (o.maxExposure != null) {
+            simRegenOverrideExposure[o.playerId.toString()] = { max: o.maxExposure ?? undefined };
           }
         }
 
@@ -1584,23 +1563,8 @@ export async function registerRoutes(
             positionGroups.set(pos, group);
           }
         }
-        const minExpPlayers: { id: number; pct: number }[] = [];
-        for (const [pid, exp] of Object.entries(simRegenOverrideExposure)) {
-          if (exp.min && exp.min > 0) {
-            minExpPlayers.push({ id: Number(pid), pct: exp.min });
-          }
-        }
-        if (minExposureLimits) {
-          for (const [pid, pct] of Object.entries(minExposureLimits)) {
-            if (typeof pct === "number" && pct > 0 && !minExpPlayers.find(p => p.id === Number(pid))) {
-              minExpPlayers.push({ id: Number(pid), pct });
-            }
-          }
-        }
-
         const keepIds = new Set<number>();
         for (const p of pool) { if (simRegenLocked.has(p.id)) keepIds.add(p.id); }
-        for (const mp of minExpPlayers) keepIds.add(mp.id);
         const topPerPos = slate.sport === "GOLF" ? 50 : 20;
         const cheapReserve = 5;
         for (const [, players] of positionGroups) {
@@ -1611,17 +1575,6 @@ export async function registerRoutes(
         }
         let lpPool = pool.filter(p => keepIds.has(p.id));
         console.log(`[SimRegen] Pool trimmed: ${pool.length} → ${lpPool.length} players for LP solving`);
-
-        function getSimLocks(simIndex: number, totalSims: number): number[] {
-          const locks = [...simRegenLocked];
-          for (const mp of minExpPlayers) {
-            const neededSims = Math.ceil((mp.pct / 100) * totalSims);
-            if (simIndex < neededSims) {
-              if (!locks.includes(mp.id)) locks.push(mp.id);
-            }
-          }
-          return locks;
-        }
 
         const baselineResult = solveLineup(
           lpPool,
@@ -1645,10 +1598,9 @@ export async function registerRoutes(
             const noise = blended * (Math.random() * 0.06 - 0.03);
             return { ...p, projectedPoints: Math.max(0, blended + noise).toString() };
           });
-          const simLocks = getSimLocks(i, 200);
           const result = solveLineup(
             simPool,
-            { slateId, lockedPlayerIds: simLocks, excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
+            { slateId, lockedPlayerIds: [...simRegenLocked], excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
             slate.sport, platform
           );
           if (result.error || result.lineup.length === 0) continue;
@@ -1672,8 +1624,7 @@ export async function registerRoutes(
               const noise = blended * (Math.random() * 0.06 - 0.03);
               return { ...p, projectedPoints: Math.max(0, blended + noise).toString() };
             });
-            const fbLocks = getSimLocks(i, 200);
-            const result = solveLineup(simPool, { slateId, lockedPlayerIds: fbLocks, excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints, slate.sport, platform);
+            const result = solveLineup(simPool, { slateId, lockedPlayerIds: [...simRegenLocked], excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints, slate.sport, platform);
             if (result.error || result.lineup.length === 0) continue;
             const key = result.lineup.map((p: Player) => p.id).sort().join(",");
             const existing = lineupMap.get(key);
@@ -1688,9 +1639,6 @@ export async function registerRoutes(
 
         const remainingSims = runSimulations(pool, slate.sport, adaptiveSims, dvpAdjusted, vegasContext ?? undefined);
         const allSims = [...calibrationSims, ...remainingSims];
-        if (minExpPlayers.length > 0) {
-          console.log(`[SimRegen] Min exposure locks: ${minExpPlayers.map(p => `${p.id}@${p.pct}%`).join(", ")}`);
-        }
         console.log(`[SimRegen] ${slate.sport} slate ${slateId}: lpPool=${lpPool.length}, ${msPerSolve.toFixed(0)}ms/solve, adaptive=${totalTargetSims} sims (tier max ${tierSims})`);
         totalSimsRun += totalTargetSims;
 
@@ -1708,10 +1656,9 @@ export async function registerRoutes(
             const noise = blended * (Math.random() * 0.06 - 0.03);
             return { ...p, projectedPoints: Math.max(0, blended + noise).toString() };
           });
-          const mainLocks = getSimLocks(i, totalTargetSims);
           const result = solveLineup(
             simPool,
-            { slateId, lockedPlayerIds: mainLocks, excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
+            { slateId, lockedPlayerIds: [...simRegenLocked], excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
             slate.sport, platform
           );
           actualSimsSolved++;
@@ -1828,47 +1775,6 @@ export async function registerRoutes(
             if (selectedCandidates.length >= targetCount) break;
             if (!selectedCandidates.find(s => s.key === candidate.key)) {
               selectedCandidates.push(candidate);
-            }
-          }
-        }
-
-        const hasMinExp = (globalMinExposure !== undefined && globalMinExposure !== null) || (minExposureLimits && Object.keys(minExposureLimits).length > 0) || Object.values(simRegenOverrideExposure).some(v => v.min != null && v.min > 0);
-        if (hasMinExp && selectedCandidates.length > 1) {
-          const finalApp: Record<number, number> = {};
-          for (const c of selectedCandidates) for (const p of c.lineup) finalApp[p.id] = (finalApp[p.id] || 0) + 1;
-          const selectedPids = new Set(Object.keys(finalApp).map(Number));
-          for (const pid of Object.keys(simRegenOverrideExposure).map(Number)) selectedPids.add(pid);
-          const underExposed: { id: number; needed: number }[] = [];
-          for (const pid of selectedPids) {
-            const pMin = minExposureLimits?.[pid.toString()] ?? simRegenOverrideExposure[pid.toString()]?.min;
-            const effMin = typeof pMin === "number" ? pMin : (typeof globalMinExposure === "number" && (finalApp[pid] || 0) > 0 ? globalMinExposure : undefined);
-            if (effMin !== undefined && effMin > 0) {
-              const needed = Math.ceil((effMin / 100) * selectedCandidates.length);
-              if ((finalApp[pid] || 0) < needed) {
-                underExposed.push({ id: pid, needed: needed - (finalApp[pid] || 0) });
-              }
-            }
-          }
-          const sortKey2 = { composite: "compositeScore", p90: "p90Score", p75: "p75Score", median: "medianScore", avg: "avgSimScore" }[sortBy || "composite"] || "compositeScore";
-          underExposed.sort((a, b) => b.needed - a.needed);
-          for (const { id: uid, needed: n } of underExposed.slice(0, 10)) {
-            let rem = n;
-            const replacements = scoredCandidates.filter(c =>
-              !selectedCandidates.find(s => s.key === c.key) && c.lineup.some(p => p.id === uid)
-            );
-            for (const rep of replacements) {
-              if (rem <= 0) break;
-              const worstIdx = selectedCandidates.reduce((w, s, i) => {
-                if (s.lineup.some(p => p.id === uid)) return w;
-                if (w === -1) return i;
-                return ((s as any)[sortKey2] ?? 0) < ((selectedCandidates[w] as any)[sortKey2] ?? 0) ? i : w;
-              }, -1);
-              if (worstIdx === -1) break;
-              const old = selectedCandidates[worstIdx];
-              for (const p of old.lineup) finalApp[p.id] = (finalApp[p.id] || 0) - 1;
-              selectedCandidates[worstIdx] = rep;
-              for (const p of rep.lineup) finalApp[p.id] = (finalApp[p.id] || 0) + 1;
-              rem--;
             }
           }
         }
@@ -3474,10 +3380,6 @@ export async function registerRoutes(
           if (!constraints.exposureLimits) constraints.exposureLimits = {};
           constraints.exposureLimits[pid] = o.maxExposure;
         }
-        if (o.minExposure != null && !constraints.minExposureLimits?.[pid]) {
-          if (!constraints.minExposureLimits) constraints.minExposureLimits = {};
-          constraints.minExposureLimits[pid] = o.minExposure;
-        }
       }
 
       const proScoutMap = buildScoutMap(slate.sport);
@@ -3627,23 +3529,6 @@ export async function registerRoutes(
           }
         }
 
-        const minExposureLocks: number[] = [];
-        if (lineupResults.length > 0) {
-          for (const p of pool) {
-            if (iterationExcluded.includes(p.id)) continue;
-            if (constraints.lockedPlayerIds.includes(p.id)) continue;
-            const playerMinLimit = constraints.minExposureLimits?.[p.id.toString()];
-            const appearances = playerAppearances[p.id] || 0;
-            const effectiveMin = playerMinLimit ?? (constraints.globalMinExposure !== undefined && appearances > 0 ? constraints.globalMinExposure : undefined);
-            if (effectiveMin === undefined || effectiveMin <= 0) continue;
-            const remaining = constraints.lineupCount - lineupResults.length;
-            const neededAppearances = Math.ceil((effectiveMin / 100) * constraints.lineupCount);
-            if (appearances < neededAppearances && (appearances + remaining) <= neededAppearances) {
-              minExposureLocks.push(p.id);
-            }
-          }
-        }
-
         if (iteration > 0 && lineupResults.length > 0) {
           const prevLineup = lineupResults[lineupResults.length - 1];
           const prevPlayers = (prevLineup.lineup || []) as Player[];
@@ -3664,8 +3549,7 @@ export async function registerRoutes(
           }
         }
 
-        const combinedLocks = [...new Set([...constraints.lockedPlayerIds, ...minExposureLocks])];
-        const modConstraints = { ...constraints, excludedPlayerIds: iterationExcluded, lockedPlayerIds: combinedLocks };
+        const modConstraints = { ...constraints, excludedPlayerIds: iterationExcluded };
         const solveStart = Date.now();
         const result = solveLineup(perturbedPool, modConstraints, slate.sport, platform);
         console.log(`[ProOptimizer] Solve attempt ${attempts} took ${Date.now() - solveStart}ms, feasible: ${!result.error}`);
@@ -3737,8 +3621,6 @@ export async function registerRoutes(
     lineupCount:          z.number().min(1).max(2000).default(20),
     numSims:              z.number().min(50).max(1000).default(200),
     globalMaxExposure:    z.number().min(1).max(100).optional(),
-    globalMinExposure:    z.number().min(1).max(100).optional(),
-    minExposureLimits:    z.record(z.string(), z.number()).optional(),
     enforceGameStack:     z.boolean().default(false),
     minStackSize:         z.number().min(2).max(5).default(2),
     stackGameKey:         z.string().optional(),
@@ -3805,8 +3687,8 @@ export async function registerRoutes(
       for (const o of simUserOverrides) {
         if (o.isExcluded) input.excludedPlayerIds.push(o.playerId);
         if (o.isLocked && !input.lockedPlayerIds.includes(o.playerId)) input.lockedPlayerIds.push(o.playerId);
-        if (o.minExposure != null || o.maxExposure != null) {
-          simOverrideExposure[o.playerId.toString()] = { min: o.minExposure ?? undefined, max: o.maxExposure ?? undefined };
+        if (o.maxExposure != null) {
+          simOverrideExposure[o.playerId.toString()] = { max: o.maxExposure ?? undefined };
         }
       }
 
@@ -4141,50 +4023,6 @@ export async function registerRoutes(
         for (const lu of uniqueLineups) {
           if (selected.length >= targetCount) break;
           if (!selected.find(s => s.key === lu.key)) selected.push(lu);
-        }
-      }
-
-      const hasMinExposure = (input.globalMinExposure !== undefined) || (input.minExposureLimits && Object.keys(input.minExposureLimits).length > 0) || Object.values(simOverrideExposure).some(v => v.min != null && v.min > 0);
-      if (hasMinExposure && selected.length > 1) {
-        const finalAppearances: Record<number, number> = {};
-        for (const lu of selected) {
-          for (const p of lu.lineup) {
-            finalAppearances[p.id] = (finalAppearances[p.id] || 0) + 1;
-          }
-        }
-        const underExposedIds: { id: number; needed: number }[] = [];
-        const selectedPlayerIds = new Set(Object.keys(finalAppearances).map(Number));
-        for (const pid of Object.keys(simOverrideExposure).map(Number)) selectedPlayerIds.add(pid);
-        for (const pid of selectedPlayerIds) {
-          const playerMin = input.minExposureLimits?.[pid.toString()] ?? simOverrideExposure[pid.toString()]?.min;
-          const effectiveMin = playerMin ?? (input.globalMinExposure !== undefined && (finalAppearances[pid] || 0) > 0 ? input.globalMinExposure : undefined);
-          if (effectiveMin !== undefined && effectiveMin > 0) {
-            const needed = Math.ceil((effectiveMin / 100) * selected.length);
-            if ((finalAppearances[pid] || 0) < needed) {
-              underExposedIds.push({ id: pid, needed: needed - (finalAppearances[pid] || 0) });
-            }
-          }
-        }
-        underExposedIds.sort((a, b) => b.needed - a.needed);
-        for (const { id: underId, needed } of underExposedIds.slice(0, 10)) {
-          let swapsNeeded = needed;
-          const candidatesWithPlayer = uniqueLineups.filter(c =>
-            !selected.find(s => s.key === c.key) && c.lineup.some(p => p.id === underId)
-          );
-          for (const replacement of candidatesWithPlayer) {
-            if (swapsNeeded <= 0) break;
-            const worstIdx = selected.reduce((worst, s, idx) => {
-              if (s.lineup.some(p => p.id === underId)) return worst;
-              if (worst === -1) return idx;
-              return (s[metricKey] as number) < (selected[worst][metricKey] as number) ? idx : worst;
-            }, -1);
-            if (worstIdx === -1) break;
-            const removed = selected[worstIdx];
-            for (const p of removed.lineup) finalAppearances[p.id] = (finalAppearances[p.id] || 0) - 1;
-            selected[worstIdx] = replacement;
-            for (const p of replacement.lineup) finalAppearances[p.id] = (finalAppearances[p.id] || 0) + 1;
-            swapsNeeded--;
-          }
         }
       }
 

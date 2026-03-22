@@ -141,7 +141,6 @@ export default function SavedLineups() {
   const [showRegenSettings, setShowRegenSettings] = useState(false);
   const [showExposure, setShowExposure] = useState(true);
   const [regenMaxExposure, setRegenMaxExposure] = useState<number | null>(null);
-  const [regenMinExposure, setRegenMinExposure] = useState<number | null>(null);
   const [regenProjFloor, setRegenProjFloor] = useState<number | null>(null);
   const [regenMinSalary, setRegenMinSalary] = useState<number | null>(null);
   const [regenMaxSalary, setRegenMaxSalary] = useState<number | null>(null);

@@ -110,9 +110,7 @@ export default function ProOptimizer() {
   const setUseBoosts = (val: boolean) => setUseBoostsUserOverride(val);
   const [fadedIds, setFadedIds] = useState<number[]>([]);
   const [exposureLimits, setExposureLimits] = useState<Record<string, number>>({});
-  const [minExposureLimits, setMinExposureLimits] = useState<Record<string, number>>({});
   const [globalMaxExposure, setGlobalMaxExposure] = useState<number | null>(null);
-  const [globalMinExposure, setGlobalMinExposure] = useState<number | null>(null);
   const [leverageMode, setLeverageMode] = useState(false);
   const [outperformerMode, setOutperformerMode] = useState(false);
   const [projectionMode, setProjectionMode] = useState<"balanced" | "ceiling">("balanced");
