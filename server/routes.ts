@@ -1597,6 +1597,33 @@ export async function registerRoutes(
         let lpPool = pool.filter(p => keepIds.has(p.id));
         console.log(`[SimRegen] Pool trimmed: ${pool.length} → ${lpPool.length} players for LP solving`);
 
+        const minExpPlayers: { id: number; pct: number }[] = [];
+        for (const [pid, exp] of Object.entries(simRegenOverrideExposure)) {
+          if (exp.min && exp.min > 0) {
+            minExpPlayers.push({ id: Number(pid), pct: exp.min });
+          }
+        }
+        if (minExposureLimits) {
+          for (const [pid, pct] of Object.entries(minExposureLimits)) {
+            if (typeof pct === "number" && pct > 0 && !minExpPlayers.find(p => p.id === Number(pid))) {
+              minExpPlayers.push({ id: Number(pid), pct });
+            }
+          }
+        }
+        if (typeof globalMinExposure === "number" && globalMinExposure > 0) {
+        }
+
+        function getSimLocks(simIndex: number, totalSims: number): number[] {
+          const locks = [...simRegenLocked];
+          for (const mp of minExpPlayers) {
+            const neededSims = Math.ceil((mp.pct / 100) * totalSims);
+            if (simIndex < neededSims) {
+              if (!locks.includes(mp.id)) locks.push(mp.id);
+            }
+          }
+          return locks;
+        }
+
         const CALIBRATION_BATCH = 10;
         const calibrationSims = runSimulations(pool, slate.sport, CALIBRATION_BATCH, dvpAdjusted, vegasContext ?? undefined);
 
@@ -1608,9 +1635,10 @@ export async function registerRoutes(
             const noise = simProj * (Math.random() * 0.06 - 0.03);
             return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
           });
+          const simLocks = getSimLocks(i, CALIBRATION_BATCH + 200);
           const result = solveLineup(
             simPool,
-            { slateId, lockedPlayerIds: [...simRegenLocked], excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
+            { slateId, lockedPlayerIds: simLocks, excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
             slate.sport, platform
           );
           if (result.error || result.lineup.length === 0) continue;
@@ -1632,7 +1660,8 @@ export async function registerRoutes(
               const noise = simProj * (Math.random() * 0.06 - 0.03);
               return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
             });
-            const result = solveLineup(simPool, { slateId, lockedPlayerIds: [...simRegenLocked], excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints, slate.sport, platform);
+            const fbLocks = getSimLocks(i, CALIBRATION_BATCH + 200);
+            const result = solveLineup(simPool, { slateId, lockedPlayerIds: fbLocks, excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints, slate.sport, platform);
             if (result.error || result.lineup.length === 0) continue;
             const key = result.lineup.map((p: Player) => p.id).sort().join(",");
             const existing = lineupMap.get(key);
@@ -1647,6 +1676,9 @@ export async function registerRoutes(
 
         const remainingSims = runSimulations(pool, slate.sport, adaptiveSims, dvpAdjusted, vegasContext ?? undefined);
         const allSims = [...calibrationSims, ...remainingSims];
+        if (minExpPlayers.length > 0) {
+          console.log(`[SimRegen] Min exposure locks: ${minExpPlayers.map(p => `${p.id}@${p.pct}%`).join(", ")}`);
+        }
         console.log(`[SimRegen] ${slate.sport} slate ${slateId}: lpPool=${lpPool.length}, ${msPerSolve.toFixed(0)}ms/solve, adaptive=${totalTargetSims} sims (tier max ${tierSims})`);
         totalSimsRun += totalTargetSims;
 
@@ -1662,9 +1694,10 @@ export async function registerRoutes(
             const noise = simProj * (Math.random() * 0.06 - 0.03);
             return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
           });
+          const mainLocks = getSimLocks(i, totalTargetSims);
           const result = solveLineup(
             simPool,
-            { slateId, lockedPlayerIds: [...simRegenLocked], excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
+            { slateId, lockedPlayerIds: mainLocks, excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
             slate.sport, platform
           );
           actualSimsSolved++;
