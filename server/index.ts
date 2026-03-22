@@ -805,6 +805,23 @@ app.use((req, res, next) => {
       });
       log("Scheduled 3:15 AM ET actual points backfill cron job", "cron");
 
+      cron.schedule("0 9,15,21 * * *", async () => {
+        try {
+          log("Starting gap-fill scan for actual points (14 days)", "cron");
+          const { fillActualPointsGaps } = await import("./actual-points");
+          const results = await fillActualPointsGaps(storage, 14);
+          if (results.length > 0) {
+            results.forEach(r => log(`[GapFill] ${r}`, "cron"));
+          }
+          log(`Gap-fill complete — ${results.length} sport/date gaps filled`, "cron");
+        } catch (err) {
+          console.error("Actual points gap-fill failed:", err);
+        }
+      }, {
+        timezone: "America/New_York",
+      });
+      log("Scheduled actual points gap-fill cron (9 AM, 3 PM, 9 PM ET)", "cron");
+
       cron.schedule("0 4 * * *", async () => {
         try {
           const cleaned = await storage.cleanOldPlayerHistory(90);

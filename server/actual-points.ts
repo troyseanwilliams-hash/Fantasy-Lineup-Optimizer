@@ -397,13 +397,50 @@ export async function fetchActualPointsForDate(sport: string, dateStr: string): 
   return playerMap;
 }
 
+async function backfillSportDate(storage: any, sport: string, dateStr: string): Promise<string | null> {
+  const historyRows = await storage.getPlayerHistoryByDate(sport, dateStr);
+  if (!historyRows || historyRows.length === 0) return null;
+
+  const needsUpdate = historyRows.filter((h: any) => h.actualPoints === null || h.actualPoints === undefined);
+  if (needsUpdate.length === 0) return null;
+
+  const actualPointsMap = await fetchActualPointsForDate(sport, dateStr);
+  if (actualPointsMap.size === 0) {
+    console.log(`[ActualPoints Backfill] ${sport} ${dateStr}: no ESPN data (${needsUpdate.length} players need update)`);
+    return null;
+  }
+
+  const batchUpdates: Array<{ playerName: string; actualPoints: string }> = [];
+  const seen = new Set<string>();
+
+  for (const h of needsUpdate) {
+    if (seen.has(h.playerName)) continue;
+    seen.add(h.playerName);
+
+    const normalized = normalizeName(h.playerName);
+    const actual = actualPointsMap.get(normalized);
+    if (actual !== undefined) {
+      batchUpdates.push({ playerName: h.playerName, actualPoints: String(actual.points) });
+    }
+  }
+
+  if (batchUpdates.length > 0) {
+    await storage.batchUpdatePlayerHistoryActualPoints(sport, dateStr, batchUpdates);
+    const msg = `${sport} ${dateStr}: updated ${batchUpdates.length} players with actual points`;
+    console.log(`[ActualPoints Backfill] ${msg}`);
+    return msg;
+  }
+
+  return null;
+}
+
 export async function backfillActualPointsForHistory(storage: any, daysBack = 7): Promise<string[]> {
   const results: string[] = [];
   const supportedSports = ["NBA", "NHL", "MLB", "NFL"];
 
   const today = new Date();
   const dates: string[] = [];
-  for (let i = 1; i <= daysBack; i++) {
+  for (let i = 0; i <= daysBack; i++) {
     const d = new Date(today);
     d.setUTCDate(d.getUTCDate() - i);
     dates.push(d.toISOString().split("T")[0]);
@@ -412,44 +449,62 @@ export async function backfillActualPointsForHistory(storage: any, daysBack = 7)
   for (const sport of supportedSports) {
     for (const dateStr of dates) {
       try {
-        const historyRows = await storage.getPlayerHistoryByDate(sport, dateStr);
-        if (!historyRows || historyRows.length === 0) continue;
-
-        const needsUpdate = historyRows.filter((h: any) => !h.actualPoints || h.actualPoints === "0");
-        if (needsUpdate.length === 0) continue;
-
-        const actualPointsMap = await fetchActualPointsForDate(sport, dateStr);
-        if (actualPointsMap.size === 0) {
-          console.log(`[ActualPoints Backfill] ${sport} ${dateStr}: no ESPN data (${needsUpdate.length} players need update)`);
-          continue;
-        }
-
-        const batchUpdates: Array<{ playerName: string; actualPoints: string }> = [];
-        const seen = new Set<string>();
-
-        for (const h of needsUpdate) {
-          if (seen.has(h.playerName)) continue;
-          seen.add(h.playerName);
-
-          const normalized = normalizeName(h.playerName);
-          const actual = actualPointsMap.get(normalized);
-          if (actual && actual.points > 0) {
-            batchUpdates.push({ playerName: h.playerName, actualPoints: String(actual.points) });
-          }
-        }
-
-        if (batchUpdates.length > 0) {
-          await storage.batchUpdatePlayerHistoryActualPoints(sport, dateStr, batchUpdates);
-          const msg = `${sport} ${dateStr}: updated ${batchUpdates.length} players with actual points`;
-          console.log(`[ActualPoints Backfill] ${msg}`);
-          results.push(msg);
-        }
-
+        const msg = await backfillSportDate(storage, sport, dateStr);
+        if (msg) results.push(msg);
         await new Promise(res => setTimeout(res, 300));
       } catch (err: any) {
         console.error(`[ActualPoints Backfill] ${sport} ${dateStr} error:`, err.message);
       }
     }
+  }
+
+  return results;
+}
+
+export async function fillActualPointsGaps(storage: any, daysBack = 14): Promise<string[]> {
+  const results: string[] = [];
+  const supportedSports = ["NBA", "NHL", "MLB", "NFL"];
+
+  const today = new Date();
+  const dates: string[] = [];
+  for (let i = 0; i <= daysBack; i++) {
+    const d = new Date(today);
+    d.setUTCDate(d.getUTCDate() - i);
+    dates.push(d.toISOString().split("T")[0]);
+  }
+
+  console.log(`[GapFill] Scanning ${dates.length} dates for ${supportedSports.length} sports...`);
+
+  for (const sport of supportedSports) {
+    for (const dateStr of dates) {
+      try {
+        const historyRows = await storage.getPlayerHistoryByDate(sport, dateStr);
+        if (!historyRows || historyRows.length === 0) continue;
+
+        const uniqueNames = new Set(historyRows.map((h: any) => h.playerName));
+        const needsUpdate = historyRows.filter((h: any) => h.actualPoints === null || h.actualPoints === undefined);
+        const uniqueNeedsUpdate = new Set(needsUpdate.map((h: any) => h.playerName));
+
+        if (uniqueNeedsUpdate.size === 0) continue;
+
+        const coveragePct = Math.round(((uniqueNames.size - uniqueNeedsUpdate.size) / uniqueNames.size) * 100);
+        if (coveragePct >= 95) continue;
+
+        console.log(`[GapFill] ${sport} ${dateStr}: ${coveragePct}% coverage (${uniqueNeedsUpdate.size} players missing)`);
+
+        const msg = await backfillSportDate(storage, sport, dateStr);
+        if (msg) results.push(msg);
+        await new Promise(res => setTimeout(res, 500));
+      } catch (err: any) {
+        console.error(`[GapFill] ${sport} ${dateStr} error:`, err.message);
+      }
+    }
+  }
+
+  if (results.length === 0) {
+    console.log("[GapFill] No gaps found — all dates have 95%+ coverage");
+  } else {
+    console.log(`[GapFill] Filled ${results.length} sport/date gaps`);
   }
 
   return results;

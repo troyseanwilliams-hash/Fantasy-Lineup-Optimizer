@@ -41,7 +41,8 @@ Preferred communication style: Simple, everyday language.
 - **Vegas Client**: Fetches game totals and implied team totals from The Odds API with ESPN scoreboard fallback.
 - **DvP Client**: Defense vs Position engine using ESPN public team stats API for projection multipliers.
 - **Manual Stack Game Selector**: Allows users to select a specific game in Sim Mode for a 15% projection boost to players in that game.
-- **Actual Points Backfill**: Standalone ESPN-based actual fantasy points backfill for player history (7-day rolling window). Runs on startup and daily at 3:15 AM ET, independent of winning lineup analysis. Supports NBA, NHL, MLB, NFL.
+- **Actual Points Backfill**: Standalone ESPN-based actual fantasy points backfill for player history (7-day rolling window, including today). Runs on startup and daily at 3:15 AM ET, independent of winning lineup analysis. Supports NBA, NHL, MLB, NFL. Includes retry logic for ESPN API calls.
+- **Actual Points Gap-Fill**: Cron job at 9 AM, 3 PM, and 9 PM ET scans the last 14 days for sport/date combinations with less than 95% coverage and re-fetches ESPN data to fill gaps. Only NULL actual_points are treated as missing (resolved zero-point games are preserved).
 - **Winning Lineup Agent**: Automated nightly analysis to construct "perfect hindsight" optimal lineups using actual ESPN box score data for supported sports.
 - **Inactive Player Filter**: Automatically excludes inactive or low-productivity players.
 - **Player Configuration**: Per-user, per-slate overrides for custom projections, boosts, locks, or exclusions. Includes platform selector (DraftKings/FanDuel/Yahoo) defaulting to DraftKings. Uses `includeStarted=true` to show all active slates regardless of grace period.
