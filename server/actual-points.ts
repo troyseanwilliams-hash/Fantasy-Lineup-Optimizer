@@ -204,19 +204,27 @@ function computeNFLPoints(athlete: any, labels: string[], stats: string[], statG
   return { points: Math.round(fp * 100) / 100, statLine };
 }
 
+async function fetchWithRetry(url: string, retries = 2): Promise<any | null> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, { headers: { "User-Agent": "EliteLineupAI/1.0" } });
+      if (res.ok) return await res.json();
+      if (attempt < retries) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+    } catch {
+      if (attempt < retries) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+    }
+  }
+  return null;
+}
+
 async function fetchCompletedGameIdsForDate(sport: string, dateStr: string): Promise<string[]> {
   const baseUrl = ESPN_SCOREBOARD_URLS[sport];
   if (!baseUrl) return [];
 
-  try {
-    const res = await fetch(`${baseUrl}?dates=${dateStr}`, { headers: { "User-Agent": "EliteLineupAI/1.0" } });
-    if (!res.ok) return [];
-    const data = await res.json();
-    const events = data.events || [];
-    return events.filter((e: any) => e.status?.type?.completed).map((e: any) => e.id);
-  } catch {
-    return [];
-  }
+  const data = await fetchWithRetry(`${baseUrl}?dates=${dateStr}`);
+  if (!data) return [];
+  const events = data.events || [];
+  return events.filter((e: any) => e.status?.type?.completed).map((e: any) => e.id);
 }
 
 export interface GameInfo {
@@ -291,9 +299,8 @@ async function fetchPlayerStatsFromGame(sport: string, gameId: string): Promise<
   if (!baseUrl) return [];
 
   try {
-    const res = await fetch(`${baseUrl}?event=${gameId}`, { headers: { "User-Agent": "EliteLineupAI/1.0" } });
-    if (!res.ok) return [];
-    const data = await res.json();
+    const data = await fetchWithRetry(`${baseUrl}?event=${gameId}`);
+    if (!data) return [];
 
     const results: PlayerActualPoints[] = [];
     const boxscore = data.boxscore;
@@ -412,7 +419,10 @@ export async function backfillActualPointsForHistory(storage: any, daysBack = 7)
         if (needsUpdate.length === 0) continue;
 
         const actualPointsMap = await fetchActualPointsForDate(sport, dateStr);
-        if (actualPointsMap.size === 0) continue;
+        if (actualPointsMap.size === 0) {
+          console.log(`[ActualPoints Backfill] ${sport} ${dateStr}: no ESPN data (${needsUpdate.length} players need update)`);
+          continue;
+        }
 
         const batchUpdates: Array<{ playerName: string; actualPoints: string }> = [];
         const seen = new Set<string>();
@@ -434,6 +444,8 @@ export async function backfillActualPointsForHistory(storage: any, daysBack = 7)
           console.log(`[ActualPoints Backfill] ${msg}`);
           results.push(msg);
         }
+
+        await new Promise(res => setTimeout(res, 300));
       } catch (err: any) {
         console.error(`[ActualPoints Backfill] ${sport} ${dateStr} error:`, err.message);
       }
