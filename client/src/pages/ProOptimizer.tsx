@@ -110,7 +110,9 @@ export default function ProOptimizer() {
   const setUseBoosts = (val: boolean) => setUseBoostsUserOverride(val);
   const [fadedIds, setFadedIds] = useState<number[]>([]);
   const [exposureLimits, setExposureLimits] = useState<Record<string, number>>({});
+  const [minExposureLimits, setMinExposureLimits] = useState<Record<string, number>>({});
   const [globalMaxExposure, setGlobalMaxExposure] = useState<number | null>(null);
+  const [globalMinExposure, setGlobalMinExposure] = useState<number | null>(null);
   const [leverageMode, setLeverageMode] = useState(false);
   const [outperformerMode, setOutperformerMode] = useState(false);
   const [projectionMode, setProjectionMode] = useState<"balanced" | "ceiling">("balanced");
@@ -551,6 +553,8 @@ export default function ProOptimizer() {
         const pct = (count / generatedLineups.length) * 100;
         const playerLimit = exposureLimits[id];
         const effectiveLimit = playerLimit ?? (globalMaxExposure ?? undefined);
+        const playerMinLimit = minExposureLimits[id];
+        const effectiveMinLimit = playerMinLimit ?? (globalMinExposure ?? undefined);
         return {
           playerId: Number(id),
           playerName: player?.name || `Player #${id}`,
@@ -561,13 +565,20 @@ export default function ProOptimizer() {
           pct,
           limit: effectiveLimit,
           overLimit: effectiveLimit !== undefined && pct > effectiveLimit,
+          minLimit: effectiveMinLimit,
+          underLimit: effectiveMinLimit !== undefined && pct < effectiveMinLimit,
           isPlayerSpecific: playerLimit !== undefined,
+          isMinPlayerSpecific: playerMinLimit !== undefined,
         };
       })
       .sort((a, b) => b.pct - a.pct);
-  }, [generatedLineups, players, exposureLimits, globalMaxExposure]);
+  }, [generatedLineups, players, exposureLimits, globalMaxExposure, minExposureLimits, globalMinExposure]);
 
   const handleOptimize = () => {
+    if (globalMinExposure && globalMaxExposure && globalMinExposure > globalMaxExposure) {
+      toast({ title: "Invalid Exposure", description: "Min exposure cannot exceed max exposure.", variant: "destructive" });
+      return;
+    }
     const projections: Record<string, number> = { ...customProjections };
     if (isPro && fadedIds.length > 0 && players) {
       for (const p of players) {
@@ -609,6 +620,8 @@ export default function ProOptimizer() {
         enforceGameStack,
         stackGameKey: stackGameKey || undefined,
         globalMaxExposure: globalMaxExposure ?? undefined,
+        globalMinExposure: globalMinExposure ?? undefined,
+        minExposureLimits: Object.keys(minExposureLimits).length > 0 ? minExposureLimits : undefined,
         minStarRating,
         sortMetric: simSortMetric,
         useBoosts,
@@ -629,6 +642,8 @@ export default function ProOptimizer() {
         useBoosts,
         exposureLimits: activeExposureLimits,
         globalMaxExposure: globalMaxExposure ?? undefined,
+        minExposureLimits: Object.keys(minExposureLimits).length > 0 ? minExposureLimits : undefined,
+        globalMinExposure: globalMinExposure ?? undefined,
         leverageMode,
         projectionMode,
         minStarRating,
@@ -842,7 +857,9 @@ export default function ProOptimizer() {
     setFadedIds([]);
     setCustomProjections({});
     setExposureLimits({});
+    setMinExposureLimits({});
     setGlobalMaxExposure(null);
+    setGlobalMinExposure(null);
     setSavedIndices(new Set());
     setSalaryRange(null);
     setLineupSwaps({});
@@ -1054,21 +1071,38 @@ export default function ProOptimizer() {
           {(isPro && lineupCount > 1 || (players && players.length > 0)) && (
             <div className="hidden md:flex items-center gap-3 overflow-x-auto scrollbar-hide">
               {isPro && lineupCount > 1 && (
-                <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
-                  <LabelTip text="Maximum % any single player can appear across all generated lineups. Lower values increase lineup diversity."><span className="text-[10px] font-black text-cyan-400 uppercase whitespace-nowrap">Max Exp</span></LabelTip>
-                  <Slider
-                    value={[globalMaxExposure ?? 100]}
-                    onValueChange={(v) => setGlobalMaxExposure(v[0] === 100 ? null : v[0])}
-                    min={10}
-                    max={100}
-                    step={5}
-                    className="w-24"
-                    data-testid="slider-global-exposure"
-                  />
-                  <span className={`text-xs font-black min-w-[28px] text-center ${globalMaxExposure ? "text-cyan-400" : "text-slate-500"}`} data-testid="text-global-exposure">
-                    {globalMaxExposure ? `${globalMaxExposure}%` : "Off"}
-                  </span>
-                </div>
+                <>
+                  <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+                    <LabelTip text="Minimum % any player must appear across all generated lineups. Guarantees exposure for key players."><span className="text-[10px] font-black text-emerald-400 uppercase whitespace-nowrap">Min Exp</span></LabelTip>
+                    <Slider
+                      value={[globalMinExposure ?? 0]}
+                      onValueChange={(v) => setGlobalMinExposure(v[0] === 0 ? null : v[0])}
+                      min={0}
+                      max={100}
+                      step={5}
+                      className="w-24"
+                      data-testid="slider-global-min-exposure"
+                    />
+                    <span className={`text-xs font-black min-w-[28px] text-center ${globalMinExposure ? "text-emerald-400" : "text-slate-500"}`} data-testid="text-global-min-exposure">
+                      {globalMinExposure ? `${globalMinExposure}%` : "Off"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+                    <LabelTip text="Maximum % any single player can appear across all generated lineups. Lower values increase lineup diversity."><span className="text-[10px] font-black text-cyan-400 uppercase whitespace-nowrap">Max Exp</span></LabelTip>
+                    <Slider
+                      value={[globalMaxExposure ?? 100]}
+                      onValueChange={(v) => setGlobalMaxExposure(v[0] === 100 ? null : v[0])}
+                      min={10}
+                      max={100}
+                      step={5}
+                      className="w-24"
+                      data-testid="slider-global-exposure"
+                    />
+                    <span className={`text-xs font-black min-w-[28px] text-center ${globalMaxExposure ? "text-cyan-400" : "text-slate-500"}`} data-testid="text-global-exposure">
+                      {globalMaxExposure ? `${globalMaxExposure}%` : "Off"}
+                    </span>
+                  </div>
+                </>
               )}
               {players && players.length > 0 && (
                 <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
@@ -1160,21 +1194,38 @@ export default function ProOptimizer() {
                 <span className="text-xs font-black text-amber-400 min-w-[18px] text-center">{lineupCount}</span>
               </div>
               {lineupCount > 1 && (
-                <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
-                  <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Max Exp</span>
-                  <Slider
-                    value={[globalMaxExposure ?? 100]}
-                    onValueChange={(v) => setGlobalMaxExposure(v[0] === 100 ? null : v[0])}
-                    min={10}
-                    max={100}
-                    step={5}
-                    className="w-20"
-                    data-testid="slider-global-exposure-mobile"
-                  />
-                  <span className={`text-xs font-black min-w-[28px] text-center ${globalMaxExposure ? "text-cyan-400" : "text-slate-500"}`}>
-                    {globalMaxExposure ? `${globalMaxExposure}%` : "Off"}
-                  </span>
-                </div>
+                <>
+                  <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+                    <span className="text-[10px] font-black text-emerald-400 uppercase whitespace-nowrap">Min Exp</span>
+                    <Slider
+                      value={[globalMinExposure ?? 0]}
+                      onValueChange={(v) => setGlobalMinExposure(v[0] === 0 ? null : v[0])}
+                      min={0}
+                      max={100}
+                      step={5}
+                      className="w-20"
+                      data-testid="slider-global-min-exposure-mobile"
+                    />
+                    <span className={`text-xs font-black min-w-[28px] text-center ${globalMinExposure ? "text-emerald-400" : "text-slate-500"}`}>
+                      {globalMinExposure ? `${globalMinExposure}%` : "Off"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+                    <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Max Exp</span>
+                    <Slider
+                      value={[globalMaxExposure ?? 100]}
+                      onValueChange={(v) => setGlobalMaxExposure(v[0] === 100 ? null : v[0])}
+                      min={10}
+                      max={100}
+                      step={5}
+                      className="w-20"
+                      data-testid="slider-global-exposure-mobile"
+                    />
+                    <span className={`text-xs font-black min-w-[28px] text-center ${globalMaxExposure ? "text-cyan-400" : "text-slate-500"}`}>
+                      {globalMaxExposure ? `${globalMaxExposure}%` : "Off"}
+                    </span>
+                  </div>
+                </>
               )}
               {players && players.length > 0 && (
                 <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
@@ -1680,9 +1731,15 @@ export default function ProOptimizer() {
                     </th>
                   )}
                   {isPro ? (
-                    <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400 text-center">Exp%</th>
+                    <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400 text-center" colSpan={2}>
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="text-emerald-400">Min%</span>
+                        <span className="text-slate-600">/</span>
+                        <span className="text-cyan-400">Max%</span>
+                      </div>
+                    </th>
                   ) : (
-                    <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-center">
+                    <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-center" colSpan={2}>
                       <div className="flex items-center justify-center gap-1 text-amber-500/70">
                         <Lock className="w-3 h-3" />
                         <span>Exp%</span>
@@ -1840,31 +1897,56 @@ export default function ProOptimizer() {
                         </td>
                       )}
                       {isPro ? (
-                        <td className="px-3 py-2 text-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={100}
-                            placeholder="—"
-                            value={exposureLimits[player.id.toString()] ?? ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setExposureLimits(prev => {
-                                const next = { ...prev };
-                                if (val === "" || val === undefined) {
-                                  delete next[player.id.toString()];
-                                } else {
-                                  next[player.id.toString()] = Math.min(100, Math.max(0, Number(val)));
-                                }
-                                return next;
-                              });
-                            }}
-                            className="w-16 h-7 text-center text-[11px] font-bold bg-slate-800 border-slate-700 px-1"
-                            data-testid={`input-exposure-${player.id}`}
-                          />
-                        </td>
+                        <>
+                          <td className="px-1 py-2 text-center">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              placeholder="Min"
+                              value={minExposureLimits[player.id.toString()] ?? ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setMinExposureLimits(prev => {
+                                  const next = { ...prev };
+                                  if (val === "" || val === undefined) {
+                                    delete next[player.id.toString()];
+                                  } else {
+                                    next[player.id.toString()] = Math.min(100, Math.max(0, Number(val)));
+                                  }
+                                  return next;
+                                });
+                              }}
+                              className="w-14 h-7 text-center text-[11px] font-bold bg-slate-800 border-emerald-700/50 px-1 text-emerald-400 placeholder:text-slate-600"
+                              data-testid={`input-min-exposure-${player.id}`}
+                            />
+                          </td>
+                          <td className="px-1 py-2 text-center">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              placeholder="Max"
+                              value={exposureLimits[player.id.toString()] ?? ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setExposureLimits(prev => {
+                                  const next = { ...prev };
+                                  if (val === "" || val === undefined) {
+                                    delete next[player.id.toString()];
+                                  } else {
+                                    next[player.id.toString()] = Math.min(100, Math.max(0, Number(val)));
+                                  }
+                                  return next;
+                                });
+                              }}
+                              className="w-14 h-7 text-center text-[11px] font-bold bg-slate-800 border-cyan-700/50 px-1 text-cyan-400 placeholder:text-slate-600"
+                              data-testid={`input-exposure-${player.id}`}
+                            />
+                          </td>
+                        </>
                       ) : (
-                        <td className="px-3 py-2 text-center">
+                        <td className="px-3 py-2 text-center" colSpan={2}>
                           <div className="p-1.5 text-slate-700 cursor-not-allowed" title="Upgrade to Champion for exposure limits">
                             <Lock className="w-3.5 h-3.5" />
                           </div>
@@ -2612,6 +2694,11 @@ export default function ProOptimizer() {
                 <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-3">
                   <Target className="w-4 h-4 text-cyan-400" />
                   Player Exposure ({generatedLineups.length} lineups)
+                  {globalMinExposure && (
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[9px] font-black ml-1" data-testid="badge-global-min-exposure">
+                      Min {globalMinExposure}%
+                    </Badge>
+                  )}
                   {globalMaxExposure && (
                     <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30 text-[9px] font-black ml-1" data-testid="badge-global-exposure">
                       Max {globalMaxExposure}%
@@ -2642,16 +2729,21 @@ export default function ProOptimizer() {
                         <span className="text-[11px] font-mono text-slate-400">{ep.count}/{ep.total}</span>
                         <div className="w-12 h-1.5 bg-slate-700 rounded-full overflow-hidden">
                           <div
-                            className={`h-full rounded-full ${ep.overLimit ? "bg-red-400" : "bg-cyan-400"}`}
+                            className={`h-full rounded-full ${ep.overLimit ? "bg-red-400" : ep.underLimit ? "bg-amber-400" : "bg-cyan-400"}`}
                             style={{ width: `${Math.min(ep.pct, 100)}%` }}
                           />
                         </div>
-                        <span className={`text-[11px] font-black min-w-[36px] text-right ${ep.overLimit ? "text-red-400" : "text-cyan-400"}`} data-testid={`text-exposure-pct-${ep.playerId}`}>
+                        <span className={`text-[11px] font-black min-w-[36px] text-right ${ep.overLimit ? "text-red-400" : ep.underLimit ? "text-amber-400" : "text-cyan-400"}`} data-testid={`text-exposure-pct-${ep.playerId}`}>
                           {ep.pct.toFixed(0)}%
                         </span>
+                        {ep.minLimit !== undefined && (
+                          <span className={`text-[10px] font-bold ${ep.underLimit ? "text-amber-400" : "text-slate-500"}`} data-testid={`text-exposure-min-${ep.playerId}`}>
+                            {ep.minLimit}%{ep.isMinPlayerSpecific ? "" : " g"}↑
+                          </span>
+                        )}
                         {ep.limit !== undefined && (
                           <span className={`text-[10px] font-bold ${ep.overLimit ? "text-red-400" : "text-slate-500"}`} data-testid={`text-exposure-limit-${ep.playerId}`}>
-                            /{ep.limit}%{ep.isPlayerSpecific ? "" : " g"}
+                            {ep.limit}%{ep.isPlayerSpecific ? "" : " g"}↓
                           </span>
                         )}
                       </div>

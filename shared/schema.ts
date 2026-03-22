@@ -386,10 +386,11 @@ export type OptimizeResponse = z.infer<typeof optimizeResponseSchema>;
 export const proOptimizationConstraintSchema = optimizationConstraintSchema.extend({
   lineupCount: z.number().min(1).max(150).default(1),
   useBoosts: z.boolean().default(true),
-  // Removed .optional() — .default(true) already handles undefined.
   useInjuryAdjustments: z.boolean().default(true),
   exposureLimits: z.record(z.string(), z.number()).optional(),
   globalMaxExposure: z.number().min(10).max(100).optional(),
+  minExposureLimits: z.record(z.string(), z.number()).optional(),
+  globalMinExposure: z.number().min(1).max(100).optional(),
   leverageMode: z.boolean().default(false),
   projectionMode: z.enum(["balanced", "ceiling"]).default("balanced"),
   minStarRating: z.number().min(0).max(5).default(0),

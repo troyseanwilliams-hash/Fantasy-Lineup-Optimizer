@@ -31,6 +31,7 @@ Preferred communication style: Simple, everyday language.
 - **Lineup Preservation**: Saved lineups move to "review" status during slate refreshes. Player overrides (exclusions, locks, boosts) survive slate refreshes via DraftKings player ID migration.
 - **Non-Main Slate Repopulation**: After main seed, non-main DK slates with 0 players (kept because of associated lineups) are automatically repopulated via `fetchDKSlateByDraftGroup`, with a 3-hour expiry guard and metadata refresh.
 - **Sim Pool Parity**: Both Pro Optimizer Sim and Vault ReSim use the full player pool (no artificial trimming) with identical projection pipelines (boosts, ceiling, leverage, historical, DvP, Vegas).
+- **Min/Max Player Exposure**: Per-player and global min/max exposure controls across Pro Optimizer, Sim Optimizer, Sim Regenerate, and Bulk Regenerate. Min exposure guarantees a player appears in at least X% of lineups; max exposure caps appearances. Global min applies only to players already appearing in selections. Validated frontend-side (min ≤ max). Exposure tracking panel shows both min/max limit violations.
 - **Player Swap**: One-click player swaps within generated lineups and PrizePicks entries.
 - **DK Entries Import**: CSV import for DraftKings entries (Champion tier).
 - **Slate Override**: Vault Regenerate and ReSim support overriding the player pool slate, with a frontend slate selector dropdown and backend sport/platform compatibility validation.

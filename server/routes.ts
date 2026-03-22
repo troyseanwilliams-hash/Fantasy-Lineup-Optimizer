@@ -1039,6 +1039,7 @@ export async function registerRoutes(
     const playerAppearances: Record<number, number> = {};
     const totalCount = ids.length;
     const globalMaxExposure = typeof req.body.globalMaxExposure === "number" ? req.body.globalMaxExposure : 80;
+    const globalMinExposureBulk = typeof req.body.globalMinExposure === "number" ? req.body.globalMinExposure : undefined;
     const projFloor = typeof req.body.projFloor === "number" && req.body.projFloor > 0 ? req.body.projFloor : null;
     const minSalary = typeof req.body.minSalary === "number" ? req.body.minSalary : undefined;
     const maxSalary = typeof req.body.maxSalary === "number" ? req.body.maxSalary : undefined;
@@ -1180,7 +1181,21 @@ export async function registerRoutes(
           }
         }
 
-        const lockedSet = new Set(lockedOverrideIds);
+        const bulkMinLocks: number[] = [];
+        if (globalMinExposureBulk && globalMinExposureBulk > 0 && iteration > 0) {
+          for (const p of pool) {
+            if (iterationExcluded.includes(p.id)) continue;
+            if (lockedOverrideIds.includes(p.id)) continue;
+            const appearances = playerAppearances[p.id] || 0;
+            const remaining = totalCount - iteration;
+            const neededApp = Math.ceil((globalMinExposureBulk / 100) * totalCount);
+            if (appearances < neededApp && (appearances + remaining) <= neededApp) {
+              bulkMinLocks.push(p.id);
+            }
+          }
+        }
+
+        const lockedSet = new Set([...lockedOverrideIds, ...bulkMinLocks]);
         const salaryFilteredPool = (minSalary || maxSalary)
           ? perturbedPool.filter(p => {
               if (lockedSet.has(p.id)) return true;
@@ -1193,7 +1208,7 @@ export async function registerRoutes(
         const bulkContestType = req.body.contestType === "gpp" ? "gpp" : "cash";
         const solveResult = solveLineup(
           salaryFilteredPool,
-          { slateId: effectiveSlateId, platform, lockedPlayerIds: lockedOverrideIds, excludedPlayerIds: iterationExcluded, maxSalary: undefined, minSalary: undefined, playerProjections: {}, contestType: bulkContestType } as any,
+          { slateId: effectiveSlateId, platform, lockedPlayerIds: [...new Set([...lockedOverrideIds, ...bulkMinLocks])], excludedPlayerIds: iterationExcluded, maxSalary: undefined, minSalary: undefined, playerProjections: {}, contestType: bulkContestType } as any,
           slate.sport,
           platform
         );
@@ -1362,7 +1377,7 @@ export async function registerRoutes(
   app.post("/api/lineups/sim-regenerate", async (req, res) => {
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const userId = getSessionUserId(req)!;
-    const { ids, sortBy, useBoosts, ceilingMode, leverageMode, outperformerMode, contestType: rawContestType, globalMaxExposure, projFloor, minSalary, maxSalary, slateId: bodySlateId } = req.body;
+    const { ids, sortBy, useBoosts, ceilingMode, leverageMode, outperformerMode, contestType: rawContestType, globalMaxExposure, globalMinExposure, minExposureLimits, projFloor, minSalary, maxSalary, slateId: bodySlateId } = req.body;
     const simContestType = rawContestType === "gpp" ? "gpp" : "cash";
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "No lineup IDs provided" });
     const overrideSlateId = typeof bodySlateId === "number" ? bodySlateId : null;
@@ -1383,7 +1398,7 @@ export async function registerRoutes(
     const LP_BUDGET_MS = 20000;
     const MAX_RUNTIME_MS = 35000;
 
-    console.log(`[SimRegen] Starting: ${ids.length} lineups, max ${tierSims} sims (tier=${tier}), sortBy=${sortKey}, contest=${simContestType}, boosts=${useBoosts}, ceiling=${ceilingMode}, leverage=${leverageMode}, opm=${outperformerMode}, exposure=${globalMaxExposure}, projFloor=${projFloor}, minSal=${minSalary}, maxSal=${maxSalary}, overrideSlate=${overrideSlateId}`);
+    console.log(`[SimRegen] Starting: ${ids.length} lineups, max ${tierSims} sims (tier=${tier}), sortBy=${sortKey}, contest=${simContestType}, boosts=${useBoosts}, ceiling=${ceilingMode}, leverage=${leverageMode}, opm=${outperformerMode}, maxExp=${globalMaxExposure}, minExp=${globalMinExposure}, projFloor=${projFloor}, minSal=${minSalary}, maxSal=${maxSalary}, overrideSlate=${overrideSlateId}`);
 
     try {
       const slateGroups = new Map<number, number[]>();
@@ -1736,6 +1751,46 @@ export async function registerRoutes(
             if (selectedCandidates.length >= targetCount) break;
             if (!selectedCandidates.find(s => s.key === candidate.key)) {
               selectedCandidates.push(candidate);
+            }
+          }
+        }
+
+        const hasMinExp = (globalMinExposure !== undefined && globalMinExposure !== null) || (minExposureLimits && Object.keys(minExposureLimits).length > 0);
+        if (hasMinExp && selectedCandidates.length > 1) {
+          const finalApp: Record<number, number> = {};
+          for (const c of selectedCandidates) for (const p of c.lineup) finalApp[p.id] = (finalApp[p.id] || 0) + 1;
+          const selectedPids = new Set(Object.keys(finalApp).map(Number));
+          const underExposed: { id: number; needed: number }[] = [];
+          for (const pid of selectedPids) {
+            const pMin = minExposureLimits?.[pid.toString()];
+            const effMin = typeof pMin === "number" ? pMin : (typeof globalMinExposure === "number" && (finalApp[pid] || 0) > 0 ? globalMinExposure : undefined);
+            if (effMin !== undefined && effMin > 0) {
+              const needed = Math.ceil((effMin / 100) * selectedCandidates.length);
+              if ((finalApp[pid] || 0) < needed) {
+                underExposed.push({ id: pid, needed: needed - (finalApp[pid] || 0) });
+              }
+            }
+          }
+          const sortKey2 = { composite: "compositeScore", p90: "p90Score", p75: "p75Score", median: "medianScore", avg: "avgSimScore" }[sortBy || "composite"] || "compositeScore";
+          underExposed.sort((a, b) => b.needed - a.needed);
+          for (const { id: uid, needed: n } of underExposed.slice(0, 10)) {
+            let rem = n;
+            const replacements = scoredCandidates.filter(c =>
+              !selectedCandidates.find(s => s.key === c.key) && c.lineup.some(p => p.id === uid)
+            );
+            for (const rep of replacements) {
+              if (rem <= 0) break;
+              const worstIdx = selectedCandidates.reduce((w, s, i) => {
+                if (s.lineup.some(p => p.id === uid)) return w;
+                if (w === -1) return i;
+                return ((s as any)[sortKey2] ?? 0) < ((selectedCandidates[w] as any)[sortKey2] ?? 0) ? i : w;
+              }, -1);
+              if (worstIdx === -1) break;
+              const old = selectedCandidates[worstIdx];
+              for (const p of old.lineup) finalApp[p.id] = (finalApp[p.id] || 0) - 1;
+              selectedCandidates[worstIdx] = rep;
+              for (const p of rep.lineup) finalApp[p.id] = (finalApp[p.id] || 0) + 1;
+              rem--;
             }
           }
         }
@@ -3482,6 +3537,23 @@ export async function registerRoutes(
           }
         }
 
+        const minExposureLocks: number[] = [];
+        if (lineupResults.length > 0) {
+          for (const p of pool) {
+            if (iterationExcluded.includes(p.id)) continue;
+            if (constraints.lockedPlayerIds.includes(p.id)) continue;
+            const playerMinLimit = constraints.minExposureLimits?.[p.id.toString()];
+            const appearances = playerAppearances[p.id] || 0;
+            const effectiveMin = playerMinLimit ?? (constraints.globalMinExposure !== undefined && appearances > 0 ? constraints.globalMinExposure : undefined);
+            if (effectiveMin === undefined || effectiveMin <= 0) continue;
+            const remaining = constraints.lineupCount - lineupResults.length;
+            const neededAppearances = Math.ceil((effectiveMin / 100) * constraints.lineupCount);
+            if (appearances < neededAppearances && (appearances + remaining) <= neededAppearances) {
+              minExposureLocks.push(p.id);
+            }
+          }
+        }
+
         if (iteration > 0 && lineupResults.length > 0) {
           const prevLineup = lineupResults[lineupResults.length - 1];
           const prevPlayers = (prevLineup.lineup || []) as Player[];
@@ -3502,7 +3574,8 @@ export async function registerRoutes(
           }
         }
 
-        const modConstraints = { ...constraints, excludedPlayerIds: iterationExcluded };
+        const combinedLocks = [...new Set([...constraints.lockedPlayerIds, ...minExposureLocks])];
+        const modConstraints = { ...constraints, excludedPlayerIds: iterationExcluded, lockedPlayerIds: combinedLocks };
         const solveStart = Date.now();
         const result = solveLineup(perturbedPool, modConstraints, slate.sport, platform);
         console.log(`[ProOptimizer] Solve attempt ${attempts} took ${Date.now() - solveStart}ms, feasible: ${!result.error}`);
@@ -3574,6 +3647,8 @@ export async function registerRoutes(
     lineupCount:          z.number().min(1).max(2000).default(20),
     numSims:              z.number().min(50).max(1000).default(200),
     globalMaxExposure:    z.number().min(1).max(100).optional(),
+    globalMinExposure:    z.number().min(1).max(100).optional(),
+    minExposureLimits:    z.record(z.string(), z.number()).optional(),
     enforceGameStack:     z.boolean().default(false),
     minStackSize:         z.number().min(2).max(5).default(2),
     stackGameKey:         z.string().optional(),
@@ -3959,6 +4034,49 @@ export async function registerRoutes(
         for (const lu of uniqueLineups) {
           if (selected.length >= targetCount) break;
           if (!selected.find(s => s.key === lu.key)) selected.push(lu);
+        }
+      }
+
+      const hasMinExposure = (input.globalMinExposure !== undefined) || (input.minExposureLimits && Object.keys(input.minExposureLimits).length > 0);
+      if (hasMinExposure && selected.length > 1) {
+        const finalAppearances: Record<number, number> = {};
+        for (const lu of selected) {
+          for (const p of lu.lineup) {
+            finalAppearances[p.id] = (finalAppearances[p.id] || 0) + 1;
+          }
+        }
+        const underExposedIds: { id: number; needed: number }[] = [];
+        const selectedPlayerIds = new Set(Object.keys(finalAppearances).map(Number));
+        for (const pid of selectedPlayerIds) {
+          const playerMin = input.minExposureLimits?.[pid.toString()];
+          const effectiveMin = playerMin ?? (input.globalMinExposure !== undefined && (finalAppearances[pid] || 0) > 0 ? input.globalMinExposure : undefined);
+          if (effectiveMin !== undefined && effectiveMin > 0) {
+            const needed = Math.ceil((effectiveMin / 100) * selected.length);
+            if ((finalAppearances[pid] || 0) < needed) {
+              underExposedIds.push({ id: pid, needed: needed - (finalAppearances[pid] || 0) });
+            }
+          }
+        }
+        underExposedIds.sort((a, b) => b.needed - a.needed);
+        for (const { id: underId, needed } of underExposedIds.slice(0, 10)) {
+          let swapsNeeded = needed;
+          const candidatesWithPlayer = uniqueLineups.filter(c =>
+            !selected.find(s => s.key === c.key) && c.lineup.some(p => p.id === underId)
+          );
+          for (const replacement of candidatesWithPlayer) {
+            if (swapsNeeded <= 0) break;
+            const worstIdx = selected.reduce((worst, s, idx) => {
+              if (s.lineup.some(p => p.id === underId)) return worst;
+              if (worst === -1) return idx;
+              return (s[metricKey] as number) < (selected[worst][metricKey] as number) ? idx : worst;
+            }, -1);
+            if (worstIdx === -1) break;
+            const removed = selected[worstIdx];
+            for (const p of removed.lineup) finalAppearances[p.id] = (finalAppearances[p.id] || 0) - 1;
+            selected[worstIdx] = replacement;
+            for (const p of replacement.lineup) finalAppearances[p.id] = (finalAppearances[p.id] || 0) + 1;
+            swapsNeeded--;
+          }
         }
       }
 
