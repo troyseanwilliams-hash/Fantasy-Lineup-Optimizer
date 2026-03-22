@@ -589,6 +589,17 @@ app.use((req, res, next) => {
           } catch (err) {
             console.error("AI Scout startup refresh failed:", err);
           }
+
+          try {
+            const { backfillActualPointsForHistory } = await import("./actual-points");
+            const apResults = await backfillActualPointsForHistory(storage, 7);
+            if (apResults.length > 0) {
+              apResults.forEach(r => log(`[ActualPoints] ${r}`, "cron"));
+            }
+            log(`Startup actual points backfill complete — ${apResults.length} sport/date combos updated`, "cron");
+          } catch (err) {
+            console.error("Startup actual points backfill failed:", err);
+          }
         } catch (err) {
           console.error("Startup initialization failed:", err);
         }
@@ -776,6 +787,23 @@ app.use((req, res, next) => {
         timezone: "America/New_York",
       });
       log("Scheduled 3:30 AM ET winning lineup analysis cron job", "cron");
+
+      cron.schedule("15 3 * * *", async () => {
+        try {
+          log("Starting actual points backfill (7 days)", "cron");
+          const { backfillActualPointsForHistory } = await import("./actual-points");
+          const results = await backfillActualPointsForHistory(storage, 7);
+          if (results.length > 0) {
+            results.forEach(r => log(`[ActualPoints] ${r}`, "cron"));
+          }
+          log(`Actual points backfill complete — ${results.length} sport/date combos updated`, "cron");
+        } catch (err) {
+          console.error("Actual points backfill failed:", err);
+        }
+      }, {
+        timezone: "America/New_York",
+      });
+      log("Scheduled 3:15 AM ET actual points backfill cron job", "cron");
 
       cron.schedule("0 4 * * *", async () => {
         try {

@@ -389,3 +389,56 @@ export async function fetchActualPointsForDate(sport: string, dateStr: string): 
   console.log(`[ActualPoints] Computed actual points for ${playerMap.size} ${sport} players on ${dateStr}`);
   return playerMap;
 }
+
+export async function backfillActualPointsForHistory(storage: any, daysBack = 7): Promise<string[]> {
+  const results: string[] = [];
+  const supportedSports = ["NBA", "NHL", "MLB", "NFL"];
+
+  const today = new Date();
+  const dates: string[] = [];
+  for (let i = 1; i <= daysBack; i++) {
+    const d = new Date(today);
+    d.setUTCDate(d.getUTCDate() - i);
+    dates.push(d.toISOString().split("T")[0]);
+  }
+
+  for (const sport of supportedSports) {
+    for (const dateStr of dates) {
+      try {
+        const historyRows = await storage.getPlayerHistoryByDate(sport, dateStr);
+        if (!historyRows || historyRows.length === 0) continue;
+
+        const needsUpdate = historyRows.filter((h: any) => !h.actualPoints || h.actualPoints === "0");
+        if (needsUpdate.length === 0) continue;
+
+        const actualPointsMap = await fetchActualPointsForDate(sport, dateStr);
+        if (actualPointsMap.size === 0) continue;
+
+        const batchUpdates: Array<{ playerName: string; actualPoints: string }> = [];
+        const seen = new Set<string>();
+
+        for (const h of needsUpdate) {
+          if (seen.has(h.playerName)) continue;
+          seen.add(h.playerName);
+
+          const normalized = normalizeName(h.playerName);
+          const actual = actualPointsMap.get(normalized);
+          if (actual && actual.points > 0) {
+            batchUpdates.push({ playerName: h.playerName, actualPoints: String(actual.points) });
+          }
+        }
+
+        if (batchUpdates.length > 0) {
+          await storage.batchUpdatePlayerHistoryActualPoints(sport, dateStr, batchUpdates);
+          const msg = `${sport} ${dateStr}: updated ${batchUpdates.length} players with actual points`;
+          console.log(`[ActualPoints Backfill] ${msg}`);
+          results.push(msg);
+        }
+      } catch (err: any) {
+        console.error(`[ActualPoints Backfill] ${sport} ${dateStr} error:`, err.message);
+      }
+    }
+  }
+
+  return results;
+}

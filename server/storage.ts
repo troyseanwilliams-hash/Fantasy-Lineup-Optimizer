@@ -97,6 +97,7 @@ export interface IStorage extends IAuthStorage {
   bulkInsertPlayerHistory(records: InsertPlayerHistory[]): Promise<void>;
   getPlayerHistoryByName(playerName: string, sport: string, limit?: number): Promise<PlayerHistory[]>;
   getPlayerHistoryBySport(sport: string, limit?: number): Promise<PlayerHistory[]>;
+  getPlayerHistoryByDate(sport: string, slateDate: string): Promise<PlayerHistory[]>;
   getRecentPlayerHistory(playerNames: string[]): Promise<PlayerHistory[]>;
   cleanOldPlayerHistory(daysToKeep: number): Promise<number>;
   updatePlayerHistoryActualPoints(sport: string, slateDate: string, playerName: string, actualPoints: string): Promise<void>;
@@ -673,6 +674,21 @@ export class DatabaseStorage implements IStorage {
       WHERE sport = ${sport}
       ORDER BY player_name, slate_date DESC, id DESC
       LIMIT ${limit}
+    `);
+    return (rows.rows || rows) as unknown as PlayerHistory[];
+  }
+
+  async getPlayerHistoryByDate(sport: string, slateDate: string): Promise<PlayerHistory[]> {
+    const rows = await db.execute(sql`
+      SELECT DISTINCT ON (player_name)
+        id, player_name AS "playerName", team, sport, position, salary,
+        projected_points AS "projectedPoints", actual_points AS "actualPoints",
+        slate_date AS "slateDate", slate_id AS "slateId",
+        draftkings_player_id AS "draftKingsPlayerId", ownership,
+        created_at AS "createdAt"
+      FROM player_history
+      WHERE sport = ${sport} AND slate_date = ${slateDate}
+      ORDER BY player_name, id DESC
     `);
     return (rows.rows || rows) as unknown as PlayerHistory[];
   }
