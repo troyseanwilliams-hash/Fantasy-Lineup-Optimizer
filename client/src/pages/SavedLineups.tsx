@@ -141,7 +141,6 @@ export default function SavedLineups() {
   const [showRegenSettings, setShowRegenSettings] = useState(false);
   const [showExposure, setShowExposure] = useState(true);
   const [regenMaxExposure, setRegenMaxExposure] = useState<number | null>(null);
-  const [regenMinExposure, setRegenMinExposure] = useState<number | null>(null);
   const [regenProjFloor, setRegenProjFloor] = useState<number | null>(null);
   const [regenMinSalary, setRegenMinSalary] = useState<number | null>(null);
   const [regenMaxSalary, setRegenMaxSalary] = useState<number | null>(null);
@@ -851,7 +850,7 @@ export default function SavedLineups() {
                       </Button>
                       {isPaid && (
                         <Button
-                          onClick={() => bulkGenerateMutation.mutate({ ids: Array.from(selectedIds), useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, outperformerMode: regenOutperformerMode, contestType: regenContestType, globalMaxExposure: regenMaxExposure ?? undefined, globalMinExposure: regenMinExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined, slateId: regenSlateId ?? undefined })}
+                          onClick={() => bulkGenerateMutation.mutate({ ids: Array.from(selectedIds), useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, outperformerMode: regenOutperformerMode, contestType: regenContestType, globalMaxExposure: regenMaxExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined, slateId: regenSlateId ?? undefined })}
                           disabled={bulkGenerateMutation.isPending || regenContestType === "gpp"}
                           className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
                           data-testid="bulk-generate-btn"
@@ -893,7 +892,7 @@ export default function SavedLineups() {
                             {simScoreMutation.isPending ? "Scoring..." : "Score"}
                           </Button>
                           <Button
-                            onClick={() => simRegenMutation.mutate({ ids: Array.from(selectedIds), sortBy: simMetric, useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, outperformerMode: regenOutperformerMode, contestType: regenContestType, globalMaxExposure: regenMaxExposure ?? undefined, globalMinExposure: regenMinExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined, slateId: regenSlateId ?? undefined })}
+                            onClick={() => simRegenMutation.mutate({ ids: Array.from(selectedIds), sortBy: simMetric, useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, outperformerMode: regenOutperformerMode, contestType: regenContestType, globalMaxExposure: regenMaxExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined, slateId: regenSlateId ?? undefined })}
                             disabled={simRegenMutation.isPending || simScoreMutation.isPending || regenContestType === "cash"}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-md rounded-l-none text-xs disabled:opacity-40"
                             data-testid="sim-regen-btn"
@@ -998,22 +997,6 @@ export default function SavedLineups() {
                   <Switch checked={regenOutperformerMode} onCheckedChange={setRegenOutperformerMode} data-testid="regen-toggle-outperformer" className="scale-90" />
                   <span className="text-xs font-bold text-cyan-400">OPM</span>
                   <InfoTip text="Outperformer Mode — boosts players who consistently meet or exceed their projections and penalizes those who consistently miss." side="bottom" />
-                </div>
-                <div className="flex items-center gap-2 min-w-[180px]">
-                  <span className="text-xs font-bold text-emerald-300 whitespace-nowrap">Min Exp</span>
-                  <InfoTip text="Guarantees each player appears in at least this % of your lineups." side="bottom" />
-                  <Slider
-                    value={[regenMinExposure ?? 0]}
-                    onValueChange={(v) => setRegenMinExposure(v[0] <= 0 ? null : v[0])}
-                    min={0}
-                    max={100}
-                    step={5}
-                    className="flex-1"
-                    data-testid="regen-slider-min-exposure"
-                  />
-                  <span className={`text-xs font-black min-w-[28px] text-center ${regenMinExposure ? "text-emerald-400" : "text-slate-500"}`} data-testid="regen-text-min-exposure">
-                    {regenMinExposure ? `${regenMinExposure}%` : "Off"}
-                  </span>
                 </div>
                 <div className="flex items-center gap-2 min-w-[180px]">
                   <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Max Exp</span>
@@ -1406,7 +1389,6 @@ export default function SavedLineups() {
                             outperformerMode: regenOutperformerMode,
                             contestType: regenContestType,
                             globalMaxExposure: regenMaxExposure ?? undefined,
-                            globalMinExposure: regenMinExposure ?? undefined,
                             projFloor: regenProjFloor ?? undefined,
                             minSalary: regenMinSalary ?? undefined,
                             maxSalary: regenMaxSalary ?? undefined,

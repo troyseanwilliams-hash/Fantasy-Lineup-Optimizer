@@ -110,9 +110,7 @@ export default function ProOptimizer() {
   const setUseBoosts = (val: boolean) => setUseBoostsUserOverride(val);
   const [fadedIds, setFadedIds] = useState<number[]>([]);
   const [exposureLimits, setExposureLimits] = useState<Record<string, number>>({});
-  const [minExposureLimits, setMinExposureLimits] = useState<Record<string, number>>({});
   const [globalMaxExposure, setGlobalMaxExposure] = useState<number | null>(null);
-  const [globalMinExposure, setGlobalMinExposure] = useState<number | null>(null);
   const [leverageMode, setLeverageMode] = useState(false);
   const [outperformerMode, setOutperformerMode] = useState(false);
   const [projectionMode, setProjectionMode] = useState<"balanced" | "ceiling">("balanced");
@@ -553,8 +551,6 @@ export default function ProOptimizer() {
         const pct = (count / generatedLineups.length) * 100;
         const playerLimit = exposureLimits[id];
         const effectiveLimit = playerLimit ?? (globalMaxExposure ?? undefined);
-        const playerMinLimit = minExposureLimits[id];
-        const effectiveMinLimit = playerMinLimit ?? (globalMinExposure ?? undefined);
         return {
           playerId: Number(id),
           playerName: player?.name || `Player #${id}`,
@@ -565,20 +561,13 @@ export default function ProOptimizer() {
           pct,
           limit: effectiveLimit,
           overLimit: effectiveLimit !== undefined && pct > effectiveLimit,
-          minLimit: effectiveMinLimit,
-          underLimit: effectiveMinLimit !== undefined && pct < effectiveMinLimit,
           isPlayerSpecific: playerLimit !== undefined,
-          isMinPlayerSpecific: playerMinLimit !== undefined,
         };
       })
       .sort((a, b) => b.pct - a.pct);
-  }, [generatedLineups, players, exposureLimits, globalMaxExposure, minExposureLimits, globalMinExposure]);
+  }, [generatedLineups, players, exposureLimits, globalMaxExposure]);
 
   const handleOptimize = () => {
-    if (globalMinExposure && globalMaxExposure && globalMinExposure > globalMaxExposure) {
-      toast({ title: "Invalid Exposure", description: "Min exposure cannot exceed max exposure.", variant: "destructive" });
-      return;
-    }
     const projections: Record<string, number> = { ...customProjections };
     if (isPro && fadedIds.length > 0 && players) {
       for (const p of players) {
@@ -620,8 +609,6 @@ export default function ProOptimizer() {
         enforceGameStack,
         stackGameKey: stackGameKey || undefined,
         globalMaxExposure: globalMaxExposure ?? undefined,
-        globalMinExposure: globalMinExposure ?? undefined,
-        minExposureLimits: Object.keys(minExposureLimits).length > 0 ? minExposureLimits : undefined,
         minStarRating,
         sortMetric: simSortMetric,
         useBoosts,
@@ -642,8 +629,6 @@ export default function ProOptimizer() {
         useBoosts,
         exposureLimits: activeExposureLimits,
         globalMaxExposure: globalMaxExposure ?? undefined,
-        minExposureLimits: Object.keys(minExposureLimits).length > 0 ? minExposureLimits : undefined,
-        globalMinExposure: globalMinExposure ?? undefined,
         leverageMode,
         projectionMode,
         minStarRating,
@@ -1073,21 +1058,6 @@ export default function ProOptimizer() {
               {isPro && lineupCount > 1 && (
                 <>
                   <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
-                    <LabelTip text="Minimum % any player must appear across all generated lineups. Guarantees exposure for key players."><span className="text-[10px] font-black text-emerald-400 uppercase whitespace-nowrap">Min Exp</span></LabelTip>
-                    <Slider
-                      value={[globalMinExposure ?? 0]}
-                      onValueChange={(v) => setGlobalMinExposure(v[0] === 0 ? null : v[0])}
-                      min={0}
-                      max={100}
-                      step={5}
-                      className="w-24"
-                      data-testid="slider-global-min-exposure"
-                    />
-                    <span className={`text-xs font-black min-w-[28px] text-center ${globalMinExposure ? "text-emerald-400" : "text-slate-500"}`} data-testid="text-global-min-exposure">
-                      {globalMinExposure ? `${globalMinExposure}%` : "Off"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
                     <LabelTip text="Maximum % any single player can appear across all generated lineups. Lower values increase lineup diversity."><span className="text-[10px] font-black text-cyan-400 uppercase whitespace-nowrap">Max Exp</span></LabelTip>
                     <Slider
                       value={[globalMaxExposure ?? 100]}
@@ -1195,21 +1165,6 @@ export default function ProOptimizer() {
               </div>
               {lineupCount > 1 && (
                 <>
-                  <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
-                    <span className="text-[10px] font-black text-emerald-400 uppercase whitespace-nowrap">Min Exp</span>
-                    <Slider
-                      value={[globalMinExposure ?? 0]}
-                      onValueChange={(v) => setGlobalMinExposure(v[0] === 0 ? null : v[0])}
-                      min={0}
-                      max={100}
-                      step={5}
-                      className="w-20"
-                      data-testid="slider-global-min-exposure-mobile"
-                    />
-                    <span className={`text-xs font-black min-w-[28px] text-center ${globalMinExposure ? "text-emerald-400" : "text-slate-500"}`}>
-                      {globalMinExposure ? `${globalMinExposure}%` : "Off"}
-                    </span>
-                  </div>
                   <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
                     <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Max Exp</span>
                     <Slider
