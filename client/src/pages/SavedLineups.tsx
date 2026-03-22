@@ -1235,6 +1235,7 @@ export default function SavedLineups() {
                             <th className="text-left py-2 px-2">Player</th>
                             <th className="text-left py-2 px-2">Pos</th>
                             <th className="text-left py-2 px-2">Team</th>
+                            <th className="text-center py-2 px-2">Status</th>
                             <th className="text-right py-2 px-2">Salary</th>
                             <th className="text-center py-2 px-2 w-40">Proj vs Actual</th>
                             <th className="text-right py-2 px-2">Count</th>
@@ -1295,6 +1296,23 @@ export default function SavedLineups() {
                               </td>
                               <td className="py-1.5 px-2 text-slate-400 text-xs">{p.position}</td>
                               <td className="py-1.5 px-2 text-slate-400 text-xs">{p.team}</td>
+                              <td className="py-1.5 px-2 text-center" data-testid={`exposure-status-${i}`}>
+                                {p.injuryStatus ? (
+                                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-sm ${
+                                    p.injuryStatus === "OUT" || p.injuryStatus === "IR" || p.injuryStatus === "Doubtful"
+                                      ? "bg-red-500/20 text-red-400"
+                                      : p.injuryStatus === "Questionable" || p.injuryStatus === "GTD"
+                                        ? "bg-amber-500/20 text-amber-400"
+                                        : p.injuryStatus === "Probable" || p.injuryStatus === "DTD"
+                                          ? "bg-green-500/20 text-green-400"
+                                          : "bg-blue-500/20 text-blue-400"
+                                  }`}>
+                                    {p.injuryStatus === "Questionable" ? "Q" : p.injuryStatus === "Probable" ? "P" : p.injuryStatus.toUpperCase()}
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] text-slate-600">—</span>
+                                )}
+                              </td>
                               <td className="py-1.5 px-2 text-right text-slate-300 text-xs">${p.salary.toLocaleString()}</td>
                               <td className="py-1.5 px-2">
                                 <div className="flex flex-col gap-0.5">

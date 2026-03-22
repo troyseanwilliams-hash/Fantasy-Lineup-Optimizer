@@ -555,6 +555,7 @@ export default function ProOptimizer() {
           playerId: Number(id),
           playerName: player?.name || `Player #${id}`,
           position: player?.position || "",
+          injuryStatus: (player as any)?.injuryStatus || null,
           count,
           total: generatedLineups.length,
           pct,
@@ -2622,7 +2623,22 @@ export default function ProOptimizer() {
                     {exposureTracking.slice(0, 20).map((ep) => (
                       <div key={ep.playerId} className="flex items-center gap-2" data-testid={`exposure-row-${ep.playerId}`}>
                         <span className="text-[10px] font-bold text-amber-400/70 w-8 text-right">{ep.position}</span>
-                        <span className="text-xs font-bold text-white flex-1 truncate">{ep.playerName}</span>
+                        <span className="text-xs font-bold text-white flex-1 truncate">
+                          {ep.playerName}
+                          {ep.injuryStatus && (
+                            <span className={`ml-1.5 text-[9px] font-black px-1 py-0 rounded-sm ${
+                              ep.injuryStatus === "OUT" || ep.injuryStatus === "IR" || ep.injuryStatus === "Doubtful"
+                                ? "bg-red-500/20 text-red-400"
+                                : ep.injuryStatus === "Questionable" || ep.injuryStatus === "GTD"
+                                  ? "bg-amber-500/20 text-amber-400"
+                                  : ep.injuryStatus === "Probable" || ep.injuryStatus === "DTD"
+                                    ? "bg-green-500/20 text-green-400"
+                                    : "bg-blue-500/20 text-blue-400"
+                            }`} data-testid={`exposure-status-${ep.playerId}`}>
+                              {ep.injuryStatus === "Questionable" ? "Q" : ep.injuryStatus === "Probable" ? "P" : ep.injuryStatus.toUpperCase()}
+                            </span>
+                          )}
+                        </span>
                         <span className="text-[11px] font-mono text-slate-400">{ep.count}/{ep.total}</span>
                         <div className="w-12 h-1.5 bg-slate-700 rounded-full overflow-hidden">
                           <div
