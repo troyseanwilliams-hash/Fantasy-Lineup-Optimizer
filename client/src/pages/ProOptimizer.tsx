@@ -424,24 +424,37 @@ export default function ProOptimizer() {
 
   const isOptimizing = optimizeMutation.isPending || simMutation.isPending;
 
+  const playersById = useMemo(() => new Map(players?.map(p => [p.id, p]) ?? []), [players]);
+
   const generatedLineups = useMemo(() => {
-    if (Object.keys(lineupSwaps).length === 0) return rawGeneratedLineups;
+    const enrichPlayer = (p: any) => {
+      const enriched = playersById.get(p.id);
+      if (enriched) {
+        return { ...p, recentActualAvg: enriched.recentActualAvg, gamesTracked: enriched.gamesTracked };
+      }
+      return p;
+    };
+    const enrichLineup = (lineupData: any) => ({
+      ...lineupData,
+      lineup: lineupData.lineup.map(enrichPlayer),
+    });
+    if (Object.keys(lineupSwaps).length === 0) return rawGeneratedLineups.map(enrichLineup);
     return rawGeneratedLineups.map((lineupData, idx) => {
       const swaps = lineupSwaps[idx];
-      if (!swaps || Object.keys(swaps).length === 0) return lineupData;
+      if (!swaps || Object.keys(swaps).length === 0) return enrichLineup(lineupData);
       const originalSlots = assignPlayersToSlots(lineupData.lineup, config.slots, sport);
       const removedIds = new Set<number>();
       for (const slotKey of Object.keys(swaps)) {
         const slotPlayer = originalSlots[slotKey];
         if (slotPlayer) removedIds.add(slotPlayer.id);
       }
-      const keptPlayers = lineupData.lineup.filter(p => !removedIds.has(p.id));
-      const newPlayers = [...keptPlayers, ...Object.values(swaps)];
+      const keptPlayers = lineupData.lineup.filter((p: any) => !removedIds.has(p.id));
+      const newPlayers = [...keptPlayers, ...Object.values(swaps)].map(enrichPlayer);
       const newSalary = newPlayers.reduce((s, p) => s + p.salary, 0);
       const newProj = newPlayers.reduce((s, p) => s + Number(p.projectedPoints), 0);
       return { ...lineupData, lineup: newPlayers, totalSalary: newSalary, totalProjectedPoints: newProj };
     });
-  }, [rawGeneratedLineups, lineupSwaps, config.slots, sport]);
+  }, [rawGeneratedLineups, lineupSwaps, config.slots, sport, playersById]);
 
   const sortedLineups = useMemo(() => {
     const indexed = generatedLineups.map((lu, i) => ({ ...lu, _origIdx: i }));

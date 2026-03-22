@@ -317,9 +317,18 @@ export default function Optimizer() {
   }, [players, excludedIds]);
 
   const currentLineup = optimizeMutation.data;
+  const playersById = useMemo(() => new Map(players?.map(p => [p.id, p]) ?? []), [players]);
+
   const lineupSlots = useMemo(() => {
     if (!currentLineup?.lineup) return null;
-    const assigned = assignPlayersToSlots(currentLineup.lineup, config.slots, sport);
+    const enrichedLineup = currentLineup.lineup.map(p => {
+      const enriched = playersById.get(p.id);
+      if (enriched) {
+        return { ...p, recentActualAvg: enriched.recentActualAvg, gamesTracked: enriched.gamesTracked };
+      }
+      return p;
+    });
+    const assigned = assignPlayersToSlots(enrichedLineup, config.slots, sport);
     removedSlots.forEach(slot => {
       if (assigned[slot]) assigned[slot] = null;
     });
@@ -327,7 +336,7 @@ export default function Optimizer() {
       assigned[slot] = player;
     });
     return assigned;
-  }, [currentLineup, config.slots, removedSlots, manualReplacements]);
+  }, [currentLineup, config.slots, removedSlots, manualReplacements, playersById]);
 
   const activeLineupPlayers = useMemo(() => {
     if (!lineupSlots) return [];
