@@ -1584,19 +1584,6 @@ export async function registerRoutes(
             positionGroups.set(pos, group);
           }
         }
-        const keepIds = new Set<number>();
-        for (const p of pool) { if (simRegenLocked.has(p.id)) keepIds.add(p.id); }
-        const topPerPos = slate.sport === "GOLF" ? 50 : 20;
-        const cheapReserve = 5;
-        for (const [, players] of positionGroups) {
-          players.sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
-          for (let i = 0; i < Math.min(players.length, topPerPos); i++) keepIds.add(players[i].id);
-          const bySalary = [...players].sort((a, b) => a.salary - b.salary);
-          for (let i = 0; i < Math.min(bySalary.length, cheapReserve); i++) keepIds.add(bySalary[i].id);
-        }
-        let lpPool = pool.filter(p => keepIds.has(p.id));
-        console.log(`[SimRegen] Pool trimmed: ${pool.length} → ${lpPool.length} players for LP solving`);
-
         const minExpPlayers: { id: number; pct: number }[] = [];
         for (const [pid, exp] of Object.entries(simRegenOverrideExposure)) {
           if (exp.min && exp.min > 0) {
@@ -1610,8 +1597,20 @@ export async function registerRoutes(
             }
           }
         }
-        if (typeof globalMinExposure === "number" && globalMinExposure > 0) {
+
+        const keepIds = new Set<number>();
+        for (const p of pool) { if (simRegenLocked.has(p.id)) keepIds.add(p.id); }
+        for (const mp of minExpPlayers) keepIds.add(mp.id);
+        const topPerPos = slate.sport === "GOLF" ? 50 : 20;
+        const cheapReserve = 5;
+        for (const [, players] of positionGroups) {
+          players.sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
+          for (let i = 0; i < Math.min(players.length, topPerPos); i++) keepIds.add(players[i].id);
+          const bySalary = [...players].sort((a, b) => a.salary - b.salary);
+          for (let i = 0; i < Math.min(bySalary.length, cheapReserve); i++) keepIds.add(bySalary[i].id);
         }
+        let lpPool = pool.filter(p => keepIds.has(p.id));
+        console.log(`[SimRegen] Pool trimmed: ${pool.length} → ${lpPool.length} players for LP solving`);
 
         function getSimLocks(simIndex: number, totalSims: number): number[] {
           const locks = [...simRegenLocked];
@@ -1635,7 +1634,7 @@ export async function registerRoutes(
             const noise = simProj * (Math.random() * 0.06 - 0.03);
             return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
           });
-          const simLocks = getSimLocks(i, CALIBRATION_BATCH + 200);
+          const simLocks = getSimLocks(i, 200);
           const result = solveLineup(
             simPool,
             { slateId, lockedPlayerIds: simLocks, excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
@@ -1660,7 +1659,7 @@ export async function registerRoutes(
               const noise = simProj * (Math.random() * 0.06 - 0.03);
               return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
             });
-            const fbLocks = getSimLocks(i, CALIBRATION_BATCH + 200);
+            const fbLocks = getSimLocks(i, 200);
             const result = solveLineup(simPool, { slateId, lockedPlayerIds: fbLocks, excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints, slate.sport, platform);
             if (result.error || result.lineup.length === 0) continue;
             const key = result.lineup.map((p: Player) => p.id).sort().join(",");
@@ -5187,10 +5186,48 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
     .filter(k => k.startsWith('p') && result[k] > 0.5)
     .map(k => Number(k.substring(1)));
 
-  const selectedPlayers = pool.filter(p => selectedPlayerIds.includes(p.id));
+  let selectedPlayers = pool.filter(p => selectedPlayerIds.includes(p.id));
 
   if (selectedPlayers.length !== config.rosterSize) {
     return { error: `Roster size mismatch: got ${selectedPlayers.length}, need ${config.rosterSize}`, lineup: [], totalSalary: 0, totalProjectedPoints: 0 };
+  }
+
+  if (gameKeys.length >= 2) {
+    const selectedGames = new Set<string>();
+    for (const p of selectedPlayers) {
+      const gk = (p.gameInfo || "").replace(/\s*\d{1,2}:\d{2}\s*(AM|PM)\s*ET\s*$/i, "").trim();
+      if (gk) selectedGames.add(gk);
+    }
+    if (selectedGames.size < 2) {
+      const retryModel = JSON.parse(JSON.stringify(model));
+      const maxFromAnyGame = config.rosterSize - 1;
+      for (const [gameKey, playerVars] of gameMap.entries()) {
+        const capName = `cap_game_${gameKey.replace(/[^a-zA-Z0-9]/g, "_")}`;
+        retryModel.constraints[capName] = { max: maxFromAnyGame };
+        for (const pv of playerVars) {
+          if (retryModel.variables[pv]) {
+            retryModel.variables[pv][capName] = 1;
+          }
+        }
+      }
+      const retryResult: any = solver.Solve(retryModel);
+      if (retryResult.feasible) {
+        const retryIds = Object.keys(retryResult)
+          .filter(k => k.startsWith('p') && retryResult[k] > 0.5)
+          .map(k => Number(k.substring(1)));
+        const retryPlayers = pool.filter(p => retryIds.includes(p.id));
+        if (retryPlayers.length === config.rosterSize) {
+          const retryGames = new Set<string>();
+          for (const p of retryPlayers) {
+            const gk = (p.gameInfo || "").replace(/\s*\d{1,2}:\d{2}\s*(AM|PM)\s*ET\s*$/i, "").trim();
+            if (gk) retryGames.add(gk);
+          }
+          if (retryGames.size >= 2) {
+            selectedPlayers = retryPlayers;
+          }
+        }
+      }
+    }
   }
 
   const slotAssignment = assignPlayersToSlots(selectedPlayers, config.slots, sport);
