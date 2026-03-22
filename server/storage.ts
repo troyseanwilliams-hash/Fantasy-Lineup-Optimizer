@@ -645,18 +645,20 @@ export class DatabaseStorage implements IStorage {
 
   async getRecentPlayerHistory(playerNames: string[]): Promise<PlayerHistory[]> {
     if (playerNames.length === 0) return [];
-    const rows = await db.select()
-      .from(playerHistory)
-      .where(
-        and(
-          inArray(playerHistory.playerName, playerNames),
-          isNotNull(playerHistory.actualPoints),
-          gt(playerHistory.actualPoints, "0")
-        )
-      )
-      .orderBy(desc(playerHistory.slateDate))
-      .limit(1000);
-    return rows as unknown as PlayerHistory[];
+    const rows = await db.execute(sql`
+      SELECT DISTINCT ON (player_name, slate_date)
+        id, player_name AS "playerName", team, sport, position, salary,
+        projected_points AS "projectedPoints", actual_points AS "actualPoints",
+        slate_date AS "slateDate", slate_id AS "slateId",
+        draftkings_player_id AS "draftKingsPlayerId", ownership,
+        created_at AS "createdAt"
+      FROM player_history
+      WHERE player_name = ANY(${sql.raw(`ARRAY[${playerNames.map(n => `'${n.replace(/'/g, "''")}'`).join(",")}]`)}::text[])
+        AND actual_points IS NOT NULL
+        AND actual_points::numeric > 0
+      ORDER BY player_name, slate_date DESC
+    `);
+    return (rows.rows || rows) as unknown as PlayerHistory[];
   }
 
   async getPlayerHistoryBySport(sport: string, limit = 500): Promise<PlayerHistory[]> {
