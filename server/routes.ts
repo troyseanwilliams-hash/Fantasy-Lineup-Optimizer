@@ -315,7 +315,53 @@ export async function registerRoutes(
 
     res.json(playersWithOwnership);
   });
-  
+
+  app.get("/api/players/all/:sport", async (req, res) => {
+    try {
+      const sport = req.params.sport.toUpperCase();
+      const platform = (req.query.platform as string) || "draftkings";
+      const allSlates = await storage.getSlates();
+      const sportSlates = allSlates
+        .filter(s => s.sport === sport && s.platform === platform && s.isActive !== false);
+
+      if (sportSlates.length === 0) {
+        return res.json({ players: [], mainSlateId: null });
+      }
+
+      const mainSlate = sportSlates.find(s => s.isMain) || sportSlates[0];
+      const seen = new Map<string, any>();
+
+      for (const slate of sportSlates) {
+        let players = await storage.getPlayersBySlate(slate.id);
+        const isDK = slate.platform === "draftkings";
+        if (isDK) {
+          players = await applyLiveDKStatuses(players, slate.draftGroupId, slate.sport);
+        }
+        for (const p of players) {
+          const key = p.draftKingsPlayerId
+            ? `dk-${p.draftKingsPlayerId}`
+            : `${p.name}-${p.team}`.toLowerCase();
+          const existing = seen.get(key);
+          if (!existing) {
+            seen.set(key, { ...p, _fromSlateId: slate.id, _isMainSlate: slate.id === mainSlate.id });
+          } else if (slate.id === mainSlate.id && !existing._isMainSlate) {
+            seen.set(key, { ...p, _fromSlateId: slate.id, _isMainSlate: true });
+          }
+        }
+      }
+
+      const merged = Array.from(seen.values()).map(({ _fromSlateId, _isMainSlate, ...p }) => ({
+        ...p,
+        slateId: mainSlate.id,
+      }));
+
+      res.json({ players: merged, mainSlateId: mainSlate.id });
+    } catch (err: any) {
+      console.error("[AllPlayers] Error:", err);
+      res.status(500).json({ message: "Failed to fetch all players" });
+    }
+  });
+
   app.post(api.players.bulkCreate.path, async (req, res) => {
      try {
       const slateId = Number(req.params.id);

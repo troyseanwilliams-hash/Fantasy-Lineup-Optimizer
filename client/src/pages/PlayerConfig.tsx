@@ -67,35 +67,38 @@ export default function PlayerConfig() {
     enabled: !!user,
   });
 
-  const mainSlates = slates?.filter(s => s.isMain) || [];
-  const sportSlates = mainSlates.filter(s => s.sport === selectedSport);
+  const allSlates = slates || [];
+  const sportSlates = allSlates.filter(s => s.sport === selectedSport);
   const platformOrder = ["draftkings", "fanduel", "yahoo"];
   const availablePlatforms = [...new Set(sportSlates.map(s => s.platform))].sort(
     (a, b) => platformOrder.indexOf(a) - platformOrder.indexOf(b)
   );
-  const currentSlate = sportSlates.find(s => s.platform === selectedPlatform)
-    || sportSlates.find(s => s.platform === "draftkings")
+  const mainSlate = sportSlates.find(s => s.platform === selectedPlatform && s.isMain)
+    || sportSlates.find(s => s.platform === "draftkings" && s.isMain)
+    || sportSlates.find(s => s.isMain)
     || sportSlates[0];
-  const slateId = currentSlate?.id;
+  const slateId = mainSlate?.id;
 
-  const { data: players, isLoading: playersLoading } = useQuery<Player[]>({
-    queryKey: ["/api/slates", slateId, "players"],
+  const { data: allPlayersData, isLoading: playersLoading } = useQuery<{ players: Player[]; mainSlateId: number }>({
+    queryKey: ["/api/players/all", selectedSport, selectedPlatform],
     queryFn: async () => {
-      const res = await fetch(`/api/slates/${slateId}/players`);
+      const res = await fetch(`/api/players/all/${selectedSport}?platform=${selectedPlatform}`);
       if (!res.ok) throw new Error("Failed to fetch players");
       return res.json();
     },
-    enabled: !!slateId && !!user,
+    enabled: !!selectedSport && !!user,
   });
+  const players = allPlayersData?.players;
+  const effectiveSlateId = allPlayersData?.mainSlateId ?? slateId;
 
   const { data: overrides, isLoading: overridesLoading } = useQuery<PlayerOverride[]>({
-    queryKey: ["/api/player-overrides", slateId],
+    queryKey: ["/api/player-overrides", effectiveSlateId],
     queryFn: async () => {
-      const res = await fetch(`/api/player-overrides/${slateId}`);
+      const res = await fetch(`/api/player-overrides/${effectiveSlateId}`);
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: !!slateId && hasPaidAccess,
+    enabled: !!effectiveSlateId && hasPaidAccess,
   });
 
   const overrideMap = useMemo(() => {
@@ -107,30 +110,31 @@ export default function PlayerConfig() {
   const overrideCount = overrides?.length || 0;
 
   const upsertMutation = useMutation({
-    mutationFn: async ({ playerId, data }: { playerId: number; data: any }) => {
-      const res = await apiRequest("PUT", `/api/player-overrides/${slateId}/${playerId}`, data);
+    mutationFn: async ({ playerId, data, dkPlayerId }: { playerId: number; data: any; dkPlayerId?: number }) => {
+      const body = dkPlayerId ? { ...data, dkPlayerId } : data;
+      const res = await apiRequest("PUT", `/api/player-overrides/${effectiveSlateId}/${playerId}`, body);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/player-overrides", slateId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/player-overrides", effectiveSlateId] });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (playerId: number) => {
-      await apiRequest("DELETE", `/api/player-overrides/${slateId}/${playerId}`);
+      await apiRequest("DELETE", `/api/player-overrides/${effectiveSlateId}/${playerId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/player-overrides", slateId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/player-overrides", effectiveSlateId] });
     },
   });
 
   const clearAllMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("DELETE", `/api/player-overrides/${slateId}`);
+      await apiRequest("DELETE", `/api/player-overrides/${effectiveSlateId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/player-overrides", slateId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/player-overrides", effectiveSlateId] });
       toast({ title: "All overrides cleared", description: "Player settings have been reset to defaults." });
     },
   });
@@ -217,7 +221,7 @@ export default function PlayerConfig() {
       toast({ title: "Invalid", description: "Max exposure cannot be less than min exposure.", variant: "destructive" });
       return;
     }
-    upsertMutation.mutate({ playerId: player.id, data: { ...d, [field]: parsed } });
+    upsertMutation.mutate({ playerId: player.id, data: { ...d, [field]: parsed }, dkPlayerId: (player as any).draftKingsPlayerId || undefined });
   }
 
   function handleToggleExclude(player: Player) {
@@ -226,6 +230,7 @@ export default function PlayerConfig() {
     upsertMutation.mutate({
       playerId: player.id,
       data: { ...d, isExcluded: newExcluded, isLocked: newExcluded ? false : d.isLocked },
+      dkPlayerId: (player as any).draftKingsPlayerId || undefined,
     });
   }
 
@@ -235,6 +240,7 @@ export default function PlayerConfig() {
     upsertMutation.mutate({
       playerId: player.id,
       data: { ...d, isLocked: newLocked, isExcluded: newLocked ? false : d.isExcluded },
+      dkPlayerId: (player as any).draftKingsPlayerId || undefined,
     });
   }
 
@@ -245,6 +251,7 @@ export default function PlayerConfig() {
     upsertMutation.mutate({
       playerId: player.id,
       data: { ...d, boostPercent: nextBoost },
+      dkPlayerId: (player as any).draftKingsPlayerId || undefined,
     });
   }
 
@@ -252,14 +259,14 @@ export default function PlayerConfig() {
     const val = editProjection.trim();
     const d = getOverrideData(player.id);
     if (val === "" || val === player.projectedPoints) {
-      upsertMutation.mutate({ playerId: player.id, data: { ...d, customProjection: null } });
+      upsertMutation.mutate({ playerId: player.id, data: { ...d, customProjection: null }, dkPlayerId: (player as any).draftKingsPlayerId || undefined });
     } else {
       const num = parseFloat(val);
       if (isNaN(num) || num < 0) {
         toast({ title: "Invalid projection", description: "Please enter a valid number.", variant: "destructive" });
         return;
       }
-      upsertMutation.mutate({ playerId: player.id, data: { ...d, customProjection: num } });
+      upsertMutation.mutate({ playerId: player.id, data: { ...d, customProjection: num }, dkPlayerId: (player as any).draftKingsPlayerId || undefined });
     }
     setEditingPlayer(null);
     setEditProjection("");
@@ -345,7 +352,7 @@ export default function PlayerConfig() {
         <div className="flex flex-wrap gap-2 mb-4">
           {ACTIVE_SPORTS.map(sport => {
             const sc = SPORT_COLORS[sport];
-            const hasSlate = mainSlates.some(s => s.sport === sport);
+            const hasSlate = allSlates.some(s => s.sport === sport);
             return (
               <button
                 key={sport}
@@ -370,7 +377,7 @@ export default function PlayerConfig() {
           <div className="flex gap-2 mb-4">
             {availablePlatforms.map(plat => {
               const label = plat === "draftkings" ? "DraftKings" : plat === "fanduel" ? "FanDuel" : "Yahoo";
-              const isActive = (currentSlate?.platform || selectedPlatform) === plat;
+              const isActive = (mainSlate?.platform || selectedPlatform) === plat;
               return (
                 <button
                   key={plat}
@@ -387,7 +394,7 @@ export default function PlayerConfig() {
           </div>
         )}
 
-        {!currentSlate ? (
+        {!mainSlate ? (
           <Card className="p-8 bg-slate-900/50 border-slate-700 text-center">
             <p className="text-slate-400">No active slate for {selectedSport}</p>
           </Card>
