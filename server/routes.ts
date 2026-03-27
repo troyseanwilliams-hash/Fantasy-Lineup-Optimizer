@@ -5557,52 +5557,91 @@ export async function seedDatabase(forceRefresh = false) {
     }
   }
 
-  const graceCutoffAlt = new Date(Date.now() - 3 * 60 * 60 * 1000);
   const refreshedSlates = await storage.getSlates();
-  const nonMainDkSlates = refreshedSlates.filter(
-    s => s.platform === "draftkings" && !s.isMain && s.isActive !== false && s.draftGroupId
-      && new Date(s.startTime) > graceCutoffAlt
-  );
-  for (const altSlate of nonMainDkSlates) {
-    const altPlayers = await storage.getPlayersBySlate(altSlate.id);
-    if (altPlayers.length > 0) continue;
-
+  const graceCutoffAlt = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  for (const sport of ACTIVE_SPORTS) {
     try {
-      const altData = await fetchDKSlateByDraftGroup(altSlate.sport, altSlate.draftGroupId!);
-      if (!altData || altData.dkPlayers.length === 0) {
-        console.log(`[DK] No draftables for non-main ${altSlate.sport} slate ${altSlate.id} (DG ${altSlate.draftGroupId})`);
-        continue;
-      }
+      const availableSlates = await fetchAvailableDKSlates(sport);
+      if (availableSlates.length <= 1) continue;
 
-      if (altData.slateDate) {
-        await db.update(slates).set({ startTime: new Date(altData.slateDate) }).where(eq(slates.id, altSlate.id));
-      }
-
-      const createdPlayers = await storage.bulkCreatePlayers(
-        altData.dkPlayers.map((p: any) => ({ ...p, slateId: altSlate.id })) as any
+      const existingDkSlates = refreshedSlates.filter(
+        s => s.sport === sport && s.platform === "draftkings" && s.isActive !== false
       );
-      console.log(`[DK] Repopulated non-main ${altSlate.sport} slate ${altSlate.id} (${altSlate.name}) with ${createdPlayers.length} players`);
+      const existingDgIds = new Set(existingDkSlates.map(s => s.draftGroupId).filter(Boolean));
 
-      const today2 = getEasternToday();
-      try {
-        const historyRecords = createdPlayers.map(p => ({
-          playerName: p.name,
-          team: p.team,
-          sport: altSlate.sport,
-          position: p.position,
-          salary: p.salary,
-          projectedPoints: p.projectedPoints,
-          slateDate: today2,
-          slateId: altSlate.id,
-          draftKingsPlayerId: p.draftKingsPlayerId,
-        }));
-        await storage.bulkInsertPlayerHistory(historyRecords);
-      } catch (err) {
-        console.error(`[History] Failed to save non-main ${altSlate.sport} snapshots:`, err);
+      for (const avSlate of availableSlates) {
+        if (existingDgIds.has(avSlate.draftGroupId)) {
+          const existing = existingDkSlates.find(s => s.draftGroupId === avSlate.draftGroupId);
+          if (existing) {
+            const players = await storage.getPlayersBySlate(existing.id);
+            if (players.length > 0) continue;
+          }
+        }
+
+        const mainSlateForSport = existingDkSlates.find(s => s.isMain);
+        const isMain = mainSlateForSport?.draftGroupId === avSlate.draftGroupId;
+        if (isMain) continue;
+
+        try {
+          const slateData = await fetchDKSlateByDraftGroup(sport, avSlate.draftGroupId);
+          if (!slateData || slateData.dkPlayers.length === 0) {
+            console.log(`[DK] No draftables for ${sport} alt slate DG ${avSlate.draftGroupId}`);
+            continue;
+          }
+
+          const existingEntry = existingDkSlates.find(s => s.draftGroupId === avSlate.draftGroupId);
+          let slateId: number;
+
+          if (existingEntry) {
+            if (slateData.slateDate) {
+              await db.update(slates).set({ startTime: new Date(slateData.slateDate) }).where(eq(slates.id, existingEntry.id));
+            }
+            slateId = existingEntry.id;
+          } else {
+            const newSlate = await storage.createSlate({
+              sport,
+              platform: "draftkings",
+              name: avSlate.label,
+              startTime: slateData.slateDate || new Date().toISOString(),
+              isMain: false,
+              draftGroupId: avSlate.draftGroupId,
+            });
+            slateId = newSlate.id;
+          }
+
+          const createdPlayers = await storage.bulkCreatePlayers(
+            slateData.dkPlayers.map((p: any) => ({ ...p, slateId })) as any
+          );
+          console.log(`[DK] Loaded ${sport} alt slate DG ${avSlate.draftGroupId} (${avSlate.label}) with ${createdPlayers.length} players`);
+
+          const today2 = getEasternToday();
+          try {
+            const historyRecords = createdPlayers.map(p => ({
+              playerName: p.name, team: p.team, sport,
+              position: p.position, salary: p.salary,
+              projectedPoints: p.projectedPoints,
+              slateDate: today2, slateId,
+              draftKingsPlayerId: p.draftKingsPlayerId,
+            }));
+            await storage.bulkInsertPlayerHistory(historyRecords);
+          } catch (err) {
+            console.error(`[History] Failed to save ${sport} alt slate snapshots:`, err);
+          }
+        } catch (err) {
+          console.error(`[DK] Error loading ${sport} alt slate DG ${avSlate.draftGroupId}:`, err);
+        }
       }
     } catch (err) {
-      console.error(`[DK] Error repopulating non-main ${altSlate.sport} slate ${altSlate.id}:`, err);
+      console.error(`[DK] Error discovering ${sport} alt slates:`, err);
     }
+  }
+
+  const staleNonMain = refreshedSlates.filter(
+    s => s.platform === "draftkings" && !s.isMain && s.isActive !== false
+      && new Date(s.startTime).getTime() + 3 * 3600000 < Date.now()
+  );
+  for (const stale of staleNonMain) {
+    await db.update(slates).set({ isActive: false }).where(eq(slates.id, stale.id));
   }
 
   const today = getEasternToday();
@@ -5625,9 +5664,14 @@ export async function seedDatabase(forceRefresh = false) {
 
 export async function generatePlayerBoostsAndInjuries() {
   const allSlates = await storage.getSlates();
-  const mainSlates = allSlates.filter(s => s.isMain);
+  const boostSlates = allSlates.filter(s =>
+    s.isActive !== false && (
+      (s.platform === "draftkings") ||
+      (s.platform !== "draftkings" && s.isMain)
+    )
+  );
 
-  for (const slate of mainSlates) {
+  for (const slate of boostSlates) {
     const allPlayers = await storage.getPlayersBySlate(slate.id);
     const alreadyBoosted = allPlayers.some(p => p.boostScore !== null);
     if (alreadyBoosted) continue;
@@ -5642,7 +5686,7 @@ export async function generatePlayerBoostsAndInjuries() {
       console.error(`[Boost Engine] ${sport} error, no boosts applied:`, err);
     }
 
-    console.log(`Generated boosts for ${sport} ${slate.platform} slate`);
+    console.log(`Generated boosts for ${sport} ${slate.platform}${slate.isMain ? " main" : " alt"} slate`);
   }
 }
 

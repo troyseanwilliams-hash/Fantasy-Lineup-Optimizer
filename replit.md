@@ -23,10 +23,10 @@ Preferred communication style: Simple, everyday language.
 - **Data Refresh**: Hourly cron jobs for projections, props, and player status, with accelerated refresh before contests.
 - **Injury Handling**: Live injury statuses from DraftKings API, adjusting player projections or exclusions. Yahoo-specific statuses are normalized.
 - **Confirmed Starter Boost**: 5% projection boost for DraftKings confirmed starters.
-- **Data Source**: DraftKings public API is the primary system of record for player and slate data.
+- **Data Source**: DraftKings public API is the primary system of record for player and slate data. All DK slates (main + alternates) are loaded daily for each active sport with full player pools and boost scoring. FanDuel and Yahoo load main slates only.
 - **Timezone Handling**: DraftKings times are processed as Eastern Time, stored as UTC.
 - **Golf News Hub**: Combines ESPN news with PGA Tour scoreboard data.
-- **Boost Engine**: Data-driven scoring using player history, trends, salary movement, floor/ceiling projections, momentum, team environment, and sport-specific stacking.
+- **Boost Engine**: Data-driven scoring using player history, trends, salary movement, floor/ceiling projections, momentum, team environment, and sport-specific stacking. Boost multiplier: `boostScore * 0.008` capped at ±8%. Boosts are computed for all DK slates (main + alternates) and main slates on other platforms.
 - **Historical Adjustments**: Auto-learning module applies winning lineup patterns and salary/position accuracy multipliers.
 - **Lineup Preservation**: Saved lineups move to "review" status during slate refreshes. Player overrides (exclusions, locks, boosts) survive slate refreshes via DraftKings player ID migration.
 - **Non-Main Slate Repopulation**: After main seed, non-main DK slates with 0 players (kept because of associated lineups) are automatically repopulated via `fetchDKSlateByDraftGroup`, with a 3-hour expiry guard and metadata refresh.
