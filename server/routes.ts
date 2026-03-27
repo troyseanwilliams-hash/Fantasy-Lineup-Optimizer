@@ -331,21 +331,45 @@ export async function registerRoutes(
       const mainSlate = sportSlates.find(s => s.isMain) || sportSlates[0];
       const seen = new Map<string, any>();
 
+      const mainSlatePlayers = await storage.getPlayersBySlate(mainSlate.id);
+      const boostByDkId = new Map<number, { boostScore: string | null; boostReason: string | null }>();
+      const boostByNameTeam = new Map<string, { boostScore: string | null; boostReason: string | null }>();
+      for (const p of mainSlatePlayers) {
+        if (p.boostScore !== null) {
+          if (p.draftKingsPlayerId) boostByDkId.set(p.draftKingsPlayerId, { boostScore: p.boostScore, boostReason: p.boostReason });
+          boostByNameTeam.set(`${p.name}-${p.team}`.toLowerCase(), { boostScore: p.boostScore, boostReason: p.boostReason });
+        }
+      }
+
       for (const slate of sportSlates) {
-        let players = await storage.getPlayersBySlate(slate.id);
+        let players = slate.id === mainSlate.id
+          ? mainSlatePlayers
+          : await storage.getPlayersBySlate(slate.id);
         const isDK = slate.platform === "draftkings";
-        if (isDK) {
+        if (isDK && slate.id !== mainSlate.id) {
           players = await applyLiveDKStatuses(players, slate.draftGroupId, slate.sport);
+        } else if (isDK && slate.id === mainSlate.id) {
+          players = await applyLiveDKStatuses(mainSlatePlayers, slate.draftGroupId, slate.sport);
         }
         for (const p of players) {
           const key = p.draftKingsPlayerId
             ? `dk-${p.draftKingsPlayerId}`
             : `${p.name}-${p.team}`.toLowerCase();
           const existing = seen.get(key);
+
+          let enriched = { ...p, _fromSlateId: slate.id, _isMainSlate: slate.id === mainSlate.id };
+          if (enriched.boostScore === null && slate.id !== mainSlate.id) {
+            const boost = (p.draftKingsPlayerId ? boostByDkId.get(p.draftKingsPlayerId) : null)
+              || boostByNameTeam.get(`${p.name}-${p.team}`.toLowerCase());
+            if (boost) {
+              enriched = { ...enriched, boostScore: boost.boostScore, boostReason: boost.boostReason };
+            }
+          }
+
           if (!existing) {
-            seen.set(key, { ...p, _fromSlateId: slate.id, _isMainSlate: slate.id === mainSlate.id });
+            seen.set(key, enriched);
           } else if (slate.id === mainSlate.id && !existing._isMainSlate) {
-            seen.set(key, { ...p, _fromSlateId: slate.id, _isMainSlate: true });
+            seen.set(key, enriched);
           }
         }
       }
@@ -592,7 +616,7 @@ export async function registerRoutes(
           proj = Math.round(proj * 1.05 * 10) / 10;
         }
         if (useBoosts && p.boostScore) {
-          const boostPct = Math.max(-0.15, Math.min(0.15, Number(p.boostScore) * 0.015));
+          const boostPct = Math.max(-0.08, Math.min(0.08, Number(p.boostScore) * 0.008));
           proj = Math.round(proj * (1 + boostPct) * 10) / 10;
         }
         proj = applyScoutToProjection(proj, p.name, scoutMap, customProj !== undefined);
@@ -1158,7 +1182,7 @@ export async function registerRoutes(
             pts = Math.round(pts * 1.05 * 10) / 10;
           }
           if (useBoosts && p.boostScore) {
-            const boostPct = Math.max(-0.15, Math.min(0.15, Number(p.boostScore) * 0.015));
+            const boostPct = Math.max(-0.08, Math.min(0.08, Number(p.boostScore) * 0.008));
             pts = Math.round(pts * (1 + boostPct) * 10) / 10;
           }
           pts = applyScoutToProjection(pts, p.name, regenScoutMap, override?.customProjection != null);
@@ -1540,7 +1564,7 @@ export async function registerRoutes(
           }
           if (p.isConfirmedStarter) pts = Math.round(pts * 1.05 * 10) / 10;
           if (applyBoosts && p.boostScore) {
-            const boostPct = Math.max(-0.15, Math.min(0.15, Number(p.boostScore) * 0.015));
+            const boostPct = Math.max(-0.08, Math.min(0.08, Number(p.boostScore) * 0.008));
             pts = Math.round(pts * (1 + boostPct) * 10) / 10;
           }
           pts = applyScoutToProjection(pts, p.name, scoutMap, override?.customProjection != null);
@@ -2894,7 +2918,7 @@ export async function registerRoutes(
           .filter(p => !outNames.has(p.name.toLowerCase()))
           .map(p => {
             const baseProj = parseFloat(p.projectedPoints || "0");
-            const boostPct = p.boostScore ? Math.max(-0.15, Math.min(0.15, Number(p.boostScore) * 0.015)) : 0;
+            const boostPct = p.boostScore ? Math.max(-0.08, Math.min(0.08, Number(p.boostScore) * 0.008)) : 0;
             let boosted = baseProj * (1 + boostPct);
 
             const scoutSig = boostNames.get(p.name.toLowerCase());
@@ -3543,7 +3567,7 @@ export async function registerRoutes(
         }
 
         if (constraints.useBoosts && p.boostScore) {
-          const boostPct = Math.max(-0.15, Math.min(0.15, Number(p.boostScore) * 0.015));
+          const boostPct = Math.max(-0.08, Math.min(0.08, Number(p.boostScore) * 0.008));
           boostedPoints = Math.round(boostedPoints * (1 + boostPct) * 10) / 10;
         }
         boostedPoints = applyScoutToProjection(boostedPoints, p.name, proScoutMap, customProj !== undefined);
@@ -3867,7 +3891,7 @@ export async function registerRoutes(
           boostedPoints = Math.round(boostedPoints * 1.05 * 10) / 10;
         }
         if (applyBoosts && p.boostScore) {
-          const boostPct = Math.max(-0.15, Math.min(0.15, Number(p.boostScore) * 0.015));
+          const boostPct = Math.max(-0.08, Math.min(0.08, Number(p.boostScore) * 0.008));
           boostedPoints = Math.round(boostedPoints * (1 + boostPct) * 10) / 10;
         }
         boostedPoints = applyScoutToProjection(boostedPoints, p.name, proScoutMap, override?.customProjection != null);
