@@ -4,7 +4,7 @@ export type Platform = "draftkings" | "fanduel" | "yahoo";
 export type Sport = "NBA" | "NHL" | "MLB" | "NFL" | "GOLF" | "SOCCER";
 
 export const SPORT_ORDER: Sport[] = ["NBA", "GOLF", "NHL", "SOCCER", "MLB", "NFL"];
-export const ACTIVE_SPORTS: Sport[] = ["NBA", "GOLF", "NHL", "SOCCER"];
+export const ACTIVE_SPORTS: Sport[] = ["NBA", "GOLF", "NHL", "SOCCER", "MLB"];
 
 export interface PlatformConfig {
   platform: Platform;
