@@ -57,7 +57,7 @@ export interface IStorage extends IAuthStorage {
 
   getLineups(userId: string): Promise<Lineup[]>;
   createLineup(lineup: InsertLineup): Promise<Lineup>;
-  updateLineup(id: number, data: { playerIds: number[]; totalSalary: number; totalProjectedPoints: string }): Promise<Lineup>;
+  updateLineup(id: number, data: { playerIds: number[]; totalSalary: number; totalProjectedPoints: string; playerSnapshot?: any; slateId?: number }): Promise<Lineup>;
   deleteLineup(id: number): Promise<void>;
   getLineup(id: number): Promise<Lineup | undefined>;
   getLineupCount(userId: string): Promise<number>;
@@ -329,9 +329,10 @@ export class DatabaseStorage implements IStorage {
     return lineup;
   }
 
-  async updateLineup(id: number, data: { playerIds: number[]; totalSalary: number; totalProjectedPoints: string; playerSnapshot?: any }): Promise<Lineup> {
+  async updateLineup(id: number, data: { playerIds: number[]; totalSalary: number; totalProjectedPoints: string; playerSnapshot?: any; slateId?: number }): Promise<Lineup> {
     const setData: any = { playerIds: data.playerIds, totalSalary: data.totalSalary, totalProjectedPoints: data.totalProjectedPoints, simData: null };
     if (data.playerSnapshot) setData.playerSnapshot = data.playerSnapshot;
+    if (data.slateId) setData.slateId = data.slateId;
     const [updated] = await db.update(lineups)
       .set(setData)
       .where(eq(lineups.id, id))
