@@ -35,6 +35,50 @@ import { fetchStartingLineups, getStartingLineupsData, clearLineupsCache } from 
 import { projectionAccuracyRouter } from "./projection-accuracy-route";
 
 
+async function loadOverridesWithCrossRef(
+  userId: string,
+  effectiveSlateId: number,
+  originalSlateId: number | null,
+  altSlatePlayers: Player[]
+): Promise<{ overrides: any[]; overrideMap: Map<number, any>; excluded: Set<number>; locked: Set<number>; exposureMap: Record<string, { min?: number; max?: number }> }> {
+  let overrides = await storage.getPlayerOverrides(userId, effectiveSlateId);
+
+  if (originalSlateId && originalSlateId !== effectiveSlateId && overrides.length === 0) {
+    const origOverrides = await storage.getPlayerOverrides(userId, originalSlateId);
+    if (origOverrides.length > 0) {
+      const origPlayers = await storage.getPlayersBySlate(originalSlateId);
+      const origIdToDkId = new Map<number, number>();
+      for (const p of origPlayers) {
+        if (p.draftKingsPlayerId) origIdToDkId.set(p.id, p.draftKingsPlayerId);
+      }
+      const dkIdToAltId = new Map<number, number>();
+      for (const p of altSlatePlayers) {
+        if (p.draftKingsPlayerId) dkIdToAltId.set(p.draftKingsPlayerId, p.id);
+      }
+      overrides = origOverrides
+        .map(o => {
+          const dkId = origIdToDkId.get(o.playerId);
+          if (!dkId) return null;
+          const altId = dkIdToAltId.get(dkId);
+          if (!altId) return null;
+          return { ...o, playerId: altId, slateId: effectiveSlateId };
+        })
+        .filter(Boolean) as any[];
+    }
+  }
+
+  const overrideMap = new Map(overrides.map(o => [o.playerId, o]));
+  const excluded = new Set(overrides.filter(o => o.isExcluded).map(o => o.playerId));
+  const locked = new Set(overrides.filter(o => o.isLocked).map(o => o.playerId));
+  const exposureMap: Record<string, { min?: number; max?: number }> = {};
+  for (const o of overrides) {
+    if (o.minExposure != null || o.maxExposure != null) {
+      exposureMap[o.playerId.toString()] = { min: o.minExposure ?? undefined, max: o.maxExposure ?? undefined };
+    }
+  }
+  return { overrides, overrideMap, excluded, locked, exposureMap };
+}
+
 function starRatingMinProjection(starRating: number): number {
   if (starRating <= 1) return 0;
   if (starRating === 2) return 15;
@@ -1121,6 +1165,7 @@ export async function registerRoutes(
     const minSalary = typeof req.body.minSalary === "number" ? req.body.minSalary : undefined;
     const maxSalary = typeof req.body.maxSalary === "number" ? req.body.maxSalary : undefined;
     const overrideSlateId = typeof req.body.slateId === "number" ? req.body.slateId : null;
+    const origSlatePerGroup = new Map<number, number>();
 
     for (const id of ids) {
       const lineup = await storage.getLineup(Number(id));
@@ -1130,6 +1175,9 @@ export async function registerRoutes(
       }
 
       const effectiveSlateId = overrideSlateId || lineup.slateId;
+      if (overrideSlateId && !origSlatePerGroup.has(effectiveSlateId)) {
+        origSlatePerGroup.set(effectiveSlateId, lineup.slateId);
+      }
       if (overrideSlateId) {
         const overrideSlate = await storage.getSlate(overrideSlateId);
         if (overrideSlate && (overrideSlate.sport !== lineup.sport || overrideSlate.platform !== (lineup.platform || "draftkings"))) {
@@ -1165,10 +1213,7 @@ export async function registerRoutes(
         const useLeverageMode = req.body.leverageMode === true;
         const regenScoutMap = buildScoutMap(slate.sport);
 
-        const bulkOverrides = await storage.getPlayerOverrides(userId, effectiveSlateId);
-        const bulkOverrideMap = new Map(bulkOverrides.map(o => [o.playerId, o]));
-        const bulkOverrideExcluded = new Set(bulkOverrides.filter(o => o.isExcluded).map(o => o.playerId));
-        const bulkOverrideLocked = new Set(bulkOverrides.filter(o => o.isLocked).map(o => o.playerId));
+        const { overrideMap: bulkOverrideMap, excluded: bulkOverrideExcluded, locked: bulkOverrideLocked, exposureMap: bulkCrossRefExposure } = await loadOverridesWithCrossRef(userId, effectiveSlateId, overrideSlateId ? (origSlatePerGroup.get(effectiveSlateId) ?? null) : null, allPlayers);
 
         let pool = allPlayers
           .filter(p => !bulkOverrideExcluded.has(p.id))
@@ -1230,14 +1275,7 @@ export async function registerRoutes(
         const eligibleCount = pool.filter(p => Number(p.projectedPoints) > 0).length;
         console.log(`[BulkGenerate] ${slate.sport} slate ${slate.id}: ${allPlayers.length} total, ${baseExcluded.length} excluded, ${eligibleCount} eligible with proj > 0, minSal=${minSalary ?? 'none'}, maxSal=${maxSalary ?? 'none'}`);
 
-        const bulkOverrideExposure: Record<string, { min?: number; max?: number }> = {};
-        for (const o of bulkOverrides) {
-          if (o.minExposure != null || o.maxExposure != null) {
-            bulkOverrideExposure[o.playerId.toString()] = { min: o.minExposure ?? undefined, max: o.maxExposure ?? undefined };
-          }
-        }
-
-        cached = { slate, pool, allPlayers, baseExcluded, platform, lockedOverrideIds: [...bulkOverrideLocked], overrideExposure: bulkOverrideExposure };
+        cached = { slate, pool, allPlayers, baseExcluded, platform, lockedOverrideIds: [...bulkOverrideLocked], overrideExposure: bulkCrossRefExposure };
         slateCache.set(effectiveSlateId, cached);
       }
 
@@ -1494,6 +1532,7 @@ export async function registerRoutes(
       const slateGroups = new Map<number, number[]>();
       const lineupOwnership = new Map<number, any>();
       let totalSimsRun = 0;
+      const origSlatePerSimGroup = new Map<number, number>();
 
       const results: { id: number; status: string; error?: string }[] = [];
 
@@ -1504,6 +1543,10 @@ export async function registerRoutes(
           continue;
         }
         lineupOwnership.set(Number(id), lineup);
+        const effectiveSlateId = overrideSlateId || lineup.slateId;
+        if (overrideSlateId && !origSlatePerSimGroup.has(effectiveSlateId)) {
+          origSlatePerSimGroup.set(effectiveSlateId, lineup.slateId);
+        }
         if (overrideSlateId) {
           const overrideSlate = await storage.getSlate(overrideSlateId);
           if (overrideSlate && (overrideSlate.sport !== lineup.sport || overrideSlate.platform !== (lineup.platform || "draftkings"))) {
@@ -1511,7 +1554,6 @@ export async function registerRoutes(
             continue;
           }
         }
-        const effectiveSlateId = overrideSlateId || lineup.slateId;
         const group = slateGroups.get(effectiveSlateId) || [];
         group.push(Number(id));
         slateGroups.set(effectiveSlateId, group);
@@ -1542,17 +1584,7 @@ export async function registerRoutes(
         const useOutperformerMode = outperformerMode === true;
         const scoutMap = buildScoutMap(slate.sport);
 
-        const simRegenOverrides = await storage.getPlayerOverrides(userId, slateId);
-        const simRegenOverrideMap = new Map(simRegenOverrides.map(o => [o.playerId, o]));
-        const simRegenExcluded = new Set(simRegenOverrides.filter(o => o.isExcluded).map(o => o.playerId));
-        const simRegenLocked = new Set(simRegenOverrides.filter(o => o.isLocked).map(o => o.playerId));
-
-        const simRegenOverrideExposure: Record<string, { min?: number; max?: number }> = {};
-        for (const o of simRegenOverrides) {
-          if (o.minExposure != null || o.maxExposure != null) {
-            simRegenOverrideExposure[o.playerId.toString()] = { min: o.minExposure ?? undefined, max: o.maxExposure ?? undefined };
-          }
-        }
+        const { overrideMap: simRegenOverrideMap, excluded: simRegenExcluded, locked: simRegenLocked, exposureMap: simRegenOverrideExposure } = await loadOverridesWithCrossRef(userId, slateId, overrideSlateId ? (origSlatePerSimGroup.get(slateId) ?? null) : null, allPlayers);
 
         let pool = allPlayers
           .filter(p => !simRegenExcluded.has(p.id))
