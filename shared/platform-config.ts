@@ -138,7 +138,7 @@ export const PLATFORM_CONFIGS: Record<string, Record<string, PlatformConfig>> = 
       rosterSize: 10,
       slots: ["P", "P2", "C", "1B", "2B", "3B", "SS", "OF", "OF2", "OF3"],
       positionConstraints: {
-        P: { min: 2 },
+        P: { min: 2, max: 2 },
         C: { min: 1, max: 1 },
         "1B": { min: 1, max: 1 },
         "2B": { min: 1, max: 1 },
@@ -176,7 +176,7 @@ export const PLATFORM_CONFIGS: Record<string, Record<string, PlatformConfig>> = 
       rosterSize: 9,
       slots: ["SP", "SP2", "C", "1B", "2B", "3B", "SS", "OF", "OF2"],
       positionConstraints: {
-        SP: { min: 2 },
+        SP: { min: 2, max: 2 },
         C: { min: 1, max: 1 },
         "1B": { min: 1, max: 1 },
         "2B": { min: 1, max: 1 },

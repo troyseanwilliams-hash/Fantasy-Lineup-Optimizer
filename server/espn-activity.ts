@@ -23,6 +23,8 @@ const LOOKBACK_DAYS = 7;
 
 function normalizeName(name: string): string {
   return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/['']/g, "")
     .replace(/[^a-z\s]/g, "")
