@@ -114,6 +114,10 @@ export function Header() {
                     const meta = SPORT_META[sport] || { icon: Dribbble, color: "text-slate-400", bgColor: "bg-slate-500/20" };
                     const Icon = meta.icon;
                     const dkSlate = mainSlates.find(s => s.sport === sport && s.platform === "draftkings");
+                    const bestSlate = dkSlate
+                      || mainSlates.find(s => s.sport === sport && s.platform === "fanduel")
+                      || mainSlates.find(s => s.sport === sport && s.platform === "yahoo");
+                    const builderLabel = dkSlate ? `${sport} DK Builder` : bestSlate ? `${sport} Builder` : `${sport} DK Builder`;
 
                     return (
                       <div key={sport}>
@@ -132,13 +136,13 @@ export function Header() {
                           </DropdownMenuItem>
                         </Link>
 
-                        {dkSlate ? (
-                          <Link href={`/optimizer/${dkSlate.id}`}>
+                        {bestSlate ? (
+                          <Link href={`/optimizer/${bestSlate.id}`}>
                             <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-dk`}>
                               <div className="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center mr-2 shrink-0">
                                 <span className="text-emerald-400 font-black text-[11px]">DK</span>
                               </div>
-                              <span className="text-sm font-bold text-slate-300">{sport} DK Builder</span>
+                              <span className="text-sm font-bold text-slate-300">{builderLabel}</span>
                             </DropdownMenuItem>
                           </Link>
                         ) : (
@@ -149,8 +153,8 @@ export function Header() {
                             <span className="text-sm font-bold text-slate-300">{sport} DK Builder</span>
                           </DropdownMenuItem>
                         )}
-                        {isStar && dkSlate ? (
-                          <Link href={`/optimizer-pro/${dkSlate.id}`}>
+                        {isStar && bestSlate ? (
+                          <Link href={`/optimizer-pro/${bestSlate.id}`}>
                             <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-star-dk`}>
                               <div className="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center mr-2 shrink-0">
                                 <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
@@ -171,8 +175,8 @@ export function Header() {
                           </Link>
                         ) : null}
 
-                        {isPro && dkSlate ? (
-                          <Link href={`/optimizer-pro/${dkSlate.id}`}>
+                        {isPro && bestSlate ? (
+                          <Link href={`/optimizer-pro/${bestSlate.id}`}>
                             <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-pro-dk`}>
                               <div className="w-6 h-6 rounded bg-amber-500/20 flex items-center justify-center mr-2 shrink-0">
                                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
@@ -688,6 +692,10 @@ export function Header() {
                   const meta = SPORT_META[sport] || { icon: Dribbble, color: "text-slate-400", bgColor: "bg-slate-500/20" };
                   const Icon = meta.icon;
                   const dkSlate = mainSlates.find(s => s.sport === sport && s.platform === "draftkings");
+                  const bestSlate = dkSlate
+                    || mainSlates.find(s => s.sport === sport && s.platform === "fanduel")
+                    || mainSlates.find(s => s.sport === sport && s.platform === "yahoo");
+                  const builderLabel = dkSlate ? `DK Builder ${sport}` : bestSlate ? `Builder ${sport}` : `DK Builder ${sport}`;
 
                   return (
                     <div key={sport} className="space-y-0.5">
@@ -708,16 +716,16 @@ export function Header() {
                           <span>News</span>
                         </button>
 
-                        {dkSlate ? (
+                        {bestSlate ? (
                           <button
-                            onClick={() => mobileNav(`/optimizer/${dkSlate.id}`)}
+                            onClick={() => mobileNav(`/optimizer/${bestSlate.id}`)}
                             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
                             data-testid={`mobile-sport-${sport.toLowerCase()}-dk`}
                           >
                             <div className="w-5 h-5 rounded bg-emerald-500/20 flex items-center justify-center shrink-0">
                               <span className="text-emerald-400 font-black text-[10px]">DK</span>
                             </div>
-                            <span>DK Builder {sport}</span>
+                            <span>{builderLabel}</span>
                           </button>
                         ) : (
                           <div className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-slate-600">
@@ -728,9 +736,9 @@ export function Header() {
                           </div>
                         )}
 
-                        {isPro && dkSlate ? (
+                        {isPro && bestSlate ? (
                           <button
-                            onClick={() => mobileNav(`/optimizer-pro/${dkSlate.id}`)}
+                            onClick={() => mobileNav(`/optimizer-pro/${bestSlate.id}`)}
                             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-amber-300 hover:bg-slate-800 transition-colors"
                             data-testid={`mobile-sport-${sport.toLowerCase()}-pro`}
                           >
@@ -738,9 +746,9 @@ export function Header() {
                             <span>Pro Optimizer {sport}</span>
                             <Crown className="w-3.5 h-3.5 text-amber-400 ml-auto" />
                           </button>
-                        ) : isStar && dkSlate ? (
+                        ) : isStar && bestSlate ? (
                           <button
-                            onClick={() => mobileNav(`/optimizer-pro/${dkSlate.id}`)}
+                            onClick={() => mobileNav(`/optimizer-pro/${bestSlate.id}`)}
                             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-emerald-300 hover:bg-slate-800 transition-colors"
                             data-testid={`mobile-sport-${sport.toLowerCase()}-star`}
                           >

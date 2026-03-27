@@ -2797,7 +2797,9 @@ export async function registerRoutes(
     try {
       const sport = req.params.sport.toUpperCase();
       const allSlates = await storage.getSlates();
-      const slate = allSlates.find(s => s.sport === sport && s.platform === "draftkings" && s.isMain && s.isActive !== false);
+      const slate = allSlates.find(s => s.sport === sport && s.platform === "draftkings" && s.isMain && s.isActive !== false)
+        || allSlates.find(s => s.sport === sport && s.platform === "fanduel" && s.isMain && s.isActive !== false)
+        || allSlates.find(s => s.sport === sport && s.platform === "yahoo" && s.isMain && s.isActive !== false);
       if (!slate) {
         return res.json({ sport, topScorers: [], trending: [], matchups: [], slateId: null });
       }
@@ -2920,7 +2922,9 @@ export async function registerRoutes(
       const scoutSignals: Record<string, string[]> = {};
 
       for (const sport of ["NBA", "NHL", "NFL", "MLB", "GOLF", "SOCCER"]) {
-        const slate = allSlates.find(s => s.sport === sport && s.platform === "draftkings" && s.isActive !== false);
+        const slate = allSlates.find(s => s.sport === sport && s.platform === "draftkings" && s.isMain && s.isActive !== false)
+          || allSlates.find(s => s.sport === sport && s.platform === "fanduel" && s.isMain && s.isActive !== false)
+          || allSlates.find(s => s.sport === sport && s.platform === "yahoo" && s.isMain && s.isActive !== false);
         if (!slate) continue;
 
         const players = await storage.getPlayersBySlate(slate.id);
