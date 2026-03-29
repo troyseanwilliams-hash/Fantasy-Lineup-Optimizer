@@ -313,10 +313,7 @@ export default function ProOptimizer() {
       .map(p => {
         const boost = p.boostScore ? Number(p.boostScore) : 0;
         const baseProj = Number(p.projectedPoints);
-        // Normalize boostScore to a bounded % adjustment before adding to projection.
-        // boostScore is an arbitrary optimizer weight (can reach ±10+), not a fantasy
-        // point delta. Dividing by 10 and capping at ±30% keeps the display meaningful.
-        const boostAdjPct = Math.max(-0.30, Math.min(0.30, boost / 10));
+        const boostAdjPct = Math.max(-0.08, Math.min(0.08, boost * 0.008));
         const boostedProj = useBoosts && boost !== 0
           ? Math.round(baseProj * (1 + boostAdjPct) * 10) / 10
           : baseProj;
