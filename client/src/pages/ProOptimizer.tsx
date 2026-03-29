@@ -1795,7 +1795,7 @@ export default function ProOptimizer() {
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <PlayerHistoryCard playerName={player.name} sport={sport}>
+                          <PlayerHistoryCard playerName={player.name} sport={sport} currentProjection={Number(player.projectedPoints)} currentSalary={player.salary} position={player.position} team={player.team} boostScore={player.boostScore}>
                             <span className="font-bold text-sm text-white group-hover:text-amber-400 transition-colors cursor-default" data-testid={`text-player-name-${player.id}`}>
                               {player.name}
                             </span>

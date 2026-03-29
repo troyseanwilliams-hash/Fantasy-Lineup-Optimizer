@@ -1009,7 +1009,7 @@ export default function Optimizer() {
                     </td>
                     <td className="px-3 py-2">
                       <div className={`font-bold text-sm text-white transition-colors ${platform === "fanduel" ? "group-hover:text-blue-400" : "group-hover:text-emerald-400"}`}>
-                        <PlayerHistoryCard playerName={player.name} sport={sport}>
+                        <PlayerHistoryCard playerName={player.name} sport={sport} currentProjection={Number(player.projectedPoints)} currentSalary={player.salary} position={player.position} team={player.team} boostScore={player.boostScore}>
                           <span className="cursor-default">{player.name}</span>
                         </PlayerHistoryCard>
                         {player.isConfirmedStarter && (

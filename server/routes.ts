@@ -4369,7 +4369,7 @@ export async function registerRoutes(
     try {
       const sport = (req.query.sport as string || "NBA").toUpperCase();
       const playerName = decodeURIComponent(req.params.name);
-      const limit = Math.max(1, Math.min(Number(req.query.limit) || 5, 10));
+      const limit = Math.max(1, Math.min(Number(req.query.limit) || 5, 30));
       const history = await storage.getPlayerHistoryByName(playerName, sport, limit);
       res.json(history);
     } catch (err) {

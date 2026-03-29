@@ -41,6 +41,7 @@ export default function PlayerConfig() {
   const { toast } = useToast();
   const [selectedSport, setSelectedSport] = useState("NBA");
   const [selectedPlatform, setSelectedPlatform] = useState("draftkings");
+  const [selectedSlateId, setSelectedSlateId] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState<SortField>("salary");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -79,7 +80,16 @@ export default function PlayerConfig() {
     || sportSlates[0];
   const slateId = mainSlate?.id;
 
-  const { data: allPlayersData, isLoading: playersLoading } = useQuery<{ players: Player[]; mainSlateId: number }>({
+  const platformSlates = useMemo(() => {
+    return sportSlates
+      .filter(s => s.platform === selectedPlatform && s.isActive !== false)
+      .sort((a, b) => (b.isMain ? 1 : 0) - (a.isMain ? 1 : 0));
+  }, [sportSlates, selectedPlatform]);
+
+  const isSlateFiltered = selectedSlateId !== "all";
+  const numericSlateId = isSlateFiltered ? Number(selectedSlateId) : null;
+
+  const { data: allPlayersData, isLoading: allPlayersLoading } = useQuery<{ players: Player[]; mainSlateId: number }>({
     queryKey: ["/api/players/all", selectedSport, selectedPlatform],
     queryFn: async () => {
       const res = await fetch(`/api/players/all/${selectedSport}?platform=${selectedPlatform}`);
@@ -88,7 +98,19 @@ export default function PlayerConfig() {
     },
     enabled: !!selectedSport && !!user,
   });
-  const players = allPlayersData?.players;
+
+  const { data: slatePlayersData, isLoading: slatePlayersLoading } = useQuery<Player[]>({
+    queryKey: ["/api/slates", numericSlateId, "players"],
+    queryFn: async () => {
+      const res = await fetch(`/api/slates/${numericSlateId}/players`);
+      if (!res.ok) throw new Error("Failed to fetch slate players");
+      return res.json();
+    },
+    enabled: isSlateFiltered && !!numericSlateId && !!user,
+  });
+
+  const playersLoading = isSlateFiltered ? slatePlayersLoading : allPlayersLoading;
+  const players = isSlateFiltered ? slatePlayersData : allPlayersData?.players;
   const effectiveSlateId = allPlayersData?.mainSlateId ?? slateId;
 
   const { data: overrides, isLoading: overridesLoading } = useQuery<PlayerOverride[]>({
@@ -101,11 +123,42 @@ export default function PlayerConfig() {
     enabled: !!effectiveSlateId && hasPaidAccess,
   });
 
+  const dkIdToMainPlayerId = useMemo(() => {
+    const map = new Map<number, number>();
+    if (allPlayersData?.players) {
+      for (const p of allPlayersData.players) {
+        if ((p as any).draftKingsPlayerId) {
+          map.set((p as any).draftKingsPlayerId, p.id);
+        }
+      }
+    }
+    return map;
+  }, [allPlayersData]);
+
   const overrideMap = useMemo(() => {
     const map = new Map<number, PlayerOverride>();
     overrides?.forEach(o => map.set(o.playerId, o));
     return map;
   }, [overrides]);
+
+  function resolveOverride(player: Player): PlayerOverride | undefined {
+    const direct = overrideMap.get(player.id);
+    if (direct) return direct;
+    if (isSlateFiltered && (player as any).draftKingsPlayerId) {
+      const mainId = dkIdToMainPlayerId.get((player as any).draftKingsPlayerId);
+      if (mainId) return overrideMap.get(mainId);
+    }
+    return undefined;
+  }
+
+  function resolveMainPlayerId(player: Player): number {
+    if (!isSlateFiltered) return player.id;
+    if ((player as any).draftKingsPlayerId) {
+      const mainId = dkIdToMainPlayerId.get((player as any).draftKingsPlayerId);
+      if (mainId) return mainId;
+    }
+    return player.id;
+  }
 
   const overrideCount = overrides?.length || 0;
 
@@ -175,8 +228,8 @@ export default function PlayerConfig() {
         case "fppg": cmp = Number(a.fppg) - Number(b.fppg); break;
         case "value": cmp = a.value - b.value; break;
         case "override": {
-          const aHas = overrideMap.has(a.id) ? 1 : 0;
-          const bHas = overrideMap.has(b.id) ? 1 : 0;
+          const aHas = resolveOverride(a) ? 1 : 0;
+          const bHas = resolveOverride(b) ? 1 : 0;
           cmp = aHas - bHas;
           break;
         }
@@ -196,8 +249,8 @@ export default function PlayerConfig() {
     }
   }
 
-  function getOverrideData(playerId: number) {
-    const existing = overrideMap.get(playerId);
+  function getOverrideData(player: Player) {
+    const existing = resolveOverride(player);
     return {
       customProjection: existing?.customProjection != null ? Number(existing.customProjection) : null,
       boostPercent: existing?.boostPercent || 0,
@@ -210,7 +263,7 @@ export default function PlayerConfig() {
   }
 
   function handleExposureChange(player: Player, field: "minExposure" | "maxExposure", value: string) {
-    const d = getOverrideData(player.id);
+    const d = getOverrideData(player);
     const parsed = value === "" ? null : parseInt(value, 10);
     if (parsed !== null && (isNaN(parsed) || parsed < 0 || parsed > 100)) return;
     if (field === "minExposure" && parsed !== null && d.maxExposure !== null && parsed > d.maxExposure) {
@@ -221,35 +274,35 @@ export default function PlayerConfig() {
       toast({ title: "Invalid", description: "Max exposure cannot be less than min exposure.", variant: "destructive" });
       return;
     }
-    upsertMutation.mutate({ playerId: player.id, data: { ...d, [field]: parsed }, dkPlayerId: (player as any).draftKingsPlayerId || undefined });
+    upsertMutation.mutate({ playerId: resolveMainPlayerId(player), data: { ...d, [field]: parsed }, dkPlayerId: (player as any).draftKingsPlayerId || undefined });
   }
 
   function handleToggleExclude(player: Player) {
-    const d = getOverrideData(player.id);
+    const d = getOverrideData(player);
     const newExcluded = !d.isExcluded;
     upsertMutation.mutate({
-      playerId: player.id,
+      playerId: resolveMainPlayerId(player),
       data: { ...d, isExcluded: newExcluded, isLocked: newExcluded ? false : d.isLocked },
       dkPlayerId: (player as any).draftKingsPlayerId || undefined,
     });
   }
 
   function handleToggleLock(player: Player) {
-    const d = getOverrideData(player.id);
+    const d = getOverrideData(player);
     const newLocked = !d.isLocked;
     upsertMutation.mutate({
-      playerId: player.id,
+      playerId: resolveMainPlayerId(player),
       data: { ...d, isLocked: newLocked, isExcluded: newLocked ? false : d.isExcluded },
       dkPlayerId: (player as any).draftKingsPlayerId || undefined,
     });
   }
 
   function handleCycleBoost(player: Player) {
-    const d = getOverrideData(player.id);
+    const d = getOverrideData(player);
     const currentIdx = BOOST_LEVELS.indexOf(d.boostPercent);
     const nextBoost = BOOST_LEVELS[(currentIdx + 1) % BOOST_LEVELS.length];
     upsertMutation.mutate({
-      playerId: player.id,
+      playerId: resolveMainPlayerId(player),
       data: { ...d, boostPercent: nextBoost },
       dkPlayerId: (player as any).draftKingsPlayerId || undefined,
     });
@@ -257,23 +310,24 @@ export default function PlayerConfig() {
 
   function handleSaveProjection(player: Player) {
     const val = editProjection.trim();
-    const d = getOverrideData(player.id);
+    const d = getOverrideData(player);
+    const mainPid = resolveMainPlayerId(player);
     if (val === "" || val === player.projectedPoints) {
-      upsertMutation.mutate({ playerId: player.id, data: { ...d, customProjection: null }, dkPlayerId: (player as any).draftKingsPlayerId || undefined });
+      upsertMutation.mutate({ playerId: mainPid, data: { ...d, customProjection: null }, dkPlayerId: (player as any).draftKingsPlayerId || undefined });
     } else {
       const num = parseFloat(val);
       if (isNaN(num) || num < 0) {
         toast({ title: "Invalid projection", description: "Please enter a valid number.", variant: "destructive" });
         return;
       }
-      upsertMutation.mutate({ playerId: player.id, data: { ...d, customProjection: num }, dkPlayerId: (player as any).draftKingsPlayerId || undefined });
+      upsertMutation.mutate({ playerId: mainPid, data: { ...d, customProjection: num }, dkPlayerId: (player as any).draftKingsPlayerId || undefined });
     }
     setEditingPlayer(null);
     setEditProjection("");
   }
 
-  function handleRemoveOverride(playerId: number) {
-    deleteMutation.mutate(playerId);
+  function handleRemoveOverride(player: Player) {
+    deleteMutation.mutate(resolveMainPlayerId(player));
   }
 
   function getEffectiveProjection(player: Player, override: PlayerOverride | undefined): number {
@@ -356,7 +410,7 @@ export default function PlayerConfig() {
             return (
               <button
                 key={sport}
-                onClick={() => { setSelectedSport(sport); setSelectedPlatform("draftkings"); setSearchQuery(""); setPositionFilter("ALL"); }}
+                onClick={() => { setSelectedSport(sport); setSelectedPlatform("draftkings"); setSelectedSlateId("all"); setSearchQuery(""); setPositionFilter("ALL"); }}
                 disabled={!hasSlate}
                 className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
                   selectedSport === sport
@@ -381,7 +435,7 @@ export default function PlayerConfig() {
               return (
                 <button
                   key={plat}
-                  onClick={() => setSelectedPlatform(plat)}
+                  onClick={() => { setSelectedPlatform(plat); setSelectedSlateId("all"); }}
                   className={`px-3 py-1.5 rounded text-xs font-bold transition ${
                     isActive ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-400 hover:bg-slate-700"
                   }`}
@@ -391,6 +445,30 @@ export default function PlayerConfig() {
                 </button>
               );
             })}
+          </div>
+        )}
+
+        {platformSlates.length > 1 && mainSlate && (
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xs text-slate-400 font-medium whitespace-nowrap">Slate:</span>
+            <select
+              value={selectedSlateId}
+              onChange={e => setSelectedSlateId(e.target.value)}
+              className="bg-slate-800 border border-slate-700 text-white text-xs rounded px-3 py-1.5 max-w-xs truncate focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              data-testid="slate-selector"
+            >
+              <option value="all">All Players</option>
+              {platformSlates.map(s => (
+                <option key={s.id} value={String(s.id)}>
+                  {s.name}{s.isMain ? " (Main)" : ""}
+                </option>
+              ))}
+            </select>
+            {isSlateFiltered && (
+              <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs" data-testid="slate-filter-badge">
+                Filtered
+              </Badge>
+            )}
           </div>
         )}
 
@@ -477,7 +555,7 @@ export default function PlayerConfig() {
                     </thead>
                     <tbody className="divide-y divide-slate-800">
                       {filteredPlayers.map(player => {
-                        const override = overrideMap.get(player.id);
+                        const override = resolveOverride(player);
                         const hasOverride = !!override;
                         const isEditing = editingPlayer === player.id;
                         const boostPct = override?.boostPercent || 0;
@@ -665,7 +743,7 @@ export default function PlayerConfig() {
                                 </button>
                                 {hasOverride && (
                                   <button
-                                    onClick={() => handleRemoveOverride(player.id)}
+                                    onClick={() => handleRemoveOverride(player)}
                                     className="p-1.5 rounded text-slate-600 hover:text-amber-400 hover:bg-amber-500/10 transition"
                                     title="Reset to original settings"
                                     data-testid={`remove-override-${player.id}`}
@@ -684,7 +762,7 @@ export default function PlayerConfig() {
 
                 <div className="md:hidden space-y-2">
                   {filteredPlayers.map(player => {
-                    const override = overrideMap.get(player.id);
+                    const override = resolveOverride(player);
                     const hasOverride = !!override;
                     const isEditing = editingPlayer === player.id;
                     const boostPct = override?.boostPercent || 0;
@@ -802,7 +880,7 @@ export default function PlayerConfig() {
                             </button>
                             {hasOverride && (
                               <button
-                                onClick={() => handleRemoveOverride(player.id)}
+                                onClick={() => handleRemoveOverride(player)}
                                 className="p-1.5 rounded text-slate-600 hover:text-amber-400"
                                 title="Reset to original"
                                 data-testid={`mobile-remove-override-${player.id}`}
