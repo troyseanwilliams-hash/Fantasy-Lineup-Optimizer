@@ -406,6 +406,30 @@ export async function computeBoostScores(
       }
     }
 
+    const anchorHist = historyByName.get(player.name);
+    if (anchorHist && anchorHist.length >= 3 && totalBoost > 0) {
+      const anchorActuals = anchorHist
+        .filter(h => h.actualPoints != null && Number(h.actualPoints) > 0)
+        .slice(0, 10);
+      if (anchorActuals.length >= 3 && Number.isFinite(proj) && proj > 1) {
+        const recencyW = anchorActuals.map((_, i) => Math.pow(0.85, i));
+        const totalW = recencyW.reduce((a, b) => a + b, 0);
+        const weightedActualAvg = anchorActuals.reduce((sum, h, i) => sum + Number(h.actualPoints!) * recencyW[i], 0) / totalW;
+        const actualToProjRatio = Number.isFinite(weightedActualAvg) ? weightedActualAvg / proj : 1;
+
+        if (actualToProjRatio < 0.70) {
+          totalBoost = totalBoost * 0.30;
+          reasons.push(`Actual anchor: avg ${weightedActualAvg.toFixed(1)} actual pts is ${((1 - actualToProjRatio) * 100).toFixed(0)}% below ${proj.toFixed(1)} proj — boost dampened`);
+        } else if (actualToProjRatio < 0.85) {
+          totalBoost = totalBoost * 0.55;
+          reasons.push(`Actual anchor: avg ${weightedActualAvg.toFixed(1)} actual pts is ${((1 - actualToProjRatio) * 100).toFixed(0)}% below ${proj.toFixed(1)} proj — boost reduced`);
+        } else if (actualToProjRatio < 0.95) {
+          totalBoost = totalBoost * 0.75;
+          reasons.push(`Actual anchor: avg ${weightedActualAvg.toFixed(1)} actual pts trails ${proj.toFixed(1)} proj by ${((1 - actualToProjRatio) * 100).toFixed(0)}% — boost moderated`);
+        }
+      }
+    }
+
     totalBoost = Math.round(totalBoost * 10) / 10;
     results.push({
       playerId: player.id,
