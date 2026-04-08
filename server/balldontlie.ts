@@ -310,6 +310,16 @@ export async function fetchLiveDKData(sport: string): Promise<LiveSlateData | nu
     return true;
   });
 
+  if (sport === "GOLF" && uniquePlayers.every(p => !p.salary || p.salary <= 0) && uniquePlayers.length > 0) {
+    const maxSal = 12000;
+    const minSal = 6000;
+    const step = uniquePlayers.length > 1 ? (maxSal - minSal) / (uniquePlayers.length - 1) : 0;
+    uniquePlayers.forEach((p, i) => {
+      p.salary = Math.round((maxSal - step * i) / 100) * 100;
+    });
+    console.log(`[DK] GOLF: Assigned estimated salaries ($${minSal}-$${maxSal}) to ${uniquePlayers.length} players (DK salaries not yet published)`);
+  }
+
   const validPlayers = uniquePlayers.filter(p => p.salary && p.salary > 0 && p.position);
   const sortedPlayers = validPlayers.sort((a, b) => b.salary - a.salary);
   const maxPlayers = sport === "MLB" ? 250 : sport === "NFL" ? 150 : sport === "SOCCER" ? 200 : 250;
@@ -351,12 +361,17 @@ export async function fetchLiveDKData(sport: string): Promise<LiveSlateData | nu
     let gameInfo = `${p.teamAbbreviation} TBD`;
 
     if (p.competition) {
-      const parts = p.competition.name.split(" @ ");
-      const away = parts[0]?.trim() || "";
-      const home = parts[1]?.trim() || "";
       const time = formatGameTime(p.competition.startTime);
-      opponent = p.teamAbbreviation === home ? away : home;
-      gameInfo = `${away} @ ${home} ${time}`;
+      if (sport === "GOLF") {
+        opponent = "";
+        gameInfo = `${p.competition.name} @ ${time}`;
+      } else {
+        const parts = p.competition.name.split(" @ ");
+        const away = parts[0]?.trim() || "";
+        const home = parts[1]?.trim() || "";
+        opponent = p.teamAbbreviation === home ? away : home;
+        gameInfo = `${away} @ ${home} ${time}`;
+      }
     }
 
     const dkPos = mapDKPosition(sport, p.position);
@@ -509,6 +524,16 @@ export async function fetchDKSlateByDraftGroup(sport: string, draftGroupId: numb
       seen.add(p.playerId);
       return true;
     });
+
+    if (sport === "GOLF" && uniquePlayers.every(p => !p.salary || p.salary <= 0) && uniquePlayers.length > 0) {
+      const maxSal = 12000;
+      const minSal = 6000;
+      const step = uniquePlayers.length > 1 ? (maxSal - minSal) / (uniquePlayers.length - 1) : 0;
+      uniquePlayers.forEach((p, i) => {
+        p.salary = Math.round((maxSal - step * i) / 100) * 100;
+      });
+      console.log(`[DK] GOLF: Assigned estimated salaries ($${minSal}-$${maxSal}) to ${uniquePlayers.length} players (alt slate DG ${draftGroupId})`);
+    }
 
     const validPlayers = uniquePlayers.filter(p => p.salary && p.salary > 0 && p.position);
     const sortedPlayers = validPlayers.sort((a, b) => b.salary - a.salary);
