@@ -824,8 +824,8 @@ app.use((req, res, next) => {
 
       cron.schedule("0 4 * * *", async () => {
         try {
-          const cleaned = await storage.cleanOldPlayerHistory(90);
-          if (cleaned > 0) log(`Cleaned ${cleaned} player history records older than 90 days`, "cron");
+          const cleaned = await storage.cleanOldPlayerHistory(14);
+          if (cleaned > 0) log(`Cleaned ${cleaned} player history records older than 14 days`, "cron");
         } catch (err) {
           console.error("Player history cleanup failed:", err);
         }
