@@ -3014,6 +3014,160 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/worldcup", async (_req, res) => {
+    try {
+      const today = getEasternToday();
+      const allSlates = await storage.getSlates();
+      const slate = allSlates.find(s => s.sport === "SOCCER" && s.platform === "draftkings" && s.isMain && s.isActive !== false)
+        || allSlates.find(s => s.sport === "SOCCER" && s.isMain && s.isActive !== false)
+        || allSlates.find(s => s.sport === "SOCCER" && s.isActive !== false);
+
+      if (!slate) {
+        return res.json({ league: "FIFA World Cup", matchCount: 0, totalPicks: 0, matches: [] });
+      }
+
+      const players = await storage.getPlayersBySlate(slate.id);
+      const soccerProps = await storage.getPropsByDate(today, "SOCCER");
+
+      const signals = getCachedSignals("SOCCER");
+      const outNames = new Set(
+        signals
+          .filter(s => s.signal_type === "out" || s.signal_type === "starter_out")
+          .map(s => s.player_name.toLowerCase())
+      );
+
+      const matchKey = (a?: string, b?: string) =>
+        [(a || "").toUpperCase(), (b || "").toUpperCase()].sort().join("__");
+
+      const parseTimeToMinutes = (t: string): number => {
+        const m = t.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+        if (!m) return 9999;
+        let hr = parseInt(m[1], 10) % 12;
+        if (/PM/i.test(m[3])) hr += 12;
+        return hr * 60 + parseInt(m[2], 10);
+      };
+
+      interface WCPick {
+        id: string;
+        playerName: string;
+        team: string;
+        opponent: string;
+        propType: string;
+        line: string;
+        pick: string;
+        confidence: number;
+        source: "market" | "model";
+      }
+      interface WCMatch {
+        key: string;
+        teams: [string, string];
+        time: string;
+        timeRank: number;
+        players: typeof players;
+        picks: WCPick[];
+      }
+      const matchMap = new Map<string, WCMatch>();
+
+      for (const p of players) {
+        if (!p.gameInfo) continue;
+        const [pair, timePart] = p.gameInfo.split(" @ ");
+        const teams = (pair || "").split(/\s+vs\s+/i).map(t => t.trim()).filter(Boolean);
+        if (teams.length < 2) continue;
+        const key = matchKey(teams[0], teams[1]);
+        if (!matchMap.has(key)) {
+          const time = (timePart || "").trim();
+          matchMap.set(key, {
+            key,
+            teams: [teams[0].toUpperCase(), teams[1].toUpperCase()],
+            time,
+            timeRank: parseTimeToMinutes(time),
+            players: [],
+            picks: [],
+          });
+        }
+        matchMap.get(key)!.players.push(p);
+      }
+
+      // Attach real market prop picks (The Odds API) to their match
+      for (const prop of soccerProps) {
+        const key = matchKey(prop.team, prop.opponent || "");
+        const match = matchMap.get(key);
+        if (!match) continue;
+        const opponent = prop.opponent || match.teams.find(t => t !== (prop.team || "").toUpperCase()) || "";
+        match.picks.push({
+          id: `mkt-${prop.id}`,
+          playerName: prop.playerName,
+          team: prop.team,
+          opponent,
+          propType: prop.propType,
+          line: String(prop.line),
+          pick: prop.pick,
+          confidence: Number.isFinite(Number(prop.confidence)) ? Math.round(Number(prop.confidence)) : 70,
+          source: "market",
+        });
+      }
+
+      // Guarantee every match shows good picks: supplement with model value picks
+      const MIN_PICKS = 3;
+      for (const match of matchMap.values()) {
+        if (match.picks.length >= MIN_PICKS) continue;
+        const usedNames = new Set(match.picks.map(p => p.playerName.toLowerCase()));
+        const candidates = match.players
+          .filter(p =>
+            parseFloat(p.projectedPoints || "0") > 0 &&
+            !outNames.has(p.name.toLowerCase()) &&
+            !usedNames.has(p.name.toLowerCase())
+          )
+          .map(p => {
+            const baseProj = parseFloat(p.projectedPoints || "0");
+            const boostPct = p.boostScore ? Math.max(-0.08, Math.min(0.08, Number(p.boostScore) * 0.008)) : 0;
+            return { player: p, boosted: baseProj * (1 + boostPct) };
+          })
+          .sort((a, b) => b.boosted - a.boosted);
+
+        let rank = 0;
+        for (const c of candidates) {
+          if (match.picks.length >= MIN_PICKS) break;
+          const opponent = c.player.opponent || match.teams.find(t => t !== (c.player.team || "").toUpperCase()) || "";
+          match.picks.push({
+            id: `mdl-${c.player.id}`,
+            playerName: c.player.name,
+            team: c.player.team || "",
+            opponent,
+            propType: "Projected Points",
+            line: c.boosted.toFixed(1),
+            pick: "Top Play",
+            confidence: Math.max(60, 74 - rank * 4),
+            source: "model",
+          });
+          rank++;
+        }
+      }
+
+      const matches = Array.from(matchMap.values())
+        .map(m => ({
+          teams: m.teams,
+          label: `${m.teams[0]} vs ${m.teams[1]}`,
+          time: m.time,
+          timeRank: m.timeRank,
+          picks: m.picks.sort((a, b) => b.confidence - a.confidence).slice(0, 4),
+        }))
+        .filter(m => m.picks.length > 0)
+        .sort((a, b) => a.timeRank - b.timeRank)
+        .map(({ timeRank, ...rest }) => rest);
+
+      res.json({
+        league: "FIFA World Cup",
+        matchCount: matches.length,
+        totalPicks: matches.reduce((s, m) => s + m.picks.length, 0),
+        matches,
+      });
+    } catch (err) {
+      console.error("World Cup data error:", err);
+      res.json({ league: "FIFA World Cup", matchCount: 0, totalPicks: 0, matches: [] });
+    }
+  });
+
   const ESPN_NEWS_URLS: Record<string, string> = {
     NBA: "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/news",
     NHL: "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/news",
@@ -5031,7 +5185,8 @@ export async function generateDailyProps(date: string) {
     for (const sport of ACTIVE_SPORTS) {
       if (sport === "GOLF") continue;
       try {
-        const apiProps = await fetchAllPropsForSport(sport, 3, playerTeamMap);
+        const maxEvents = sport === "SOCCER" ? 12 : 3;
+        const apiProps = await fetchAllPropsForSport(sport, maxEvents, playerTeamMap);
         if (apiProps.length > 0) {
           sportsFetched.push(sport);
           for (const p of apiProps) {

@@ -1,1 +1,2 @@
 - [Log inspection on restarts](log-inspection.md) — after restart_workflow, use refresh_all_logs for current logs; manual tail of newest /tmp/logs file can be stale.
+- [Soccer team logos](soccer-team-logos.md) — soccer/World Cup uses flagcdn country flags via FIFA→ISO2 map; ESPN club-logo paths 404 for national teams.

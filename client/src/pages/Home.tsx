@@ -40,9 +40,41 @@ const SPORT_FALLBACK_IMAGE: Record<string, string> = {
   SOCCER: "/images/fallback-nba.png",
 };
 
+const FIFA_TO_ISO2: Record<string, string> = {
+  ARG: "ar", BRA: "br", FRA: "fr", ENG: "gb-eng", GER: "de", ESP: "es", POR: "pt",
+  NED: "nl", BEL: "be", ITA: "it", CRO: "hr", URU: "uy", COL: "co", MEX: "mx",
+  USA: "us", CAN: "ca", JPN: "jp", KOR: "kr", AUS: "au", KSA: "sa", IRN: "ir",
+  QAT: "qa", MAR: "ma", SEN: "sn", GHA: "gh", NGA: "ng", CMR: "cm", EGY: "eg",
+  TUN: "tn", ALG: "dz", CIV: "ci", RSA: "za", CPV: "cv", MLI: "ml", SUI: "ch",
+  AUT: "at", DEN: "dk", SWE: "se", NOR: "no", POL: "pl", SRB: "rs", SCO: "gb-sct",
+  WAL: "gb-wls", UKR: "ua", CZE: "cz", TUR: "tr", GRE: "gr", NZL: "nz", ECU: "ec",
+  PER: "pe", CHI: "cl", PAR: "py", VEN: "ve", BOL: "bo", CRC: "cr", PAN: "pa",
+  HON: "hn", JAM: "jm", IRQ: "iq", UAE: "ae", JOR: "jo", OMA: "om", CHN: "cn",
+  IND: "in", THA: "th", VIE: "vn", IDN: "id", MAS: "my", UZB: "uz",
+};
+function getSoccerFlagUrl(team: string): string | null {
+  const iso = FIFA_TO_ISO2[(team || "").toUpperCase()];
+  return iso ? `https://flagcdn.com/w80/${iso}.png` : null;
+}
+
 function TeamLogo({ team, sport, size = 20 }: { team: string; sport: string; size?: number }) {
   const [failed, setFailed] = useState(false);
-  if (failed) {
+  const isSoccer = sport === "SOCCER";
+  const soccerFlag = isSoccer ? getSoccerFlagUrl(team) : null;
+
+  if (failed || (isSoccer && !soccerFlag)) {
+    if (isSoccer) {
+      return (
+        <span
+          className="rounded-full bg-slate-700/70 text-slate-200 font-black inline-flex items-center justify-center shrink-0 leading-none"
+          style={{ width: size, height: size, fontSize: Math.max(7, Math.round(size * 0.34)) }}
+          title={team}
+          aria-label={team}
+        >
+          {(team || "").slice(0, 3).toUpperCase()}
+        </span>
+      );
+    }
     return (
       <img
         src={SPORT_FALLBACK_IMAGE[sport] || SPORT_FALLBACK_IMAGE.NBA}
@@ -52,11 +84,12 @@ function TeamLogo({ team, sport, size = 20 }: { team: string; sport: string; siz
       />
     );
   }
+
   return (
     <img
-      src={getTeamLogoUrl(team, sport)}
+      src={soccerFlag || getTeamLogoUrl(team, sport)}
       alt={team}
-      className="rounded-full bg-slate-800/50 object-contain shrink-0"
+      className={`rounded-full bg-slate-800/50 shrink-0 ${soccerFlag ? "object-cover" : "object-contain"}`}
       style={{ width: size, height: size }}
       onError={() => setFailed(true)}
     />
@@ -1134,6 +1167,125 @@ interface LandingResponse {
   lastUpdated: string;
 }
 
+interface WorldCupPick {
+  id: string;
+  playerName: string;
+  team: string;
+  opponent: string;
+  propType: string;
+  line: string;
+  pick: string;
+  confidence: number;
+  source: "market" | "model";
+}
+interface WorldCupMatch {
+  teams: [string, string];
+  label: string;
+  time: string;
+  picks: WorldCupPick[];
+}
+interface WorldCupResponse {
+  league: string;
+  matchCount: number;
+  totalPicks: number;
+  matches: WorldCupMatch[];
+}
+
+function WorldCupCard() {
+  const { data, isLoading } = useQuery<WorldCupResponse>({
+    queryKey: ["/api/worldcup"],
+    refetchInterval: 300000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="max-w-5xl mx-auto mb-16" data-testid="worldcup-card-loading">
+        <div className="h-8 w-64 rounded-lg bg-white/5 animate-pulse mx-auto mb-6" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="bg-white/5 rounded-2xl p-5 animate-pulse h-52" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!data || data.matches.length === 0) return null;
+
+  return (
+    <div className="max-w-5xl mx-auto mb-16" data-testid="worldcup-card">
+      <div className="flex items-center justify-center gap-2 mb-2">
+        <Trophy className="w-4 h-4 text-amber-400" />
+        <span className="text-amber-400 text-sm font-bold uppercase tracking-wider">FIFA World Cup</span>
+      </div>
+      <h2 className="text-2xl font-black text-white text-center mb-1">World Cup Best Picks</h2>
+      <p className="text-sm text-slate-400 text-center mb-6">
+        AI prop picks for every match · {data.matchCount} {data.matchCount === 1 ? "game" : "games"} · {data.totalPicks} picks today
+      </p>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {data.matches.map((match, mIdx) => (
+          <div
+            key={match.label}
+            className="bg-gradient-to-br from-emerald-950/40 to-slate-900/60 border border-emerald-800/30 rounded-2xl p-5 backdrop-blur-sm text-left"
+            data-testid={`worldcup-match-${mIdx}`}
+          >
+            <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <TeamLogo team={match.teams[0]} sport="SOCCER" size={26} />
+                <span className="text-sm font-black text-white">{match.teams[0]}</span>
+                <span className="text-[10px] font-black text-slate-500">vs</span>
+                <span className="text-sm font-black text-white">{match.teams[1]}</span>
+                <TeamLogo team={match.teams[1]} sport="SOCCER" size={26} />
+              </div>
+              {match.time && (
+                <span className="text-[10px] font-bold text-slate-400 bg-white/5 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid={`worldcup-match-time-${mIdx}`}>
+                  {match.time}
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-2.5">
+              {match.picks.map(pick => {
+                const isOver = pick.pick.toLowerCase().includes("over") || pick.pick.toLowerCase().includes("more");
+                const dotClass = pick.confidence >= 78 ? "bg-emerald-400" : pick.confidence >= 68 ? "bg-amber-400" : "bg-slate-400";
+                const textClass = pick.confidence >= 78 ? "text-emerald-400" : pick.confidence >= 68 ? "text-amber-400" : "text-slate-400";
+                return (
+                  <div key={pick.id} className="flex items-center justify-between gap-2" data-testid={`worldcup-pick-${pick.id}`}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClass}`} />
+                      <TeamLogo team={pick.team} sport="SOCCER" size={16} />
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-white truncate">{pick.playerName}</p>
+                        <p className="text-[10px] text-slate-500 truncate">{pick.propType}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {pick.source === "market" ? (
+                        <div className="flex items-center gap-1">
+                          {isOver ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" /> : <ArrowDownRight className="w-3.5 h-3.5 text-red-400" />}
+                          <span className={`text-xs font-black ${isOver ? "text-emerald-400" : "text-red-400"}`}>{pick.pick} {pick.line}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs font-black text-emerald-400">{pick.line} <span className="text-[9px] text-slate-500 font-bold">proj</span></span>
+                      )}
+                      <span className={`text-[10px] font-black uppercase ${textClass} w-7 text-right`}>{pick.confidence}%</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-[11px] text-slate-600 text-center mt-5">
+        Market lines from live sportsbooks, blended with our AI projections. Sign up free to build full lineups.
+      </p>
+    </div>
+  );
+}
+
 function LandingTopPlays() {
   const [activeSport, setActiveSport] = useState(ACTIVE_SPORTS[0] || "SOCCER");
   const { data, isLoading } = useQuery<LandingResponse>({
@@ -1320,6 +1472,8 @@ export default function Home() {
             >
               Get Started
             </Button>
+
+            <WorldCupCard />
 
             <LandingTopPlays />
 
