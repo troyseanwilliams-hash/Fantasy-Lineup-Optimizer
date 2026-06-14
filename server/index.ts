@@ -39,7 +39,7 @@ export async function refreshLineupScores(): Promise<void> {
   if (lineups.length === 0) return;
 
   const sportSet = new Set(lineups.map(l => l.sport));
-  const supportedSports = ["NBA", "NHL", "MLB", "NFL"];
+  const supportedSports = ["NHL", "MLB", "NFL"];
   const today = getEasternToday();
 
   const sportPointsMaps = new Map<string, { playerMap: Map<string, any>; gamesTotal: number; gamesCompleted: number; gamesInProgress: number }>();
@@ -474,7 +474,6 @@ app.use((req, res, next) => {
             }
 
             const backfillTasks = [
-              { sport: "NBA", date: "2026-03-10", draftGroupId: 143552 },
               { sport: "NHL", date: "2026-03-10", draftGroupId: null },
             ];
 
@@ -541,7 +540,7 @@ app.use((req, res, next) => {
             console.error("Startup status refresh failed:", err);
           }
 
-          for (const sport of ["NBA", "NHL", "MLB", "NFL"]) {
+          for (const sport of ["NHL", "MLB", "NFL"]) {
             try {
               await refreshRecentlyPlayed(sport);
             } catch {}
@@ -611,7 +610,7 @@ app.use((req, res, next) => {
           const expiredCount = await storage.deleteExpiredLineups();
           if (expiredCount > 0) log(`Moved ${expiredCount} expired lineup(s) to review`, "cron");
           await seedDatabase(true);
-          for (const sport of ["NBA", "NHL", "MLB", "NFL"]) {
+          for (const sport of ["NHL", "MLB", "NFL"]) {
             try {
               await refreshRecentlyPlayed(sport);
             } catch {}

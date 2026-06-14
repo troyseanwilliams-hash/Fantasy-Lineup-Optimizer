@@ -20,7 +20,7 @@ const NEWS_SOURCES: Record<string, Array<{ url: string; type: "injuries" | "news
     { url: "https://site.api.espn.com/apis/site/v2/sports/golf/pga/news?limit=30", type: "news" },
   ],
   SOCCER: [
-    { url: "https://site.api.espn.com/apis/site/v2/sports/soccer/news?limit=30", type: "news" },
+    { url: "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/news?limit=30", type: "news" },
   ],
 };
 
@@ -87,7 +87,7 @@ const HEADERS = {
 };
 
 const INTERVAL_SECS = 1800;
-const ACTIVE_SPORTS = ["NBA", "NHL", "NFL", "MLB", "GOLF", "SOCCER"];
+const ACTIVE_SPORTS = ["NHL", "NFL", "MLB", "GOLF", "SOCCER"];
 
 let _lastRun: number = 0;
 let _cachedSignals: Record<string, ScoutSignal[]> = {};

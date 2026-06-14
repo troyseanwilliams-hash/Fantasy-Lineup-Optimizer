@@ -1,0 +1,1 @@
+- [Log inspection on restarts](log-inspection.md) — after restart_workflow, use refresh_all_logs for current logs; manual tail of newest /tmp/logs file can be stale.

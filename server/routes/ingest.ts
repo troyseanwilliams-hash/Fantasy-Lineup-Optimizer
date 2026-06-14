@@ -75,8 +75,8 @@ async function requireAdminOrKey(req: Request, res: Response, next: NextFunction
 
 // ── Validation helpers ────────────────────────────────────────────────────────
 
-const VALID_FD_SPORTS: FDSport[] = ["NBA", "NFL", "MLB", "NHL", "GOLF"];
-const VALID_YAHOO_SPORTS: YahooSport[] = ["NBA", "NFL", "MLB", "NHL", "GOLF"];
+const VALID_FD_SPORTS: FDSport[] = ["NFL", "MLB", "NHL", "GOLF"];
+const VALID_YAHOO_SPORTS: YahooSport[] = ["NFL", "MLB", "NHL", "GOLF"];
 
 function isValidFDSport(s: string): s is FDSport {
   return VALID_FD_SPORTS.includes(s.toUpperCase() as FDSport);
@@ -136,7 +136,7 @@ ingestRouter.post("/yahoo/all", async (_req: Request, res: Response) => {
 });
 
 ingestRouter.post("/yahoo/csv", upload.single("file"), async (req: Request, res: Response) => {
-  const sport = (req.body?.sport || req.query?.sport || "NBA").toString().toUpperCase();
+  const sport = (req.body?.sport || req.query?.sport || "MLB").toString().toUpperCase();
 
   if (!isValidYahooSport(sport)) {
     return res.status(400).json({

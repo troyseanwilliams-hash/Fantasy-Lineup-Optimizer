@@ -39,7 +39,7 @@ export default function PlayerConfig() {
   usePageMeta({ title: "Player Configuration - Custom Projections", description: "Customize player projections, lock players, and set exclusions for lineup optimization.", path: "/player-config" });
   const { user } = useAuth();
   const { toast } = useToast();
-  const [selectedSport, setSelectedSport] = useState("NBA");
+  const [selectedSport, setSelectedSport] = useState<string>(ACTIVE_SPORTS[0]);
   const [selectedPlatform, setSelectedPlatform] = useState("draftkings");
   const [selectedSlateId, setSelectedSlateId] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");

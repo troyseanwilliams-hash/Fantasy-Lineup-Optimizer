@@ -11,8 +11,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { BOOST_WEIGHTS } from "@/hooks/useScoutBoosts";
 import { usePageMeta } from "@/hooks/use-page-meta";
+import { ACTIVE_SPORTS } from "@shared/platform-config";
 
-const SPORTS = ["NBA", "NFL", "MLB", "NHL", "GOLF"] as const;
+const SPORTS = ACTIVE_SPORTS;
 
 const SIGNAL_META: Record<string, { label: string; colorClass: string }> = {
   starter_out: { label: "Starter Out", colorClass: "text-red-400 bg-red-500/10 border-red-500/30" },
@@ -96,7 +97,7 @@ export default function ScoutDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [activeSport, setActiveSport] = useState<string>("NBA");
+  const [activeSport, setActiveSport] = useState<string>(ACTIVE_SPORTS[0]);
   const [filterType, setFilterType] = useState<string>("all");
   const [secondsUntilRefresh, setSecondsUntilRefresh] = useState(SERVER_INTERVAL_MS / 1000);
   const nearRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

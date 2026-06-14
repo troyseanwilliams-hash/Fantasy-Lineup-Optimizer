@@ -3020,7 +3020,7 @@ export async function registerRoutes(
     MLB: "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/news",
     NFL: "https://site.api.espn.com/apis/site/v2/sports/football/nfl/news",
     GOLF: "https://site.api.espn.com/apis/site/v2/sports/golf/pga/news",
-    SOCCER: "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/news",
+    SOCCER: "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/news",
   };
 
   const newsCache = new Map<string, { data: any; fetchedAt: number }>();
@@ -3040,7 +3040,7 @@ export async function registerRoutes(
   app.get("/api/scores/:sport", async (req, res) => {
     try {
       const sport = req.params.sport.toUpperCase();
-      const validSports = ["NBA", "NHL", "MLB", "NFL", "GOLF"];
+      const validSports = ["NHL", "MLB", "NFL", "GOLF", "SOCCER"];
       if (!validSports.includes(sport)) {
         return res.status(400).json({ error: `Invalid sport: ${sport}. Valid: ${validSports.join(", ")}` });
       }
@@ -5386,7 +5386,7 @@ export async function seedDatabase(forceRefresh = false) {
     console.error("[DK] Error fetching live data:", err);
   }
 
-  const sportSeeds = ["NBA", "NHL", "MLB", "NFL", "GOLF", "SOCCER"].map(sport => {
+  const sportSeeds = ["NHL", "MLB", "NFL", "GOLF", "SOCCER"].map(sport => {
     const live = liveData.get(sport);
     if (live && live.dkPlayers.length > 0) {
       return {

@@ -109,7 +109,7 @@ const SIGNAL_META: Record<string, { label: string; colorClass: string; icon: str
   out:               { label: "OUT",            colorClass: "text-red-400 bg-red-500/20 border-red-500/40",         icon: "❌" },
 };
 
-const SHOWDOWN_SPORTS = ["NBA", "NFL"].filter(s => ACTIVE_SPORTS.includes(s as any));
+const SHOWDOWN_SPORTS = ACTIVE_SPORTS.filter(s => s !== "GOLF");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Component
@@ -121,7 +121,7 @@ export default function ShowdownBuilder() {
   const { toast } = useToast();
 
   // ── Slate / sport ──────────────────────────────────────────────────────────
-  const [sport, setSport] = useState("NBA");
+  const [sport, setSport] = useState(SHOWDOWN_SPORTS[0] ?? "");
   const [platform] = useState<"draftkings" | "fanduel">("draftkings");
   const [selectedSlateId, setSelectedSlateId] = useState<number | null>(null);
   const [gameFilter, setGameFilter] = useState<string>("");

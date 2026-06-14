@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, Upload, FileJson, Database, ShieldAlert, RefreshCw, Check } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { ACTIVE_SPORTS } from "@shared/platform-config";
 
 const EXAMPLE_JSON = `[
   {
@@ -76,7 +77,7 @@ export default function Admin() {
     }
   });
 
-  const [addSlateSport, setAddSlateSport] = useState("NBA");
+  const [addSlateSport, setAddSlateSport] = useState(ACTIVE_SPORTS[0]);
   const [selectedDraftGroup, setSelectedDraftGroup] = useState("");
 
   const { data: availableSlates, isLoading: isLoadingSlates, refetch: refetchSlates } = useQuery<DKSlateOption[]>({
@@ -204,12 +205,9 @@ export default function Admin() {
                   <SelectValue placeholder="Select sport" />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-900 border-slate-700 text-white">
-                  <SelectItem value="NBA">NBA</SelectItem>
-                  <SelectItem value="NHL">NHL</SelectItem>
-                  <SelectItem value="NFL">NFL</SelectItem>
-                  <SelectItem value="MLB">MLB</SelectItem>
-                  <SelectItem value="GOLF">GOLF</SelectItem>
-                  <SelectItem value="SOCCER">SOCCER</SelectItem>
+                  {ACTIVE_SPORTS.map(s => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

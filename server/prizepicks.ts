@@ -1,7 +1,6 @@
 import type { Player } from "@shared/schema";
 
 const PP_SPORTS: Record<string, string> = {
-  NBA: "nba",
   NHL: "nhl",
   MLB: "mlb",
   NFL: "nfl",

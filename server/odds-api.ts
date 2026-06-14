@@ -5,7 +5,7 @@ const SPORT_KEY_MAP: Record<string, string> = {
   NHL: "icehockey_nhl",
   MLB: "baseball_mlb",
   NFL: "americanfootball_nfl",
-  SOCCER: "soccer_epl",
+  SOCCER: "soccer_fifa_world_cup",
 };
 
 const PLAYER_PROP_MARKETS: Record<string, string[]> = {

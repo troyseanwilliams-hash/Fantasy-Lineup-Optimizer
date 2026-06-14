@@ -3,8 +3,8 @@ import { type Player } from "./schema";
 export type Platform = "draftkings" | "fanduel" | "yahoo";
 export type Sport = "NBA" | "NHL" | "MLB" | "NFL" | "GOLF" | "SOCCER";
 
-export const SPORT_ORDER: Sport[] = ["NBA", "GOLF", "NHL", "SOCCER", "MLB", "NFL"];
-export const ACTIVE_SPORTS: Sport[] = ["NBA", "GOLF", "NHL", "SOCCER", "MLB"];
+export const SPORT_ORDER: Sport[] = ["SOCCER", "MLB", "GOLF", "NHL", "NFL", "NBA"];
+export const ACTIVE_SPORTS: Sport[] = ["SOCCER", "MLB", "GOLF", "NHL"];
 
 export interface PlatformConfig {
   platform: Platform;

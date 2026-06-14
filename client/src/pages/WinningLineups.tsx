@@ -20,8 +20,9 @@ import {
   Play,
 } from "lucide-react";
 import { usePageMeta } from "@/hooks/use-page-meta";
+import { ACTIVE_SPORTS } from "@shared/platform-config";
 
-const SPORTS = ["NBA", "NHL", "MLB", "NFL", "GOLF", "SOCCER"];
+const SPORTS = ACTIVE_SPORTS;
 const PLATFORMS = ["draftkings", "fanduel", "yahoo"] as const;
 type PlatformType = typeof PLATFORMS[number];
 const PLATFORM_LABELS: Record<PlatformType, string> = {
@@ -96,7 +97,7 @@ interface AggregatedInsights {
 
 export default function WinningLineups() {
   usePageMeta({ title: "Winning Lineups - Historical Optimal Lineups", description: "View historically optimal DFS lineups constructed from actual game results.", path: "/winning-lineups" });
-  const [selectedSport, setSelectedSport] = useState("NBA");
+  const [selectedSport, setSelectedSport] = useState<string>(ACTIVE_SPORTS[0]);
   const [selectedPlatform, setSelectedPlatform] = useState<PlatformType>("draftkings");
   const [expandedLineup, setExpandedLineup] = useState<number | null>(null);
   const [analyzeDate, setAnalyzeDate] = useState("");

@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
-import { ACTIVE_SPORTS, SPORT_ORDER } from "@shared/platform-config";
+import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 import { TutorialOverlay, useTutorial } from "@/components/TutorialOverlay";
 
@@ -1135,7 +1135,7 @@ interface LandingResponse {
 }
 
 function LandingTopPlays() {
-  const [activeSport, setActiveSport] = useState("NBA");
+  const [activeSport, setActiveSport] = useState(ACTIVE_SPORTS[0] || "SOCCER");
   const { data, isLoading } = useQuery<LandingResponse>({
     queryKey: ["/api/landing-data"],
     refetchInterval: 300000,
@@ -1147,7 +1147,7 @@ function LandingTopPlays() {
     return (
       <div className="max-w-5xl mx-auto mb-16" data-testid="landing-top-plays-loading">
         <div className="flex items-center justify-center gap-3 mb-6">
-          {["NBA", "NHL", "NFL"].map(s => (
+          {ACTIVE_SPORTS.slice(0, 3).map(s => (
             <div key={s} className="w-16 h-8 rounded-full bg-white/5 animate-pulse" />
           ))}
         </div>
@@ -1303,7 +1303,7 @@ export default function Home() {
               Advanced lineup optimizer for DraftKings, FanDuel, and Yahoo DFS. Monte Carlo simulation, LP-based optimization, and AI-powered projections across all sports.
             </p>
             <div className="flex items-center justify-center gap-3 flex-wrap mb-6">
-              {SPORT_ORDER.map(sport => {
+              {ACTIVE_SPORTS.map(sport => {
                 const meta = SPORT_META[sport];
                 const Icon = meta?.icon || Zap;
                 return (

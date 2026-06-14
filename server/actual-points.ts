@@ -436,7 +436,7 @@ async function backfillSportDate(storage: any, sport: string, dateStr: string): 
 
 export async function backfillActualPointsForHistory(storage: any, daysBack = 7): Promise<string[]> {
   const results: string[] = [];
-  const supportedSports = ["NBA", "NHL", "MLB", "NFL"];
+  const supportedSports = ["NHL", "MLB", "NFL"];
 
   const today = new Date();
   const dates: string[] = [];
@@ -463,7 +463,7 @@ export async function backfillActualPointsForHistory(storage: any, daysBack = 7)
 
 export async function fillActualPointsGaps(storage: any, daysBack = 14): Promise<string[]> {
   const results: string[] = [];
-  const supportedSports = ["NBA", "NHL", "MLB", "NFL"];
+  const supportedSports = ["NHL", "MLB", "NFL"];
 
   const today = new Date();
   const dates: string[] = [];

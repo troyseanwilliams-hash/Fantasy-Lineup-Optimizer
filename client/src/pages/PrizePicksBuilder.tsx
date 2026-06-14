@@ -18,8 +18,9 @@ import {
   Brain, AlertTriangle, ArrowLeftRight
 } from "lucide-react";
 import { usePageMeta } from "@/hooks/use-page-meta";
+import { ACTIVE_SPORTS } from "@shared/platform-config";
 
-const PP_SPORTS = ["NBA", "NHL", "NFL", "MLB", "GOLF", "SOCCER"] as const;
+const PP_SPORTS = ACTIVE_SPORTS;
 
 const SPORT_META: Record<string, { icon: typeof Dribbble; color: string; bgColor: string }> = {
   NBA: { icon: Dribbble, color: "text-orange-400", bgColor: "bg-orange-500/20" },
@@ -276,7 +277,7 @@ export default function PrizePicksBuilder() {
   usePageMeta({ title: "PrizePicks Optimizer - AI Entry Builder", description: "Build winning PrizePicks entries with AI-powered projections and analysis.", path: "/prizepicks" });
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
-  const [selectedSport, setSelectedSport] = useState<string>("NBA");
+  const [selectedSport, setSelectedSport] = useState<string>(ACTIVE_SPORTS[0]);
   const [entries, setEntries] = useState<PPEntry[]>([]);
   const [wagerAmount, setWagerAmount] = useState<number>(10);
   const [copied, setCopied] = useState(false);

@@ -505,7 +505,7 @@ export async function ingestFanDuelSlate(sport: FDSport): Promise<{
 
 export async function ingestAllFanDuelSlates(): Promise<Record<FDSport, { success: boolean; message: string; source?: string }>> {
   const results = {} as Record<FDSport, { success: boolean; message: string; source?: string }>;
-  for (const sport of ["NBA","NFL","MLB","NHL","GOLF"] as FDSport[]) {
+  for (const sport of ["NFL","MLB","NHL","GOLF"] as FDSport[]) {
     try {
       const r = await ingestFanDuelSlate(sport);
       results[sport] = { success: r.success, message: r.message, source: r.source };

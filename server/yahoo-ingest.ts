@@ -756,7 +756,7 @@ export async function ingestYahooCSV(csvText: string, sport: YahooSport): Promis
 
 export async function ingestAllYahooSlates(): Promise<Record<YahooSport, { success: boolean; message: string; source?: string }>> {
   const results = {} as Record<YahooSport, { success: boolean; message: string; source?: string }>;
-  for (const sport of ["NBA","NFL","MLB","NHL","GOLF"] as YahooSport[]) {
+  for (const sport of ["NFL","MLB","NHL","GOLF"] as YahooSport[]) {
     try {
       const r = await ingestYahooSlate(sport);
       results[sport] = { success: r.success, message: r.message, source: r.source };
