@@ -1,12 +1,13 @@
 import Stripe from "stripe";
 import { storage } from "./storage";
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  console.warn("[stripe] STRIPE_SECRET_KEY not set — Stripe features will be unavailable");
+const stripeSecretKey = process.env.ELITELINEUP_STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
+if (!stripeSecretKey) {
+  console.warn("[stripe] ELITELINEUP_STRIPE_SECRET_KEY not set — Stripe features will be unavailable");
 }
 
-export const stripe = process.env.STRIPE_SECRET_KEY
-  ? new Stripe(process.env.STRIPE_SECRET_KEY)
+export const stripe = stripeSecretKey
+  ? new Stripe(stripeSecretKey)
   : null;
 
 const PRICE_CONFIGS: Record<string, { amount: number; name: string }> = {

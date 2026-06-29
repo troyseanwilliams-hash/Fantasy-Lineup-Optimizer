@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Shield, Lock, Crown, Trophy, X, Check, CheckCircle2, Gift } from "lucide-react";
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "");
+const stripePromise = loadStripe(import.meta.env.VITE_ELITELINEUP_STRIPE_PUBLISHABLE_KEY || import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "");
 
 interface PaymentFormProps {
   tier: "star" | "pro";
