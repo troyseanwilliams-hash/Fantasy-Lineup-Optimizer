@@ -4,7 +4,12 @@ export type Platform = "draftkings" | "fanduel" | "yahoo";
 export type Sport = "NBA" | "NHL" | "MLB" | "NFL" | "GOLF" | "SOCCER";
 
 export const SPORT_ORDER: Sport[] = ["SOCCER", "MLB", "GOLF", "NHL", "NFL", "NBA"];
-export const ACTIVE_SPORTS: Sport[] = ["SOCCER", "MLB", "GOLF", "NHL"];
+/** Sports currently in-season and available for DFS contests */
+export const ACTIVE_SPORTS: Sport[] = ["SOCCER", "MLB", "GOLF"];
+/** Sports off-season now but returning soon — shown in nav with a "Coming Soon" badge */
+export const COMING_SOON_SPORTS: Sport[] = ["NFL", "NBA"];
+/** Sports fully off-season — hidden from nav and disabled */
+export const OFF_SEASON_SPORTS: Sport[] = ["NHL"];
 
 export interface PlatformConfig {
   platform: Platform;

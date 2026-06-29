@@ -4,7 +4,8 @@ import {
   Zap, Newspaper, TrendingUp, ArrowRight, Clock, ExternalLink,
   ArrowUpRight, ArrowDownRight, Archive, Crown, Trophy, Dribbble,
   Activity, Target, Lock, Sparkles, Star, Flame, Shield, Swords, Flag,
-  Radio, Circle, Brain, Upload, BarChart3, Layers, Dice5, HelpCircle
+  Radio, Circle, Brain, Upload, BarChart3, Layers, Dice5, HelpCircle,
+  CalendarClock, ChevronRight
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { usePageMeta } from "@/hooks/use-page-meta";
@@ -1191,97 +1192,176 @@ interface WorldCupResponse {
   matches: WorldCupMatch[];
 }
 
-function WorldCupCard() {
+function WorldCupHero() {
   const { data, isLoading } = useQuery<WorldCupResponse>({
     queryKey: ["/api/worldcup"],
     refetchInterval: 300000,
   });
 
-  if (isLoading) {
-    return (
-      <div className="max-w-5xl mx-auto mb-16" data-testid="worldcup-card-loading">
-        <div className="h-8 w-64 rounded-lg bg-white/5 animate-pulse mx-auto mb-6" />
+  const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+
+  return (
+    <div className="max-w-5xl mx-auto mb-14" data-testid="worldcup-card">
+      {/* Hero banner */}
+      <div className="relative rounded-2xl overflow-hidden mb-8">
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-950 via-[#0a2a1a] to-[#0f172a]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_0%,rgba(16,185,129,0.15),transparent)]" />
+        {/* Decorative pitch lines */}
+        <div className="absolute inset-0 opacity-[0.04]" style={{
+          backgroundImage: "repeating-linear-gradient(90deg, white 0px, white 1px, transparent 1px, transparent 80px), repeating-linear-gradient(0deg, white 0px, white 1px, transparent 1px, transparent 80px)"
+        }} />
+        <div className="relative z-10 px-8 py-10 text-center">
+          <div className="flex items-center justify-center gap-3 mb-3">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30">
+              <Circle className="w-2 h-2 text-emerald-400 fill-current animate-pulse" />
+              <span className="text-[11px] font-black text-emerald-400 uppercase tracking-widest">Live Now</span>
+            </div>
+            <span className="text-[11px] text-slate-400 font-bold">{todayStr}</span>
+          </div>
+          <div className="flex items-center justify-center gap-3 mb-3">
+            <Trophy className="w-7 h-7 text-amber-400" />
+            <h2 className="text-4xl md:text-5xl font-black text-white tracking-tight">
+              FIFA <span className="text-gradient-green">World Cup</span> 2026
+            </h2>
+            <Trophy className="w-7 h-7 text-amber-400" />
+          </div>
+          <p className="text-slate-300 text-base font-bold mb-2">USA · Canada · Mexico</p>
+          {data && (
+            <div className="flex items-center justify-center gap-4 flex-wrap mt-4">
+              <div className="stat-chip">
+                <Swords className="w-3 h-3 text-teal-400" />
+                {data.matchCount} {data.matchCount === 1 ? "Match" : "Matches"} Today
+              </div>
+              <div className="stat-chip">
+                <Sparkles className="w-3 h-3 text-emerald-400" />
+                {data.totalPicks} AI Picks
+              </div>
+              <div className="stat-chip">
+                <Circle className="w-3 h-3 text-emerald-400 fill-current" />
+                Live DFS Lineups
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Match cards */}
+      {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {Array.from({ length: 2 }).map((_, i) => (
             <div key={i} className="bg-white/5 rounded-2xl p-5 animate-pulse h-52" />
           ))}
         </div>
-      </div>
-    );
-  }
-
-  if (!data || data.matches.length === 0) return null;
-
-  return (
-    <div className="max-w-5xl mx-auto mb-16" data-testid="worldcup-card">
-      <div className="flex items-center justify-center gap-2 mb-2">
-        <Trophy className="w-4 h-4 text-amber-400" />
-        <span className="text-amber-400 text-sm font-bold uppercase tracking-wider">FIFA World Cup</span>
-      </div>
-      <h2 className="text-2xl font-black text-white text-center mb-1">World Cup Best Picks</h2>
-      <p className="text-sm text-slate-400 text-center mb-6">
-        AI prop picks for every match · {data.matchCount} {data.matchCount === 1 ? "game" : "games"} · {data.totalPicks} picks today
-      </p>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {data.matches.map((match, mIdx) => (
-          <div
-            key={match.label}
-            className="bg-gradient-to-br from-emerald-950/40 to-slate-900/60 border border-emerald-800/30 rounded-2xl p-5 backdrop-blur-sm text-left"
-            data-testid={`worldcup-match-${mIdx}`}
-          >
-            <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-white/10">
-              <div className="flex items-center gap-2">
-                <TeamLogo team={match.teams[0]} sport="SOCCER" size={26} />
-                <span className="text-sm font-black text-white">{match.teams[0]}</span>
-                <span className="text-[10px] font-black text-slate-500">vs</span>
-                <span className="text-sm font-black text-white">{match.teams[1]}</span>
-                <TeamLogo team={match.teams[1]} sport="SOCCER" size={26} />
+      ) : !data || data.matches.length === 0 ? (
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-8 text-center">
+          <Trophy className="w-10 h-10 text-amber-400/40 mx-auto mb-3" />
+          <p className="text-slate-400 font-bold">No matches scheduled today</p>
+          <p className="text-slate-500 text-sm mt-1">Check back for next round fixtures</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {data.matches.map((match, mIdx) => (
+            <div
+              key={match.label}
+              className="relative bg-gradient-to-br from-emerald-950/50 to-slate-900/70 border border-emerald-800/30 rounded-2xl p-5 backdrop-blur-sm text-left overflow-hidden"
+              data-testid={`worldcup-match-${mIdx}`}
+            >
+              <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500/0" />
+              <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2.5">
+                  <TeamLogo team={match.teams[0]} sport="SOCCER" size={30} />
+                  <div>
+                    <span className="text-base font-black text-white">{match.teams[0]}</span>
+                  </div>
+                  <span className="text-xs font-black text-slate-500 px-2">vs</span>
+                  <div>
+                    <span className="text-base font-black text-white">{match.teams[1]}</span>
+                  </div>
+                  <TeamLogo team={match.teams[1]} sport="SOCCER" size={30} />
+                </div>
+                {match.time && (
+                  <span className="text-[10px] font-bold text-slate-400 bg-white/5 border border-white/10 px-2 py-1 rounded-lg whitespace-nowrap" data-testid={`worldcup-match-time-${mIdx}`}>
+                    {match.time}
+                  </span>
+                )}
               </div>
-              {match.time && (
-                <span className="text-[10px] font-bold text-slate-400 bg-white/5 px-2 py-0.5 rounded-full whitespace-nowrap" data-testid={`worldcup-match-time-${mIdx}`}>
-                  {match.time}
-                </span>
-              )}
-            </div>
 
-            <div className="space-y-2.5">
-              {match.picks.map(pick => {
-                const isOver = pick.pick.toLowerCase().includes("over") || pick.pick.toLowerCase().includes("more");
-                const dotClass = pick.confidence >= 78 ? "bg-emerald-400" : pick.confidence >= 68 ? "bg-amber-400" : "bg-slate-400";
-                const textClass = pick.confidence >= 78 ? "text-emerald-400" : pick.confidence >= 68 ? "text-amber-400" : "text-slate-400";
-                return (
-                  <div key={pick.id} className="flex items-center justify-between gap-2" data-testid={`worldcup-pick-${pick.id}`}>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClass}`} />
-                      <TeamLogo team={pick.team} sport="SOCCER" size={16} />
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-white truncate">{pick.playerName}</p>
-                        <p className="text-[10px] text-slate-500 truncate">{pick.propType}</p>
+              <div className="space-y-2.5">
+                {match.picks.map(pick => {
+                  const isOver = pick.pick.toLowerCase().includes("over") || pick.pick.toLowerCase().includes("more");
+                  const dotClass = pick.confidence >= 78 ? "bg-emerald-400" : pick.confidence >= 68 ? "bg-amber-400" : "bg-slate-400";
+                  const textClass = pick.confidence >= 78 ? "text-emerald-400" : pick.confidence >= 68 ? "text-amber-400" : "text-slate-400";
+                  return (
+                    <div key={pick.id} className="flex items-center justify-between gap-2" data-testid={`worldcup-pick-${pick.id}`}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClass}`} />
+                        <TeamLogo team={pick.team} sport="SOCCER" size={16} />
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-white truncate">{pick.playerName}</p>
+                          <p className="text-[10px] text-slate-500 truncate">{pick.propType}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {pick.source === "market" ? (
+                          <div className="flex items-center gap-1">
+                            {isOver ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" /> : <ArrowDownRight className="w-3.5 h-3.5 text-red-400" />}
+                            <span className={`text-xs font-black ${isOver ? "text-emerald-400" : "text-red-400"}`}>{pick.pick} {pick.line}</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs font-black text-emerald-400">{pick.line} <span className="text-[9px] text-slate-500 font-bold">proj</span></span>
+                        )}
+                        <span className={`text-[10px] font-black uppercase ${textClass} w-7 text-right`}>{pick.confidence}%</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {pick.source === "market" ? (
-                        <div className="flex items-center gap-1">
-                          {isOver ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" /> : <ArrowDownRight className="w-3.5 h-3.5 text-red-400" />}
-                          <span className={`text-xs font-black ${isOver ? "text-emerald-400" : "text-red-400"}`}>{pick.pick} {pick.line}</span>
-                        </div>
-                      ) : (
-                        <span className="text-xs font-black text-emerald-400">{pick.line} <span className="text-[9px] text-slate-500 font-bold">proj</span></span>
-                      )}
-                      <span className={`text-[10px] font-black uppercase ${textClass} w-7 text-right`}>{pick.confidence}%</span>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       <p className="text-[11px] text-slate-600 text-center mt-5">
-        Market lines from live sportsbooks, blended with our AI projections. Sign up free to build full lineups.
+        Market lines from live sportsbooks, blended with AI projections. Sign up free to build full DFS lineups.
       </p>
+    </div>
+  );
+}
+
+function NFLFallTeaser() {
+  return (
+    <div className="max-w-5xl mx-auto mb-16" data-testid="nfl-fall-teaser">
+      <div className="relative rounded-2xl overflow-hidden nfl-gradient p-8">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_80%_at_80%_50%,rgba(59,130,246,0.08),transparent)]" />
+        <div className="relative z-10 flex flex-col md:flex-row items-center gap-6">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-3">
+              <CalendarClock className="w-4 h-4 text-blue-400" />
+              <span className="text-[11px] font-black text-blue-400 uppercase tracking-widest">Coming Fall 2026</span>
+            </div>
+            <h3 className="text-2xl md:text-3xl font-black text-white mb-2">
+              NFL MME Optimizer
+            </h3>
+            <p className="text-slate-400 text-sm leading-relaxed mb-4">
+              Multi-entry max optimizer for DraftKings & FanDuel NFL contests. Generate 20–150 diversified lineups with exposure controls, QB-WR stacking, correlation engine, and ownership leverage — ready for Week 1.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {["DraftKings", "FanDuel", "Up to 150 Lineups", "Exposure Control", "QB Stacks", "GPP & Cash"].map(tag => (
+                <span key={tag} className="text-[11px] font-bold text-blue-300 bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-full">{tag}</span>
+              ))}
+            </div>
+          </div>
+          <div className="shrink-0">
+            <Link href="/nfl-mme">
+              <button className="flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm transition-colors shadow-lg shadow-blue-600/20">
+                <Shield className="w-4 h-4" />
+                Preview NFL MME
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </Link>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1447,35 +1527,51 @@ export default function Home() {
               <Zap className="w-4 h-4 mr-2 fill-current" />
               AI-Powered DFS Optimizer
             </div>
-            <h1 className="text-6xl md:text-8xl font-black text-white mb-8 leading-[1.05] tracking-tight drop-shadow-2xl">
-              Build Winning<br />
-              <span className="text-emerald-400">DFS Lineups</span>
+            <h1 className="text-6xl md:text-8xl font-black text-white mb-6 leading-[1.05] tracking-tight drop-shadow-2xl">
+              Win More at<br />
+              <span className="text-gradient-green">DFS</span>
             </h1>
-            <p className="text-xl text-slate-300 mb-6 max-w-2xl mx-auto leading-relaxed">
-              Advanced lineup optimizer for DraftKings, FanDuel, and Yahoo DFS. Monte Carlo simulation, LP-based optimization, and AI-powered projections across all sports.
+            <p className="text-xl text-slate-300 mb-4 max-w-2xl mx-auto leading-relaxed">
+              AI lineup optimizer for DraftKings & FanDuel. Monte Carlo simulation, ownership projections, prop picks, and multi-entry max tools — across all sports.
             </p>
-            <div className="flex items-center justify-center gap-3 flex-wrap mb-6">
+            <div className="flex items-center justify-center gap-3 flex-wrap mb-6 text-sm text-slate-400 font-bold">
+              <span className="flex items-center gap-1.5"><Circle className="w-2 h-2 text-emerald-400 fill-current" /> World Cup Live</span>
+              <span className="text-slate-700">·</span>
+              <span className="flex items-center gap-1.5"><Target className="w-3.5 h-3.5 text-red-400" /> MLB In Season</span>
+              <span className="text-slate-700">·</span>
+              <span className="flex items-center gap-1.5"><Flag className="w-3.5 h-3.5 text-lime-400" /> Golf Active</span>
+              <span className="text-slate-700">·</span>
+              <span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5 text-blue-400" /> NFL Coming Fall</span>
+            </div>
+            <div className="flex items-center justify-center gap-3 flex-wrap mb-8">
               {ACTIVE_SPORTS.map(sport => {
                 const meta = SPORT_META[sport];
                 const Icon = meta?.icon || Zap;
                 return (
-                  <Badge key={sport} className="bg-white/10 text-white border-white/20 font-bold text-sm px-3 py-1 backdrop-blur-sm gap-1.5" data-testid={`unauth-sport-${sport.toLowerCase()}`}>
-                    <Icon className="w-3.5 h-3.5" /> {sport}
+                  <Badge key={sport} className="bg-emerald-500/10 text-emerald-300 border-emerald-500/25 font-bold text-sm px-3 py-1.5 backdrop-blur-sm gap-1.5" data-testid={`unauth-sport-${sport.toLowerCase()}`}>
+                    <Icon className="w-3.5 h-3.5" />
+                    {sport === "SOCCER" ? "World Cup" : sport}
+                    {sport === "SOCCER" && <Circle className="w-1.5 h-1.5 fill-current animate-pulse ml-0.5" />}
                   </Badge>
                 );
               })}
+              <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 font-bold text-sm px-3 py-1.5 backdrop-blur-sm gap-1.5">
+                <Shield className="w-3.5 h-3.5" /> NFL Fall 2026
+              </Badge>
             </div>
             <Button
               onClick={() => (window.location.href = "/login")}
-              className="h-16 px-12 text-xl font-black bg-emerald-500 hover:bg-emerald-600 text-white shadow-2xl shadow-emerald-500/30 mb-10"
+              className="h-16 px-12 text-xl font-black bg-emerald-500 hover:bg-emerald-600 text-white shadow-2xl shadow-emerald-500/30 mb-12"
               data-testid="login-btn"
             >
-              Get Started
+              Get Started Free
             </Button>
 
-            <WorldCupCard />
+            <WorldCupHero />
 
             <LandingTopPlays />
+
+            <NFLFallTeaser />
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-12 max-w-5xl mx-auto">
               <div className="bg-white/5 border border-emerald-500/20 rounded-xl p-5 backdrop-blur-sm text-left" data-testid="unauth-card-dk">

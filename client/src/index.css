@@ -24,6 +24,14 @@
     --input: 217.2 32.6% 17.5%;
     --ring: 161 72% 40%;
     --radius: 0.75rem;
+    /* Brand accent tokens */
+    --elite-green: #10B981;
+    --elite-green-glow: rgba(16, 185, 129, 0.15);
+    --elite-gold: #F59E0B;
+    --elite-gold-glow: rgba(245, 158, 11, 0.15);
+    --surface-1: #0F172A;
+    --surface-2: #1E293B;
+    --surface-3: #263348;
   }
 }
 
@@ -33,6 +41,8 @@
   }
   body {
     @apply bg-[#0F172A] text-white font-sans antialiased;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(16,185,129,0.06) 0%, transparent 70%);
   }
 }
 
@@ -43,11 +53,89 @@
   .card {
     @apply bg-[#1E293B] border border-border rounded-xl p-6 shadow-xl;
   }
+  .card-glow {
+    @apply bg-[#1E293B] border border-emerald-500/20 rounded-xl p-6 shadow-xl shadow-emerald-500/5;
+  }
   .input-dark {
     @apply bg-[#1E293B] border border-border text-white rounded-lg px-4 py-2 w-full focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] outline-none transition-all;
   }
   .nav-link {
     @apply text-slate-400 hover:text-[#10B981] transition-colors duration-200 font-medium;
+  }
+  /* World Cup hero gradient */
+  .wc-gradient {
+    background: linear-gradient(135deg, #064e3b 0%, #1e3a5f 50%, #0f172a 100%);
+  }
+  /* Glow effects */
+  .glow-green {
+    box-shadow: 0 0 20px rgba(16,185,129,0.25), 0 0 60px rgba(16,185,129,0.08);
+  }
+  .glow-gold {
+    box-shadow: 0 0 20px rgba(245,158,11,0.25), 0 0 60px rgba(245,158,11,0.08);
+  }
+  /* Shimmer animation for live indicator */
+  .shimmer {
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  /* Pulse ring for live badges */
+  .pulse-ring {
+    animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+  }
+  @keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.4); }
+    70% { box-shadow: 0 0 0 8px rgba(16,185,129,0); }
+    100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+  }
+  /* Gradient text */
+  .text-gradient-green {
+    background: linear-gradient(135deg, #10B981 0%, #34d399 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .text-gradient-gold {
+    background: linear-gradient(135deg, #F59E0B 0%, #fbbf24 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  /* Sport card hover */
+  .sport-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .sport-card:hover {
+    transform: translateY(-2px);
+  }
+  /* Stat chip */
+  .stat-chip {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-bold text-slate-300;
+  }
+  /* NFL teaser gradient */
+  .nfl-gradient {
+    background: linear-gradient(135deg, #1a2744 0%, #0f172a 100%);
+    border: 1px solid rgba(59,130,246,0.2);
+  }
+  /* Scrollbar styling */
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 4px;
+    width: 4px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.03);
+    border-radius: 2px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(16,185,129,0.3);
   }
 }
 

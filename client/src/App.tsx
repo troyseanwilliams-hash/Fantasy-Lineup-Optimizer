@@ -34,6 +34,7 @@ import TrackRecord from "@/pages/TrackRecord";
 import ShowdownBuilder from "@/pages/ShowdownBuilder";
 import ScoutDashboard from "@/pages/ScoutDashboard";
 import SimGuide from "@/pages/SimGuide";
+import NFLMMEOptimizer from "@/pages/NFLMMEOptimizer";
 
 import NotFound from "@/pages/not-found";
 import { Header } from "@/components/Header";
@@ -99,6 +100,7 @@ function Router() {
           <Route path="/scout" component={ScoutDashboard} />
           <Route path="/admin" component={Admin} />
           <Route path="/sim-guide" component={SimGuide} />
+          <Route path="/nfl-mme" component={NFLMMEOptimizer} />
           <Route component={NotFound} />
         </Switch>
       </main>

@@ -13,8 +13,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Users, Settings2, BarChart3, Award, Swords } from "lucide-react";
-import { ACTIVE_SPORTS } from "@shared/platform-config";
+import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Users, Settings2, BarChart3, Award, Swords, Circle, Shield } from "lucide-react";
+import { ACTIVE_SPORTS, COMING_SOON_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 import { LogoBanner } from "@/components/Logo";
 
@@ -34,7 +34,8 @@ const SPORT_META: Record<string, { icon: typeof Dribbble; color: string; bgColor
   NHL: { icon: Activity, color: "text-cyan-400", bgColor: "bg-cyan-500/20" },
   MLB: { icon: Target, color: "text-red-400", bgColor: "bg-red-500/20" },
   GOLF: { icon: Flag, color: "text-lime-400", bgColor: "bg-lime-500/20" },
-  SOCCER: { icon: Dribbble, color: "text-teal-400", bgColor: "bg-teal-500/20" },
+  SOCCER: { icon: Circle, color: "text-teal-400", bgColor: "bg-teal-500/20" },
+  NFL: { icon: Shield, color: "text-blue-400", bgColor: "bg-blue-500/20" },
 };
 
 export function Header() {
@@ -86,7 +87,24 @@ export function Header() {
   };
 
   return (
-    <header className="border-b sticky top-0 z-50 bg-[#0F172A] border-[#1E293B]">
+    <header className="sticky top-0 z-50 bg-[#0F172A] border-b border-[#1E293B]">
+      {/* World Cup announcement strip */}
+      <div className="bg-gradient-to-r from-emerald-950 via-teal-950 to-emerald-950 border-b border-emerald-800/40 py-1.5 px-4">
+        <div className="container mx-auto flex items-center justify-center gap-3 text-center">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Circle className="w-2.5 h-2.5 text-emerald-400 fill-current animate-pulse" />
+            <span className="text-[11px] font-black text-emerald-400 uppercase tracking-widest">LIVE NOW</span>
+          </div>
+          <span className="text-[11px] text-slate-300 font-bold">
+            🏆 FIFA World Cup 2026 — AI prop picks & DFS lineups for every match
+          </span>
+          <Link href="/">
+            <span className="hidden sm:inline text-[11px] font-black text-emerald-400 hover:text-emerald-300 transition-colors underline underline-offset-2 shrink-0 cursor-pointer">
+              View Picks →
+            </span>
+          </Link>
+        </div>
+      </div>
       <div className="container mx-auto px-4 h-20 lg:h-24 flex items-center justify-between">
         <div className="flex items-center space-x-10 min-w-0">
           <Link href="/">
@@ -206,6 +224,32 @@ export function Header() {
                       </div>
                     );
                   })}
+                  {/* Coming Soon sports (NFL, NBA) */}
+                  {COMING_SOON_SPORTS.map((sport) => {
+                    const meta = SPORT_META[sport] || { icon: Shield, color: "text-slate-400", bgColor: "bg-slate-500/20" };
+                    const Icon = meta.icon;
+                    return (
+                      <div key={sport}>
+                        <DropdownMenuSeparator className="bg-slate-800" />
+                        <DropdownMenuLabel className="flex items-center gap-2 py-2">
+                          <div className={`w-6 h-6 rounded flex items-center justify-center ${meta.bgColor} opacity-60`}>
+                            <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
+                          </div>
+                          <span className="text-xs font-black text-slate-500 uppercase tracking-wider">{sport}</span>
+                          <span className="ml-auto text-[9px] font-black text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Fall 2026</span>
+                        </DropdownMenuLabel>
+                        <Link href="/nfl-mme">
+                          <DropdownMenuItem className="cursor-pointer opacity-70 hover:opacity-100" data-testid={`sport-menu-${sport.toLowerCase()}-mme`}>
+                            <div className="w-6 h-6 rounded bg-blue-500/10 flex items-center justify-center mr-2 shrink-0">
+                              <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                            </div>
+                            <span className="text-sm font-bold text-slate-400">MME Optimizer</span>
+                            <span className="text-[9px] font-black text-blue-400 ml-auto">SOON</span>
+                          </DropdownMenuItem>
+                        </Link>
+                      </div>
+                    );
+                  })}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
@@ -214,7 +258,7 @@ export function Header() {
               <DropdownMenuTrigger asChild>
                 <button
                   className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer outline-none ${
-                    ["/props", "/prizepicks", "/showdown", "/player-config", "/ownership"].includes(location)
+                    ["/props", "/prizepicks", "/showdown", "/player-config", "/ownership", "/nfl-mme"].includes(location)
                       ? "text-[#10B981]"
                       : "text-slate-400 hover:text-white"
                   }`}
@@ -765,6 +809,34 @@ export function Header() {
                             <span>Pro Optimizer {sport}</span>
                           </button>
                         )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {COMING_SOON_SPORTS.map(sport => {
+                  const meta = SPORT_META[sport] || { icon: Shield, color: "text-slate-400", bgColor: "bg-slate-500/20" };
+                  const Icon = meta.icon;
+                  return (
+                    <div key={sport} className="space-y-0.5">
+                      <div className="flex items-center gap-2 px-3 py-2">
+                        <div className={`w-6 h-6 rounded flex items-center justify-center ${meta.bgColor} opacity-60`}>
+                          <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
+                        </div>
+                        <span className="text-xs font-black text-slate-500 uppercase tracking-wider">{sport}</span>
+                        <span className="ml-auto text-[9px] font-black text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Fall 2026</span>
+                      </div>
+                      <div className="pl-6 space-y-0.5">
+                        <button
+                          onClick={() => mobileNav("/nfl-mme")}
+                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+                          data-testid={`mobile-sport-${sport.toLowerCase()}-mme`}
+                        >
+                          <div className="w-5 h-5 rounded bg-blue-500/10 flex items-center justify-center shrink-0">
+                            <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                          </div>
+                          <span>MME Optimizer</span>
+                          <span className="text-[9px] font-black text-blue-400 ml-auto">SOON</span>
+                        </button>
                       </div>
                     </div>
                   );
