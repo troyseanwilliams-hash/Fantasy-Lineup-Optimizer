@@ -557,6 +557,20 @@ export function Header() {
             </Link>
           )}
 
+          <Link href="/nfl-draft">
+            <div
+              className={`lg:hidden flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-sm transition-colors ${
+                location === "/nfl-draft"
+                  ? "bg-amber-500/20 text-amber-400"
+                  : "bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
+              }`}
+              data-testid="mobile-header-nfl-draft"
+            >
+              <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Draft Hub</span>
+            </div>
+          </Link>
+
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="lg:hidden p-2 rounded-lg transition-colors hover:bg-slate-800"
