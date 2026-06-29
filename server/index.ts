@@ -848,6 +848,21 @@ app.use((req, res, next) => {
       });
       log("Scheduled 4:30 AM ET nightly DK winning lineup backfill (14 days)", "cron");
 
+      cron.schedule("0 1 * * *", async () => {
+        try {
+          log("Starting nightly fantasy draft rankings refresh", "cron");
+          const { getDraftRankings } = await import("./nfl-draft");
+          const players = await getDraftRankings(true);
+          const impacted = players.filter(p => p.newsImpact !== null).length;
+          log(`Draft rankings refresh complete — ${players.length} players ranked, ${impacted} with live news adjustments`, "cron");
+        } catch (err) {
+          console.error("Nightly draft rankings refresh failed:", err);
+        }
+      }, {
+        timezone: "America/New_York",
+      });
+      log("Scheduled 1 AM ET nightly fantasy draft rankings refresh (ESPN news + rank adjustments)", "cron");
+
       startIngestScheduler();
     },
   );
