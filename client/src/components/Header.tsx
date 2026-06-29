@@ -734,6 +734,18 @@ export function Header() {
             )}
 
             <button
+              onClick={() => mobileNav("/nfl-draft")}
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                location === "/nfl-draft" ? "bg-amber-500/10 text-amber-400" : "text-white hover:bg-slate-800"
+              }`}
+              data-testid="mobile-nav-nfl-draft"
+            >
+              <Sparkles className="w-5 h-5 shrink-0 text-amber-400" />
+              <span>NFL Draft Hub</span>
+              <span className="ml-auto text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">NEW</span>
+            </button>
+
+            <button
               onClick={() => mobileNav("/pricing")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
                 location === "/pricing" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
