@@ -552,6 +552,72 @@ export default function Pricing() {
 
       <p className="text-center text-xs text-slate-500 mt-6">No refunds. Cancel at any time.</p>
 
+      {/* Standalone Draft Hub */}
+      <div className="max-w-2xl mx-auto mt-12">
+        <div className="text-center mb-4">
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Add-On / Standalone</span>
+        </div>
+        <Card className="bg-[#0F1A2E] border-blue-500/30 p-8 relative" data-testid="plan-draft-hub">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-3xl">🏈</span>
+                <h3 className="text-2xl font-black text-white">NFL Draft Hub</h3>
+                <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30 text-[10px] font-black px-1.5">STANDALONE</Badge>
+              </div>
+              <div className="flex items-baseline gap-1 mb-3">
+                <span className="text-4xl font-black text-white">$39.99</span>
+                <span className="text-slate-400 font-bold">/month</span>
+              </div>
+              <p className="text-sm text-slate-400 mb-4 max-w-md">
+                Just want the Draft Hub? Get the full NFL Draft experience — 100-player rankings, Live Draft Assistant, AI picks, sleeper alerts, and bye-week tools.
+              </p>
+              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm text-slate-300">
+                <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" /><span>Full 100-player rankings</span></li>
+                <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" /><span>Live Draft Assistant</span></li>
+                <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" /><span>AI pick per round with reasoning</span></li>
+                <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" /><span>Daily news-adjusted ranks</span></li>
+                <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" /><span>Sleeper alerts</span></li>
+                <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" /><span>Bye week tracker + handcuffs</span></li>
+              </ul>
+              <p className="text-xs text-blue-400/70 mt-4">
+                💡 Champion plan is also $39.99/mo and includes the Draft Hub <em>plus</em> all DFS lineup tools.
+              </p>
+            </div>
+            <div className="flex flex-col items-center gap-3 sm:min-w-[160px]">
+              {isAdmin ? (
+                <Button className="w-full h-12 bg-blue-500/20 border border-blue-500/30 text-blue-300 font-black cursor-default hover:bg-blue-500/20" disabled data-testid="admin-draft-hub-btn">
+                  <Crown className="w-4 h-4 mr-2" />Admin Access
+                </Button>
+              ) : currentTier === "pro" && hasActiveStripeSubscription ? (
+                <Button
+                  className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-black"
+                  onClick={() => portalMutation.mutate()}
+                  disabled={portalMutation.isPending}
+                  data-testid="manage-draft-hub-btn"
+                >
+                  {portalMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CreditCard className="w-4 h-4 mr-2" />}
+                  Manage
+                </Button>
+              ) : (
+                <Button
+                  className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-black shadow-lg shadow-blue-500/20"
+                  data-testid="subscribe-draft-hub-btn"
+                  onClick={() => openPaymentForm("pro")}
+                >
+                  {trialEligible ? (
+                    <><Gift className="w-4 h-4 mr-2" />Start Free Trial</>
+                  ) : (
+                    <><span className="mr-2">🏈</span>Get Draft Hub</>
+                  )}
+                </Button>
+              )}
+              <p className="text-xs text-slate-500 text-center">No refunds. Cancel at any time.</p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
       {paymentTier && (
         <PaymentModal
           tier={paymentTier}
