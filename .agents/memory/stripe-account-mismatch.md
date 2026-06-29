@@ -22,3 +22,15 @@ was understood. The app's own key is the source of truth for what payments hit.
 **How to apply:** Any "set up / fix Stripe pricing" request → verify account via
 the app key, then mirror `PRICE_CONFIGS` in server/stripe.ts (Star $19.99/$199.90,
 Pro $39.99/$399.90; matched by product name + amount + interval).
+
+## Resolved: correct EliteLineup Stripe account
+
+After multiple incorrect attempts (GlidePathway = acct_1TnKsd1ARK7XoheN, AIBeatSync sandbox via MCP),
+the correct EliteLineup LIVE account is: **acct_1T8BQ71BS5ceKe3Z**, display name "EliteLineup".
+
+Keys are now stored under EliteLineup-specific secret names:
+- Backend: `ELITELINEUP_STRIPE_SECRET_KEY`
+- Frontend: `VITE_ELITELINEUP_STRIPE_PUBLISHABLE_KEY`
+- Webhook: `ELITELINEUP_STRIPE_WEBHOOK_SECRET`
+
+Code prefers `ELITELINEUP_*` keys with fallback to generic names.
