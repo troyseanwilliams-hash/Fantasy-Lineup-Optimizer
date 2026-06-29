@@ -332,10 +332,6 @@ export default function Pricing() {
               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
               <span>Track Record</span>
             </li>
-            <li className="flex items-center gap-3 text-sm text-slate-300">
-              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <span className="font-bold">🏈 NFL Draft Hub (rankings + Live Draft Assistant)</span>
-            </li>
             <li className="flex items-center gap-3 text-sm text-slate-400">
               <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
               <span>No AI boost analysis</span>
@@ -343,6 +339,10 @@ export default function Pricing() {
             <li className="flex items-center gap-3 text-sm text-slate-400">
               <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
               <span>No Win Agent or ownership heatmap</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-400">
+              <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
+              <span>No NFL Draft Hub</span>
             </li>
           </ul>
           {isAdmin ? (
@@ -549,6 +549,8 @@ export default function Pricing() {
           )}
         </Card>
       </div>
+
+      <p className="text-center text-xs text-slate-500 mt-6">No refunds. Cancel at any time.</p>
 
       {paymentTier && (
         <PaymentModal

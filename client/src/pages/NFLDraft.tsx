@@ -1126,23 +1126,24 @@ export default function NFLDraft() {
               </div>
             )}
 
-            {activeTab === "draft" && isStarOrAbove && (
+            {activeTab === "draft" && isChampion && (
               <DraftAssistant allPlayers={players} />
             )}
 
-            {activeTab === "draft" && !isStarOrAbove && (
+            {activeTab === "draft" && !isChampion && (
               <div className="space-y-6">
                 <div className="rounded-2xl bg-gradient-to-r from-purple-900/40 to-blue-900/40 border border-purple-500/20 p-8 text-center">
                   <div className="text-4xl mb-3">🏈</div>
                   <h3 className="text-xl font-bold text-white mb-2">Live Draft Assistant</h3>
                   <p className="text-slate-400 text-sm mb-6 max-w-md mx-auto">
-                    Configure your league, monitor every pick live, and get an AI-powered recommendation for every one of your picks — with full reasoning. Included free with all paid plans.
+                    Configure your league, monitor every pick live, and get an AI-powered recommendation for every one of your picks — with full reasoning. Included exclusively with the Champion plan.
                   </p>
                   <Link href="/pricing">
                     <button className="px-8 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold rounded-xl transition-all">
-                      Upgrade Now — 7-Day Free Trial
+                      Upgrade to Champion — 7-Day Free Trial
                     </button>
                   </Link>
+                  <p className="text-xs text-slate-500 mt-3">No refunds. Cancel at any time.</p>
                 </div>
               </div>
             )}
