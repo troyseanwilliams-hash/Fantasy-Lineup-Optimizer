@@ -71,6 +71,40 @@ function tierFromPrice(priceAmount: number | null): string | null {
   return AMOUNT_TO_TIER[priceAmount] || null;
 }
 
+/** Returns a valid Stripe customer ID for the user, creating one if needed.
+ *  If the stored ID is stale (belongs to a different Stripe account) it is
+ *  cleared and a fresh customer is created in the current account. */
+async function getOrCreateValidCustomer(
+  userId: string,
+  email: string,
+  existingSub: Awaited<ReturnType<typeof storage.getSubscription>>
+): Promise<string> {
+  const storedId = existingSub?.stripeCustomerId;
+  if (storedId) {
+    try {
+      await stripe!.customers.retrieve(storedId);
+      return storedId; // exists in current account ✓
+    } catch (err: any) {
+      if (err?.code === "resource_missing") {
+        console.warn(`[stripe] Stale customer ID ${storedId} not found in current account — creating new customer`);
+        // Fall through to create a new customer
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  const customer = await stripe!.customers.create({ email, metadata: { userId } });
+  await storage.upsertSubscription({
+    userId,
+    stripeCustomerId: customer.id,
+    stripeSubscriptionId: undefined,
+    tier: existingSub?.tier || "free",
+    status: existingSub?.status || "active",
+  });
+  return customer.id;
+}
+
 export async function createSubscriptionWithIntent(
   userId: string,
   email: string,
@@ -82,21 +116,7 @@ export async function createSubscriptionWithIntent(
   const priceId = await getOrCreatePrice(tier, billing);
 
   const sub = await storage.getSubscription(userId);
-  let customerId = sub?.stripeCustomerId;
-
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      email,
-      metadata: { userId },
-    });
-    customerId = customer.id;
-    await storage.upsertSubscription({
-      userId,
-      stripeCustomerId: customerId,
-      tier: sub?.tier || "free",
-      status: sub?.status || "active",
-    });
-  }
+  const customerId = await getOrCreateValidCustomer(userId, email, sub);
 
   const hasHadTrial = !!(sub?.stripeSubscriptionId && (sub.status === "active" || sub.status === "trialing" || sub.status === "past_due"));
 
@@ -164,21 +184,7 @@ export async function createCheckoutSession(
   const priceId = await getOrCreatePrice(tier, billing);
 
   const sub = await storage.getSubscription(userId);
-  let customerId = sub?.stripeCustomerId;
-
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      email,
-      metadata: { userId },
-    });
-    customerId = customer.id;
-    await storage.upsertSubscription({
-      userId,
-      stripeCustomerId: customerId,
-      tier: sub?.tier || "free",
-      status: sub?.status || "active",
-    });
-  }
+  const customerId = await getOrCreateValidCustomer(userId, email, sub);
 
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
@@ -204,12 +210,26 @@ export async function createPortalSession(userId: string, returnUrl: string): Pr
     throw new Error("No Stripe customer found for this user");
   }
 
-  const session = await stripe.billingPortal.sessions.create({
-    customer: sub.stripeCustomerId,
-    return_url: returnUrl,
-  });
-
-  return session.url;
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: sub.stripeCustomerId,
+      return_url: returnUrl,
+    });
+    return session.url;
+  } catch (err: any) {
+    if (err?.code === "resource_missing") {
+      console.warn(`[stripe] Stale customer ID ${sub.stripeCustomerId} not in current account — clearing from DB`);
+      await storage.upsertSubscription({
+        userId,
+        stripeCustomerId: null as any,
+        stripeSubscriptionId: null as any,
+        tier: "free",
+        status: "active",
+      });
+      throw new Error("Your billing record was linked to an old account. Please subscribe again to set up billing.");
+    }
+    throw err;
+  }
 }
 
 async function resolveUserId(subscription: Stripe.Subscription): Promise<string | null> {
