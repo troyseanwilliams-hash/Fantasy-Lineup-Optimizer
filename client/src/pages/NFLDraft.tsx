@@ -949,7 +949,7 @@ function PricingCTA() {
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mx-auto mb-4">
         <div className="rounded-xl bg-slate-800/60 border border-slate-700/40 p-4 text-left">
-          <div className="text-slate-300 font-bold text-sm mb-1">🎯 Contender — Free</div>
+          <div className="text-slate-300 font-bold text-sm mb-1">🎯 Contender — $9.99/mo</div>
           <ul className="text-xs text-slate-400 space-y-1">
             <li>✓ Top 5 draft picks</li>
             <li>✓ 1 saved lineup per sport</li>
