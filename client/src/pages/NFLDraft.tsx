@@ -1017,7 +1017,7 @@ export default function NFLDraft() {
 
   const tabs: { id: Tab; label: string; icon: string; requiresPaid?: boolean }[] = [
     { id: "rankings", label: "Rankings", icon: "📊" },
-    { id: "draft", label: "Live Draft Assistant", icon: "🏈", requiresPaid: true },
+    { id: "draft", label: "Live Draft Assistant", icon: "🏈", requiresPaid: false },
     { id: "bye-weeks", label: "Bye Weeks", icon: "📅", requiresPaid: false },
     { id: "handcuffs", label: "Handcuffs", icon: "🤝", requiresPaid: false },
   ];
@@ -1126,21 +1126,21 @@ export default function NFLDraft() {
               </div>
             )}
 
-            {activeTab === "draft" && isChampion && (
+            {activeTab === "draft" && isStarOrAbove && (
               <DraftAssistant allPlayers={players} />
             )}
 
-            {activeTab === "draft" && !isChampion && (
+            {activeTab === "draft" && !isStarOrAbove && (
               <div className="space-y-6">
                 <div className="rounded-2xl bg-gradient-to-r from-purple-900/40 to-blue-900/40 border border-purple-500/20 p-8 text-center">
                   <div className="text-4xl mb-3">🏈</div>
                   <h3 className="text-xl font-bold text-white mb-2">Live Draft Assistant</h3>
                   <p className="text-slate-400 text-sm mb-6 max-w-md mx-auto">
-                    Configure your league, monitor every pick live, and get an AI-powered recommendation for every one of your picks — with full reasoning.
+                    Configure your league, monitor every pick live, and get an AI-powered recommendation for every one of your picks — with full reasoning. Included free with all paid plans.
                   </p>
                   <Link href="/pricing">
                     <button className="px-8 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold rounded-xl transition-all">
-                      Upgrade to Champion — 7-Day Free Trial
+                      Upgrade Now — 7-Day Free Trial
                     </button>
                   </Link>
                 </div>
