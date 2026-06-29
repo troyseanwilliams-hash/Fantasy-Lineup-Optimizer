@@ -263,11 +263,24 @@ export function Header() {
               </DropdownMenu>
             )}
 
+            <Link href="/nfl-draft">
+              <div
+                className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
+                  location === "/nfl-draft" ? "text-amber-400" : "text-slate-400 hover:text-white"
+                }`}
+                data-testid="nav-nfl-draft"
+              >
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span>Draft Hub</span>
+                <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">NEW</span>
+              </div>
+            </Link>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
                   className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer outline-none ${
-                    ["/props", "/prizepicks", "/showdown", "/player-config", "/ownership", "/nfl-mme", "/nfl-draft"].includes(location)
+                    ["/props", "/prizepicks", "/showdown", "/player-config", "/ownership", "/nfl-mme"].includes(location)
                       ? "text-[#10B981]"
                       : "text-slate-400 hover:text-white"
                   }`}
@@ -295,14 +308,6 @@ export function Header() {
                   <DropdownMenuItem className="cursor-pointer" data-testid="nav-showdown">
                     <Swords className="w-4 h-4 mr-2 text-amber-400" />
                     <span className="text-sm font-bold text-slate-300">Showdown</span>
-                  </DropdownMenuItem>
-                </Link>
-                <DropdownMenuSeparator className="bg-slate-800" />
-                <Link href="/nfl-draft">
-                  <DropdownMenuItem className="cursor-pointer" data-testid="nav-nfl-draft">
-                    <Sparkles className="w-4 h-4 mr-2 text-amber-400" />
-                    <span className="text-sm font-bold text-slate-300">NFL Draft Hub</span>
-                    <span className="ml-auto text-[9px] font-black text-amber-400">NEW</span>
                   </DropdownMenuItem>
                 </Link>
                 {(isPaid || user?.isAdmin) && (
@@ -614,6 +619,18 @@ export function Header() {
             </button>
 
             <button
+              onClick={() => mobileNav("/nfl-draft")}
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                location === "/nfl-draft" ? "bg-amber-500/10 text-amber-400" : "text-amber-300 hover:bg-amber-500/10"
+              }`}
+              data-testid="mobile-nav-nfl-draft-top"
+            >
+              <Sparkles className="w-5 h-5 shrink-0 text-amber-400" />
+              <span>NFL Draft Hub</span>
+              <span className="ml-auto text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">NEW</span>
+            </button>
+
+            <button
               onClick={() => mobileNav("/props")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
                 location === "/props" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
@@ -732,18 +749,6 @@ export function Header() {
                 <span>Notifications</span>
               </button>
             )}
-
-            <button
-              onClick={() => mobileNav("/nfl-draft")}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                location === "/nfl-draft" ? "bg-amber-500/10 text-amber-400" : "text-white hover:bg-slate-800"
-              }`}
-              data-testid="mobile-nav-nfl-draft"
-            >
-              <Sparkles className="w-5 h-5 shrink-0 text-amber-400" />
-              <span>NFL Draft Hub</span>
-              <span className="ml-auto text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">NEW</span>
-            </button>
 
             <button
               onClick={() => mobileNav("/pricing")}
