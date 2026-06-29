@@ -947,8 +947,18 @@ function PricingCTA() {
         The edge is in picks 6–100. Upgrade to get full rankings, daily news adjustments, reasoning,
         sleeper alerts, and the Live Draft Assistant.
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg mx-auto mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mx-auto mb-4">
         <div className="rounded-xl bg-slate-800/60 border border-slate-700/40 p-4 text-left">
+          <div className="text-slate-300 font-bold text-sm mb-1">🎯 Contender — Free</div>
+          <ul className="text-xs text-slate-400 space-y-1">
+            <li>✓ Top 5 draft picks</li>
+            <li>✓ 1 saved lineup per sport</li>
+            <li>✓ Basic DraftKings access</li>
+            <li className="text-slate-600">✗ Full rankings</li>
+            <li className="text-slate-600">✗ Live Draft Assistant</li>
+          </ul>
+        </div>
+        <div className="rounded-xl bg-slate-800/60 border border-amber-500/30 p-4 text-left">
           <div className="text-amber-400 font-bold text-sm mb-1">⭐ Sharpshooter — $19.99/mo</div>
           <ul className="text-xs text-slate-400 space-y-1">
             <li>✓ Full 100-player rankings</li>
