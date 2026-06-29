@@ -2319,6 +2319,31 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/subscription/draft-hub-checkout", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const userId = getSessionUserId(req)!;
+    const user = await storage.getUser(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    try {
+      const { createDraftHubCheckoutSession } = await import("./stripe");
+      const protocol = req.headers["x-forwarded-proto"] || "https";
+      const host = req.headers.host;
+      const baseUrl = `${protocol}://${host}`;
+
+      const url = await createDraftHubCheckoutSession(
+        userId,
+        user.email || "",
+        `${baseUrl}/pricing?draft_hub_success=true`,
+        `${baseUrl}/pricing?canceled=true`
+      );
+      res.json({ url });
+    } catch (err: any) {
+      console.error("[stripe] Draft Hub checkout error:", err);
+      res.status(500).json({ message: err.message || "Failed to create Draft Hub checkout" });
+    }
+  });
+
   app.post("/api/subscription/portal", async (req, res) => {
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const userId = getSessionUserId(req)!;

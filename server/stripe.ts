@@ -202,6 +202,52 @@ export async function createCheckoutSession(
   return session.url!;
 }
 
+export async function createDraftHubCheckoutSession(
+  userId: string,
+  email: string,
+  successUrl: string,
+  cancelUrl: string
+): Promise<string> {
+  if (!stripe) throw new Error("Stripe not configured");
+
+  const sub = await storage.getSubscription(userId);
+  const customerId = await getOrCreateValidCustomer(userId, email, sub);
+
+  // Get or create the $59 one-time product + price
+  const productName = "NFL Draft Hub 2026";
+  const existingProducts = await stripe.products.list({ limit: 100 });
+  let product = existingProducts.data.find(p => p.name === productName && p.active);
+  if (!product) {
+    product = await stripe.products.create({
+      name: productName,
+      description: "One-time access to the full 2026 NFL Draft Hub — rankings, Live Draft Assistant, AI picks, sleeper alerts, bye weeks & handcuffs.",
+      metadata: { type: "draft_hub_2026" },
+    });
+  }
+
+  const existingPrices = await stripe.prices.list({ product: product.id, active: true });
+  let price = existingPrices.data.find(p => p.unit_amount === 5900 && p.type === "one_time");
+  if (!price) {
+    price = await stripe.prices.create({
+      product: product.id,
+      unit_amount: 5900,
+      currency: "usd",
+    });
+  }
+
+  const session = await stripe.checkout.sessions.create({
+    customer: customerId,
+    payment_method_types: ["card"],
+    mode: "payment",
+    line_items: [{ price: price.id, quantity: 1 }],
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    metadata: { userId, type: "draft_hub_2026" },
+  });
+
+  return session.url!;
+}
+
 export async function createPortalSession(userId: string, returnUrl: string): Promise<string> {
   if (!stripe) throw new Error("Stripe not configured");
 
@@ -252,6 +298,23 @@ export async function handleWebhookEvent(event: Stripe.Event): Promise<void> {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
       const userId = session.metadata?.userId;
+
+      // One-time Draft Hub purchase
+      if (session.metadata?.type === "draft_hub_2026" && userId) {
+        const accessEnd = new Date("2027-01-31T00:00:00Z"); // access through end of 2026 season
+        await storage.upsertSubscription({
+          userId,
+          stripeCustomerId: session.customer as string,
+          stripeSubscriptionId: null as any,
+          tier: "pro",
+          status: "active",
+          currentPeriodEnd: accessEnd,
+          graceEndsAt: null,
+        });
+        console.log(`[stripe] Draft Hub 2026 purchased: user ${userId}, access until ${accessEnd.toISOString()}`);
+        break;
+      }
+
       const tier = session.metadata?.tier;
       if (!userId || !tier) break;
 
