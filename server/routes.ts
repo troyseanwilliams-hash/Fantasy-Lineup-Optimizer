@@ -2256,7 +2256,6 @@ export async function registerRoutes(
       graceEndsAt: sub?.graceEndsAt?.toISOString() || null,
       stripeSubscriptionId: sub?.stripeSubscriptionId || null,
       currentPeriodEnd: sub?.currentPeriodEnd?.toISOString() || null,
-      isAdmin,
     });
   });
 
@@ -2344,7 +2343,7 @@ export async function registerRoutes(
       if (!stripe) return res.status(500).json({ message: "Stripe not configured" });
 
       const sig = req.headers["stripe-signature"] as string;
-      const webhookSecret = process.env.ELITELINEUP_STRIPE_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET;
+      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
       let event;
       if (webhookSecret) {
@@ -2362,7 +2361,7 @@ export async function registerRoutes(
           return res.status(400).json({ message: "Webhook signature verification failed" });
         }
       } else if (process.env.NODE_ENV === "production") {
-        console.error("[stripe] ELITELINEUP_STRIPE_WEBHOOK_SECRET / STRIPE_WEBHOOK_SECRET not set in production — rejecting webhook");
+        console.error("[stripe] STRIPE_WEBHOOK_SECRET not set in production — rejecting webhook");
         return res.status(500).json({ message: "Webhook secret not configured" });
       } else {
         console.warn("[stripe] No webhook secret set — accepting unverified event in development");
@@ -3207,6 +3206,19 @@ export async function registerRoutes(
     }
   });
 
+  // ── NFL Draft Rankings ────────────────────────────────────────────────────
+  app.get("/api/nfl/draft-rankings", async (req, res) => {
+    try {
+      const { getDraftRankings } = await import("./nfl-draft");
+      const force = req.query.refresh === "1";
+      const players = await getDraftRankings(force);
+      res.json({ players, updatedAt: new Date().toISOString() });
+    } catch (err) {
+      console.error("Error fetching NFL draft rankings:", err);
+      res.status(500).json({ error: "Failed to fetch draft rankings" });
+    }
+  });
+
   app.post("/api/prizepicks/analyze", async (req, res) => {
     try {
       if (!isLoggedIn(req)) return res.sendStatus(401);
@@ -3701,7 +3713,7 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Star or Pro subscription required for advanced optimizer.", requiresUpgrade: true });
       }
 
-      const maxLineupCount = isAdmin ? 150 : tier === "pro" ? 20 : 5;
+      const maxLineupCount = isAdmin ? 150 : tier === "pro" ? 150 : tier === "star" ? 20 : 3;
 
       const constraints = proOptimizationConstraintSchema.parse(req.body);
       constraints.lineupCount = Math.min(constraints.lineupCount, maxLineupCount);

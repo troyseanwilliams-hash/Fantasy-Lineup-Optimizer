@@ -1516,11 +1516,17 @@ function NFLFallTeaser() {
               ))}
             </div>
           </div>
-          <div className="shrink-0">
+          <div className="shrink-0 flex flex-col gap-2">
             <Link href="/nfl-mme">
               <button className="flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm transition-colors shadow-lg shadow-blue-600/20">
                 <Shield className="w-4 h-4" />
                 Preview NFL MME
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </Link>
+            <Link href="/nfl-draft">
+              <button className="flex items-center gap-2 px-6 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-300 font-black text-sm transition-colors">
+                🏈 Fantasy Draft Hub
                 <ChevronRight className="w-4 h-4" />
               </button>
             </Link>

@@ -247,6 +247,15 @@ export function Header() {
                             <span className="text-[9px] font-black text-blue-400 ml-auto">SOON</span>
                           </DropdownMenuItem>
                         </Link>
+                        <Link href="/nfl-draft">
+                          <DropdownMenuItem className="cursor-pointer opacity-70 hover:opacity-100" data-testid={`sport-menu-${sport.toLowerCase()}-draft`}>
+                            <div className="w-6 h-6 rounded bg-amber-500/10 flex items-center justify-center mr-2 shrink-0">
+                              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                            </div>
+                            <span className="text-sm font-bold text-slate-400">Fantasy Draft Hub</span>
+                            <span className="text-[9px] font-black text-amber-400 ml-auto">NEW</span>
+                          </DropdownMenuItem>
+                        </Link>
                       </div>
                     );
                   })}
@@ -258,7 +267,7 @@ export function Header() {
               <DropdownMenuTrigger asChild>
                 <button
                   className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer outline-none ${
-                    ["/props", "/prizepicks", "/showdown", "/player-config", "/ownership", "/nfl-mme"].includes(location)
+                    ["/props", "/prizepicks", "/showdown", "/player-config", "/ownership", "/nfl-mme", "/nfl-draft"].includes(location)
                       ? "text-[#10B981]"
                       : "text-slate-400 hover:text-white"
                   }`}
@@ -286,6 +295,14 @@ export function Header() {
                   <DropdownMenuItem className="cursor-pointer" data-testid="nav-showdown">
                     <Swords className="w-4 h-4 mr-2 text-amber-400" />
                     <span className="text-sm font-bold text-slate-300">Showdown</span>
+                  </DropdownMenuItem>
+                </Link>
+                <DropdownMenuSeparator className="bg-slate-800" />
+                <Link href="/nfl-draft">
+                  <DropdownMenuItem className="cursor-pointer" data-testid="nav-nfl-draft">
+                    <Sparkles className="w-4 h-4 mr-2 text-amber-400" />
+                    <span className="text-sm font-bold text-slate-300">NFL Draft Hub</span>
+                    <span className="ml-auto text-[9px] font-black text-amber-400">NEW</span>
                   </DropdownMenuItem>
                 </Link>
                 {(isPaid || user?.isAdmin) && (
@@ -809,34 +826,6 @@ export function Header() {
                             <span>Pro Optimizer {sport}</span>
                           </button>
                         )}
-                      </div>
-                    </div>
-                  );
-                })}
-                {COMING_SOON_SPORTS.map(sport => {
-                  const meta = SPORT_META[sport] || { icon: Shield, color: "text-slate-400", bgColor: "bg-slate-500/20" };
-                  const Icon = meta.icon;
-                  return (
-                    <div key={sport} className="space-y-0.5">
-                      <div className="flex items-center gap-2 px-3 py-2">
-                        <div className={`w-6 h-6 rounded flex items-center justify-center ${meta.bgColor} opacity-60`}>
-                          <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
-                        </div>
-                        <span className="text-xs font-black text-slate-500 uppercase tracking-wider">{sport}</span>
-                        <span className="ml-auto text-[9px] font-black text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Fall 2026</span>
-                      </div>
-                      <div className="pl-6 space-y-0.5">
-                        <button
-                          onClick={() => mobileNav("/nfl-mme")}
-                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
-                          data-testid={`mobile-sport-${sport.toLowerCase()}-mme`}
-                        >
-                          <div className="w-5 h-5 rounded bg-blue-500/10 flex items-center justify-center shrink-0">
-                            <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                          </div>
-                          <span>MME Optimizer</span>
-                          <span className="text-[9px] font-black text-blue-400 ml-auto">SOON</span>
-                        </button>
                       </div>
                     </div>
                   );
