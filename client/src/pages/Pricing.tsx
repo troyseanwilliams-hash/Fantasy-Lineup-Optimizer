@@ -31,14 +31,16 @@ export default function Pricing() {
     graceEndsAt: string | null;
     stripeSubscriptionId: string | null;
     currentPeriodEnd: string | null;
+    isAdmin?: boolean;
   }>({
     queryKey: ["/api/subscription"],
     enabled: !!user,
   });
 
+  const isAdmin = subData?.isAdmin === true;
   const currentTier = subData?.tier || "free";
   const subStatus = subData?.status || "active";
-  const hasActiveStripeSubscription = !!subData?.stripeSubscriptionId && subStatus !== "incomplete" && subStatus !== "canceled";
+  const hasActiveStripeSubscription = !isAdmin && !!subData?.stripeSubscriptionId && subStatus !== "incomplete" && subStatus !== "canceled";
   const isTrialing = subStatus === "trialing";
   const trialEligible = !hasActiveStripeSubscription;
   const graceEndsAt = subData?.graceEndsAt ? new Date(subData.graceEndsAt) : null;
@@ -89,19 +91,25 @@ export default function Pricing() {
     },
   });
 
-  const starPrice = billing === "monthly" ? "$19.99" : "$200";
-  const starPeriod = billing === "monthly" ? "/month" : "/year";
-  const starSavings = billing === "annual" ? "Save $39.88/yr" : null;
+  const starPrice = isAdmin ? "$0" : billing === "monthly" ? "$19.99" : "$200";
+  const starPeriod = isAdmin ? "/month" : billing === "monthly" ? "/month" : "/year";
+  const starSavings = !isAdmin && billing === "annual" ? "Save $39.88/yr" : null;
 
-  const proPrice = billing === "monthly" ? "$39.99" : "$400";
-  const proPeriod = billing === "monthly" ? "/month" : "/year";
-  const proSavings = billing === "annual" ? "Save $79.88/yr" : null;
+  const proPrice = isAdmin ? "$0" : billing === "monthly" ? "$39.99" : "$400";
+  const proPeriod = isAdmin ? "/month" : billing === "monthly" ? "/month" : "/year";
+  const proSavings = !isAdmin && billing === "annual" ? "Save $79.88/yr" : null;
 
   return (
     <div className="container mx-auto px-4 py-16 max-w-6xl relative">
       <img src="/images/pricing-hero.png" alt="" className="absolute top-0 left-0 right-0 h-[400px] w-full object-cover opacity-10 pointer-events-none" />
       <div className="absolute top-0 left-0 right-0 h-[400px] bg-gradient-to-b from-transparent to-[#0F172A] pointer-events-none" />
-      {isTrialing && trialEndsAt && (
+      {isAdmin && (
+        <div className="mb-8 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-3 max-w-3xl mx-auto" data-testid="admin-banner">
+          <Crown className="w-5 h-5 text-amber-400 shrink-0" />
+          <p className="text-sm font-bold text-amber-300">Admin account — full Champion access at $0</p>
+        </div>
+      )}
+      {!isAdmin && isTrialing && trialEndsAt && (
         <div className="mb-8 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-3 max-w-3xl mx-auto" data-testid="trial-banner">
           <Gift className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
           <div>
@@ -115,7 +123,7 @@ export default function Pricing() {
         </div>
       )}
 
-      {graceEndsAt && !hasActiveStripeSubscription && currentTier !== "free" && !isTrialing && (
+      {!isAdmin && graceEndsAt && !hasActiveStripeSubscription && currentTier !== "free" && !isTrialing && (
         <div className="mb-8 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 max-w-3xl mx-auto" data-testid="grace-period-banner">
           <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
           <div>
@@ -333,7 +341,11 @@ export default function Pricing() {
               <span>No Win Agent or ownership heatmap</span>
             </li>
           </ul>
-          {currentTier === "star" && hasActiveStripeSubscription ? (
+          {isAdmin ? (
+            <Button variant="outline" className="w-full h-12 border-amber-500/30 text-amber-400 font-bold cursor-default" disabled data-testid="admin-star-btn">
+              <Crown className="w-4 h-4 mr-2" />Admin Access — $0
+            </Button>
+          ) : currentTier === "star" && hasActiveStripeSubscription ? (
             <Button
               className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-black font-black"
               onClick={() => portalMutation.mutate()}
@@ -491,7 +503,11 @@ export default function Pricing() {
               <span className="font-bold text-amber-300">Bulk lineup regeneration</span>
             </li>
           </ul>
-          {currentTier === "pro" && hasActiveStripeSubscription ? (
+          {isAdmin ? (
+            <Button className="w-full h-12 bg-amber-500/20 border border-amber-500/30 text-amber-300 font-black cursor-default hover:bg-amber-500/20" disabled data-testid="admin-pro-btn">
+              <Crown className="w-4 h-4 mr-2" />Admin Access — $0
+            </Button>
+          ) : currentTier === "pro" && hasActiveStripeSubscription ? (
             <Button
               className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-black font-black"
               onClick={() => portalMutation.mutate()}
