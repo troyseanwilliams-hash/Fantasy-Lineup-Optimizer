@@ -1192,30 +1192,166 @@ interface WorldCupResponse {
   matches: WorldCupMatch[];
 }
 
+// Live score shape returned by /api/scores/SOCCER
+interface SoccerGameScore {
+  id: string;
+  status: "pre" | "in" | "post";
+  statusDetail: string;
+  shortDetail: string;
+  startTime: string;
+  homeTeam: { name: string; abbreviation: string; score: string; logo?: string };
+  awayTeam: { name: string; abbreviation: string; score: string; logo?: string };
+  period?: number;
+  clock?: string;
+  venue?: string;
+}
+
+function fmtKickoff(iso: string): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+}
+
+function SoccerMatchCard({ game }: { game: SoccerGameScore }) {
+  const isLive = game.status === "in";
+  const isFinal = game.status === "post";
+  const awayScore = Number(game.awayTeam.score);
+  const homeScore = Number(game.homeTeam.score);
+  const awayAhead = isFinal && awayScore > homeScore;
+  const homeAhead = isFinal && homeScore > awayScore;
+
+  return (
+    <div className={`relative rounded-2xl overflow-hidden border text-left transition-all ${
+      isLive
+        ? "bg-gradient-to-br from-emerald-950/60 to-slate-900/80 border-emerald-500/40 shadow-lg shadow-emerald-500/10"
+        : "bg-gradient-to-br from-slate-900/70 to-slate-800/40 border-slate-700/40"
+    }`}>
+      {/* Live top stripe */}
+      {isLive && (
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500/0 via-emerald-400 to-emerald-500/0" />
+      )}
+
+      <div className="p-5">
+        {/* Status row */}
+        <div className="flex items-center justify-between mb-4">
+          {isLive ? (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-[11px] font-black uppercase tracking-wider">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              LIVE{game.clock ? ` · ${game.clock}` : ""}{game.period ? ` · ${game.period}'` : ""}
+            </span>
+          ) : isFinal ? (
+            <span className="px-2.5 py-1 rounded-full bg-slate-700/60 border border-slate-600/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+              Full Time
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-400">
+              <Clock className="w-3 h-3" />
+              {fmtKickoff(game.startTime)}
+            </span>
+          )}
+          {game.venue && (
+            <span className="text-[10px] text-slate-600 truncate max-w-[130px] hidden sm:block">{game.venue}</span>
+          )}
+        </div>
+
+        {/* Match-up */}
+        <div className="flex items-center justify-between gap-3">
+          {/* Away team */}
+          <div className="flex flex-col items-center gap-1.5 flex-1 text-center">
+            <TeamLogo team={game.awayTeam.abbreviation} sport="SOCCER" size={40} />
+            <span className={`text-xs font-bold ${awayAhead ? "text-white" : "text-slate-300"}`}>
+              {game.awayTeam.abbreviation}
+            </span>
+          </div>
+
+          {/* Score / vs */}
+          <div className="flex items-center gap-2 shrink-0">
+            {game.status === "pre" ? (
+              <span className="text-2xl font-black text-slate-500">vs</span>
+            ) : (
+              <>
+                <span className={`text-3xl font-black tabular-nums leading-none ${awayAhead ? "text-white" : isLive ? "text-slate-200" : "text-slate-400"}`}>
+                  {game.awayTeam.score}
+                </span>
+                <span className="text-slate-600 font-black text-xl">—</span>
+                <span className={`text-3xl font-black tabular-nums leading-none ${homeAhead ? "text-white" : isLive ? "text-slate-200" : "text-slate-400"}`}>
+                  {game.homeTeam.score}
+                </span>
+              </>
+            )}
+          </div>
+
+          {/* Home team */}
+          <div className="flex flex-col items-center gap-1.5 flex-1 text-center">
+            <TeamLogo team={game.homeTeam.abbreviation} sport="SOCCER" size={40} />
+            <span className={`text-xs font-bold ${homeAhead ? "text-white" : "text-slate-300"}`}>
+              {game.homeTeam.abbreviation}
+            </span>
+          </div>
+        </div>
+
+        {/* Status detail */}
+        {game.statusDetail && (isLive || isFinal) && (
+          <p className="text-[11px] text-slate-500 text-center mt-3">{game.statusDetail}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function WorldCupHero() {
-  const { data, isLoading } = useQuery<WorldCupResponse>({
+  // Live scores from ESPN
+  const { data: scoreData, isLoading: scoresLoading } = useQuery<SoccerGameScore[]>({
+    queryKey: ["/api/scores/SOCCER"],
+    queryFn: async () => {
+      const res = await fetch("/api/scores/SOCCER");
+      if (!res.ok) return [];
+      return res.json();
+    },
+    refetchInterval: 30_000,
+  });
+
+  // AI picks
+  const { data, isLoading: picksLoading } = useQuery<WorldCupResponse>({
     queryKey: ["/api/worldcup"],
     refetchInterval: 300000,
   });
 
   const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
+  const games = scoreData ?? [];
+  const liveGames = games.filter((g) => g.status === "in");
+  const hasLive = liveGames.length > 0;
+
+  // Sort: live first, then upcoming, then final
+  const sortedGames = [...games].sort((a, b) => {
+    const order = { in: 0, pre: 1, post: 2 };
+    return (order[a.status] ?? 3) - (order[b.status] ?? 3);
+  });
+
   return (
     <div className="max-w-5xl mx-auto mb-14" data-testid="worldcup-card">
       {/* Hero banner */}
-      <div className="relative rounded-2xl overflow-hidden mb-8">
+      <div className="relative rounded-2xl overflow-hidden mb-6">
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-950 via-[#0a2a1a] to-[#0f172a]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_0%,rgba(16,185,129,0.15),transparent)]" />
-        {/* Decorative pitch lines */}
         <div className="absolute inset-0 opacity-[0.04]" style={{
           backgroundImage: "repeating-linear-gradient(90deg, white 0px, white 1px, transparent 1px, transparent 80px), repeating-linear-gradient(0deg, white 0px, white 1px, transparent 1px, transparent 80px)"
         }} />
         <div className="relative z-10 px-8 py-10 text-center">
           <div className="flex items-center justify-center gap-3 mb-3">
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30">
-              <Circle className="w-2 h-2 text-emerald-400 fill-current animate-pulse" />
-              <span className="text-[11px] font-black text-emerald-400 uppercase tracking-widest">Live Now</span>
-            </div>
+            {hasLive ? (
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30">
+                <Circle className="w-2 h-2 text-emerald-400 fill-current animate-pulse" />
+                <span className="text-[11px] font-black text-emerald-400 uppercase tracking-widest">
+                  {liveGames.length} Match{liveGames.length !== 1 ? "es" : ""} Live
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10">
+                <Trophy className="w-3 h-3 text-amber-400" />
+                <span className="text-[11px] font-black text-amber-400 uppercase tracking-widest">FIFA World Cup 2026</span>
+              </div>
+            )}
             <span className="text-[11px] text-slate-400 font-bold">{todayStr}</span>
           </div>
           <div className="flex items-center justify-center gap-3 mb-3">
@@ -1226,103 +1362,132 @@ function WorldCupHero() {
             <Trophy className="w-7 h-7 text-amber-400" />
           </div>
           <p className="text-slate-300 text-base font-bold mb-2">USA · Canada · Mexico</p>
-          {data && (
-            <div className="flex items-center justify-center gap-4 flex-wrap mt-4">
-              <div className="stat-chip">
-                <Swords className="w-3 h-3 text-teal-400" />
-                {data.matchCount} {data.matchCount === 1 ? "Match" : "Matches"} Today
-              </div>
+          <div className="flex items-center justify-center gap-4 flex-wrap mt-4">
+            <div className="stat-chip">
+              <Swords className="w-3 h-3 text-teal-400" />
+              {games.length > 0 ? `${games.length} ${games.length === 1 ? "Match" : "Matches"} Today` : "World Cup 2026"}
+            </div>
+            {data && (
               <div className="stat-chip">
                 <Sparkles className="w-3 h-3 text-emerald-400" />
                 {data.totalPicks} AI Picks
               </div>
-              <div className="stat-chip">
-                <Circle className="w-3 h-3 text-emerald-400 fill-current" />
-                Live DFS Lineups
-              </div>
+            )}
+            <div className="stat-chip">
+              <Circle className="w-3 h-3 text-emerald-400 fill-current" />
+              Live DFS Lineups
             </div>
-          )}
+          </div>
         </div>
       </div>
 
-      {/* Match cards */}
-      {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <div key={i} className="bg-white/5 rounded-2xl p-5 animate-pulse h-52" />
-          ))}
+      {/* ── TODAY'S MATCHES (live scores) ── */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+            <span>⚽</span>
+            Today's Matches
+            {hasLive && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-black uppercase tracking-wider">
+                <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
+                {liveGames.length} Live
+              </span>
+            )}
+          </h3>
+          <Link href="/live-scores" className="text-[11px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1">
+            Full scoreboard <ChevronRight className="w-3 h-3" />
+          </Link>
         </div>
-      ) : !data || data.matches.length === 0 ? (
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-8 text-center">
-          <Trophy className="w-10 h-10 text-amber-400/40 mx-auto mb-3" />
-          <p className="text-slate-400 font-bold">No matches scheduled today</p>
-          <p className="text-slate-500 text-sm mt-1">Check back for next round fixtures</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {data.matches.map((match, mIdx) => (
-            <div
-              key={match.label}
-              className="relative bg-gradient-to-br from-emerald-950/50 to-slate-900/70 border border-emerald-800/30 rounded-2xl p-5 backdrop-blur-sm text-left overflow-hidden"
-              data-testid={`worldcup-match-${mIdx}`}
-            >
-              <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500/0" />
-              <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-white/10">
-                <div className="flex items-center gap-2.5">
-                  <TeamLogo team={match.teams[0]} sport="SOCCER" size={30} />
-                  <div>
-                    <span className="text-base font-black text-white">{match.teams[0]}</span>
-                  </div>
-                  <span className="text-xs font-black text-slate-500 px-2">vs</span>
-                  <div>
-                    <span className="text-base font-black text-white">{match.teams[1]}</span>
-                  </div>
-                  <TeamLogo team={match.teams[1]} sport="SOCCER" size={30} />
-                </div>
-                {match.time && (
-                  <span className="text-[10px] font-bold text-slate-400 bg-white/5 border border-white/10 px-2 py-1 rounded-lg whitespace-nowrap" data-testid={`worldcup-match-time-${mIdx}`}>
-                    {match.time}
-                  </span>
-                )}
-              </div>
 
-              <div className="space-y-2.5">
-                {match.picks.map(pick => {
-                  const isOver = pick.pick.toLowerCase().includes("over") || pick.pick.toLowerCase().includes("more");
-                  const dotClass = pick.confidence >= 78 ? "bg-emerald-400" : pick.confidence >= 68 ? "bg-amber-400" : "bg-slate-400";
-                  const textClass = pick.confidence >= 78 ? "text-emerald-400" : pick.confidence >= 68 ? "text-amber-400" : "text-slate-400";
-                  return (
-                    <div key={pick.id} className="flex items-center justify-between gap-2" data-testid={`worldcup-pick-${pick.id}`}>
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClass}`} />
-                        <TeamLogo team={pick.team} sport="SOCCER" size={16} />
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-white truncate">{pick.playerName}</p>
-                          <p className="text-[10px] text-slate-500 truncate">{pick.propType}</p>
+        {scoresLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="bg-white/5 rounded-2xl h-36 animate-pulse" />
+            ))}
+          </div>
+        ) : sortedGames.length === 0 ? (
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-8 text-center">
+            <Trophy className="w-10 h-10 text-amber-400/40 mx-auto mb-3" />
+            <p className="text-slate-400 font-bold">No matches scheduled today</p>
+            <p className="text-slate-500 text-sm mt-1">Check back for next round fixtures</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {sortedGames.map((game) => (
+              <SoccerMatchCard key={game.id} game={game} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── AI PICKS (collapsed under matches) ── */}
+      {!picksLoading && data && data.matches.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            <h3 className="text-sm font-bold text-white">AI Picks</h3>
+            <span className="text-[11px] text-slate-500">· market lines blended with projections</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {data.matches.map((match, mIdx) => (
+              <div
+                key={match.label}
+                className="relative bg-gradient-to-br from-emerald-950/50 to-slate-900/70 border border-emerald-800/30 rounded-2xl p-5 backdrop-blur-sm text-left overflow-hidden"
+                data-testid={`worldcup-match-${mIdx}`}
+              >
+                <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500/0" />
+                <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-white/10">
+                  <div className="flex items-center gap-2.5">
+                    <TeamLogo team={match.teams[0]} sport="SOCCER" size={30} />
+                    <span className="text-base font-black text-white">{match.teams[0]}</span>
+                    <span className="text-xs font-black text-slate-500 px-2">vs</span>
+                    <span className="text-base font-black text-white">{match.teams[1]}</span>
+                    <TeamLogo team={match.teams[1]} sport="SOCCER" size={30} />
+                  </div>
+                  {match.time && (
+                    <span className="text-[10px] font-bold text-slate-400 bg-white/5 border border-white/10 px-2 py-1 rounded-lg whitespace-nowrap" data-testid={`worldcup-match-time-${mIdx}`}>
+                      {match.time}
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-2.5">
+                  {match.picks.map(pick => {
+                    const isOver = pick.pick.toLowerCase().includes("over") || pick.pick.toLowerCase().includes("more");
+                    const dotClass = pick.confidence >= 78 ? "bg-emerald-400" : pick.confidence >= 68 ? "bg-amber-400" : "bg-slate-400";
+                    const textClass = pick.confidence >= 78 ? "text-emerald-400" : pick.confidence >= 68 ? "text-amber-400" : "text-slate-400";
+                    return (
+                      <div key={pick.id} className="flex items-center justify-between gap-2" data-testid={`worldcup-pick-${pick.id}`}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClass}`} />
+                          <TeamLogo team={pick.team} sport="SOCCER" size={16} />
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-white truncate">{pick.playerName}</p>
+                            <p className="text-[10px] text-slate-500 truncate">{pick.propType}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {pick.source === "market" ? (
+                            <div className="flex items-center gap-1">
+                              {isOver ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" /> : <ArrowDownRight className="w-3.5 h-3.5 text-red-400" />}
+                              <span className={`text-xs font-black ${isOver ? "text-emerald-400" : "text-red-400"}`}>{pick.pick} {pick.line}</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs font-black text-emerald-400">{pick.line} <span className="text-[9px] text-slate-500 font-bold">proj</span></span>
+                          )}
+                          <span className={`text-[10px] font-black uppercase ${textClass} w-7 text-right`}>{pick.confidence}%</span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {pick.source === "market" ? (
-                          <div className="flex items-center gap-1">
-                            {isOver ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" /> : <ArrowDownRight className="w-3.5 h-3.5 text-red-400" />}
-                            <span className={`text-xs font-black ${isOver ? "text-emerald-400" : "text-red-400"}`}>{pick.pick} {pick.line}</span>
-                          </div>
-                        ) : (
-                          <span className="text-xs font-black text-emerald-400">{pick.line} <span className="text-[9px] text-slate-500 font-bold">proj</span></span>
-                        )}
-                        <span className={`text-[10px] font-black uppercase ${textClass} w-7 text-right`}>{pick.confidence}%</span>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
       <p className="text-[11px] text-slate-600 text-center mt-5">
-        Market lines from live sportsbooks, blended with AI projections. Sign up free to build full DFS lineups.
+        Live scores via ESPN · AI picks from market lines &amp; projections · <Link href="/live-scores" className="text-emerald-700 hover:text-emerald-500">Full scoreboard →</Link>
       </p>
     </div>
   );
