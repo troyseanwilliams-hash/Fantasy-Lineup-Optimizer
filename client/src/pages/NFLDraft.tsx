@@ -1586,8 +1586,12 @@ export default function NFLDraft() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("rankings");
 
-  const tier = (user as any)?.subscriptionTier ?? "free";
-  const isAdmin = tier === "admin";
+  const isAdmin = (user as any)?.isAdmin === true;
+  const { data: subData } = useQuery<{ tier: string }>({
+    queryKey: ["/api/subscription"],
+    enabled: !!user,
+  });
+  const tier = isAdmin ? "pro" : (subData?.tier ?? "free");
   const isStarOrAbove = isAdmin || tier === "pro" || tier === "star";
   const isChampion = isAdmin || tier === "pro"; // "pro" maps to Champion
 
