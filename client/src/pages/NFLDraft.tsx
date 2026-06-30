@@ -540,6 +540,19 @@ function aiRecommendation(
   const hasKStarter = kNeed === 0;
   const hasDSTStarter = dstNeed === 0;
 
+  // ── Picks remaining (including this one) ─────────────────────────────────
+  // This is the critical safety net: if picks left ≤ required slots left,
+  // we MUST fill required spots now — K and DST cannot be deferred any longer.
+  const futurePicksRemaining = allPicks.filter(
+    (p) => p.team === "user" && p.player === null && p.overall >= currentPick.overall
+  ).length;
+
+  const totalRequiredRemaining =
+    coreNeedsTotal + kNeed + dstNeed;
+
+  // True when there are no spare picks — every remaining pick must fill a required slot
+  const mustFillRequired = futurePicksRemaining <= totalRequiredRemaining;
+
   // ── Value Over Replacement baselines ─────────────────────────────────────
   // Replacement = Nth-best available where N ≈ typical starters across all teams
   const replacementDepth: Record<string, number> = {
@@ -573,26 +586,24 @@ function aiRecommendation(
 
     const need = needs[p.position] ?? 0;
 
-    // ── K / DST gating (most important change) ───────────────────────────
+    // ── K / DST gating ───────────────────────────────────────────────────
     if (p.position === "K" || p.position === "DST") {
       const isBackup =
         (p.position === "K" && hasKStarter) ||
         (p.position === "DST" && hasDSTStarter);
 
       if (isBackup) {
-        // Hard block: never recommend a 2nd K or 2nd DST unless every single
-        // other starter and FLEX slot is completely filled
-        if (coreNeedsTotal > 0 || kNeed > 0 || dstNeed > 0) {
-          score -= 99999;
-        } else {
-          score -= 300; // all done — still de-prioritize vs any skill player
-        }
+        // Absolute hard block — only 1 K and 1 DST allowed, no exceptions.
+        score -= 99999;
       } else {
-        // Need the K or DST starter, but not at the expense of core positions
-        if (coreNeedsTotal > 0) {
-          // Push back until core needs drop to 1 remaining or we're in the
-          // final 2 rounds where there's no choice
-          const urgencyPenalty = round < settings.numRounds - 1
+        // Need this K or DST starter slot.
+        if (mustFillRequired) {
+          // SAFETY NET: picks are running out — this required slot MUST be filled.
+          // Give it a massive boost so it surfaces immediately.
+          score += 99999;
+        } else if (coreNeedsTotal > 0) {
+          // Suppress in favour of skill positions until we're close to needing it
+          const urgencyPenalty = round < settings.numRounds - 2
             ? 150 + coreNeedsTotal * 20
             : 20;
           score -= urgencyPenalty;
@@ -649,8 +660,15 @@ function aiRecommendation(
 
   parts.push(`Projects ${proj.toFixed(1)} pts (${format.toUpperCase()}).`);
   if (vor > 3) parts.push(`${vor.toFixed(1)} pts above replacement at ${best.position}.`);
-  if (need > 0) parts.push(`You still need ${need > 1 ? `${need} more ` : "a "}${best.position}.`);
-  else if (best.position === "K" || best.position === "DST") parts.push("Core lineup is set — filling your final slot.");
+  if (need > 0) {
+    if (mustFillRequired && (best.position === "K" || best.position === "DST")) {
+      parts.push(`⚠ Picks running out — must secure your ${best.position} now or you'll finish without one.`);
+    } else {
+      parts.push(`You still need ${need > 1 ? `${need} more ` : "a "}${best.position}.`);
+    }
+  } else if (best.position === "K" || best.position === "DST") {
+    parts.push("Core lineup is set — filling your final slot.");
+  }
   else if (["RB","WR","TE"].includes(best.position) && flexNeedsRemaining > 0) parts.push("Also fills your FLEX slot.");
   if (adpDiff >= 5) parts.push(`We rank them ${adpDiff} spots ahead of ADP — strong value.`);
   if (best.newsImpact?.direction === "up")   parts.push("Recent positive news boosted their rank.");
