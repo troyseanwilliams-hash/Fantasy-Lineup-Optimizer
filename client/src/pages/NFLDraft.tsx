@@ -1990,12 +1990,17 @@ export default function NFLDraft() {
   const [activeTab, setActiveTab] = useState<Tab>("rankings");
   const [teamAnalysis, setTeamAnalysis] = useState<DraftAnalysisInput | null>(null);
 
-  const tier = (user as any)?.subscriptionTier ?? "free";
+  const { data: subData } = useQuery<{ tier: string; draftAccess: boolean }>({
+    queryKey: ["/api/subscription"],
+    enabled: !!user,
+  });
+
+  const tier = subData?.tier ?? (user as any)?.subscriptionTier ?? "free";
   const isAdmin = tier === "admin";
   const isStarOrAbove = isAdmin || tier === "pro" || tier === "star";
   const isChampion = isAdmin || tier === "pro"; // "pro" maps to Champion
   // Live Draft + Draft Analyzer unlock for admin, Champion, or one-time Draft Hub purchasers ("draft only")
-  const hasDraftAccess = isChampion || (user as any)?.draftAccess === true;
+  const hasDraftAccess = isChampion || subData?.draftAccess === true;
 
   const { data, isLoading, error, refetch } = useQuery<{
     players: LiveDraftPlayer[];
