@@ -664,6 +664,7 @@ function DraftAssistant({
   const [searchQuery, setSearchQuery] = useState("");
   const [posFilter, setPosFilter] = useState<Position | "ALL">("ALL");
   const [paused, setPaused] = useState(false);
+  const [autoDraft, setAutoDraft] = useState(true);
   const [draftComplete, setDraftComplete] = useState(false);
   const [lastAutoPick, setLastAutoPick] = useState<{ name: string; team: string } | null>(null);
   const [savedToast, setSavedToast] = useState(false);
@@ -836,7 +837,7 @@ function DraftAssistant({
 
   // Auto-advance through consecutive "other" picks with a short delay
   useEffect(() => {
-    if (!configured || draftComplete || paused) return;
+    if (!configured || draftComplete || paused || !autoDraft) return;
     if (!currentPick || currentPick.team !== "other" || currentPick.player) return;
 
     const delay = setTimeout(() => {
@@ -848,7 +849,7 @@ function DraftAssistant({
     }, 600); // 600ms between other-team picks so you can see them flash by
 
     return () => clearTimeout(delay);
-  }, [configured, draftComplete, paused, currentPick, currentPickIdx, autoPickOtherNow, advance]);
+  }, [configured, draftComplete, paused, autoDraft, currentPick, currentPickIdx, autoPickOtherNow, advance]);
 
   // Configuration screen
   if (!configured) {
@@ -1042,6 +1043,13 @@ function DraftAssistant({
             </div>
             <div className="flex gap-2 flex-wrap justify-end">
               <button
+                onClick={() => setAutoDraft((v) => !v)}
+                title={autoDraft ? "Auto-draft is ON — other teams pick automatically" : "Auto-draft is OFF — click 'Pick for team' manually"}
+                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${autoDraft ? "bg-emerald-600/20 border-emerald-500/30 text-emerald-400" : "bg-slate-700/50 border-slate-600/30 text-slate-400 hover:text-white"}`}
+              >
+                {autoDraft ? "🤖 Auto ON" : "🤖 Auto OFF"}
+              </button>
+              <button
                 onClick={() => { setPaused((p) => !p); setShowOrderEditor(false); }}
                 className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${paused && !showOrderEditor ? "bg-amber-500/20 border-amber-500/30 text-amber-400" : "bg-slate-700/50 border-slate-600/30 text-slate-300 hover:text-white"}`}
               >
@@ -1141,7 +1149,7 @@ function DraftAssistant({
                 </span>
                 <span className="text-xs text-slate-500 ml-2">Round {currentPick.round} · Overall #{currentPick.overall}</span>
               </div>
-              {paused && (
+              {(paused || !autoDraft) && (
                 <button
                   onClick={() => {
                     setBoard((prev) => {
@@ -1152,7 +1160,7 @@ function DraftAssistant({
                   }}
                   className="ml-auto text-xs px-3 py-1.5 rounded-lg bg-slate-600 hover:bg-slate-500 text-white border border-slate-500/30 transition-colors"
                 >
-                  Skip →
+                  {autoDraft ? "Skip →" : "Pick for team →"}
                 </button>
               )}
             </div>
