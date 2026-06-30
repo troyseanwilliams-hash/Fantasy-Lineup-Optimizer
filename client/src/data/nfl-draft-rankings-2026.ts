@@ -72,8 +72,6 @@ function p(rank: number, posRank: string, name: string, team: string, pos: Posit
   };
 }
 
-// ─── TIER 1: TRANSCENDENT (Picks 1–5 · FREE) ─────────────────────────────────
-// Consensus locks across every major analyst platform.
 
 export const NFL_DRAFT_RANKINGS_2026: DraftPlayer[] = [
 
