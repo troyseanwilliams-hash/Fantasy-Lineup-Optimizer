@@ -302,16 +302,18 @@ export async function handleWebhookEvent(event: Stripe.Event): Promise<void> {
       // One-time Draft Hub purchase
       if (session.metadata?.type === "draft_hub_2026" && userId) {
         const accessEnd = new Date("2027-01-31T00:00:00Z"); // access through end of 2026 season
+        const existing = await storage.getSubscription(userId);
         await storage.upsertSubscription({
           userId,
           stripeCustomerId: session.customer as string,
-          stripeSubscriptionId: null as any,
-          tier: "pro",
-          status: "active",
-          currentPeriodEnd: accessEnd,
-          graceEndsAt: null,
+          stripeSubscriptionId: existing?.stripeSubscriptionId ?? null as any,
+          tier: existing?.tier ?? "free",
+          status: existing?.status ?? "active",
+          currentPeriodEnd: existing?.currentPeriodEnd ?? accessEnd,
+          graceEndsAt: existing?.graceEndsAt ?? null,
+          draftAccess: true,
         });
-        console.log(`[stripe] Draft Hub 2026 purchased: user ${userId}, access until ${accessEnd.toISOString()}`);
+        console.log(`[stripe] Draft Hub 2026 purchased: user ${userId}, draftAccess granted until ${accessEnd.toISOString()}`);
         break;
       }
 

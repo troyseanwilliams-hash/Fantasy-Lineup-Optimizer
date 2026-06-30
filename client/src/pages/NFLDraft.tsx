@@ -1587,13 +1587,14 @@ export default function NFLDraft() {
   const [activeTab, setActiveTab] = useState<Tab>("rankings");
 
   const isAdmin = (user as any)?.isAdmin === true;
-  const { data: subData } = useQuery<{ tier: string }>({
+  const { data: subData } = useQuery<{ tier: string; draftAccess?: boolean }>({
     queryKey: ["/api/subscription"],
     enabled: !!user,
   });
   const tier = isAdmin ? "pro" : (subData?.tier ?? "free");
+  const hasDraftAccess = isAdmin || tier === "pro" || subData?.draftAccess === true;
   const isStarOrAbove = isAdmin || tier === "pro" || tier === "star";
-  const isChampion = isAdmin || tier === "pro"; // "pro" maps to Champion
+  const isChampion = hasDraftAccess; // admins + Champion subscribers + Draft-only buyers
 
   const { data, isLoading, error, refetch } = useQuery<{
     players: LiveDraftPlayer[];

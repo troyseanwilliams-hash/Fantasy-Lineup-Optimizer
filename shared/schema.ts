@@ -124,6 +124,7 @@ export const subscriptions = pgTable("subscriptions", {
   status: text("status").notNull().default("active"),
   currentPeriodEnd: timestamp("current_period_end"),
   graceEndsAt: timestamp("grace_ends_at"),
+  draftAccess: boolean("draft_access").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   // Note: kept current via the subscriptions_updated_at trigger. See migration note.
   updatedAt: timestamp("updated_at").defaultNow(),
