@@ -154,7 +154,7 @@ export const NFL_DRAFT_RANKINGS_2026: DraftPlayer[] = [
     "Achane is the most explosive back in fantasy football — his yards-per-carry and receiving efficiency are unmatched in the league. Miami feeds him in a fast-paced, high-scoring offense, and when he's the clear lead back (18+ carries), he's capable of winning your week single-handedly. The workload concern is legitimate — Miami still has depth at the position — but Achane's efficiency makes him a top-12 pick regardless. His PPR ceiling is top-5 overall.",
     ["Fastest back in NFL — elite yards per touch","Explosive receiver out of backfield","Miami's high-scoring offense maximizes ceiling","Elite YPC (6.0+) — every touch is a big-play threat","Age 23 — prime athletic window"],
     ["Timeshare risk — Miami has RB depth","Limited goal-line role","Injury risk from explosive playing style"],
-    ["speed-merchant","ceiling-play","workload-risk","ppr-specialist"]),
+    ["bellcow","speed-merchant","ceiling-play","workload-risk","ppr-specialist"]),
 
   p(12,"WR6","Drake London","ATL","WR",2,12.0,12,
     282,268,240,"high","low",24,12,
@@ -547,7 +547,7 @@ export const NFL_DRAFT_RANKINGS_2026: DraftPlayer[] = [
     "CMC's 2023 historic season feels distant after back-to-back injury-shortened campaigns. San Francisco remains cautious with his workload, and at 30 he's entering the back nine of his career. When healthy, no player at any position is more complete — but healthy is the key word. His ADP has dropped to where the value is genuine, but only if you believe in the medical staff's optimism. A high-risk, high-reward selection in rounds 6–8.",
     ["Peak potential is still top-3 at any position","San Francisco's scheme tailor-made for his skills","Elijah Mitchell provides clear handcuff","Elite pass protection — all three downs"],
     ["Age 30 — back-to-back injury-shortened seasons","San Francisco being cautious with workload","Mitchell could take over if health regresses"],
-    ["elite-upside","injury-risk","all-purpose","age-concern"]),
+    ["bellcow","elite-upside","injury-risk","all-purpose","age-concern"]),
 
   p(67,"QB10","Quentin Johnston AKA CJ Stroud","HOU","QB",6,68.0,67,
     318,298,318,"high","medium",24,14,
@@ -745,7 +745,7 @@ export const NFL_DRAFT_RANKINGS_2026: DraftPlayer[] = [
     "White is Tampa Bay's pass-catching back. His receiving role (50+ receptions) makes him viable in PPR formats despite a limited rushing role behind Gus Edwards and others. A PPR-only streaming option.",
     ["Tampa Bay passes frequently","50+ reception upside","Mayfield targets him in passing game"],
     ["Limited rushing ceiling","Red-zone role unclear","Tampa Bay WRs dominate targets"],
-    ["ppr-specialist","consistent","floor-player"]),
+    ["bellcow","ppr-specialist","consistent","floor-player"]),
 
   p(95,"DST4","Dallas Cowboys","DAL","DST",7,83.0,95,
     138,138,138,"medium","low",0,7,
@@ -854,12 +854,12 @@ export const NFL_DRAFT_RANKINGS_2026: DraftPlayer[] = [
     ["Lamar's running limits overall passing volume","Bye week 14 — late season","Baltimore conservative in game-script"],
     ["ppr-specialist","young-stud","slot-monster","ascending"]),
 
-  p(110,"RB31","Derrick Henry","DET","RB",7,110.0,110,
-    138,128,112,"medium","medium",32,5,
-    "Henry in Detroit is the veteran goal-line complement to Jahmyr Gibbs. If Gibbs misses any time, Henry takes the full bellcow role in one of the best offensive schemes in football. His goal-line TD proximity keeps him viable on a weekly basis even in a limited role.",
-    ["Detroit OL is top-5 in run blocking","Gibbs handcuff in elite offense","Goal-line role generates consistent TDs","Age 32 — but still a powerful runner","Detroit scheme is historically RB-friendly"],
-    ["Gibbs limits his overall workload drastically","Age 32 — high-mileage power back","No receiving role to add PPR floor"],
-    ["handcuff","td-dependent","veteran","workhorse"]),
+  p(110,"RB31","Derrick Henry","BAL","RB",7,110.0,110,
+    145,135,118,"medium","medium",32,14,
+    "Henry is Baltimore's veteran power back and the lead ball-carrier in Lamar Jackson's run-heavy offense. His goal-line role and short-yardage work generate consistent TD upside despite his age. In one of the best run-blocking schemes in football, Henry remains a reliable weekly starter.",
+    ["Baltimore OL is elite in run blocking","Lamar Jackson run game creates rushing lanes","Goal-line role generates consistent TDs","Age 32 — but still a powerful runner","Baltimore scheme is historically RB-friendly"],
+    ["Age 32 — high-mileage power back","Limited receiving role limits PPR ceiling","Keaton Mitchell sees change-of-pace snaps"],
+    ["bellcow","td-dependent","veteran","workhorse"]),
 
   p(111,"DST7","Pittsburgh Steelers","PIT","DST",7,111.0,111,
     120,120,120,"high","medium",0,9,
@@ -887,7 +887,7 @@ export const NFL_DRAFT_RANKINGS_2026: DraftPlayer[] = [
     "Jones is a reliable PPR contributor in Minnesota's system. His pass-catching (50+ receptions) gives him floor in the Vikings' pass-heavy offense — Justin Jefferson keeps defenses honest and Jones benefits from lighter run boxes. Age limits his ceiling but the floor is real.",
     ["Minnesota passes frequently — Jones catches passes","50+ reception upside in PPR","Jefferson draws attention — lighter run boxes","Consistent veteran floor","Age 31 — still effective in receiving role"],
     ["Age 31 — declining rushing efficiency","Minnesota may prioritize younger backs","Limited explosive ceiling at this stage"],
-    ["ppr-specialist","veteran","floor-player","consistent"]),
+    ["bellcow","ppr-specialist","veteran","floor-player","consistent"]),
 
   p(115,"K3","Evan McPherson","CIN","K",7,115.0,115,
     148,148,148,"high","low",0,7,
@@ -994,7 +994,7 @@ export const NFL_DRAFT_RANKINGS_2026: DraftPlayer[] = [
     "Montgomery is Gibbs' complement in Detroit's balanced offense — handling goal-line duties and short-yardage situations that generate consistent TDs. A reliable TD-dependent RB3 who delivers in the red zone while Gibbs handles the explosive work.",
     ["Detroit OL is top-5 in run blocking","Goal-line role generates consistent TDs","Gibbs complement — protected from high-mileage volume","Age 27 — prime workhorse years","Detroit offense scores frequently"],
     ["Gibbs limits his explosive opportunity","No receiving role to add PPR floor","Volume entirely dependent on game script"],
-    ["td-dependent","consistent","floor-player","workhorse"]),
+    ["handcuff","td-dependent","consistent","floor-player"]),
 
   p(130,"WR45","Darnell Mooney","ATL","WR",7,130.0,130,
     112,102,89,"medium","medium",27,12,
@@ -1399,7 +1399,7 @@ export const NFL_DRAFT_RANKINGS_2026: DraftPlayer[] = [
     "Mitchell is Baltimore's explosive change-of-pace back — elite speed that creates game-breaking plays when given touches. Returning from injury, his ceiling in Baltimore's elite offense is legitimate flex value with home-run upside.",
     ["Elite speed — game-breaking burst","Baltimore's elite offense amplifies ceiling","Age 24 — best years ahead","Home-run potential on every touch"],
     ["Returning from significant injury","Derrick Henry limits his role","Boom-bust week-to-week"],
-    ["speed-merchant","boom-bust","ceiling-play","young-stud"]),
+    ["bellcow","speed-merchant","boom-bust","ceiling-play","young-stud"]),
 
   p(187,"TE26","Chigoziem Okonkwo","TEN","TE",7,187.0,187,
     98,91,80,"high","medium",26,5,
@@ -1852,6 +1852,63 @@ export const NFL_DRAFT_RANKINGS_2026: DraftPlayer[] = [
     ["Saquon Barkley handcuff — elite offense","League-winning upside if Barkley sits","Receiving ability fits the scheme","Age 23 — developmental ceiling"],
     ["Barkley limits his role when healthy","No standalone value currently","Unproven as a starter"],
     ["handcuff","lottery-ticket","ceiling-play","young-stud"]),
+
+  // ── Handcuff RBs for bellcows that had no backup in the data ─────────────
+  p(251,"RB59","Tyler Allgeier","ATL","RB",7,251.0,251,
+    42,38,34,"medium","low",24,12,
+    "Allgeier is Bijan Robinson's primary handcuff in Atlanta's elite run-heavy offense. If Robinson misses time, Allgeier steps into one of the best RB situations in football with immediate starter upside.",
+    ["Bijan Robinson handcuff in elite offense","Atlanta OL is top-5 in run blocking","Immediate RB1 if Robinson misses time","Proven reliable when given carries"],
+    ["Robinson limits his role when healthy","No consistent receiving role","Value is entirely injury-dependent"],
+    ["handcuff","ceiling-play","floor-player"]),
+
+  p(252,"RB60","Zamir White","LV","RB",7,252.0,252,
+    40,36,32,"medium","medium",25,6,
+    "White is Ashton Jeanty's handcuff in Las Vegas. He proved capable as a starter and immediately becomes relevant if Jeanty misses time, inheriting carries in a Las Vegas offense that commits to the run game.",
+    ["Ashton Jeanty handcuff — clear starter upside","Las Vegas commits to the run game","Proven starter when given the role","Age 25 — athletic prime"],
+    ["Jeanty limits his role when healthy","Las Vegas offense ceiling concerns","Inconsistent passing game support"],
+    ["handcuff","floor-player"]),
+
+  p(253,"RB61","Braelon Allen","NYJ","RB",7,253.0,253,
+    38,34,30,"high","low",21,12,
+    "Allen is Breece Hall's handcuff in New York — a powerful young back who has shown elite burst and contact balance. If Hall misses time, Allen steps into a significant role in the Jets' improving offense.",
+    ["Breece Hall handcuff — clear path to starter role","Elite burst for his size","Age 21 — ascending player","Jets offense continuing to improve"],
+    ["Hall limits his role when healthy","Inconsistent receiving role","Unproven as a full-time starter"],
+    ["handcuff","young-stud","ceiling-play"]),
+
+  p(254,"RB62","Evan Hull","IND","RB",7,254.0,254,
+    36,32,28,"medium","low",24,14,
+    "Hull is Jonathan Taylor's handcuff and change-of-pace back in Indianapolis. His versatility as a receiver makes him valuable if Taylor misses time, and in PPR formats he carries standalone streaming potential.",
+    ["Jonathan Taylor handcuff — immediate starter value","Receiving ability adds PPR floor","Colts offense generates RB touches","Age 24 — athletic prime"],
+    ["Taylor limits his role when healthy","Limited rushing volume in committee","Colts offense still developing"],
+    ["handcuff","ppr-specialist","floor-player"]),
+
+  p(255,"RB63","Ray Davis","BUF","RB",7,255.0,255,
+    34,30,26,"medium","low",24,12,
+    "Davis is James Cook's handcuff in Buffalo's high-powered offense. He showed impressive burst in his rookie season and immediately becomes fantasy-relevant if Cook misses time behind Josh Allen and the Bills' elite offense.",
+    ["James Cook handcuff in elite offense","Buffalo's offense generates RB value","Elite surrounding cast amplifies production","Showed promising burst as a rookie"],
+    ["Cook limits his role when healthy","Pass-heavy offense can reduce RB volume","Inconsistent early role"],
+    ["handcuff","young-stud","floor-player"]),
+
+  p(256,"RB64","Antonio Gibson","WAS","RB",7,256.0,256,
+    32,28,24,"medium","medium",27,14,
+    "Gibson is Brian Robinson Jr.'s handcuff in Washington's improving offense. His pass-catching ability gives him standalone PPR value and he's proven capable of handling starter duties if Robinson misses time.",
+    ["Brian Robinson Jr. handcuff in improving offense","Pass-catching ability adds PPR value","Jayden Daniels' offense supports RB production","Proven capable as a starter"],
+    ["Robinson limits his role when healthy","Role reduced from his peak","Washington may rotate fresh legs"],
+    ["handcuff","ppr-specialist","floor-player"]),
+
+  p(257,"RB65","DeeJay Dallas","SEA","RB",7,257.0,257,
+    30,26,22,"medium","low",27,5,
+    "Dallas is Zach Charbonnet's handcuff and special teams contributor in Seattle. He's a reliable backup who steps in without missing a beat if Charbonnet misses time in Seattle's run-committed offense.",
+    ["Zach Charbonnet handcuff — clear path to starter role","Seattle commits to the run game","Proven reliable role player","Special teams usage keeps him active"],
+    ["Charbonnet limits his role when healthy","Limited ceiling in backup role","Pass-catching role minimal"],
+    ["handcuff","floor-player","consistent"]),
+
+  p(258,"RB66","Deuce Vaughn","DAL","RB",7,258.0,258,
+    28,24,20,"high","low",23,7,
+    "Vaughn is Rico Dowdle's handcuff in Dallas — a diminutive but explosive scatback who creates mismatches in the passing game. If Dowdle misses time, Vaughn's receiving role gives him immediate PPR relevance in Dallas's offense.",
+    ["Rico Dowdle handcuff in Dallas's offense","Explosive scatback — elite receiving ability","Micah Parsons and defense keep Dallas ahead","Mismatch weapon in the passing game"],
+    ["Dowdle limits his role when healthy","Size concerns on early downs","Goal-line role belongs to others"],
+    ["handcuff","ppr-specialist","young-stud"]),
 ];
 
 export const TIER_COLORS: Record<number, { bg: string; border: string; text: string; label: string }> = {

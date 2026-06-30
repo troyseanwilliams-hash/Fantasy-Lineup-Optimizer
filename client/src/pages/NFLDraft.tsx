@@ -1638,8 +1638,8 @@ function HandcuffGuide({ players }: { players: LiveDraftPlayer[] }) {
       </p>
       <div className="space-y-2">
         {handcuffs.map((hc) => {
-          // Find the player the handcuff is for
-          const workhorse = workhorses.find((w) => w.team === hc.team && w.position === "RB");
+          // Find the player the handcuff is for (exclude the handcuff player itself)
+          const workhorse = workhorses.find((w) => w.team === hc.team && w.position === "RB" && w.id !== hc.id);
           return (
             <div key={hc.id} className="flex items-center gap-3 rounded-lg bg-slate-900/50 px-3 py-2">
               <span className="text-xs text-slate-500 w-5 text-right">{hc.adjustedRank}</span>
