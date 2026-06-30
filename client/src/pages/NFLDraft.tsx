@@ -232,6 +232,7 @@ type PickEntry = {
   round: number;
   pick: number;
   team: "user" | "other";
+  teamNum: number;
   player: LiveDraftPlayer | null;
 };
 
@@ -266,11 +267,52 @@ function buildDraftBoard(settings: LeagueSettings): PickEntry[] {
       overall: i + 1,
       round,
       pick: posInRound,
+      teamNum: posInRound,
       team: posInRound === settings.draftPosition ? "user" : "other",
       player: null,
     });
   }
   return picks;
+}
+
+function pickForOtherTeam(
+  available: LiveDraftPlayer[],
+  board: PickEntry[],
+  teamNum: number,
+  round: number,
+  settings: LeagueSettings
+): LiveDraftPlayer | null {
+  if (available.length === 0) return null;
+
+  // Build this team's current roster counts
+  const teamDrafted = board.filter(p => p.teamNum === teamNum && p.player !== null);
+  const counts: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DST: 0 };
+  for (const p of teamDrafted) {
+    if (p.player) counts[p.player.position] = (counts[p.player.position] ?? 0) + 1;
+  }
+
+  // Calculate what they still need
+  const needs: Record<string, number> = {};
+  for (const [pos, needed] of Object.entries(settings.rosterSlots)) {
+    if (pos === "FLEX") continue;
+    needs[pos] = Math.max(0, (needed as number) - (counts[pos] ?? 0));
+  }
+
+  // Score each available player for this team's needs
+  const scored = available.map(p => {
+    let score = 150 - p.adjustedRank;
+    const need = needs[p.position] ?? 0;
+    if (need > 0) score += 25;
+    if (need > 1) score += 10;
+    if (need === 0 && p.position !== "K" && p.position !== "DST") score -= 20;
+    if (round <= 3 && p.tier <= 2) score += 20;
+    if (round >= 13 && (p.position === "K" || p.position === "DST")) score += 20;
+    if (round <= 6 && p.risk === "high") score -= 10;
+    return { player: p, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0]?.player ?? null;
 }
 
 function getRosterNeeds(
@@ -363,12 +405,18 @@ function DraftAssistant({ allPlayers }: { allPlayers: LiveDraftPlayer[] }) {
   const [currentPickIdx, setCurrentPickIdx] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [posFilter, setPosFilter] = useState<Position | "ALL">("ALL");
-  const boardRef = useRef<HTMLDivElement>(null);
+  const [lastCpuPick, setLastCpuPick] = useState<{ teamNum: number; player: LiveDraftPlayer } | null>(null);
+  const boardDomRef = useRef<HTMLDivElement>(null);
+
+  // Refs for latest values inside async callbacks
+  const latestBoardRef = useRef(board);
+  latestBoardRef.current = board;
 
   const startDraft = useCallback(() => {
     setBoard(buildDraftBoard(settings));
     setCurrentPickIdx(0);
     setConfigured(true);
+    setLastCpuPick(null);
   }, [settings]);
 
   const resetDraft = useCallback(() => {
@@ -376,6 +424,7 @@ function DraftAssistant({ allPlayers }: { allPlayers: LiveDraftPlayer[] }) {
     setCurrentPickIdx(0);
     setConfigured(false);
     setSearchQuery("");
+    setLastCpuPick(null);
   }, []);
 
   const draftedIds = useMemo(() => {
@@ -389,6 +438,9 @@ function DraftAssistant({ allPlayers }: { allPlayers: LiveDraftPlayer[] }) {
   const available = useMemo(() =>
     allPlayers.filter((p) => !draftedIds.has(p.id)),
     [allPlayers, draftedIds]);
+
+  const latestAvailableRef = useRef(available);
+  latestAvailableRef.current = available;
 
   const filteredAvailable = useMemo(() =>
     available.filter((p) => {
@@ -410,9 +462,35 @@ function DraftAssistant({ allPlayers }: { allPlayers: LiveDraftPlayer[] }) {
     return aiRecommendation(available, myPicks, currentPick, settings, board);
   }, [available, myPicks, currentPick, settings, board]);
 
+  // Auto-run CPU picks until it's the user's turn
+  useEffect(() => {
+    if (!configured || board.length === 0) return;
+    const pick = board[currentPickIdx];
+    if (!pick || pick.team !== "other" || pick.player) return;
+
+    const timer = setTimeout(() => {
+      const currentBoard = latestBoardRef.current;
+      const currentAvailable = latestAvailableRef.current;
+      const player = pickForOtherTeam(currentAvailable, currentBoard, pick.teamNum, pick.round, settings);
+      if (!player) return;
+      // Guard: make sure the slot is still empty (user may have manually filled it)
+      if (currentBoard[currentPickIdx]?.player) return;
+      setLastCpuPick({ teamNum: pick.teamNum, player });
+      setBoard(prev => {
+        const next = [...prev];
+        next[currentPickIdx] = { ...next[currentPickIdx], player };
+        return next;
+      });
+      setCurrentPickIdx(i => Math.min(i + 1, currentBoard.length - 1));
+    }, 380);
+
+    return () => clearTimeout(timer);
+  }, [currentPickIdx, configured]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const makePick = useCallback(
     (player: LiveDraftPlayer) => {
       if (!currentPick) return;
+      setLastCpuPick(null);
       setBoard((prev) => {
         const next = [...prev];
         next[currentPickIdx] = { ...next[currentPickIdx], player };
@@ -426,6 +504,7 @@ function DraftAssistant({ allPlayers }: { allPlayers: LiveDraftPlayer[] }) {
   const undoPick = useCallback(() => {
     const prevIdx = currentPickIdx - 1;
     if (prevIdx < 0) return;
+    setLastCpuPick(null);
     setBoard((prev) => {
       const next = [...prev];
       next[prevIdx] = { ...next[prevIdx], player: null };
@@ -433,18 +512,6 @@ function DraftAssistant({ allPlayers }: { allPlayers: LiveDraftPlayer[] }) {
     });
     setCurrentPickIdx(prevIdx);
   }, [currentPickIdx]);
-
-  const autoPickOther = useCallback(() => {
-    if (!currentPick || currentPick.team !== "other") return;
-    if (available.length === 0) return;
-    const player = available[0]; // top available
-    setBoard((prev) => {
-      const next = [...prev];
-      next[currentPickIdx] = { ...next[currentPickIdx], player };
-      return next;
-    });
-    setCurrentPickIdx((i) => Math.min(i + 1, board.length - 1));
-  }, [currentPick, available, currentPickIdx, board.length]);
 
   // Configuration screen
   if (!configured) {
@@ -572,19 +639,25 @@ function DraftAssistant({ allPlayers }: { allPlayers: LiveDraftPlayer[] }) {
             </div>
           )}
 
-          {/* Other team's turn */}
+          {/* CPU auto-drafting indicator */}
           {currentPick && currentPick.team === "other" && (
-            <div className="mb-3 rounded-xl bg-slate-700/40 border border-slate-600/30 p-3 flex items-center justify-between">
-              <div>
-                <div className="text-xs font-semibold text-slate-400 mb-0.5">Round {currentPick.round} · Pick {currentPick.pick} — Other Team's Turn</div>
-                <div className="text-sm text-slate-300">Manually click a player to mark them taken, or auto-assign top available.</div>
+            <div className="mb-3 rounded-xl bg-slate-700/40 border border-slate-600/30 p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                </span>
+                <div className="text-xs font-semibold text-blue-400">
+                  Team {currentPick.teamNum} is on the clock — Round {currentPick.round}, Pick {currentPick.pick}
+                </div>
               </div>
-              <button
-                onClick={autoPickOther}
-                className="ml-4 shrink-0 px-3 py-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white text-xs font-semibold transition-colors"
-              >
-                Auto Pick
-              </button>
+              {lastCpuPick && (
+                <div className="text-xs text-slate-400">
+                  Last pick: <span className="text-white font-semibold">{lastCpuPick.player.name}</span>
+                  <span className={`ml-1.5 px-1 rounded text-xs font-bold ${posClass(lastCpuPick.player.position)}`}>{lastCpuPick.player.position}</span>
+                  → Team {lastCpuPick.teamNum}
+                </div>
+              )}
             </div>
           )}
 
@@ -692,7 +765,7 @@ function DraftAssistant({ allPlayers }: { allPlayers: LiveDraftPlayer[] }) {
         {/* Draft Order Summary */}
         <div className="bg-slate-800/60 rounded-2xl border border-slate-700/40 p-4">
           <h3 className="font-bold text-white mb-3">Draft Board</h3>
-          <div className="space-y-0.5 max-h-80 overflow-y-auto" ref={boardRef}>
+          <div className="space-y-0.5 max-h-80 overflow-y-auto" ref={boardDomRef}>
             {board.map((pick, idx) => (
               <div
                 key={pick.overall}
