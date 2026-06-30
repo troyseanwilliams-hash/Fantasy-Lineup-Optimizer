@@ -1909,6 +1909,206 @@ export const NFL_DRAFT_RANKINGS_2026: DraftPlayer[] = [
     ["Rico Dowdle handcuff in Dallas's offense","Explosive scatback — elite receiving ability","Micah Parsons and defense keep Dallas ahead","Mismatch weapon in the passing game"],
     ["Dowdle limits his role when healthy","Size concerns on early downs","Goal-line role belongs to others"],
     ["handcuff","ppr-specialist","young-stud"]),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 2026 NFL DRAFT ROOKIE CLASS
+  // Ranks 259–310 · First-year players entering the league for the 2026 season
+  // Projections reflect rookie uncertainty — high upside, lower floors
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── Rookie RBs ─────────────────────────────────────────────────────────────
+  p(259,"RB67","Omarion Hampton","LAC","RB",4,14.0,259,
+    198,185,165,"elite","low",21,10,
+    "Hampton is the consensus RB1 of the 2026 draft class — an elite three-down back from UNC with elite vision, contact balance, and receiving ability. Los Angeles traded up to select him 14th overall. In the Chargers' pass-heavy offense, his 60+ reception upside gives him immediate PPR appeal. Best rookie RB prospect since Bijan Robinson.",
+    ["Consensus RB1 of 2026 class","Elite contact balance and vision","60+ reception ceiling in LAC offense","Age 21 — long prime ahead","Immediate three-down role"],
+    ["Rookie adjustment curve","Chargers pass-first identity limits carries","JK Dobbins still on roster"],
+    ["rookie","2026-class","bellcow","young-stud","ceiling-play","ppr-specialist"]),
+
+  p(260,"RB68","Kaleb Johnson","CLE","RB",5,35.0,260,
+    168,158,142,"high","low",21,10,
+    "Johnson is the 2026 draft's RB2 — a powerful downhill runner from Iowa who broke the school rushing record. Cleveland drafted him 35th overall to be the future of their backfield. His north-south running style translates immediately, and he could be a top-20 RB if the Cleveland offense develops around him.",
+    ["RB2 of 2026 class — immediate starter","Powerful runner — elite contact balance","Cleveland committed the 35th pick","Age 21 — ascending","Iowa RBs historically produce in NFL"],
+    ["Cleveland offense ceiling concerns","Rookie adjustment to NFL speed","Limited receiving role in college"],
+    ["rookie","2026-class","bellcow","workhorse","young-stud"]),
+
+  p(261,"RB69","Dylan Sampson","TEN","RB",5,52.0,261,
+    145,136,122,"high","medium",21,5,
+    "Sampson burst onto the scene at Tennessee with elite production and was rewarded with a Day 2 pick. The Titans need backfield help after Tony Pollard's decline, giving Sampson an immediate path to a featured role in Tennessee's offense.",
+    ["Immediate path to featured role in TEN","Elite burst and yards-after-contact","Age 21 — prime upside","Tennessee offense building around youth","Explosive playmaker"],
+    ["Rookie adjustment curve","Competition for carries in TEN","Limited receiving résumé"],
+    ["rookie","2026-class","young-stud","ceiling-play","bellcow"]),
+
+  p(262,"RB70","Quinshon Judkins","PHI","RB",5,65.0,262,
+    128,120,108,"high","low",22,5,
+    "Judkins (Ole Miss/Ohio State) was one of the most productive backs in college football history and lands in a dream situation — Philadelphia's elite offensive system. He'll compete with existing backs but his talent gives him immediate flex upside and workhorse potential.",
+    ["Elite production in college — 4,000+ career yards","Philadelphia's elite OL and offensive system","Saquon Barkley mentor situation","Age 22 — prime NFL entry","Explosive playmaker in space"],
+    ["Saquon Barkley limits immediate role","Role definition unclear early in season","Rookie adjustment in complex system"],
+    ["rookie","2026-class","young-stud","ceiling-play","ppr-specialist"]),
+
+  p(263,"RB71","Devin Neal","KC","RB",6,88.0,263,
+    108,100,89,"medium","low",22,11,
+    "Neal is Kansas City's investment in their post-Pacheco backfield. A complete back from Kansas with receiving ability who fits Mahomes' offense. He'll see immediate role clarity in one of the league's best offenses.",
+    ["Kansas City's elite offensive system","Mahomes elevates every skill position","Receiving ability — scheme fit","Age 22 — productive prime","Immediate role in KC"],
+    ["Pacheco still on roster — role competition","Rookie adjustment in complex system","KC volume distributed widely"],
+    ["rookie","2026-class","young-stud","ppr-specialist","ascending"]),
+
+  // ── Rookie WRs ─────────────────────────────────────────────────────────────
+  p(264,"WR77","Tetairoa McMillan","CAR","WR",4,8.0,264,
+    188,175,156,"elite","low",21,13,
+    "McMillan is the WR1 of the 2026 draft — a 6'5\" physical freak from Arizona who dominated at every level. Carolina took him 8th overall to be Bryce Young's number one target for the next decade. His combination of size, route running, and contested-catch ability makes him an immediate WR2 with WR1 upside.",
+    ["WR1 of 2026 class — 8th overall pick","6'5\" — elite size and contested-catch","Carolina's WR1 from Day 1","Age 21 — long prime ahead","Elite route runner for his size"],
+    ["Bryce Young development dependent","Carolina offense rebuilding around youth","Rookie adjustment to NFL corners"],
+    ["rookie","2026-class","young-stud","ceiling-play","size-speed","ascending"]),
+
+  p(265,"WR78","Luther Burden III","NYG","WR",4,11.0,265,
+    178,165,148,"elite","low",21,8,
+    "Burden is one of the most explosive receivers to enter the draft in years — a Missouri product taken 11th overall by New York. He creates separation at every level of the route tree and his YAC ability is elite. The Giants desperately needed a true WR1 and Burden fits that mold immediately.",
+    ["WR2 of 2026 class — 11th overall pick","Elite YAC ability — instant impact potential","Giants' first true WR1 in years","Age 21 — generational ceiling","Elite route diversity"],
+    ["Giants QB situation uncertain","Rookie adjustment to press coverage","Heavy defensive game plans expected"],
+    ["rookie","2026-class","young-stud","ceiling-play","speed-merchant","ascending"]),
+
+  p(266,"WR79","Matthew Golden","HOU","WR",5,28.0,266,
+    158,148,132,"high","low",22,14,
+    "Golden's 4.29 speed makes him one of the fastest receivers in this class. Houston selected him to stretch the field alongside Nico Collins and give CJ Stroud a true deep threat. His immediate role as the vertical option gives him TD and big-play upside.",
+    ["4.29 speed — elite deep threat","Houston's high-scoring offense","CJ Stroud can throw the deep ball","Immediate vertical role","Age 22 — productive prime"],
+    ["Role defined as deep threat — limits target share","Rookie learning curve on route tree","Volume behind Collins"],
+    ["rookie","2026-class","young-stud","speed-merchant","ceiling-play"]),
+
+  p(267,"WR80","Isaiah Bond","ATL","WR",5,32.0,267,
+    148,138,123,"high","low",21,12,
+    "Bond is Atlanta's investment in a true slot weapon alongside Drake London. His elite quickness and short-area burst create separation in the middle of the field, and Kirk Cousins/future QB will target him heavily in the quick game. Atlanta's offense already generates targets — Bond steps into an immediate PPR role.",
+    ["Atlanta's elite offense with London and Bijan","Immediate slot role — quick-passing scheme","PPR value from Day 1","Age 21 — ascending player","Elite quickness and separation"],
+    ["London dominates targets","Rookie adjustment to NFL coverage","Role clarity depends on scheme"],
+    ["rookie","2026-class","young-stud","slot-monster","ppr-specialist","ascending"]),
+
+  p(268,"WR81","Elic Ayomanor","LV","WR",5,44.0,268,
+    132,123,110,"high","medium",22,6,
+    "Ayomanor (Stanford) is a tough, contested-catch receiver who earned his draft spot through grit and production. Las Vegas sees him as their WR1 of the future alongside Brock Bowers. His instant role in the Raiders' offense gives him immediate target-share potential.",
+    ["Las Vegas WR1 of the future","Brock Bowers creates space for WRs","Contested-catch elite — red-zone threat","Age 22 — productive prime","Immediate starter role"],
+    ["Las Vegas offense ceiling concerns","Rookie adjustment in AFC West","Competition for targets with Bowers"],
+    ["rookie","2026-class","young-stud","possession","ceiling-play"]),
+
+  p(269,"WR82","Cam Skattebo","ARI","WR",6,58.0,269,
+    118,110,98,"high","low",23,5,
+    "Skattebo is a versatile offensive weapon who lined up everywhere at Arizona State and was dominant as a ball-carrier and receiver. Arizona sees him as their Swiss Army knife — expect jet sweeps, screens, and creative usage in Kyler Murray's offense.",
+    ["Arizona State production was elite","Kyler Murray's athletic ability creates space","Versatile — lines up everywhere","Age 23 — NFL-ready body","Creative usage maximizes upside"],
+    ["Role versatility limits positional ceiling","Defined position is unclear","Rookie adjustment to speed of game"],
+    ["rookie","2026-class","young-stud","ppr-specialist","ceiling-play"]),
+
+  p(270,"WR83","Jaylin Noel","MIN","WR",6,72.0,270,
+    102,95,85,"medium","low",22,6,
+    "Noel is the slot specialist from Iowa State whom Minnesota selected to run the middle of the field. In Sam Darnold or JJ McCarthy's offense, he provides a reliable target who catches everything thrown his way.",
+    ["Minnesota uses heavy slot formations","Safe hands — elite catch radius","Immediate slot role in MIN","Age 22 — ascending player","Consistent production in college"],
+    ["Jefferson and Addison dominate targets","Rookie floor is limited initially","Volume dependent on development"],
+    ["rookie","2026-class","young-stud","slot-monster","floor-player"]),
+
+  p(271,"WR84","Jalen Royals","TEN","WR",6,78.0,271,
+    95,88,78,"medium","low",22,5,
+    "Royals put up massive production at Utah State and Tennessee invested a Day 2 pick to pair him with Tyjae Spears. A reliable possession receiver who runs clean routes in the intermediate game.",
+    ["Tennessee's new WR1","Complementary weapons help him see coverage","Age 22 — ascending player","Route running beyond his years","Consistent hands in college"],
+    ["Tennessee QB development uncertain","Rookie adjustment to NFL corners","Workload definition unclear"],
+    ["rookie","2026-class","young-stud","possession","ascending"]),
+
+  // ── Rookie QBs ─────────────────────────────────────────────────────────────
+  p(272,"QB35","Dillon Gabriel","NE","QB",5,3.0,272,
+    278,258,278,"elite","medium",24,14,
+    "Gabriel (Oregon) won the 2024 Heisman Trophy and is the consensus QB1 of the 2026 class. New England selected him 3rd overall to be Drake Maye's backup and eventual starter. His elite accuracy, mobility, and football IQ translate immediately. If he wins the starting role in camp, he's a QB1 value — explosive running ability adds a guaranteed floor.",
+    ["2024 Heisman winner — elite college production","3rd overall pick — franchise investment","Dual-threat ability adds rushing floor","Elite accuracy and decision-making","New England finally has their QB of the future"],
+    ["Behind Drake Maye — starting role uncertain","Rookie adjustment to NFL speed","New England offense still rebuilding"],
+    ["rookie","2026-class","young-stud","dual-threat","ceiling-play","monitor-situation","boom-bust"]),
+
+  p(273,"QB36","Nico Iamaleava","TEN","QB",6,18.0,273,
+    245,228,245,"high","medium",22,5,
+    "Iamaleava (Tennessee) is the 2026 draft's QB2 — a 6'6\" pocket passer with an elite arm. Tennessee selected him to eventually replace Will Levis and build around for the future. He won't start Week 1 but if he earns the job mid-season, he's a streaming QB with big-play upside.",
+    ["6'6\" frame — elite arm talent","Tennessee's future franchise QB","Big-arm traits translate at NFL level","Age 22 — massive ceiling","Tennessee invests heavily in him"],
+    ["Will Levis blocking his path","Rookie accuracy needs refinement","Starting role uncertain in 2026"],
+    ["rookie","2026-class","young-stud","ceiling-play","boom-bust","monitor-situation"]),
+
+  p(274,"QB37","Garrett Nussmeier","IND","QB",6,22.0,274,
+    232,215,232,"high","medium",23,14,
+    "Nussmeier (LSU) is a refined pocket passer with an elite release and NFL-ready mechanics. Indianapolis selected him to compete with Anthony Richardson — his accuracy and football IQ could earn him the starting role. If Richardson continues struggling, Nussmeier becomes a must-stream QB.",
+    ["LSU production was elite — NFL-ready mechanics","Indianapolis could hand him the job","Elite release and accuracy for a rookie","Age 23 — NFL-ready body","Richardson's struggles open the door"],
+    ["Richardson competition for starting role","LSU system differs from NFL complexity","Rookie mistakes early"],
+    ["rookie","2026-class","young-stud","ceiling-play","boom-bust","monitor-situation"]),
+
+  // ── Rookie TEs ─────────────────────────────────────────────────────────────
+  p(275,"TE43","Tyler Warren","PIT","TE",4,16.0,275,
+    175,162,145,"elite","low",23,9,
+    "Warren (Penn State) is the consensus TE1 of the 2026 class and a generational prospect — 6'6\", 260 lbs with 4.57 speed and 104 receptions in 2024. Pittsburgh selected him 16th overall. His combination of elite receiving ability and blocking gives him immediate TE1 upside in a Steelers offense that will feature him prominently from Day 1.",
+    ["TE1 of 2026 class — generational prospect","104 receptions in 2024 — historic production","Pittsburgh committed the 16th pick","6'6\", 260 lbs with 4.57 speed","Immediate TE1 role in PIT"],
+    ["Rookie TEs historically take time","Pittsburgh offense ceiling concerns","Justin Fields/QB situation"],
+    ["rookie","2026-class","young-stud","ceiling-play","elite-te","ascending","ppr-specialist"]),
+
+  p(276,"TE44","Colston Loveland","CHI","TE",5,38.0,276,
+    142,132,118,"high","low",22,7,
+    "Loveland (Michigan) is the 2026 draft's TE2 — an elite receiving tight end who projects as an immediate match-up nightmare in Chicago's young offense. Caleb Williams will look his way early and often, and their college connection (Loveland tore up Big Ten defenses) gives them built-in chemistry.",
+    ["Chicago's TE1 alongside Caleb Williams' growth","Elite receiving ability — immediate PPR upside","Age 22 — ascending player","Williams will target him heavily","Excellent route runner for TE"],
+    ["Rookie TEs rarely produce immediately","Chicago offense still developing","Limited blocking ability"],
+    ["rookie","2026-class","young-stud","ceiling-play","ppr-specialist","ascending"]),
+
+  p(277,"TE45","Harold Fannin Jr","CLE","TE",5,42.0,277,
+    128,119,106,"high","medium",22,10,
+    "Fannin (Bowling Green) put up historically great production at the FBS level and is one of the most complete receiving TEs in this class. Cleveland sees him as an immediate impact player who can help their offense — his contested-catch ability and YAC make him dangerous.",
+    ["Historically productive college career","Cleveland's TE1 from Day 1","Immediate red-zone target","Elite contested-catch ability","Age 22 — ascending player"],
+    ["Cleveland offense ceiling concerns","Rookie TE adjustment to NFL athleticism","Limited proven competition level"],
+    ["rookie","2026-class","young-stud","ceiling-play","td-dependent","ascending"]),
+
+  // ── Additional 2026 Rookie Skill Players ────────────────────────────────────
+  p(278,"RB72","TreVeyon Henderson","DET","RB",6,56.0,278,
+    112,104,93,"high","low",22,5,
+    "Henderson (Ohio State) is a lightning-quick scatback who Detroit selected to complement Jahmyr Gibbs. He's an elite pass-catcher who will immediately see third-down and two-minute drill snaps, giving him PPR floor from Day 1 in the best offense in football.",
+    ["Detroit's elite offensive system","Complementary piece to Gibbs — immediate PPR role","Elite receiving ability from backfield","Age 22 — ascending player","Detroit offense generates endless opportunities"],
+    ["Gibbs limits his carrying role","Defined primarily as a receiving back","Volume ceiling in committee"],
+    ["rookie","2026-class","young-stud","ppr-specialist","handcuff"]),
+
+  p(279,"WR85","Dakorien Moore","JAX","WR",6,60.0,279,
+    98,91,81,"high","low",21,7,
+    "Moore is one of the most explosive players in the 2026 class — a track star (10.2 100m) who translates speed to football. Jacksonville selected him to revitalize their passing attack. His raw speed creates instant impact as a vertical threat.",
+    ["Elite speed — track star athleticism","Jacksonville's WR1 of the future","Age 21 — massive development ceiling","Immediate vertical role","Speed translates at every level"],
+    ["Rookie route running needs development","Jacksonville QB situation uncertain","Volume and consistency unclear"],
+    ["rookie","2026-class","young-stud","speed-merchant","ceiling-play","boom-bust"]),
+
+  p(280,"WR86","Jack Bech","NO","WR",6,68.0,280,
+    88,82,73,"medium","low",23,12,
+    "Bech (TCU) is a polished route runner with reliable hands who New Orleans selected to pair with Rashid Shaheed. His NFL-ready skill set means he could contribute sooner than most rookies — good hands and football IQ translate immediately.",
+    ["NFL-ready route running and hands","New Orleans targets WR development","Complements Shaheed's speed","Age 23 — mature entry","Derek Carr's reliable target"],
+    ["Limited elite athleticism","New Orleans offense ceiling concerns","Shaheed gets deep targets"],
+    ["rookie","2026-class","young-stud","possession","floor-player"]),
+
+  p(281,"RB73","Woody Marks","MIA","RB",7,82.0,281,
+    85,79,70,"medium","low",23,10,
+    "Marks (USC) is a reliable dual-threat back who Miami drafted to provide depth behind De'Von Achane. His receiving ability gives him PPR streaming value if Achane misses time in Miami's explosive offense.",
+    ["Miami's explosive offense","Receiving ability fits their scheme","De'Von Achane handcuff with upside","Age 23 — NFL-ready","Miami commits to the pass game"],
+    ["Achane limits his role when healthy","Defined primarily as a depth piece","Inconsistent role early"],
+    ["rookie","2026-class","young-stud","handcuff","ppr-specialist"]),
+
+  p(282,"QB38","Jaxson Dart","NYG","QB",7,6.0,282,
+    215,198,215,"high","high",22,8,
+    "Dart (Ole Miss) is a gunslinger with an elite arm who the Giants selected to compete with their current options. His downfield accuracy and mobility give him fantasy upside if he wins the starting role — but his inconsistency makes him boom-or-bust.",
+    ["Ole Miss — elite arm and downfield ability","Giants committed a top-10 pick","Immediate competition for starting role","Age 22 — massive ceiling if he starts","Dual-threat ability adds floor"],
+    ["Turnover-prone in college","Needs refinement before starting","Inconsistent decision-making"],
+    ["rookie","2026-class","young-stud","boom-bust","monitor-situation","dual-threat"]),
+
+  p(283,"WR87","Dont'e Thornton","BAL","WR",7,72.0,283,
+    78,72,64,"high","medium",23,14,
+    "Thornton (Tennessee) is a big-bodied speedster who Baltimore drafted to stretch the field. In Lamar Jackson's offense, his speed creates space for others while his ceiling is elite when Jackson targets him downfield.",
+    ["Lamar Jackson is one of the best deep-ball QBs","Baltimore's offense creates opportunities","Elite speed with improved route running","Age 23 — NFL-ready body","Red-zone and big-play upside"],
+    ["Limited slot routes in college","Target volume uncertain","Baltimore WR hierarchy unproven"],
+    ["rookie","2026-class","young-stud","speed-merchant","ceiling-play","boom-bust"]),
+
+  p(284,"TE46","Terrance Ferguson","WAS","TE",7,84.0,284,
+    95,88,78,"high","medium",23,14,
+    "Ferguson (Oregon) is Washington's investment at TE alongside the Daniels-Robinson offensive core. An athletic receiving TE who fits the modern NFL mold — he creates mismatches and should see immediate red-zone targets.",
+    ["Washington's dynamic offense with Daniels","Immediate red-zone target role","Athletic mismatch at the TE position","Age 23 — ascending","Daniels loves checking down to TEs"],
+    ["Rookie TE adjustment","Brian Robinson draws defensive attention","Role definition in early weeks"],
+    ["rookie","2026-class","young-stud","ceiling-play","td-dependent"]),
+
+  p(285,"RB74","Marcus Yarns","GB","RB",7,95.0,285,
+    72,67,59,"medium","low",22,5,
+    "Yarns is Green Bay's developmental RB — a physical runner who can handle short-yardage behind Josh Jacobs. He'll earn carries as the season progresses and represents dynasty upside in one of the more run-friendly offenses in the NFC.",
+    ["Green Bay's run-friendly offensive scheme","Josh Jacobs handcuff in strong offense","Short-yardage and TD opportunity","Age 22 — long developmental window","Green Bay patient with developing talent"],
+    ["Jacobs limits his role in 2026","Limited receiving résumé","Needs time to develop NFL game"],
+    ["rookie","2026-class","young-stud","handcuff","td-dependent","ascending"]),
 ];
 
 export const TIER_COLORS: Record<number, { bg: string; border: string; text: string; label: string }> = {
