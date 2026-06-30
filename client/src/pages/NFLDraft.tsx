@@ -996,7 +996,7 @@ function DraftAssistant({
             <div>
               <label className="block text-sm font-semibold text-slate-300 mb-2">Rounds</label>
               <div className="flex gap-2 flex-wrap">
-                {[13, 14, 15, 16].map((n) => (
+                {[12, 13, 14, 15, 16].map((n) => (
                   <button
                     key={n}
                     onClick={() => setSettings((s) => ({ ...s, numRounds: n }))}
