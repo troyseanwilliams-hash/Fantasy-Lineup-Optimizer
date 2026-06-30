@@ -46,6 +46,52 @@ const KEYWORD_RULES: KeywordRule[] = [
   { keywords: ["monitoring","watch","questionable to play"], direction:"neutral", rankChange: 3 },
 ];
 
+// ── ESPN NFL Roster fetcher ───────────────────────────────────────────────────
+
+// ESPN team id → our abbreviation
+const ESPN_TEAMS: Record<number, string> = {
+  22:"ARI", 1:"ATL",  33:"BAL", 2:"BUF",  29:"CAR", 3:"CHI",
+  4:"CIN",  5:"CLE",  6:"DAL",  7:"DEN",  8:"DET",  9:"GB",
+  34:"HOU", 11:"IND", 30:"JAX", 12:"KC",  13:"LV",  24:"LAC",
+  14:"LAR", 15:"MIA", 16:"MIN", 17:"NE",  18:"NO",  19:"NYG",
+  20:"NYJ", 21:"PHI", 23:"PIT", 25:"SF",  26:"SEA", 27:"TB",
+  10:"TEN", 28:"WAS",
+};
+
+// Returns normalized player name → current team abbreviation
+async function fetchNFLRosterTeams(): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const ids = Object.keys(ESPN_TEAMS).map(Number);
+
+  // Fetch all rosters with concurrency limit of 4
+  for (let i = 0; i < ids.length; i += 4) {
+    const batch = ids.slice(i, i + 4);
+    await Promise.all(batch.map(async (id) => {
+      const abbr = ESPN_TEAMS[id];
+      try {
+        const res = await fetch(
+          `https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/${id}/roster`,
+          { signal: AbortSignal.timeout(8_000) }
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        for (const group of data.athletes ?? []) {
+          for (const athlete of group.items ?? []) {
+            if (athlete.fullName) {
+              map.set(normalizeName(athlete.fullName), abbr);
+            }
+          }
+        }
+      } catch {
+        // skip failed team — don't block the rest
+      }
+    }));
+  }
+
+  console.log(`[NFLDraft] Roster fetch complete — ${map.size} players mapped across ${ids.length} teams`);
+  return map;
+}
+
 // ── ESPN NFL News fetcher ─────────────────────────────────────────────────────
 
 const ESPN_NFL_NEWS_URL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=100";
@@ -150,17 +196,26 @@ export async function getDraftRankings(force = false): Promise<LiveDraftPlayer[]
     return rankingsCache!.players;
   }
 
-  // Fetch latest news
-  const articles = await fetchESPNNFLNews();
+  // Fetch latest news + current rosters in parallel
+  const [articles, rosterTeams] = await Promise.all([
+    fetchESPNNFLNews(),
+    fetchNFLRosterTeams(),
+  ]);
   const now = new Date().toISOString();
 
-  // Build player map from seed data
-  const players: LiveDraftPlayer[] = NFL_DRAFT_RANKINGS_2026.map((p) => ({
-    ...p,
-    newsImpact: null,
-    adjustedRank: p.rank,
-    lastUpdated: now,
-  }));
+  // Build player list, patching team from live ESPN rosters where found
+  let updated = 0;
+  const players: LiveDraftPlayer[] = NFL_DRAFT_RANKINGS_2026.map((p) => {
+    const liveTeam = rosterTeams.get(normalizeName(p.name));
+    if (liveTeam && liveTeam !== p.team) {
+      updated++;
+      return { ...p, team: liveTeam, newsImpact: null, adjustedRank: p.rank, lastUpdated: now };
+    }
+    return { ...p, newsImpact: null, adjustedRank: p.rank, lastUpdated: now };
+  });
+  if (updated > 0) {
+    console.log(`[NFLDraft] Updated team for ${updated} players from live ESPN rosters`);
+  }
 
   // Apply news impacts
   for (const article of articles) {
