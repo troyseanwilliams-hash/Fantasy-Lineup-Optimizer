@@ -494,6 +494,52 @@ function getRosterNeeds(
   return needs;
 }
 
+// Per-player insight for the draft queue
+function getQueueInsight(
+  player: LiveDraftPlayer,
+  available: LiveDraftPlayer[],
+  myPicks: PickEntry[],
+  currentPick: PickEntry | undefined,
+  settings: LeagueSettings,
+): string {
+  if (!currentPick) return player.reasoning.slice(0, 120) + "…";
+
+  const format = settings.scoringFormat;
+  const round  = currentPick.round;
+  const proj   = format === "ppr" ? player.projPPR : format === "half" ? player.projHalf : player.projStd;
+  const needs  = getRosterNeeds(myPicks, settings);
+  const need   = needs[player.position] ?? 0;
+
+  // VOR vs replacement at that position among remaining available
+  const posPool = available
+    .filter((p) => p.position === player.position)
+    .sort((a, b) => (format === "ppr" ? b.projPPR - a.projPPR : b.projHalf - a.projHalf));
+  const replacementIdx = Math.min(Math.round(settings.numTeams * 1.2), posPool.length - 1);
+  const replacementProj = posPool[replacementIdx]
+    ? (format === "ppr" ? posPool[replacementIdx].projPPR : posPool[replacementIdx].projHalf)
+    : 0;
+  const vor = proj - replacementProj;
+
+  // ADP vs current overall pick
+  const adpDiff = Math.round(player.adp) - player.adjustedRank;
+  const pickDiff = Math.round(player.adp) - currentPick.overall;
+
+  const parts: string[] = [];
+  parts.push(`Projects ${proj.toFixed(1)} pts (${format.toUpperCase()}).`);
+  if (vor > 2) parts.push(`${vor.toFixed(1)} pts above ${player.position} replacement.`);
+  if (need > 0) parts.push(`Fills your ${player.position} need.`);
+  if (pickDiff > 8)  parts.push(`Strong value — ADP is pick ${Math.round(player.adp)}, you're at #${currentPick.overall}.`);
+  if (pickDiff < -8) parts.push(`⚠ Reach by ~${Math.abs(pickDiff)} picks vs ADP.`);
+  if (adpDiff >= 8)  parts.push(`We rank them ${adpDiff} spots ahead of consensus.`);
+  if (player.newsImpact?.direction === "up")   parts.push("📈 Recent positive news.");
+  if (player.newsImpact?.direction === "down")  parts.push(`⚠ ${player.newsImpact.headline}`);
+  if (player.tags.includes("handcuff")) parts.push("Handcuff — protects a key starter.");
+  if (player.tags.includes("sleeper"))  parts.push("Sleeper upside — ceiling play.");
+  if (player.risk === "high" && round <= 5) parts.push("High injury risk — early-round flag.");
+
+  return parts.join(" ");
+}
+
 function aiRecommendation(
   available: LiveDraftPlayer[],
   myPicks: PickEntry[],
@@ -787,6 +833,7 @@ function DraftAssistant({
   const [paused, setPaused] = useState(false);
   const [autoDraft, setAutoDraft] = useState(true);
   const [draftComplete, setDraftComplete] = useState(false);
+  const [draftQueue, setDraftQueue] = useState<LiveDraftPlayer[]>([]);
   const [lastAutoPick, setLastAutoPick] = useState<{ name: string; team: string } | null>(null);
   const [savedToast, setSavedToast] = useState(false);
   const boardRef = useRef<HTMLDivElement>(null);
@@ -971,6 +1018,33 @@ function DraftAssistant({
 
     return () => clearTimeout(delay);
   }, [configured, draftComplete, paused, autoDraft, currentPick, currentPickIdx, autoPickOtherNow, advance]);
+
+  // Remove drafted players from queue automatically
+  useEffect(() => {
+    const draftedIds = new Set(
+      board.filter((p) => p.player).map((p) => p.player!.id)
+    );
+    setDraftQueue((prev) => prev.filter((p) => !draftedIds.has(p.id)));
+  }, [board]);
+
+  const addToQueue = useCallback((player: LiveDraftPlayer) => {
+    setDraftQueue((prev) =>
+      prev.some((p) => p.id === player.id) ? prev : [...prev, player]
+    );
+  }, []);
+
+  const removeFromQueue = useCallback((playerId: number) => {
+    setDraftQueue((prev) => prev.filter((p) => p.id !== playerId));
+  }, []);
+
+  const moveInQueue = useCallback((from: number, to: number) => {
+    setDraftQueue((prev) => {
+      const next = [...prev];
+      const [item] = next.splice(from, 1);
+      next.splice(to, 0, item);
+      return next;
+    });
+  }, []);
 
   // Configuration screen
   if (!configured) {
@@ -1335,31 +1409,54 @@ function DraftAssistant({
 
           {/* Player list */}
           <div className="space-y-1 max-h-[520px] overflow-y-auto">
-            {filteredAvailable.slice(0, 60).map((player) => (
+            {filteredAvailable.slice(0, 60).map((player) => {
+              const inQueue = draftQueue.some((q) => q.id === player.id);
+              return (
               <div
                 key={player.id}
-                onClick={() => isMyTurn && makePick(player)}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors group ${isMyTurn ? "cursor-pointer hover:bg-slate-700/50" : "opacity-50 cursor-default"}`}
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors group ${inQueue ? "bg-blue-600/10 border border-blue-500/20" : "hover:bg-slate-700/50"}`}
               >
                 <RankBadge rank={player.adjustedRank} />
-                <div className="flex-1 min-w-0">
+                <div
+                  className="flex-1 min-w-0 cursor-pointer"
+                  onClick={() => isMyTurn && makePick(player)}
+                >
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-white group-hover:text-blue-300 transition-colors">{player.name}</span>
+                    <span className={`text-sm font-semibold transition-colors ${isMyTurn ? "text-white group-hover:text-blue-300" : "text-slate-300"}`}>{player.name}</span>
                     <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${posClass(player.position)}`}>{player.position}</span>
                     <span className="text-xs text-slate-500">{player.team}</span>
+                    {inQueue && <span className="text-xs text-blue-400 font-bold">★ Queued</span>}
                     <NewsImpactBadge impact={player.newsImpact} />
                   </div>
                   <div className="text-xs text-slate-500">ADP {player.adp} · Bye {player.bye} · {player.tierLabel}</div>
                 </div>
-                <div className="text-right">
+                <div className="text-right mr-1">
                   <div className="text-sm font-bold text-white">{getProj(player, settings.scoringFormat)}</div>
                   <div className="text-xs text-slate-500">pts</div>
                 </div>
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-blue-400 font-semibold">
-                  Draft →
-                </div>
+                {/* Queue toggle button — always available */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); inQueue ? removeFromQueue(player.id) : addToQueue(player); }}
+                  title={inQueue ? "Remove from queue" : "Add to draft queue"}
+                  className={`shrink-0 text-xs px-2 py-1 rounded border font-semibold transition-colors ${
+                    inQueue
+                      ? "bg-blue-600/20 border-blue-500/30 text-blue-400 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30"
+                      : "opacity-0 group-hover:opacity-100 bg-slate-700/50 border-slate-600/30 text-slate-400 hover:text-blue-300 hover:border-blue-500/30"
+                  }`}
+                >
+                  {inQueue ? "★" : "+ Queue"}
+                </button>
+                {isMyTurn && (
+                  <button
+                    onClick={() => makePick(player)}
+                    className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-xs px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-semibold"
+                  >
+                    Draft
+                  </button>
+                )}
               </div>
-            ))}
+              );
+            })}
             {filteredAvailable.length === 0 && (
               <div className="text-center text-slate-500 text-sm py-8">No players match your filter.</div>
             )}
@@ -1367,8 +1464,120 @@ function DraftAssistant({
         </div>
       </div>
 
-      {/* Right: My Team + Draft Board */}
+      {/* Right: Queue + My Team + Draft Board */}
       <div className="space-y-3">
+
+        {/* Draft Queue */}
+        <div className="bg-slate-800/60 rounded-2xl border border-slate-700/40 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-white">
+              Draft Queue
+              {draftQueue.length > 0 && (
+                <span className="ml-2 text-xs font-normal text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full">
+                  {draftQueue.length}
+                </span>
+              )}
+            </h3>
+            {draftQueue.length > 0 && (
+              <button
+                onClick={() => setDraftQueue([])}
+                className="text-xs text-slate-500 hover:text-red-400 transition-colors"
+              >
+                Clear all
+              </button>
+            )}
+          </div>
+
+          {draftQueue.length === 0 ? (
+            <p className="text-slate-500 text-xs leading-relaxed">
+              Click <span className="text-blue-400 font-semibold">+ Queue</span> on any player to add them here. When it's your pick, you'll see insights and a one-click Draft button for each queued player.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {draftQueue.map((player, idx) => {
+                const insight = getQueueInsight(player, available, myPicks, currentPick ?? undefined, settings);
+                return (
+                  <div
+                    key={player.id}
+                    className={`rounded-xl border p-3 transition-colors ${
+                      isMyTurn && idx === 0
+                        ? "bg-blue-600/15 border-blue-500/40"
+                        : "bg-slate-900/50 border-slate-700/30"
+                    }`}
+                  >
+                    {/* Player header */}
+                    <div className="flex items-start gap-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs text-slate-500 font-mono">#{idx + 1}</span>
+                          <span className="text-sm font-bold text-white">{player.name}</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${posClass(player.position)}`}>
+                            {player.position}
+                          </span>
+                          <span className="text-xs text-slate-500">{player.team}</span>
+                          {isMyTurn && idx === 0 && (
+                            <span className="text-xs text-blue-400 font-semibold">← Next</span>
+                          )}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          Rank #{player.adjustedRank} · {getProj(player, settings.scoringFormat).toFixed(1)} pts · ADP {player.adp}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => removeFromQueue(player.id)}
+                        className="shrink-0 text-slate-600 hover:text-red-400 transition-colors text-sm font-bold"
+                        title="Remove from queue"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    {/* Insight */}
+                    <p className="text-xs text-slate-400 leading-relaxed mb-2">{insight}</p>
+
+                    {/* News headline if present */}
+                    {player.newsImpact && (
+                      <div className={`text-xs px-2 py-1 rounded mb-2 ${
+                        player.newsImpact.direction === "up"
+                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                          : "bg-red-500/10 text-red-400 border border-red-500/20"
+                      }`}>
+                        {player.newsImpact.direction === "up" ? "📈" : "⚠"} {player.newsImpact.headline}
+                      </div>
+                    )}
+
+                    {/* Actions row */}
+                    <div className="flex items-center gap-2">
+                      {isMyTurn && (
+                        <button
+                          onClick={() => { makePick(player); removeFromQueue(player.id); }}
+                          className="flex-1 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-colors"
+                        >
+                          Draft {player.name.split(" ").pop()}
+                        </button>
+                      )}
+                      <div className="flex gap-1 ml-auto">
+                        <button
+                          onClick={() => moveInQueue(idx, Math.max(0, idx - 1))}
+                          disabled={idx === 0}
+                          className="text-xs px-1.5 py-1 rounded bg-slate-700/50 text-slate-400 hover:text-white disabled:opacity-30 transition-colors"
+                          title="Move up"
+                        >▲</button>
+                        <button
+                          onClick={() => moveInQueue(idx, Math.min(draftQueue.length - 1, idx + 1))}
+                          disabled={idx === draftQueue.length - 1}
+                          className="text-xs px-1.5 py-1 rounded bg-slate-700/50 text-slate-400 hover:text-white disabled:opacity-30 transition-colors"
+                          title="Move down"
+                        >▼</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         {/* My Team */}
         <div className="bg-slate-800/60 rounded-2xl border border-slate-700/40 p-4">
           <h3 className="font-bold text-white mb-3">
