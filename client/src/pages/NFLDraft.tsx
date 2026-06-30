@@ -637,7 +637,13 @@ function PickClock({ seconds, isMyPick }: { seconds: number; isMyPick: boolean }
 
 // ── Live Draft Assistant Tab ──────────────────────────────────────────────────
 
-function DraftAssistant({ allPlayers }: { allPlayers: LiveDraftPlayer[] }) {
+function DraftAssistant({
+  allPlayers,
+  onTeamUpdate,
+}: {
+  allPlayers: LiveDraftPlayer[];
+  onTeamUpdate?: (players: LiveDraftPlayer[], format: "ppr"|"half"|"standard", slots: LeagueSettings["rosterSlots"]) => void;
+}) {
   const [settings, setSettings] = useState<LeagueSettings>(() => {
     const saved = loadOrderFromStorage();
     if (saved && saved.length > 0) {
@@ -735,6 +741,13 @@ function DraftAssistant({ allPlayers }: { allPlayers: LiveDraftPlayer[] }) {
   const currentPick = board[currentPickIdx] ?? null;
   const myPickedPlayers = myPicks.filter((p) => p.player !== null);
   const isMyTurn = !!currentPick && currentPick.team === "user" && !currentPick.player;
+
+  // Notify parent whenever the user's roster changes
+  useEffect(() => {
+    if (!configured || !onTeamUpdate) return;
+    const drafted = myPickedPlayers.map((p) => p.player!);
+    onTeamUpdate(drafted, settings.scoringFormat, settings.rosterSlots);
+  }, [myPickedPlayers, settings.scoringFormat, settings.rosterSlots, configured, onTeamUpdate]);
 
   const aiRec = useMemo(() => {
     if (!isMyTurn) return null;
@@ -984,41 +997,27 @@ function DraftAssistant({ allPlayers }: { allPlayers: LiveDraftPlayer[] }) {
 
   // Draft complete screen
   if (draftComplete) {
+    const draftedPlayers = myPickedPlayers.map((p) => p.player!);
     return (
       <div className="space-y-4">
-        <div className="rounded-2xl bg-gradient-to-r from-emerald-900/40 to-blue-900/40 border border-emerald-500/30 p-8 text-center">
-          <div className="text-4xl mb-3">🏆</div>
-          <h3 className="text-2xl font-bold text-white mb-2">Draft Complete!</h3>
-          <p className="text-slate-400 text-sm mb-6">Here's your final roster. Good luck this season.</p>
-          <div className="flex justify-center gap-3">
-            <button onClick={startDraft} className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition-colors">
+        <div className="rounded-2xl bg-gradient-to-r from-emerald-900/40 to-blue-900/40 border border-emerald-500/30 p-6 text-center">
+          <div className="text-4xl mb-2">🏆</div>
+          <h3 className="text-2xl font-bold text-white mb-1">Draft Complete!</h3>
+          <p className="text-slate-400 text-sm mb-4">Your team has been graded below.</p>
+          <div className="flex justify-center gap-3 flex-wrap">
+            <button onClick={startDraft} className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition-colors">
               Re-Draft Same Settings
             </button>
-            <button onClick={resetDraft} className="px-6 py-3 rounded-xl bg-slate-700/50 hover:bg-slate-700 text-slate-300 font-bold text-sm border border-slate-600/30 transition-colors">
+            <button onClick={resetDraft} className="px-5 py-2.5 rounded-xl bg-slate-700/50 hover:bg-slate-700 text-slate-300 font-bold text-sm border border-slate-600/30 transition-colors">
               Change Settings
             </button>
           </div>
         </div>
 
-        {/* Final roster */}
-        <div className="bg-slate-800/60 rounded-2xl border border-slate-700/40 p-4">
-          <h3 className="font-bold text-white mb-3">Your Final Roster</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {myPickedPlayers.map((pick, i) => (
-              <div key={i} className="flex items-center gap-2 rounded-lg bg-slate-900/50 px-3 py-2">
-                <span className="text-xs text-slate-500 w-6 text-right shrink-0">R{pick.round}</span>
-                <span className={`text-xs px-1.5 py-0.5 rounded font-bold ${posClass(pick.player!.position)}`}>
-                  {pick.player!.position}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-white truncate">{pick.player!.name}</div>
-                  <div className="text-xs text-slate-500">{pick.player!.team} · Bye {pick.player!.bye}</div>
-                </div>
-                <div className="text-xs font-bold text-slate-400">#{pick.player!.adjustedRank}</div>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* Inline analyzer on complete */}
+        <DraftAnalyzer
+          input={{ players: draftedPlayers, format: settings.scoringFormat, slots: settings.rosterSlots }}
+        />
       </div>
     );
   }
@@ -1578,23 +1577,423 @@ function PricingCTA() {
   );
 }
 
+// ── Draft Analyzer ────────────────────────────────────────────────────────────
+
+type Grade = "A+" | "A" | "A-" | "B+" | "B" | "B-" | "C+" | "C" | "C-" | "D+" | "D" | "D-" | "F";
+
+interface CategoryScore {
+  key: string;
+  name: string;
+  icon: string;
+  grade: Grade;
+  score: number;   // 0–100
+  headline: string;
+  details: string[];
+}
+
+function scoreToGrade(s: number): Grade {
+  if (s >= 97) return "A+";
+  if (s >= 93) return "A";
+  if (s >= 90) return "A-";
+  if (s >= 87) return "B+";
+  if (s >= 83) return "B";
+  if (s >= 80) return "B-";
+  if (s >= 77) return "C+";
+  if (s >= 73) return "C";
+  if (s >= 70) return "C-";
+  if (s >= 67) return "D+";
+  if (s >= 63) return "D";
+  if (s >= 60) return "D-";
+  return "F";
+}
+
+const GRADE_COLORS: Record<string, { text: string; bg: string; border: string; bar: string }> = {
+  "A+": { text:"text-emerald-300", bg:"bg-emerald-500/10", border:"border-emerald-500/30", bar:"bg-emerald-400" },
+  "A":  { text:"text-emerald-400", bg:"bg-emerald-500/10", border:"border-emerald-500/30", bar:"bg-emerald-400" },
+  "A-": { text:"text-emerald-400", bg:"bg-emerald-500/10", border:"border-emerald-500/30", bar:"bg-emerald-400" },
+  "B+": { text:"text-blue-300",    bg:"bg-blue-500/10",    border:"border-blue-500/30",    bar:"bg-blue-400"    },
+  "B":  { text:"text-blue-400",    bg:"bg-blue-500/10",    border:"border-blue-500/30",    bar:"bg-blue-400"    },
+  "B-": { text:"text-blue-400",    bg:"bg-blue-500/10",    border:"border-blue-500/30",    bar:"bg-blue-400"    },
+  "C+": { text:"text-amber-300",   bg:"bg-amber-500/10",   border:"border-amber-500/30",   bar:"bg-amber-400"   },
+  "C":  { text:"text-amber-400",   bg:"bg-amber-500/10",   border:"border-amber-500/30",   bar:"bg-amber-400"   },
+  "C-": { text:"text-amber-400",   bg:"bg-amber-500/10",   border:"border-amber-500/30",   bar:"bg-amber-400"   },
+  "D+": { text:"text-orange-400",  bg:"bg-orange-500/10",  border:"border-orange-500/30",  bar:"bg-orange-400"  },
+  "D":  { text:"text-orange-400",  bg:"bg-orange-500/10",  border:"border-orange-500/30",  bar:"bg-orange-400"  },
+  "D-": { text:"text-orange-400",  bg:"bg-orange-500/10",  border:"border-orange-500/30",  bar:"bg-orange-400"  },
+  "F":  { text:"text-red-400",     bg:"bg-red-500/10",     border:"border-red-500/30",     bar:"bg-red-500"     },
+};
+
+function gradeColors(g: Grade) { return GRADE_COLORS[g] ?? GRADE_COLORS["C"]; }
+
+// Identify positional starters from a pool
+function getStarters(
+  players: LiveDraftPlayer[],
+  slots: LeagueSettings["rosterSlots"]
+): LiveDraftPlayer[] {
+  const byPos: Record<string, LiveDraftPlayer[]> = {};
+  for (const p of players) {
+    byPos[p.position] = [...(byPos[p.position] ?? []), p];
+  }
+  const starters: LiveDraftPlayer[] = [];
+  for (const [pos, count] of Object.entries(slots)) {
+    if (pos === "FLEX") continue;
+    const pool = (byPos[pos] ?? []).slice(0, count);
+    starters.push(...pool);
+  }
+  // FLEX: best remaining RB/WR/TE not already selected
+  const selectedIds = new Set(starters.map((p) => p.id));
+  const flexPool = players
+    .filter((p) => ["RB","WR","TE"].includes(p.position) && !selectedIds.has(p.id))
+    .slice(0, slots.FLEX ?? 1);
+  starters.push(...flexPool);
+  return starters;
+}
+
+function analyzeDraft(
+  players: LiveDraftPlayer[],
+  format: "ppr" | "half" | "standard",
+  slots: LeagueSettings["rosterSlots"]
+): { categories: CategoryScore[]; overallGrade: Grade; overallScore: number; insights: string[] } {
+  if (players.length === 0) {
+    return { categories: [], overallGrade: "F", overallScore: 0, insights: [] };
+  }
+
+  const starters = getStarters(players, slots);
+  const bench = players.filter((p) => !starters.some((s) => s.id === p.id));
+
+  // ── 1. Starter Quality ──────────────────────────────────────────────────────
+  const avgStarterRank = starters.length
+    ? starters.reduce((s, p) => s + p.adjustedRank, 0) / starters.length
+    : 999;
+  const starterScore = Math.max(20, Math.round(100 - (avgStarterRank - 5) * 0.82));
+  const starterDetails: string[] = starters.slice(0, 6).map((p) =>
+    `${p.position} ${p.name} — Rank #${p.adjustedRank} (${p.tierLabel})`
+  );
+  if (starters.length < Object.values(slots).reduce((a, b) => a + b, 0) - (slots.FLEX ?? 0)) {
+    starterDetails.push("⚠ Some roster slots appear unfilled.");
+  }
+
+  // ── 2. Bench Depth ──────────────────────────────────────────────────────────
+  const avgBenchRank = bench.length
+    ? bench.reduce((s, p) => s + p.adjustedRank, 0) / bench.length
+    : 150;
+  const depthScore = Math.max(20, Math.round(100 - (avgBenchRank - 30) * 0.58));
+  const depthDetails = bench.length
+    ? [`${bench.length} bench players — avg rank #${Math.round(avgBenchRank)}`]
+    : ["No bench players drafted yet."];
+  if (bench.some((p) => p.adjustedRank <= 40)) {
+    depthDetails.push("Strong bench stash — you have late-round value picks.");
+  }
+
+  // ── 3. Positional Balance ───────────────────────────────────────────────────
+  const posCounts: Record<string, number> = {};
+  for (const p of players) posCounts[p.position] = (posCounts[p.position] ?? 0) + 1;
+  const posDetails: string[] = [];
+  let missingSlots = 0;
+  for (const [pos, needed] of Object.entries(slots)) {
+    if (pos === "FLEX") continue;
+    const have = posCounts[pos] ?? 0;
+    if (have < needed) {
+      missingSlots += (needed - have);
+      posDetails.push(`⚠ Need ${needed - have} more ${pos}`);
+    } else {
+      posDetails.push(`✓ ${pos}: ${have} (need ${needed})`);
+    }
+  }
+  const positionalScore = Math.max(15, 100 - missingSlots * 18);
+
+  // ── 4. Bye Week Risk ────────────────────────────────────────────────────────
+  const starterByes: Record<number, number> = {};
+  for (const p of starters) {
+    if (p.position !== "K" && p.position !== "DST") {
+      starterByes[p.bye] = (starterByes[p.bye] ?? 0) + 1;
+    }
+  }
+  const maxByeConflict = Math.max(0, ...Object.values(starterByes));
+  const byeScore = maxByeConflict <= 1 ? 100 : maxByeConflict === 2 ? 82 : maxByeConflict === 3 ? 63 : maxByeConflict === 4 ? 44 : 25;
+  const byeDetails = Object.entries(starterByes)
+    .sort(([,a],[,b]) => b - a)
+    .map(([week, count]) => `Week ${week}: ${count} starter${count > 1 ? "s" : ""} off`);
+  if (maxByeConflict >= 3) byeDetails.push("⚠ Consider waiver replacements for that week.");
+
+  // ── 5. Draft Value ──────────────────────────────────────────────────────────
+  const valuePerPick = players.map((p) => Math.round(p.adp) - p.adjustedRank);
+  const avgValue = valuePerPick.reduce((a, b) => a + b, 0) / players.length;
+  const valueScore = Math.min(100, Math.max(15, Math.round(65 + avgValue * 1.6)));
+  const topValue = players
+    .filter((p) => Math.round(p.adp) - p.adjustedRank >= 10)
+    .slice(0, 3)
+    .map((p) => `${p.name} (+${Math.round(p.adp) - p.adjustedRank} vs ADP)`);
+  const valueDetails: string[] = avgValue >= 0
+    ? [`Avg +${Math.round(avgValue)} spots vs consensus ADP — great value`, ...topValue]
+    : [`Avg ${Math.round(avgValue)} spots vs consensus ADP — slightly above market`, ...topValue];
+
+  // ── 6. Upside / Ceiling ─────────────────────────────────────────────────────
+  const eliteUp = players.filter((p) => p.upside === "elite").length;
+  const highUp  = players.filter((p) => p.upside === "high").length;
+  const upsideScore = Math.min(100, Math.round(35 + eliteUp * 14 + highUp * 7));
+  const upsideDetails = [
+    `${eliteUp} elite-upside player${eliteUp !== 1 ? "s" : ""}`,
+    `${highUp} high-upside player${highUp !== 1 ? "s" : ""}`,
+    ...players.filter((p) => p.upside === "elite").slice(0, 3).map((p) => `★ ${p.name} (${p.position})`),
+  ];
+
+  // ── 7. Risk Management ──────────────────────────────────────────────────────
+  const highRiskCount = starters.filter((p) => p.risk === "high").length;
+  const riskScore = highRiskCount === 0 ? 100 : highRiskCount === 1 ? 84 : highRiskCount === 2 ? 68 : highRiskCount === 3 ? 52 : highRiskCount === 4 ? 38 : 22;
+  const riskDetails = highRiskCount === 0
+    ? ["No high-risk starters — safe floor."]
+    : [
+        `${highRiskCount} high-risk starter${highRiskCount > 1 ? "s" : ""}`,
+        ...starters.filter((p) => p.risk === "high").map((p) => `⚠ ${p.name} — ${p.concerns[0] ?? "injury history"}`),
+      ];
+
+  // ── 8. Handcuff Coverage ────────────────────────────────────────────────────
+  const myTeams = new Set(players.map((p) => p.team));
+  const bellcows = starters.filter((p) => p.position === "RB" && (p.tags.includes("bellcow") || p.tags.includes("workhorse")));
+  const coveredBellcows = bellcows.filter((bc) =>
+    players.some((p) => p.team === bc.team && p.tags.includes("handcuff"))
+  );
+  const handcuffScore = bellcows.length === 0 ? 82
+    : Math.round(50 + (coveredBellcows.length / bellcows.length) * 50);
+  const handcuffDetails: string[] = bellcows.length === 0
+    ? ["No bellcow RBs identified — add one."]
+    : [
+        `${coveredBellcows.length}/${bellcows.length} workhorse RBs have handcuffs`,
+        ...bellcows.map((bc) =>
+          coveredBellcows.includes(bc)
+            ? `✓ ${bc.name} handcuffed`
+            : `✗ ${bc.name} — no handcuff owned`
+        ),
+      ];
+
+  // ── Weighted overall ────────────────────────────────────────────────────────
+  const WEIGHTS = [
+    { score: starterScore,    w: 28 },
+    { score: depthScore,      w: 14 },
+    { score: positionalScore, w: 20 },
+    { score: byeScore,        w: 10 },
+    { score: valueScore,      w: 10 },
+    { score: upsideScore,     w: 10 },
+    { score: riskScore,       w: 5  },
+    { score: handcuffScore,   w: 3  },
+  ];
+  const totalW = WEIGHTS.reduce((a, b) => a + b.w, 0);
+  const overallScore = Math.round(WEIGHTS.reduce((a, b) => a + b.score * b.w, 0) / totalW);
+  const overallGrade = scoreToGrade(overallScore);
+
+  // ── Key insights ────────────────────────────────────────────────────────────
+  const insights: string[] = [];
+  if (starterScore >= 85) insights.push("💪 Your starters are elite — core is championship caliber.");
+  else if (starterScore < 60) insights.push("⚠ Starter quality is thin. Target upgrades on the waiver wire.");
+  if (maxByeConflict >= 3) insights.push(`🗓 ${maxByeConflict} starters share the same bye — plan for that week now.`);
+  if (avgValue >= 8) insights.push(`💰 Excellent value drafting — you're ${Math.round(avgValue)} spots ahead of consensus on average.`);
+  if (upsideScore >= 80) insights.push("🚀 High ceiling roster — strong playoff upside if healthy.");
+  if (highRiskCount >= 3) insights.push("🩺 Injury risk is elevated on your starters. Add depth at key spots.");
+  if (coveredBellcows.length < bellcows.length) insights.push(`🔒 Missing handcuffs for ${bellcows.length - coveredBellcows.length} RB(s) — grab them early on waivers.`);
+  if (missingSlots > 0) insights.push(`📋 You still need to fill ${missingSlots} roster spot(s).`);
+  if (depthScore >= 80) insights.push("📦 Excellent bench depth — good trade assets heading into the season.");
+  if (insights.length === 0) insights.push("✅ Solid all-around team. Monitor news closely heading into the season.");
+
+  const categories: CategoryScore[] = [
+    { key:"starters",   name:"Starter Quality",     icon:"⭐", grade:scoreToGrade(starterScore),    score:starterScore,    headline:avgStarterRank < 30 ? "Elite starters" : avgStarterRank < 50 ? "Solid lineup" : "Needs improvement",              details:starterDetails   },
+    { key:"depth",      name:"Bench Depth",          icon:"📦", grade:scoreToGrade(depthScore),      score:depthScore,      headline:avgBenchRank < 70 ? "Deep bench" : avgBenchRank < 100 ? "Adequate depth" : "Thin bench",                        details:depthDetails     },
+    { key:"balance",    name:"Positional Balance",   icon:"⚖️", grade:scoreToGrade(positionalScore), score:positionalScore, headline:missingSlots === 0 ? "Fully balanced" : `${missingSlots} slot${missingSlots > 1 ? "s" : ""} missing`,           details:posDetails       },
+    { key:"bye",        name:"Bye Week Risk",        icon:"🗓", grade:scoreToGrade(byeScore),        score:byeScore,        headline:maxByeConflict <= 1 ? "No conflicts" : `${maxByeConflict} starters share a bye`,                                 details:byeDetails       },
+    { key:"value",      name:"Draft Value",          icon:"💰", grade:scoreToGrade(valueScore),      score:valueScore,      headline:avgValue >= 5 ? `+${Math.round(avgValue)} avg vs ADP` : avgValue >= 0 ? "At market value" : "Slightly overpaid", details:valueDetails     },
+    { key:"upside",     name:"Ceiling / Upside",     icon:"🚀", grade:scoreToGrade(upsideScore),     score:upsideScore,     headline:`${eliteUp} elite, ${highUp} high upside`,                                                                       details:upsideDetails    },
+    { key:"risk",       name:"Risk Management",      icon:"🩺", grade:scoreToGrade(riskScore),       score:riskScore,       headline:highRiskCount === 0 ? "Low injury risk" : `${highRiskCount} high-risk starter${highRiskCount > 1 ? "s" : ""}`,   details:riskDetails      },
+    { key:"handcuffs",  name:"Handcuff Coverage",    icon:"🔒", grade:scoreToGrade(handcuffScore),   score:handcuffScore,   headline:bellcows.length === 0 ? "No bellcows drafted" : `${coveredBellcows.length}/${bellcows.length} covered`,           details:handcuffDetails  },
+  ];
+
+  return { categories, overallGrade, overallScore, insights };
+}
+
+// ── Grade Letter Display ──────────────────────────────────────────────────────
+
+function GradeLetter({ grade, size = "lg" }: { grade: Grade; size?: "sm" | "md" | "lg" | "xl" }) {
+  const gc = gradeColors(grade);
+  const sz = size === "xl" ? "text-8xl w-32 h-32" : size === "lg" ? "text-5xl w-20 h-20" : size === "md" ? "text-3xl w-14 h-14" : "text-xl w-10 h-10";
+  return (
+    <div className={`rounded-2xl ${gc.bg} border-2 ${gc.border} flex items-center justify-center font-black ${sz} ${gc.text} shadow-lg`}>
+      {grade}
+    </div>
+  );
+}
+
+// ── Score Bar ─────────────────────────────────────────────────────────────────
+
+function ScoreBar({ score, grade }: { score: number; grade: Grade }) {
+  const gc = gradeColors(grade);
+  return (
+    <div className="h-1.5 w-full rounded-full bg-slate-700/50 overflow-hidden">
+      <div
+        className={`h-full rounded-full transition-all duration-700 ${gc.bar}`}
+        style={{ width: `${score}%` }}
+      />
+    </div>
+  );
+}
+
+// ── Draft Analyzer Component ──────────────────────────────────────────────────
+
+interface DraftAnalysisInput {
+  players: LiveDraftPlayer[];
+  format: "ppr" | "half" | "standard";
+  slots: LeagueSettings["rosterSlots"];
+}
+
+function DraftAnalyzer({ input, onClose }: { input: DraftAnalysisInput; onClose?: () => void }) {
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const { categories, overallGrade, overallScore, insights } = useMemo(
+    () => analyzeDraft(input.players, input.format, input.slots),
+    [input]
+  );
+  const gc = gradeColors(overallGrade);
+
+  if (input.players.length === 0) {
+    return (
+      <div className="rounded-2xl bg-slate-800/60 border border-slate-700/40 p-10 text-center">
+        <div className="text-4xl mb-3">📋</div>
+        <h3 className="text-lg font-bold text-white mb-2">No Team to Analyze</h3>
+        <p className="text-slate-400 text-sm">Complete your draft in the Live Draft Assistant, then come back here to grade your team.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Overall Grade Hero */}
+      <div className={`rounded-2xl ${gc.bg} border ${gc.border} p-6`}>
+        <div className="flex items-center gap-6">
+          <GradeLetter grade={overallGrade} size="xl" />
+          <div className="flex-1">
+            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Overall Draft Grade</div>
+            <div className="text-2xl font-black text-white mb-1">
+              {overallScore >= 90 ? "Championship Contender" :
+               overallScore >= 80 ? "Playoff-Caliber Team" :
+               overallScore >= 70 ? "Competitive Roster" :
+               overallScore >= 60 ? "Average Draft" :
+               overallScore >= 50 ? "Below Average" : "Needs Work"}
+            </div>
+            <div className="text-sm text-slate-400 mb-3">
+              {input.players.length} players drafted · {input.format.toUpperCase()} scoring
+            </div>
+            <ScoreBar score={overallScore} grade={overallGrade} />
+            <div className="text-xs text-slate-500 mt-1">{overallScore}/100 composite score</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Key Insights */}
+      <div className="rounded-2xl bg-slate-800/60 border border-slate-700/40 p-5">
+        <div className="text-sm font-bold text-white mb-3">🔍 Key Insights</div>
+        <ul className="space-y-2">
+          {insights.map((insight, i) => (
+            <li key={i} className="text-sm text-slate-300 flex gap-2 items-start">
+              <span className="shrink-0 text-slate-500 mt-0.5">→</span>
+              {insight}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Category Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {categories.map((cat) => {
+          const cg = gradeColors(cat.grade);
+          const expanded = expandedKey === cat.key;
+          return (
+            <div
+              key={cat.key}
+              onClick={() => setExpandedKey(expanded ? null : cat.key)}
+              className={`rounded-xl border cursor-pointer transition-all duration-200 ${cg.bg} ${cg.border} hover:brightness-110`}
+            >
+              <div className="p-4">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-xl">{cat.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold text-slate-400">{cat.name}</div>
+                    <div className={`text-sm font-bold truncate ${cg.text}`}>{cat.headline}</div>
+                  </div>
+                  <GradeLetter grade={cat.grade} size="sm" />
+                </div>
+                <ScoreBar score={cat.score} grade={cat.grade} />
+                {expanded && (
+                  <ul className="mt-3 space-y-1 border-t border-white/10 pt-3">
+                    {cat.details.map((d, i) => (
+                      <li key={i} className="text-xs text-slate-400 flex gap-1.5 items-start">
+                        <span className="text-slate-600 shrink-0 mt-0.5">•</span>{d}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Roster Breakdown */}
+      <div className="rounded-2xl bg-slate-800/60 border border-slate-700/40 p-5">
+        <div className="text-sm font-bold text-white mb-3">📋 Full Roster</div>
+        <div className="space-y-1">
+          {input.players.map((p, i) => {
+            const value = Math.round(p.adp) - p.adjustedRank;
+            const gc2 = gradeColors(scoreToGrade(Math.min(100, Math.max(20, 65 + value * 1.6))));
+            return (
+              <div key={p.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-700/30 transition-colors">
+                <span className="text-xs text-slate-500 w-5 text-right shrink-0">{i + 1}</span>
+                <span className={`text-xs px-1.5 py-0.5 rounded font-bold ${posClass(p.position)}`}>{p.position}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-white truncate">{p.name}</div>
+                  <div className="text-xs text-slate-500">{p.team} · Bye {p.bye} · {p.tierLabel}</div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-xs font-bold text-slate-300">#{p.adjustedRank}</div>
+                  {value !== 0 && (
+                    <div className={`text-xs font-semibold ${value > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {value > 0 ? `+${value}` : value} ADP
+                    </div>
+                  )}
+                </div>
+                <span className={`text-xs font-bold ${UPSIDE_COLORS[p.upside]?.split(" ")[1] ?? "text-slate-400"}`}>
+                  {p.upside[0].toUpperCase()}
+                </span>
+                <span className={`text-xs font-bold ${RISK_COLORS[p.risk]}`}>
+                  {p.risk[0].toUpperCase()}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {onClose && (
+        <button
+          onClick={onClose}
+          className="w-full py-2.5 rounded-xl bg-slate-700/50 hover:bg-slate-700 text-slate-300 text-sm font-semibold border border-slate-600/30 transition-colors"
+        >
+          ← Back to Draft
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-type Tab = "rankings" | "draft" | "bye-weeks" | "handcuffs";
+type Tab = "rankings" | "draft" | "analyzer" | "bye-weeks" | "handcuffs";
 
 export default function NFLDraft() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("rankings");
+  const [teamAnalysis, setTeamAnalysis] = useState<DraftAnalysisInput | null>(null);
 
-  const isAdmin = (user as any)?.isAdmin === true;
-  const { data: subData } = useQuery<{ tier: string; draftAccess?: boolean }>({
-    queryKey: ["/api/subscription"],
-    enabled: !!user,
-  });
-  const tier = isAdmin ? "pro" : (subData?.tier ?? "free");
-  const hasDraftAccess = isAdmin || tier === "pro" || subData?.draftAccess === true;
+  const tier = (user as any)?.subscriptionTier ?? "free";
+  const isAdmin = tier === "admin";
   const isStarOrAbove = isAdmin || tier === "pro" || tier === "star";
-  const isChampion = hasDraftAccess; // admins + Champion subscribers + Draft-only buyers
+  const isChampion = isAdmin || tier === "pro"; // "pro" maps to Champion
 
   const { data, isLoading, error, refetch } = useQuery<{
     players: LiveDraftPlayer[];
@@ -1608,11 +2007,13 @@ export default function NFLDraft() {
   const players = data?.players ?? [];
   const updatedAt = data?.updatedAt;
 
-  const tabs: { id: Tab; label: string; icon: string; requiresPaid?: boolean }[] = [
-    { id: "rankings", label: "Rankings", icon: "📊" },
-    { id: "draft", label: "Live Draft Assistant", icon: "🏈", requiresPaid: true },
-    { id: "bye-weeks", label: "Bye Weeks", icon: "📅", requiresPaid: false },
-    { id: "handcuffs", label: "Handcuffs", icon: "🤝", requiresPaid: false },
+  const tabs: { id: Tab; label: string; icon: string; requiresPaid?: boolean; badge?: string }[] = [
+    { id: "rankings",  label: "Rankings",           icon: "📊" },
+    { id: "draft",     label: "Live Draft",          icon: "🏈", requiresPaid: true },
+    { id: "analyzer",  label: "Draft Analyzer",      icon: "📈", requiresPaid: true,
+      badge: teamAnalysis && teamAnalysis.players.length > 0 ? "Ready" : undefined },
+    { id: "bye-weeks", label: "Bye Weeks",           icon: "📅" },
+    { id: "handcuffs", label: "Handcuffs",           icon: "🤝" },
   ];
 
   return (
@@ -1673,6 +2074,11 @@ export default function NFLDraft() {
                 <span>{tab.icon}</span>
                 <span>{tab.label}</span>
                 {locked && <span className="text-amber-400">🔒</span>}
+                {!locked && tab.badge && (
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500 text-white">
+                    {tab.badge}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -1720,7 +2126,12 @@ export default function NFLDraft() {
             )}
 
             {activeTab === "draft" && isChampion && (
-              <DraftAssistant allPlayers={players} />
+              <DraftAssistant
+                allPlayers={players}
+                onTeamUpdate={(drafted, fmt, slots) => {
+                  setTeamAnalysis({ players: drafted, format: fmt, slots });
+                }}
+              />
             )}
 
             {activeTab === "draft" && !isChampion && (
@@ -1737,6 +2148,27 @@ export default function NFLDraft() {
                     </button>
                   </Link>
                 </div>
+              </div>
+            )}
+
+            {activeTab === "analyzer" && isChampion && (
+              <DraftAnalyzer
+                input={teamAnalysis ?? { players: [], format: "ppr", slots: DEFAULT_SETTINGS.rosterSlots }}
+              />
+            )}
+
+            {activeTab === "analyzer" && !isChampion && (
+              <div className="rounded-2xl bg-gradient-to-r from-purple-900/40 to-blue-900/40 border border-purple-500/20 p-8 text-center">
+                <div className="text-4xl mb-3">📈</div>
+                <h3 className="text-xl font-bold text-white mb-2">Draft Analyzer</h3>
+                <p className="text-slate-400 text-sm mb-4 max-w-md mx-auto">
+                  Grade your team A–F across 8 categories: starter quality, depth, bye week risk, value picks, upside, risk management, and handcuff coverage.
+                </p>
+                <Link href="/pricing">
+                  <button className="px-8 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold rounded-xl transition-all">
+                    Upgrade to Champion — 7-Day Free Trial
+                  </button>
+                </Link>
               </div>
             )}
 
