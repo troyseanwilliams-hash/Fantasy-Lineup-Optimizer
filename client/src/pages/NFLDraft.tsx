@@ -504,58 +504,161 @@ function aiRecommendation(
   if (available.length === 0) return null;
 
   const round = currentPick.round;
+  const format = settings.scoringFormat;
   const needs = getRosterNeeds(myPicks, settings);
 
-  // Picks remaining after this one
-  const myFuturePicks = allPicks.filter(
-    (p) => p.team === "user" && p.player === null && p.overall > currentPick.overall
-  );
+  // Already-drafted players
+  const drafted = myPicks
+    .filter((p) => p.team === "user" && p.player)
+    .map((p) => p.player!);
 
-  // Score each available player
+  // Helper: projected points for a player in the active scoring format
+  function getProj(p: LiveDraftPlayer): number {
+    return format === "ppr" ? p.projPPR : format === "half" ? p.projHalf : p.projStd;
+  }
+
+  // ── Flex need calculation ─────────────────────────────────────────────────
+  const flexSlots = settings.rosterSlots.FLEX ?? 0;
+  let overflowFlexFilled = 0;
+  for (const pos of ["RB", "WR", "TE"] as const) {
+    const startSlots = settings.rosterSlots[pos] ?? 0;
+    const draftedAtPos = drafted.filter((d) => d.position === pos).length;
+    overflowFlexFilled += Math.max(0, draftedAtPos - startSlots);
+  }
+  const flexNeedsRemaining = Math.max(0, flexSlots - overflowFlexFilled);
+
+  // Core starter needs (QB/RB/WR/TE + FLEX) — used to gate K/DST recommendations
+  const coreNeedsTotal =
+    (needs["QB"] ?? 0) +
+    (needs["RB"] ?? 0) +
+    (needs["WR"] ?? 0) +
+    (needs["TE"] ?? 0) +
+    flexNeedsRemaining;
+
+  const kNeed = needs["K"] ?? 0;
+  const dstNeed = needs["DST"] ?? 0;
+  const hasKStarter = kNeed === 0;
+  const hasDSTStarter = dstNeed === 0;
+
+  // ── Value Over Replacement baselines ─────────────────────────────────────
+  // Replacement = Nth-best available where N ≈ typical starters across all teams
+  const replacementDepth: Record<string, number> = {
+    QB:  settings.numTeams + 2,
+    RB:  Math.round(settings.numTeams * 2.5),
+    WR:  Math.round(settings.numTeams * 2.5),
+    TE:  settings.numTeams + 2,
+    K:   settings.numTeams,
+    DST: settings.numTeams,
+  };
+
+  const byPos: Record<string, LiveDraftPlayer[]> = {};
+  for (const p of available) {
+    byPos[p.position] = [...(byPos[p.position] ?? []), p];
+  }
+  for (const pos of Object.keys(byPos)) {
+    byPos[pos].sort((a, b) => getProj(b) - getProj(a));
+  }
+
+  function replacementProj(pos: string): number {
+    const pool = byPos[pos] ?? [];
+    const idx = Math.min(replacementDepth[pos] ?? 12, pool.length - 1);
+    return pool[idx] ? getProj(pool[idx]) : 0;
+  }
+
+  // ── Score every available player ─────────────────────────────────────────
   const scored = available.map((p) => {
-    let score = 150 - p.adjustedRank;   // base: best rank first
+    const proj = getProj(p);
+    const vor  = proj - replacementProj(p.position); // Value Over Replacement
+    let score  = vor * 2.5 + proj * 0.3;             // VOR is the primary driver
 
-    // Boost for positional need
     const need = needs[p.position] ?? 0;
-    if (need > 0) score += 20;
-    if (need > 1) score += 10;
 
-    // Penalize when we already have enough
-    if (need === 0 && p.position !== "K" && p.position !== "DST") score -= 15;
+    // ── K / DST gating (most important change) ───────────────────────────
+    if (p.position === "K" || p.position === "DST") {
+      const isBackup =
+        (p.position === "K" && hasKStarter) ||
+        (p.position === "DST" && hasDSTStarter);
 
-    // Early rounds: prioritize elite tier
-    if (round <= 3 && p.tier <= 2) score += 30;
+      if (isBackup) {
+        // Hard block: never recommend a 2nd K or 2nd DST unless every single
+        // other starter and FLEX slot is completely filled
+        if (coreNeedsTotal > 0 || kNeed > 0 || dstNeed > 0) {
+          score -= 99999;
+        } else {
+          score -= 300; // all done — still de-prioritize vs any skill player
+        }
+      } else {
+        // Need the K or DST starter, but not at the expense of core positions
+        if (coreNeedsTotal > 0) {
+          // Push back until core needs drop to 1 remaining or we're in the
+          // final 2 rounds where there's no choice
+          const urgencyPenalty = round < settings.numRounds - 1
+            ? 150 + coreNeedsTotal * 20
+            : 20;
+          score -= urgencyPenalty;
+        }
+      }
+    } else {
+      // ── Skill positions ─────────────────────────────────────────────────
+      if (need > 0) {
+        // Boost for unfilled starter slots — more urgent = bigger boost
+        score += 25 + need * 12;
+      }
 
-    // Mid rounds: value + handcuffs
-    if (round >= 7 && p.tier >= 6) score += 10;
+      // Bonus when this would fill an open FLEX slot
+      if (["RB", "WR", "TE"].includes(p.position) && flexNeedsRemaining > 0 && need === 0) {
+        score += 18;
+      }
 
-    // Late rounds: streaming DST and K are valid
-    if (round >= 13 && (p.position === "K" || p.position === "DST")) score += 20;
+      // Mild penalty for drafting deeper than starter + 1 bench at a position
+      const slotCount = settings.rosterSlots[p.position as keyof typeof settings.rosterSlots] ?? 0;
+      const draftedAtPos = drafted.filter((d) => d.position === p.position).length;
+      const benchBuffer = ["RB","WR"].includes(p.position) ? 2 : 1;
+      if (draftedAtPos >= slotCount + benchBuffer) score -= 25;
+    }
 
-    // ADP value bonus — if we rank them much higher than consensus
+    // Tier bonus in early rounds
+    if (round <= 4 && p.tier <= 2) score += 30;
+
+    // Handcuff value in mid/late rounds
+    if (round >= 7 && p.tags.includes("handcuff")) score += 15;
+
+    // ADP value: we rank them meaningfully ahead of consensus
     const adpDiff = Math.round(p.adp) - p.adjustedRank;
-    if (adpDiff >= 10) score += 15;
-    if (adpDiff >= 20) score += 10;
+    if (adpDiff >= 20) score += 25;
+    else if (adpDiff >= 10) score += 15;
+    else if (adpDiff >= 5)  score += 7;
 
-    // Injury risk penalty in early rounds
-    if (round <= 6 && p.risk === "high") score -= 10;
+    // Injury risk penalty early
+    if (round <= 5 && p.risk === "high") score -= 15;
 
-    return { player: p, score };
+    // News adjustment
+    if (p.newsImpact?.direction === "up")   score += 12;
+    if (p.newsImpact?.direction === "down") score -= 18;
+
+    return { player: p, score, proj, vor };
   });
 
   scored.sort((a, b) => b.score - a.score);
-  const best = scored[0].player;
+  const { player: best, proj, vor } = scored[0];
 
-  // Generate reasoning
-  const need = needs[best.position] ?? 0;
-  const adpDiff = Math.round(best.adp) - best.adjustedRank;
-  let reason = `Round ${round}: ${ROUND_STRATEGY[Math.min(round, 12)] ?? "Best available."}`;
-  if (need > 0) reason += ` You still need a ${best.position}.`;
-  if (adpDiff >= 10) reason += ` We rank ${best.name} ${adpDiff} spots ahead of consensus ADP — strong value here.`;
-  if (best.newsImpact?.direction === "up") reason += ` Recent positive news pushed them up our rankings.`;
-  if (best.newsImpact?.direction === "down") reason += ` Note: ${best.newsImpact.headline}`;
+  // ── Generate concise, informative reasoning ───────────────────────────────
+  const need     = needs[best.position] ?? 0;
+  const adpDiff  = Math.round(best.adp) - best.adjustedRank;
+  const parts: string[] = [];
 
-  return { player: best, reason };
+  parts.push(`Projects ${proj.toFixed(1)} pts (${format.toUpperCase()}).`);
+  if (vor > 3) parts.push(`${vor.toFixed(1)} pts above replacement at ${best.position}.`);
+  if (need > 0) parts.push(`You still need ${need > 1 ? `${need} more ` : "a "}${best.position}.`);
+  else if (best.position === "K" || best.position === "DST") parts.push("Core lineup is set — filling your final slot.");
+  else if (["RB","WR","TE"].includes(best.position) && flexNeedsRemaining > 0) parts.push("Also fills your FLEX slot.");
+  if (adpDiff >= 5) parts.push(`We rank them ${adpDiff} spots ahead of ADP — strong value.`);
+  if (best.newsImpact?.direction === "up")   parts.push("Recent positive news boosted their rank.");
+  if (best.newsImpact?.direction === "down") parts.push(`⚠ ${best.newsImpact.headline}`);
+  const roundCtx = ROUND_STRATEGY[Math.min(round, 12)];
+  if (roundCtx) parts.push(roundCtx);
+
+  return { player: best, reason: parts.join(" ") };
 }
 
 // ── Timer hook ────────────────────────────────────────────────────────────────
