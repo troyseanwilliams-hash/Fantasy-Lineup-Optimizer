@@ -1994,6 +1994,8 @@ export default function NFLDraft() {
   const isAdmin = tier === "admin";
   const isStarOrAbove = isAdmin || tier === "pro" || tier === "star";
   const isChampion = isAdmin || tier === "pro"; // "pro" maps to Champion
+  // Live Draft + Draft Analyzer unlock for admin, Champion, or one-time Draft Hub purchasers ("draft only")
+  const hasDraftAccess = isChampion || (user as any)?.draftAccess === true;
 
   const { data, isLoading, error, refetch } = useQuery<{
     players: LiveDraftPlayer[];
@@ -2058,7 +2060,7 @@ export default function NFLDraft() {
         {/* Tabs */}
         <div className="flex gap-1 mb-6 bg-slate-800/40 rounded-xl p-1 border border-slate-700/30 overflow-x-auto">
           {tabs.map((tab) => {
-            const locked = tab.requiresPaid && !isChampion;
+            const locked = tab.requiresPaid && !hasDraftAccess;
             return (
               <button
                 key={tab.id}
@@ -2125,7 +2127,7 @@ export default function NFLDraft() {
               </div>
             )}
 
-            {activeTab === "draft" && isChampion && (
+            {activeTab === "draft" && hasDraftAccess && (
               <DraftAssistant
                 allPlayers={players}
                 onTeamUpdate={(drafted, fmt, slots) => {
@@ -2134,7 +2136,7 @@ export default function NFLDraft() {
               />
             )}
 
-            {activeTab === "draft" && !isChampion && (
+            {activeTab === "draft" && !hasDraftAccess && (
               <div className="space-y-6">
                 <div className="rounded-2xl bg-gradient-to-r from-purple-900/40 to-blue-900/40 border border-purple-500/20 p-8 text-center">
                   <div className="text-4xl mb-3">🏈</div>
@@ -2151,13 +2153,13 @@ export default function NFLDraft() {
               </div>
             )}
 
-            {activeTab === "analyzer" && isChampion && (
+            {activeTab === "analyzer" && hasDraftAccess && (
               <DraftAnalyzer
                 input={teamAnalysis ?? { players: [], format: "ppr", slots: DEFAULT_SETTINGS.rosterSlots }}
               />
             )}
 
-            {activeTab === "analyzer" && !isChampion && (
+            {activeTab === "analyzer" && !hasDraftAccess && (
               <div className="rounded-2xl bg-gradient-to-r from-purple-900/40 to-blue-900/40 border border-purple-500/20 p-8 text-center">
                 <div className="text-4xl mb-3">📈</div>
                 <h3 className="text-xl font-bold text-white mb-2">Draft Analyzer</h3>
