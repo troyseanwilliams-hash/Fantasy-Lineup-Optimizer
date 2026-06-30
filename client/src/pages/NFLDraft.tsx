@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
@@ -230,20 +230,54 @@ function PlayerCard({
 type PickEntry = {
   overall: number;
   round: number;
-  pick: number;
+  pick: number;         // 1-based slot within the round
+  slotIdx: number;      // 0-based index in customOrder
   team: "user" | "other";
-  teamNum: number;
   player: LiveDraftPlayer | null;
 };
 
+// Each slot in the draft order. "user" = the human's team; others get auto-labels.
+export interface DraftSlot {
+  id: string;           // stable unique id
+  label: string;        // display name, user-editable
+  isUser: boolean;
+}
+
 interface LeagueSettings {
   numTeams: number;
-  draftPosition: number;
+  draftPosition: number;  // kept for backwards compat — derived from customOrder
   scoringFormat: "ppr" | "half" | "standard";
   rosterSlots: {
     QB: number; RB: number; WR: number; TE: number; K: number; DST: number; FLEX: number;
   };
   numRounds: number;
+  customOrder: DraftSlot[]; // ordered list, index 0 = first pick in round 1
+}
+
+const STORAGE_KEY = "elitelineup_draft_order_v1";
+
+function buildDefaultOrder(numTeams: number, userPosition: number): DraftSlot[] {
+  return Array.from({ length: numTeams }, (_, i) => ({
+    id: `slot-${i}`,
+    label: i + 1 === userPosition ? "Your Team" : `Team ${i + 1}`,
+    isUser: i + 1 === userPosition,
+  }));
+}
+
+function saveOrderToStorage(order: DraftSlot[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(order));
+  } catch {}
+}
+
+function loadOrderFromStorage(): DraftSlot[] | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed as DraftSlot[];
+  } catch {}
+  return null;
 }
 
 const DEFAULT_SETTINGS: LeagueSettings = {
@@ -252,67 +286,195 @@ const DEFAULT_SETTINGS: LeagueSettings = {
   scoringFormat: "ppr",
   rosterSlots: { QB: 1, RB: 2, WR: 2, TE: 1, K: 1, DST: 1, FLEX: 2 },
   numRounds: 15,
+  customOrder: buildDefaultOrder(12, 5),
 };
 
+/** Build snake draft board from a custom slot order. */
 function buildDraftBoard(settings: LeagueSettings): PickEntry[] {
-  const total = settings.numTeams * settings.numRounds;
+  const { customOrder, numRounds } = settings;
+  const n = customOrder.length;
+  const total = n * numRounds;
   const picks: PickEntry[] = [];
+
   for (let i = 0; i < total; i++) {
-    const round = Math.floor(i / settings.numTeams) + 1;
-    const isSnakeEven = round % 2 === 0;
-    const posInRound = isSnakeEven
-      ? settings.numTeams - (i % settings.numTeams)
-      : (i % settings.numTeams) + 1;
+    const round = Math.floor(i / n) + 1;
+    const posInRound = i % n; // 0-based offset within round
+    const slotIdx = round % 2 === 0
+      ? n - 1 - posInRound   // even rounds go right-to-left (snake)
+      : posInRound;           // odd rounds go left-to-right
+    const slot = customOrder[slotIdx];
     picks.push({
       overall: i + 1,
       round,
-      pick: posInRound,
-      teamNum: posInRound,
-      team: posInRound === settings.draftPosition ? "user" : "other",
+      pick: slotIdx + 1,
+      slotIdx,
+      team: slot.isUser ? "user" : "other",
       player: null,
     });
   }
   return picks;
 }
 
-function pickForOtherTeam(
-  available: LiveDraftPlayer[],
-  board: PickEntry[],
-  teamNum: number,
-  round: number,
-  settings: LeagueSettings
-): LiveDraftPlayer | null {
-  if (available.length === 0) return null;
+// ── Draft Order Editor ────────────────────────────────────────────────────────
 
-  // Build this team's current roster counts
-  const teamDrafted = board.filter(p => p.teamNum === teamNum && p.player !== null);
-  const counts: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DST: 0 };
-  for (const p of teamDrafted) {
-    if (p.player) counts[p.player.position] = (counts[p.player.position] ?? 0) + 1;
-  }
+function DraftOrderEditor({
+  order,
+  onChange,
+  onSave,
+}: {
+  order: DraftSlot[];
+  onChange: (next: DraftSlot[]) => void;
+  onSave: () => void;
+}) {
+  const dragIdx = useRef<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
 
-  // Calculate what they still need
-  const needs: Record<string, number> = {};
-  for (const [pos, needed] of Object.entries(settings.rosterSlots)) {
-    if (pos === "FLEX") continue;
-    needs[pos] = Math.max(0, (needed as number) - (counts[pos] ?? 0));
-  }
+  const swap = (a: number, b: number) => {
+    if (a < 0 || b < 0 || a >= order.length || b >= order.length) return;
+    const next = [...order];
+    [next[a], next[b]] = [next[b], next[a]];
+    onChange(next);
+  };
 
-  // Score each available player for this team's needs
-  const scored = available.map(p => {
-    let score = 150 - p.adjustedRank;
-    const need = needs[p.position] ?? 0;
-    if (need > 0) score += 25;
-    if (need > 1) score += 10;
-    if (need === 0 && p.position !== "K" && p.position !== "DST") score -= 20;
-    if (round <= 3 && p.tier <= 2) score += 20;
-    if (round >= 13 && (p.position === "K" || p.position === "DST")) score += 20;
-    if (round <= 6 && p.risk === "high") score -= 10;
-    return { player: p, score };
-  });
+  const markAsUser = (idx: number) => {
+    const next = order.map((s, i) => ({ ...s, isUser: i === idx }));
+    onChange(next);
+  };
 
-  scored.sort((a, b) => b.score - a.score);
-  return scored[0]?.player ?? null;
+  const startEdit = (slot: DraftSlot) => {
+    setEditingId(slot.id);
+    setEditValue(slot.label);
+  };
+
+  const commitEdit = (id: string) => {
+    onChange(order.map((s) => s.id === id ? { ...s, label: editValue.trim() || s.label } : s));
+    setEditingId(null);
+  };
+
+  // HTML5 drag-and-drop handlers
+  const handleDragStart = (idx: number) => { dragIdx.current = idx; };
+  const handleDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    if (dragIdx.current === null || dragIdx.current === idx) return;
+    swap(dragIdx.current, idx);
+    dragIdx.current = idx;
+  };
+  const handleDrop = () => { dragIdx.current = null; };
+
+  const userIdx = order.findIndex((s) => s.isUser);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-sm font-semibold text-slate-300">Draft Order</div>
+          <div className="text-xs text-slate-500 mt-0.5">
+            Drag to reorder · Click a name to rename · "Me" marks your slot
+          </div>
+        </div>
+        <button
+          onClick={onSave}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-400 text-xs font-semibold transition-colors"
+        >
+          💾 Save Order
+        </button>
+      </div>
+
+      <div className="rounded-xl border border-slate-700/40 overflow-hidden divide-y divide-slate-700/30">
+        {order.map((slot, idx) => (
+          <div
+            key={slot.id}
+            draggable
+            onDragStart={() => handleDragStart(idx)}
+            onDragOver={(e) => handleDragOver(e, idx)}
+            onDrop={handleDrop}
+            className={`flex items-center gap-3 px-3 py-2.5 transition-colors select-none ${
+              slot.isUser
+                ? "bg-blue-600/20 border-l-2 border-l-blue-500"
+                : "bg-slate-800/40 hover:bg-slate-700/40"
+            }`}
+          >
+            {/* Drag handle */}
+            <div className="cursor-grab text-slate-600 shrink-0">
+              <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor">
+                <circle cx="4" cy="3" r="1.5"/><circle cx="8" cy="3" r="1.5"/>
+                <circle cx="4" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/>
+                <circle cx="4" cy="13" r="1.5"/><circle cx="8" cy="13" r="1.5"/>
+              </svg>
+            </div>
+
+            {/* Pick number badge */}
+            <span className={`text-xs font-bold w-6 text-center shrink-0 ${slot.isUser ? "text-blue-400" : "text-slate-500"}`}>
+              {idx + 1}
+            </span>
+
+            {/* Name — click to edit */}
+            {editingId === slot.id ? (
+              <input
+                autoFocus
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={() => commitEdit(slot.id)}
+                onKeyDown={(e) => { if (e.key === "Enter") commitEdit(slot.id); if (e.key === "Escape") setEditingId(null); }}
+                className="flex-1 bg-slate-900/80 border border-blue-500/50 rounded px-2 py-0.5 text-sm text-white focus:outline-none"
+              />
+            ) : (
+              <span
+                onClick={() => startEdit(slot)}
+                className={`flex-1 text-sm font-semibold cursor-text hover:text-white transition-colors ${slot.isUser ? "text-blue-300" : "text-slate-300"}`}
+              >
+                {slot.label}
+                {slot.isUser && <span className="ml-2 text-xs text-blue-400 font-normal">(You)</span>}
+              </span>
+            )}
+
+            {/* Up / Down */}
+            <div className="flex gap-1 shrink-0">
+              <button
+                onClick={() => swap(idx, idx - 1)}
+                disabled={idx === 0}
+                className="w-6 h-6 rounded flex items-center justify-center text-slate-500 hover:text-white hover:bg-slate-700/50 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+              >
+                ▲
+              </button>
+              <button
+                onClick={() => swap(idx, idx + 1)}
+                disabled={idx === order.length - 1}
+                className="w-6 h-6 rounded flex items-center justify-center text-slate-500 hover:text-white hover:bg-slate-700/50 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+              >
+                ▼
+              </button>
+            </div>
+
+            {/* Me button */}
+            {!slot.isUser ? (
+              <button
+                onClick={() => markAsUser(idx)}
+                className="shrink-0 text-xs px-2 py-1 rounded border border-blue-500/30 text-blue-400 hover:bg-blue-600/20 transition-colors font-semibold"
+              >
+                Me
+              </button>
+            ) : (
+              <span className="shrink-0 w-10 text-center text-xs text-blue-400">✓</span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {userIdx === -1 && (
+        <div className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+          ⚠ No team is marked as "You". Click "Me" on your slot.
+        </div>
+      )}
+
+      {userIdx !== -1 && (
+        <div className="text-xs text-slate-500 text-center">
+          You draft {userIdx + 1}{["st","nd","rd"][userIdx] ?? "th"} overall in Round 1 (snake reverses each round)
+        </div>
+      )}
+    </div>
+  );
 }
 
 function getRosterNeeds(
@@ -396,27 +558,140 @@ function aiRecommendation(
   return { player: best, reason };
 }
 
+// ── Timer hook ────────────────────────────────────────────────────────────────
+
+const PICK_CLOCK_SECONDS = 180; // 3 minutes
+
+function usePickClock(active: boolean, onExpire: () => void) {
+  const [secondsLeft, setSecondsLeft] = useState(PICK_CLOCK_SECONDS);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Reset whenever `active` flips true (new pick starts)
+  useEffect(() => {
+    setSecondsLeft(PICK_CLOCK_SECONDS);
+  }, [active]);
+
+  useEffect(() => {
+    if (!active) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
+    }
+    timerRef.current = setInterval(() => {
+      setSecondsLeft((s) => {
+        if (s <= 1) {
+          clearInterval(timerRef.current!);
+          onExpire();
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [active, onExpire]);
+
+  return secondsLeft;
+}
+
+function PickClock({ seconds, isMyPick }: { seconds: number; isMyPick: boolean }) {
+  const pct = seconds / PICK_CLOCK_SECONDS;
+  const urgent = seconds <= 30;
+  const warning = seconds <= 60;
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  const color = urgent ? "#ef4444" : warning ? "#f59e0b" : "#10b981";
+  const radius = 20;
+  const circ = 2 * Math.PI * radius;
+
+  return (
+    <div className="flex items-center gap-2">
+      <svg width="52" height="52" viewBox="0 0 52 52" className="shrink-0">
+        {/* Track */}
+        <circle cx="26" cy="26" r={radius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="4" />
+        {/* Progress */}
+        <circle
+          cx="26" cy="26" r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          strokeDashoffset={circ * (1 - pct)}
+          transform="rotate(-90 26 26)"
+          style={{ transition: "stroke-dashoffset 1s linear, stroke 0.5s" }}
+        />
+        <text x="26" y="31" textAnchor="middle" fontSize="11" fontWeight="bold" fill={color}>
+          {mins}:{secs.toString().padStart(2, "0")}
+        </text>
+      </svg>
+      <div>
+        <div className={`text-xs font-bold ${urgent ? "text-red-400" : warning ? "text-amber-400" : "text-emerald-400"}`}>
+          {isMyPick ? "YOUR PICK" : "ON THE CLOCK"}
+        </div>
+        <div className="text-xs text-slate-500">
+          {urgent ? "Pick now!" : warning ? "Hurry up" : "Time remaining"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Live Draft Assistant Tab ──────────────────────────────────────────────────
 
 function DraftAssistant({ allPlayers }: { allPlayers: LiveDraftPlayer[] }) {
-  const [settings, setSettings] = useState<LeagueSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<LeagueSettings>(() => {
+    const saved = loadOrderFromStorage();
+    if (saved && saved.length > 0) {
+      const userSlot = saved.findIndex((s) => s.isUser);
+      return {
+        ...DEFAULT_SETTINGS,
+        numTeams: saved.length,
+        draftPosition: userSlot + 1,
+        customOrder: saved,
+      };
+    }
+    return DEFAULT_SETTINGS;
+  });
   const [configured, setConfigured] = useState(false);
+  const [showOrderEditor, setShowOrderEditor] = useState(false);
   const [board, setBoard] = useState<PickEntry[]>([]);
   const [currentPickIdx, setCurrentPickIdx] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [posFilter, setPosFilter] = useState<Position | "ALL">("ALL");
-  const [lastCpuPick, setLastCpuPick] = useState<{ teamNum: number; player: LiveDraftPlayer } | null>(null);
-  const boardDomRef = useRef<HTMLDivElement>(null);
+  const [paused, setPaused] = useState(false);
+  const [draftComplete, setDraftComplete] = useState(false);
+  const [lastAutoPick, setLastAutoPick] = useState<{ name: string; team: string } | null>(null);
+  const [savedToast, setSavedToast] = useState(false);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const currentPickRef = useRef<HTMLDivElement>(null);
 
-  // Refs for latest values inside async callbacks
-  const latestBoardRef = useRef(board);
-  latestBoardRef.current = board;
+  // Keep customOrder in sync when numTeams or draftPosition changes
+  const syncOrder = useCallback((numTeams: number, draftPosition: number) => {
+    setSettings((s) => {
+      const existingLen = s.customOrder.length;
+      if (existingLen === numTeams) {
+        // Just move user flag to new position
+        const next = s.customOrder.map((slot, i) => ({ ...slot, isUser: i + 1 === draftPosition }));
+        return { ...s, numTeams, draftPosition, customOrder: next };
+      }
+      // Rebuild from scratch
+      return { ...s, numTeams, draftPosition, customOrder: buildDefaultOrder(numTeams, draftPosition) };
+    });
+  }, []);
+
+  const handleSaveOrder = useCallback(() => {
+    saveOrderToStorage(settings.customOrder);
+    setSavedToast(true);
+    setTimeout(() => setSavedToast(false), 2500);
+  }, [settings.customOrder]);
 
   const startDraft = useCallback(() => {
+    if (!settings.customOrder.some((s) => s.isUser)) return; // guard
     setBoard(buildDraftBoard(settings));
     setCurrentPickIdx(0);
+    setDraftComplete(false);
+    setLastAutoPick(null);
     setConfigured(true);
-    setLastCpuPick(null);
+    setPaused(false);
   }, [settings]);
 
   const resetDraft = useCallback(() => {
@@ -424,7 +699,9 @@ function DraftAssistant({ allPlayers }: { allPlayers: LiveDraftPlayer[] }) {
     setCurrentPickIdx(0);
     setConfigured(false);
     setSearchQuery("");
-    setLastCpuPick(null);
+    setDraftComplete(false);
+    setLastAutoPick(null);
+    setPaused(false);
   }, []);
 
   const draftedIds = useMemo(() => {
@@ -435,12 +712,13 @@ function DraftAssistant({ allPlayers }: { allPlayers: LiveDraftPlayer[] }) {
     return ids;
   }, [board]);
 
-  const available = useMemo(() =>
-    allPlayers.filter((p) => !draftedIds.has(p.id)),
-    [allPlayers, draftedIds]);
+  // Get available players at a specific state of the board
+  const getAvailableFromBoard = useCallback(
+    (b: PickEntry[]) => allPlayers.filter((p) => !b.some((pick) => pick.player?.id === p.id)),
+    [allPlayers]
+  );
 
-  const latestAvailableRef = useRef(available);
-  latestAvailableRef.current = available;
+  const available = useMemo(() => getAvailableFromBoard(board), [board, getAvailableFromBoard]);
 
   const filteredAvailable = useMemo(() =>
     available.filter((p) => {
@@ -456,143 +734,290 @@ function DraftAssistant({ allPlayers }: { allPlayers: LiveDraftPlayer[] }) {
   const myPicks = useMemo(() => board.filter((p) => p.team === "user"), [board]);
   const currentPick = board[currentPickIdx] ?? null;
   const myPickedPlayers = myPicks.filter((p) => p.player !== null);
+  const isMyTurn = !!currentPick && currentPick.team === "user" && !currentPick.player;
 
   const aiRec = useMemo(() => {
-    if (!currentPick || currentPick.team !== "user" || currentPick.player) return null;
-    return aiRecommendation(available, myPicks, currentPick, settings, board);
-  }, [available, myPicks, currentPick, settings, board]);
+    if (!isMyTurn) return null;
+    return aiRecommendation(available, myPicks, currentPick!, settings, board);
+  }, [isMyTurn, available, myPicks, currentPick, settings, board]);
 
-  // Auto-run CPU picks until it's the user's turn
-  useEffect(() => {
-    if (!configured || board.length === 0) return;
-    const pick = board[currentPickIdx];
-    if (!pick || pick.team !== "other" || pick.player) return;
+  // Advance to next pick index, detect draft complete
+  const advance = useCallback((b: PickEntry[], fromIdx: number) => {
+    const nextIdx = fromIdx + 1;
+    if (nextIdx >= b.length) {
+      setDraftComplete(true);
+      return;
+    }
+    setCurrentPickIdx(nextIdx);
+    // Scroll draft board row into view
+    setTimeout(() => {
+      currentPickRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 100);
+  }, []);
 
-    const timer = setTimeout(() => {
-      const currentBoard = latestBoardRef.current;
-      const currentAvailable = latestAvailableRef.current;
-      const player = pickForOtherTeam(currentAvailable, currentBoard, pick.teamNum, pick.round, settings);
-      if (!player) return;
-      // Guard: make sure the slot is still empty (user may have manually filled it)
-      if (currentBoard[currentPickIdx]?.player) return;
-      setLastCpuPick({ teamNum: pick.teamNum, player });
-      setBoard(prev => {
-        const next = [...prev];
-        next[currentPickIdx] = { ...next[currentPickIdx], player };
-        return next;
-      });
-      setCurrentPickIdx(i => Math.min(i + 1, currentBoard.length - 1));
-    }, 380);
-
-    return () => clearTimeout(timer);
-  }, [currentPickIdx, configured]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Execute a pick (used for both user and auto-other picks)
+  const executePick = useCallback(
+    (player: LiveDraftPlayer, b: PickEntry[], idx: number): PickEntry[] => {
+      const next = [...b];
+      next[idx] = { ...next[idx], player };
+      return next;
+    },
+    []
+  );
 
   const makePick = useCallback(
     (player: LiveDraftPlayer) => {
-      if (!currentPick) return;
-      setLastCpuPick(null);
+      if (!isMyTurn) return;
       setBoard((prev) => {
-        const next = [...prev];
-        next[currentPickIdx] = { ...next[currentPickIdx], player };
+        const next = executePick(player, prev, currentPickIdx);
         return next;
       });
-      setCurrentPickIdx((i) => Math.min(i + 1, board.length - 1));
+      advance(board, currentPickIdx);
     },
-    [currentPick, currentPickIdx, board.length]
+    [isMyTurn, currentPickIdx, board, executePick, advance]
   );
 
   const undoPick = useCallback(() => {
     const prevIdx = currentPickIdx - 1;
     if (prevIdx < 0) return;
-    setLastCpuPick(null);
     setBoard((prev) => {
       const next = [...prev];
       next[prevIdx] = { ...next[prevIdx], player: null };
       return next;
     });
     setCurrentPickIdx(prevIdx);
+    setDraftComplete(false);
+    setLastAutoPick(null);
   }, [currentPickIdx]);
+
+  // Auto-pick for "other" teams — picks the best available by rank
+  const autoPickOtherNow = useCallback(
+    (b: PickEntry[], idx: number): PickEntry[] => {
+      const avail = getAvailableFromBoard(b);
+      if (avail.length === 0) return b;
+      const player = avail[0];
+      setLastAutoPick({ name: player.name, team: player.team });
+      return executePick(player, b, idx);
+    },
+    [getAvailableFromBoard, executePick]
+  );
+
+  // When the clock expires on the user's pick, auto-pick AI rec
+  const handleClockExpire = useCallback(() => {
+    if (!isMyTurn || paused) return;
+    setBoard((prev) => {
+      const avail = getAvailableFromBoard(prev);
+      if (avail.length === 0) return prev;
+      // Use AI rec if available, else top available
+      const rec = aiRecommendation(avail, myPicks, currentPick!, settings, prev);
+      const player = rec?.player ?? avail[0];
+      setLastAutoPick({ name: player.name, team: player.team });
+      const next = executePick(player, prev, currentPickIdx);
+      setTimeout(() => advance(next, currentPickIdx), 0);
+      return next;
+    });
+  }, [isMyTurn, paused, getAvailableFromBoard, myPicks, currentPick, settings, currentPickIdx, executePick, advance]);
+
+  const clockActive = configured && !draftComplete && !paused && isMyTurn;
+  const secondsLeft = usePickClock(clockActive, handleClockExpire);
+
+  // Auto-advance through consecutive "other" picks with a short delay
+  useEffect(() => {
+    if (!configured || draftComplete || paused) return;
+    if (!currentPick || currentPick.team !== "other" || currentPick.player) return;
+
+    const delay = setTimeout(() => {
+      setBoard((prev) => {
+        const next = autoPickOtherNow(prev, currentPickIdx);
+        setTimeout(() => advance(next, currentPickIdx), 0);
+        return next;
+      });
+    }, 600); // 600ms between other-team picks so you can see them flash by
+
+    return () => clearTimeout(delay);
+  }, [configured, draftComplete, paused, currentPick, currentPickIdx, autoPickOtherNow, advance]);
 
   // Configuration screen
   if (!configured) {
+    const userSlot = settings.customOrder.findIndex((s) => s.isUser);
+    const hasUser = userSlot !== -1;
+
     return (
-      <div className="max-w-xl mx-auto mt-8 space-y-6">
+      <div className="max-w-2xl mx-auto mt-8 space-y-6">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-white mb-2">Configure Your Draft</h2>
-          <p className="text-slate-400 text-sm">Set your league settings to get personalized AI pick recommendations.</p>
+          <p className="text-slate-400 text-sm">Set your league settings and draft order, then start when ready.</p>
         </div>
 
-        <div className="bg-slate-800/60 rounded-2xl border border-slate-700/40 p-6 space-y-5">
-          {/* Teams */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-300 mb-2">Number of Teams</label>
-            <div className="flex gap-2 flex-wrap">
-              {[8, 10, 12, 14].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => setSettings((s) => ({ ...s, numTeams: n }))}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${settings.numTeams === n ? "bg-blue-600 border-blue-500 text-white" : "bg-slate-700/50 border-slate-600/30 text-slate-400 hover:text-white"}`}
-                >
-                  {n}
-                </button>
-              ))}
+        {/* Save toast */}
+        {savedToast && (
+          <div className="fixed top-6 right-6 z-50 bg-emerald-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-lg animate-in slide-in-from-top-2">
+            ✓ Draft order saved
+          </div>
+        )}
+
+        <div className="bg-slate-800/60 rounded-2xl border border-slate-700/40 p-6 space-y-6">
+          {/* Row 1: Teams + Rounds + Scoring */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+            {/* Teams */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-300 mb-2">Teams</label>
+              <div className="flex gap-2 flex-wrap">
+                {[8, 10, 12, 14].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => syncOrder(n, settings.draftPosition <= n ? settings.draftPosition : 1)}
+                    className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${settings.numTeams === n ? "bg-blue-600 border-blue-500 text-white" : "bg-slate-700/50 border-slate-600/30 text-slate-400 hover:text-white"}`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Rounds */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-300 mb-2">Rounds</label>
+              <div className="flex gap-2 flex-wrap">
+                {[13, 14, 15, 16].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setSettings((s) => ({ ...s, numRounds: n }))}
+                    className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${settings.numRounds === n ? "bg-blue-600 border-blue-500 text-white" : "bg-slate-700/50 border-slate-600/30 text-slate-400 hover:text-white"}`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Scoring */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-300 mb-2">Scoring</label>
+              <div className="flex gap-2 flex-wrap">
+                {(["ppr","half","standard"] as const).map((fmt) => (
+                  <button
+                    key={fmt}
+                    onClick={() => setSettings((s) => ({ ...s, scoringFormat: fmt }))}
+                    className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${settings.scoringFormat === fmt ? "bg-purple-600 border-purple-500 text-white" : "bg-slate-700/50 border-slate-600/30 text-slate-400 hover:text-white"}`}
+                  >
+                    {fmt === "half" ? "Half" : fmt.toUpperCase()}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Draft Position */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-300 mb-2">
-              Your Draft Position (1–{settings.numTeams})
-            </label>
-            <input
-              type="range"
-              min={1}
-              max={settings.numTeams}
-              value={settings.draftPosition}
-              onChange={(e) => setSettings((s) => ({ ...s, draftPosition: Number(e.target.value) }))}
-              className="w-full accent-blue-500"
-            />
-            <div className="text-sm text-blue-400 font-semibold mt-1">Position {settings.draftPosition}</div>
-          </div>
+          {/* Divider */}
+          <div className="border-t border-slate-700/40" />
 
-          {/* Scoring */}
+          {/* Draft Order section */}
           <div>
-            <label className="block text-sm font-semibold text-slate-300 mb-2">Scoring Format</label>
-            <div className="flex gap-2">
-              {(["ppr","half","standard"] as const).map((fmt) => (
-                <button
-                  key={fmt}
-                  onClick={() => setSettings((s) => ({ ...s, scoringFormat: fmt }))}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${settings.scoringFormat === fmt ? "bg-blue-600 border-blue-500 text-white" : "bg-slate-700/50 border-slate-600/30 text-slate-400 hover:text-white"}`}
-                >
-                  {fmt === "half" ? "Half-PPR" : fmt.toUpperCase()}
-                </button>
-              ))}
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-300">Draft Order</div>
+                <div className="text-xs text-slate-500 mt-0.5">
+                  {hasUser
+                    ? `You pick ${userSlot + 1}${["st","nd","rd"][userSlot] ?? "th"} in Round 1`
+                    : "Select your slot below"}
+                </div>
+              </div>
+              <button
+                onClick={() => setShowOrderEditor((v) => !v)}
+                className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition-colors ${showOrderEditor ? "bg-blue-600 border-blue-500 text-white" : "bg-slate-700/40 border-slate-600/30 text-slate-300 hover:text-white"}`}
+              >
+                {showOrderEditor ? "▲ Hide Editor" : "✏ Edit Order"}
+              </button>
             </div>
-          </div>
 
-          {/* Rounds */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-300 mb-2">Rounds</label>
-            <div className="flex gap-2">
-              {[13, 14, 15, 16].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => setSettings((s) => ({ ...s, numRounds: n }))}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${settings.numRounds === n ? "bg-blue-600 border-blue-500 text-white" : "bg-slate-700/50 border-slate-600/30 text-slate-400 hover:text-white"}`}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
+            {/* Quick-pick row when editor is hidden */}
+            {!showOrderEditor && (
+              <div className="flex gap-1.5 flex-wrap">
+                {settings.customOrder.map((slot, idx) => (
+                  <button
+                    key={slot.id}
+                    onClick={() => {
+                      const next = settings.customOrder.map((s, i) => ({ ...s, isUser: i === idx }));
+                      setSettings((s) => ({ ...s, draftPosition: idx + 1, customOrder: next }));
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                      slot.isUser
+                        ? "bg-blue-600 border-blue-500 text-white"
+                        : "bg-slate-700/40 border-slate-600/30 text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    {slot.isUser ? `✓ Pick ${idx + 1}` : `${idx + 1}`}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Full editor */}
+            {showOrderEditor && (
+              <DraftOrderEditor
+                order={settings.customOrder}
+                onChange={(next) => {
+                  const userIdx = next.findIndex((s) => s.isUser);
+                  setSettings((s) => ({
+                    ...s,
+                    numTeams: next.length,
+                    draftPosition: userIdx + 1,
+                    customOrder: next,
+                  }));
+                }}
+                onSave={handleSaveOrder}
+              />
+            )}
           </div>
 
           <button
             onClick={startDraft}
-            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold py-3 rounded-xl transition-all"
+            disabled={!hasUser}
+            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all"
           >
-            Start Live Draft →
+            {hasUser ? `Start Draft — You Pick ${userSlot + 1}${["st","nd","rd"][userSlot] ?? "th"} →` : "Select Your Slot to Start"}
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Draft complete screen
+  if (draftComplete) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-2xl bg-gradient-to-r from-emerald-900/40 to-blue-900/40 border border-emerald-500/30 p-8 text-center">
+          <div className="text-4xl mb-3">🏆</div>
+          <h3 className="text-2xl font-bold text-white mb-2">Draft Complete!</h3>
+          <p className="text-slate-400 text-sm mb-6">Here's your final roster. Good luck this season.</p>
+          <div className="flex justify-center gap-3">
+            <button onClick={startDraft} className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition-colors">
+              Re-Draft Same Settings
+            </button>
+            <button onClick={resetDraft} className="px-6 py-3 rounded-xl bg-slate-700/50 hover:bg-slate-700 text-slate-300 font-bold text-sm border border-slate-600/30 transition-colors">
+              Change Settings
+            </button>
+          </div>
+        </div>
+
+        {/* Final roster */}
+        <div className="bg-slate-800/60 rounded-2xl border border-slate-700/40 p-4">
+          <h3 className="font-bold text-white mb-3">Your Final Roster</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {myPickedPlayers.map((pick, i) => (
+              <div key={i} className="flex items-center gap-2 rounded-lg bg-slate-900/50 px-3 py-2">
+                <span className="text-xs text-slate-500 w-6 text-right shrink-0">R{pick.round}</span>
+                <span className={`text-xs px-1.5 py-0.5 rounded font-bold ${posClass(pick.player!.position)}`}>
+                  {pick.player!.position}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-white truncate">{pick.player!.name}</div>
+                  <div className="text-xs text-slate-500">{pick.player!.team} · Bye {pick.player!.bye}</div>
+                </div>
+                <div className="text-xs font-bold text-slate-400">#{pick.player!.adjustedRank}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -605,12 +1030,30 @@ function DraftAssistant({ allPlayers }: { allPlayers: LiveDraftPlayer[] }) {
       {/* Left: Available Players */}
       <div className="lg:col-span-2 space-y-3">
         <div className="bg-slate-800/60 rounded-2xl border border-slate-700/40 p-4">
+          {/* Header row with clock */}
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-white">
-              Available Players
-              <span className="ml-2 text-slate-400 text-sm font-normal">({available.length} remaining)</span>
-            </h3>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-3">
+              <h3 className="font-bold text-white">
+                Available
+                <span className="ml-1 text-slate-400 text-sm font-normal">({available.length})</span>
+              </h3>
+              {currentPick && (
+                <PickClock seconds={secondsLeft} isMyPick={isMyTurn} />
+              )}
+            </div>
+            <div className="flex gap-2 flex-wrap justify-end">
+              <button
+                onClick={() => { setPaused((p) => !p); setShowOrderEditor(false); }}
+                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${paused && !showOrderEditor ? "bg-amber-500/20 border-amber-500/30 text-amber-400" : "bg-slate-700/50 border-slate-600/30 text-slate-300 hover:text-white"}`}
+              >
+                {paused && !showOrderEditor ? "▶ Resume" : "⏸ Pause"}
+              </button>
+              <button
+                onClick={() => { setShowOrderEditor((v) => !v); if (!paused) setPaused(true); }}
+                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${showOrderEditor ? "bg-blue-600 border-blue-500 text-white" : "bg-slate-700/50 border-slate-600/30 text-slate-300 hover:text-white"}`}
+              >
+                ✏ Order
+              </button>
               <button onClick={undoPick} className="text-xs px-3 py-1.5 rounded-lg bg-slate-700/50 text-slate-300 hover:text-white border border-slate-600/30 transition-colors">
                 ← Undo
               </button>
@@ -620,44 +1063,123 @@ function DraftAssistant({ allPlayers }: { allPlayers: LiveDraftPlayer[] }) {
             </div>
           </div>
 
-          {/* AI Recommendation Banner */}
-          {currentPick && currentPick.team === "user" && aiRec && (
-            <div className="mb-3 rounded-xl bg-amber-500/10 border border-amber-500/30 p-3">
+          {/* Saved toast */}
+          {savedToast && (
+            <div className="mb-2 rounded-lg bg-emerald-600/20 border border-emerald-500/30 px-3 py-2 text-xs text-emerald-400 font-semibold">
+              ✓ Draft order saved
+            </div>
+          )}
+
+          {/* Inline order editor (mid-draft) */}
+          {showOrderEditor && (
+            <div className="mb-3 rounded-xl bg-slate-900/70 border border-blue-500/20 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm font-bold text-white">Edit Draft Order</div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      // Rebuild the board from current order, keep already-made picks at absolute positions
+                      const newBoard = buildDraftBoard(settings);
+                      // Restore picks that have been made (by overall pick number)
+                      for (const existing of board) {
+                        if (existing.player) {
+                          const match = newBoard.find((p) => p.overall === existing.overall);
+                          if (match) match.player = existing.player;
+                        }
+                      }
+                      setBoard(newBoard);
+                      setShowOrderEditor(false);
+                      setPaused(false);
+                    }}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors"
+                  >
+                    Apply & Resume
+                  </button>
+                  <button
+                    onClick={() => { setShowOrderEditor(false); setPaused(false); }}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-slate-700/50 text-slate-300 hover:text-white border border-slate-600/30 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+              <DraftOrderEditor
+                order={settings.customOrder}
+                onChange={(next) => {
+                  const userIdx = next.findIndex((s) => s.isUser);
+                  setSettings((s) => ({
+                    ...s,
+                    numTeams: next.length,
+                    draftPosition: userIdx + 1,
+                    customOrder: next,
+                  }));
+                }}
+                onSave={handleSaveOrder}
+              />
+            </div>
+          )}
+
+          {/* Last auto pick toast */}
+          {lastAutoPick && !showOrderEditor && (
+            <div className="mb-2 rounded-lg bg-slate-700/50 border border-slate-600/30 px-3 py-2 text-xs text-slate-400 flex items-center gap-2">
+              <span className="text-slate-500">↳ Auto-picked:</span>
+              <span className="font-semibold text-white">{lastAutoPick.name}</span>
+              <span className="text-slate-500">({lastAutoPick.team})</span>
+            </div>
+          )}
+
+          {/* Other teams picking — animated */}
+          {currentPick && currentPick.team === "other" && !currentPick.player && (
+            <div className="mb-3 rounded-xl bg-slate-700/30 border border-slate-600/20 p-3 flex items-center gap-3">
+              <div className="flex gap-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: "0ms" }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: "150ms" }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: "300ms" }} />
+              </div>
+              <div>
+                <span className="text-xs font-semibold text-slate-400">
+                  {settings.customOrder[currentPick.slotIdx]?.label ?? `Team ${currentPick.pick}`} is picking
+                </span>
+                <span className="text-xs text-slate-500 ml-2">Round {currentPick.round} · Overall #{currentPick.overall}</span>
+              </div>
+              {paused && (
+                <button
+                  onClick={() => {
+                    setBoard((prev) => {
+                      const next = autoPickOtherNow(prev, currentPickIdx);
+                      setTimeout(() => advance(next, currentPickIdx), 0);
+                      return next;
+                    });
+                  }}
+                  className="ml-auto text-xs px-3 py-1.5 rounded-lg bg-slate-600 hover:bg-slate-500 text-white border border-slate-500/30 transition-colors"
+                >
+                  Skip →
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* AI Recommendation Banner — shown when it's your turn */}
+          {isMyTurn && aiRec && (
+            <div className={`mb-3 rounded-xl border p-3 transition-colors ${secondsLeft <= 30 ? "bg-red-500/10 border-red-500/30" : "bg-amber-500/10 border-amber-500/30"}`}>
               <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-semibold text-amber-400 mb-1">🤖 AI Pick — Round {currentPick.round}, Pick {currentPick.pick}</div>
+                <div className="flex-1 min-w-0">
+                  <div className={`text-xs font-semibold mb-1 ${secondsLeft <= 30 ? "text-red-400" : "text-amber-400"}`}>
+                    🤖 AI Recommendation — Round {currentPick!.round}, Pick {currentPick!.pick}
+                  </div>
                   <div className="text-sm font-bold text-white">{aiRec.player.name}</div>
-                  <div className="text-xs text-slate-400 mt-0.5">{aiRec.reason}</div>
+                  <div className="text-xs text-slate-400 mt-0.5 leading-relaxed">{aiRec.reason}</div>
+                  {secondsLeft <= 30 && (
+                    <div className="text-xs text-red-400 font-semibold mt-1">⚠ Clock expiring — will auto-draft if you don't pick</div>
+                  )}
                 </div>
                 <button
                   onClick={() => makePick(aiRec.player)}
-                  className="ml-4 shrink-0 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-sm font-bold transition-colors"
+                  className={`ml-4 shrink-0 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${secondsLeft <= 30 ? "bg-red-500 hover:bg-red-400 text-white" : "bg-amber-500 hover:bg-amber-400 text-black"}`}
                 >
                   Draft
                 </button>
               </div>
-            </div>
-          )}
-
-          {/* CPU auto-drafting indicator */}
-          {currentPick && currentPick.team === "other" && (
-            <div className="mb-3 rounded-xl bg-slate-700/40 border border-slate-600/30 p-3">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-                </span>
-                <div className="text-xs font-semibold text-blue-400">
-                  Team {currentPick.teamNum} is on the clock — Round {currentPick.round}, Pick {currentPick.pick}
-                </div>
-              </div>
-              {lastCpuPick && (
-                <div className="text-xs text-slate-400">
-                  Last pick: <span className="text-white font-semibold">{lastCpuPick.player.name}</span>
-                  <span className={`ml-1.5 px-1 rounded text-xs font-bold ${posClass(lastCpuPick.player.position)}`}>{lastCpuPick.player.position}</span>
-                  → Team {lastCpuPick.teamNum}
-                </div>
-              )}
             </div>
           )}
 
@@ -688,8 +1210,8 @@ function DraftAssistant({ allPlayers }: { allPlayers: LiveDraftPlayer[] }) {
             {filteredAvailable.slice(0, 60).map((player) => (
               <div
                 key={player.id}
-                onClick={() => makePick(player)}
-                className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-slate-700/50 transition-colors group"
+                onClick={() => isMyTurn && makePick(player)}
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors group ${isMyTurn ? "cursor-pointer hover:bg-slate-700/50" : "opacity-50 cursor-default"}`}
               >
                 <RankBadge rank={player.adjustedRank} />
                 <div className="flex-1 min-w-0">
@@ -765,10 +1287,11 @@ function DraftAssistant({ allPlayers }: { allPlayers: LiveDraftPlayer[] }) {
         {/* Draft Order Summary */}
         <div className="bg-slate-800/60 rounded-2xl border border-slate-700/40 p-4">
           <h3 className="font-bold text-white mb-3">Draft Board</h3>
-          <div className="space-y-0.5 max-h-80 overflow-y-auto" ref={boardDomRef}>
+          <div className="space-y-0.5 max-h-80 overflow-y-auto" ref={boardRef}>
             {board.map((pick, idx) => (
               <div
                 key={pick.overall}
+                ref={idx === currentPickIdx ? currentPickRef : undefined}
                 className={`flex items-center gap-2 px-2 py-1 rounded text-xs transition-colors ${idx === currentPickIdx ? "bg-blue-600/30 border border-blue-500/30" : pick.team === "user" && !pick.player ? "bg-amber-500/10" : ""}`}
               >
                 <span className="text-slate-500 w-5 text-right shrink-0">{pick.overall}</span>
@@ -783,8 +1306,10 @@ function DraftAssistant({ allPlayers }: { allPlayers: LiveDraftPlayer[] }) {
                     </span>
                   </>
                 ) : (
-                  <span className={`flex-1 ${pick.team === "user" ? "text-amber-400 font-semibold" : "text-slate-600"}`}>
-                    {pick.team === "user" ? "← YOUR PICK" : "..."}
+                  <span className={`flex-1 truncate ${pick.team === "user" ? "text-amber-400 font-semibold" : "text-slate-600"}`}>
+                    {pick.team === "user"
+                      ? "← YOUR PICK"
+                      : settings.customOrder[pick.slotIdx]?.label ?? `Team ${pick.pick}`}
                   </span>
                 )}
               </div>
@@ -1020,19 +1545,9 @@ function PricingCTA() {
         The edge is in picks 6–100. Upgrade to get full rankings, daily news adjustments, reasoning,
         sleeper alerts, and the Live Draft Assistant.
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mx-auto mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg mx-auto mb-4">
         <div className="rounded-xl bg-slate-800/60 border border-slate-700/40 p-4 text-left">
-          <div className="text-slate-300 font-bold text-sm mb-1">🎯 Contender — $9.99/mo</div>
-          <ul className="text-xs text-slate-400 space-y-1">
-            <li>✓ Top 5 draft picks</li>
-            <li>✓ 1 saved lineup per sport</li>
-            <li>✓ Basic DraftKings access</li>
-            <li className="text-slate-600">✗ Full rankings</li>
-            <li className="text-slate-600">✗ Live Draft Assistant</li>
-          </ul>
-        </div>
-        <div className="rounded-xl bg-slate-800/60 border border-amber-500/30 p-4 text-left">
-          <div className="text-amber-400 font-bold text-sm mb-1">⭐ Sharpshooter — $19.99/mo</div>
+          <div className="text-amber-400 font-bold text-sm mb-1">⭐ Sharpshooter — $9.99/mo</div>
           <ul className="text-xs text-slate-400 space-y-1">
             <li>✓ Full 100-player rankings</li>
             <li>✓ Daily news-adjusted ranks</li>
@@ -1043,7 +1558,7 @@ function PricingCTA() {
           </ul>
         </div>
         <div className="rounded-xl bg-gradient-to-b from-purple-900/40 to-blue-900/40 border border-purple-500/30 p-4 text-left">
-          <div className="text-purple-400 font-bold text-sm mb-1">👑 Champion — $39.99/mo</div>
+          <div className="text-purple-400 font-bold text-sm mb-1">👑 Champion — $19.99/mo</div>
           <ul className="text-xs text-slate-400 space-y-1">
             <li>✓ Everything in Sharpshooter</li>
             <li>✓ Live Draft Assistant</li>
@@ -1071,12 +1586,8 @@ export default function NFLDraft() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("rankings");
 
-  const { data: subData } = useQuery<{ tier?: string }>({
-    queryKey: ["/api/subscription"],
-  });
-
-  const isAdmin = (user as any)?.isAdmin === true;
-  const tier = isAdmin ? "pro" : (subData?.tier ?? "free");
+  const tier = (user as any)?.subscriptionTier ?? "free";
+  const isAdmin = tier === "admin";
   const isStarOrAbove = isAdmin || tier === "pro" || tier === "star";
   const isChampion = isAdmin || tier === "pro"; // "pro" maps to Champion
 
@@ -1094,7 +1605,7 @@ export default function NFLDraft() {
 
   const tabs: { id: Tab; label: string; icon: string; requiresPaid?: boolean }[] = [
     { id: "rankings", label: "Rankings", icon: "📊" },
-    { id: "draft", label: "Live Draft Assistant", icon: "🏈", requiresPaid: false },
+    { id: "draft", label: "Live Draft Assistant", icon: "🏈", requiresPaid: true },
     { id: "bye-weeks", label: "Bye Weeks", icon: "📅", requiresPaid: false },
     { id: "handcuffs", label: "Handcuffs", icon: "🤝", requiresPaid: false },
   ];
@@ -1213,14 +1724,13 @@ export default function NFLDraft() {
                   <div className="text-4xl mb-3">🏈</div>
                   <h3 className="text-xl font-bold text-white mb-2">Live Draft Assistant</h3>
                   <p className="text-slate-400 text-sm mb-6 max-w-md mx-auto">
-                    Configure your league, monitor every pick live, and get an AI-powered recommendation for every one of your picks — with full reasoning. Included exclusively with the Champion plan.
+                    Configure your league, monitor every pick live, and get an AI-powered recommendation for every one of your picks — with full reasoning.
                   </p>
                   <Link href="/pricing">
                     <button className="px-8 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold rounded-xl transition-all">
                       Upgrade to Champion — 7-Day Free Trial
                     </button>
                   </Link>
-                  <p className="text-xs text-slate-500 mt-3">No refunds. Cancel at any time.</p>
                 </div>
               </div>
             )}
