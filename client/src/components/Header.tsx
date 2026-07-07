@@ -304,6 +304,12 @@ export function Header() {
                     <span className="text-sm font-bold text-slate-300">PrizePicks</span>
                   </DropdownMenuItem>
                 </Link>
+                <Link href="/world-cup-builder">
+                  <DropdownMenuItem className="cursor-pointer" data-testid="nav-world-cup-builder">
+                    <Trophy className="w-4 h-4 mr-2 text-emerald-400" />
+                    <span className="text-sm font-bold text-slate-300">World Cup Builder</span>
+                  </DropdownMenuItem>
+                </Link>
                 <Link href="/showdown">
                   <DropdownMenuItem className="cursor-pointer" data-testid="nav-showdown">
                     <Swords className="w-4 h-4 mr-2 text-amber-400" />

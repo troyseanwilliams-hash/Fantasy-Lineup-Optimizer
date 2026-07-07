@@ -3300,6 +3300,72 @@ export async function registerRoutes(
     }
   });
 
+  // National-team names/codes used to filter the SOCCER feed to World Cup fixtures.
+  const WC_NATIONS = new Set<string>([
+    "argentina","brazil","france","england","spain","germany","portugal","netherlands","holland",
+    "belgium","croatia","italy","uruguay","colombia","mexico","usa","united states","canada","japan",
+    "south korea","korea republic","korea","australia","morocco","senegal","ghana","nigeria","cameroon",
+    "egypt","tunisia","algeria","ivory coast","cote d'ivoire","ecuador","peru","chile","paraguay",
+    "denmark","switzerland","poland","serbia","austria","ukraine","wales","scotland","turkey","turkiye",
+    "iran","saudi arabia","qatar","costa rica","panama","honduras","jamaica","new zealand","norway",
+    "sweden","czechia","czech republic","hungary","greece","russia","south africa","cape verde",
+    "jordan","uzbekistan","new caledonia","curacao","haiti","bolivia","venezuela","slovenia","slovakia",
+    "romania","ireland","northern ireland","iceland","finland","mali","dr congo","angola","zambia",
+    // 3-letter FIFA codes
+    "arg","bra","fra","eng","esp","ger","por","ned","bel","cro","ita","uru","col","mex","can","jpn",
+    "kor","aus","mar","sen","gha","nga","cmr","egy","tun","alg","civ","ecu","per","chi","par","den",
+    "sui","pol","srb","aut","ukr","wal","sco","tur","irn","ksa","qat","crc","pan","hon","jam","nzl",
+    "nor","swe","cze","hun","gre","rsa","cpv","jor","uzb",
+  ]);
+  const isWorldCupProjection = (p: any) => {
+    const team = String(p.team || "").toLowerCase().trim();
+    const info = String(p.gameInfo || "").toLowerCase();
+    return WC_NATIONS.has(team) || /world cup|fifa|\bwc\b/.test(info);
+  };
+  // Fetch SOCCER projections (live feed → DB fallback) filtered to World Cup fixtures.
+  async function getWorldCupProjections(): Promise<{ projections: any[]; soccerCount: number; dbPlayers: Player[] }> {
+    let projections = await fetchPrizePicksProjections("SOCCER");
+    const allSlates = await storage.getSlates();
+    const soccerSlates = allSlates.filter(s => s.sport === "SOCCER" && s.platform === "draftkings" && s.isActive !== false);
+    let dbPlayers: Player[] = [];
+    for (const slate of soccerSlates) {
+      const slatePlayers = await storage.getPlayersBySlate(slate.id);
+      dbPlayers.push(...slatePlayers);
+    }
+    const seen = new Set<string>();
+    dbPlayers = dbPlayers.filter(p => {
+      if (seen.has(p.name)) return false;
+      seen.add(p.name);
+      return true;
+    });
+    if (projections.length === 0) {
+      projections = generateProjectionsFromPlayers(dbPlayers, "SOCCER");
+    }
+    return { projections: projections.filter(isWorldCupProjection), soccerCount: projections.length, dbPlayers };
+  }
+
+  // World Cup auto-build: builds AI entries from World Cup–filtered SOCCER projections.
+  app.get("/api/prizepicks/build/worldcup", async (req, res) => {
+    try {
+      if (!isLoggedIn(req)) return res.sendStatus(401);
+      const userId = getSessionUserId(req)!;
+      const sub = await storage.getSubscription(userId);
+      const wcUser = await storage.getUser(userId);
+      if (wcUser?.isAdmin !== true && (!sub || sub.tier !== "pro")) {
+        return res.status(403).json({ error: "Pro subscription required" });
+      }
+      const { projections, dbPlayers } = await getWorldCupProjections();
+      if (projections.length === 0) return res.json({ sport: "WORLDCUP", entries: [] });
+      const wcPlayerNames = new Set(projections.map((p: any) => p.playerName));
+      const wcPlayers = dbPlayers.filter(p => wcPlayerNames.has(p.name));
+      const entries = buildAIEntries(projections, wcPlayers);
+      res.json({ sport: "WORLDCUP", entries });
+    } catch (err) {
+      console.error("[PrizePicks WorldCup Builder] Error:", err);
+      res.status(500).json({ error: "Failed to build entries" });
+    }
+  });
+
   app.get("/api/prizepicks/build/:sport", async (req, res) => {
     try {
       if (!isLoggedIn(req)) return res.sendStatus(401);
@@ -3417,6 +3483,30 @@ export async function registerRoutes(
     } catch (err) {
       console.error("[PP Vault] Error deleting entry:", err);
       res.status(500).json({ error: "Failed to delete entry" });
+    }
+  });
+
+  // World Cup projections: SOCCER feed filtered to national-team (FIFA) fixtures.
+  // Same live→DB fallback as /api/prizepicks/:sport, then filtered to World Cup.
+  // Registered BEFORE /api/prizepicks/:sport so the literal path wins.
+  app.get("/api/prizepicks/worldcup", async (_req, res) => {
+    try {
+      const { projections: worldCup, soccerCount } = await getWorldCupProjections();
+      const movements = getLineMovements("SOCCER");
+      const lineMovements: Record<string, any> = {};
+      for (const [id, m] of movements) {
+        if (worldCup.some(p => p.id === id)) lineMovements[id] = m;
+      }
+      res.json({
+        league: "FIFA World Cup",
+        projections: worldCup,
+        hasWorldCup: worldCup.length > 0,
+        soccerCount,
+        lineMovements,
+      });
+    } catch (err) {
+      console.error("[PrizePicks WorldCup] Error:", err);
+      res.json({ league: "FIFA World Cup", projections: [], hasWorldCup: false, soccerCount: 0, lineMovements: {} });
     }
   });
 
