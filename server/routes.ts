@@ -2369,7 +2369,7 @@ export async function registerRoutes(
       if (!stripe) return res.status(500).json({ message: "Stripe not configured" });
 
       const sig = req.headers["stripe-signature"] as string;
-      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+      const webhookSecret = process.env.ELITELINEUP_STRIPE_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET;
 
       let event;
       if (webhookSecret) {
