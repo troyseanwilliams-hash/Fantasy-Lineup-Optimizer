@@ -248,17 +248,15 @@ export async function createDraftHubCheckoutSession(
   return session.url!;
 }
 
-export async function createPortalSession(userId: string, returnUrl: string): Promise<string> {
+export async function createPortalSession(userId: string, email: string, returnUrl: string): Promise<string> {
   if (!stripe) throw new Error("Stripe not configured");
 
   const sub = await storage.getSubscription(userId);
-  if (!sub?.stripeCustomerId) {
-    throw new Error("No Stripe customer found for this user");
-  }
+  const customerId = await getOrCreateValidCustomer(userId, email, sub);
 
   try {
     const session = await stripe.billingPortal.sessions.create({
-      customer: sub.stripeCustomerId,
+      customer: customerId,
       return_url: returnUrl,
     });
     return session.url;

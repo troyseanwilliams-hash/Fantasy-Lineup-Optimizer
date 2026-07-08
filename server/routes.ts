@@ -2355,7 +2355,9 @@ export async function registerRoutes(
       const host = req.headers.host;
       const returnUrl = `${protocol}://${host}/pricing`;
 
-      const url = await createPortalSession(userId, returnUrl);
+      const dbUser = await storage.getUser(userId);
+      const email = dbUser?.email || "";
+      const url = await createPortalSession(userId, email, returnUrl);
       res.json({ url });
     } catch (err: any) {
       console.error("[stripe] Portal error:", err);
