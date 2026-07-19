@@ -12,6 +12,7 @@ import { getPlatformConfig, ACTIVE_SPORTS, assignPlayersToSlots, type Platform }
 import { computeBoostScores, computeCorrelationBonus, applyCeilingMode, applyLeverageMode, applyActualAdjustedProjections, applyWinningLineupAdjustment, applyOutperformerMode } from "./boost-engine";
 import { getHistoricalProfile, applyHistoricalAdjustments } from "./historical-adjustments";
 import { applyMarketProjectionBlend } from "./market-projections";
+import { generateFieldLineups, computeTournamentEV } from "./tournament-ev";
 
 function getSessionUserId(req: Request): string | null {
   return (req.session as any)?.userId || null;
@@ -4317,7 +4318,7 @@ export async function registerRoutes(
     minStackSize:         z.number().min(2).max(5).default(2),
     stackGameKey:         z.string().optional(),
     minStarRating:        z.number().min(0).max(5).default(0),
-    sortMetric:           z.enum(["composite", "p90", "p75", "median", "avg"]).default("composite"),
+    sortMetric:           z.enum(["composite", "p90", "p75", "median", "avg", "ev"]).default("composite"),
     useBoosts:            z.boolean().default(true),
     ceilingMode:          z.boolean().default(false),
     leverageMode:         z.boolean().default(false),
@@ -4678,14 +4679,56 @@ export async function registerRoutes(
         };
       });
 
-      const metricKey = {
+      // Tournament EV: score candidates against a simulated opponent field
+      // sampled from projected ownership, mapped through a GPP payout curve
+      // with a duplication penalty. Only computed when requested.
+      if (input.sortMetric === "ev") {
+        try {
+          const bdlStatsEV = await fetchBDLStats(slate.sport).catch(() => undefined);
+          const ownershipResultsEV = await calculateOwnership(pool, slate.sport, "gpp_large", bdlStatsEV);
+          const ownedPoolEV = computeOwnershipForPlayers(pool, ownershipResultsEV);
+          const ownByIdEV = new Map(ownedPoolEV.map(p => [p.id, p.ownershipProjection]));
+          const EV_FIELD_SIZE = 800;
+          const fieldLineups = generateFieldLineups(ownedPoolEV, slate.sport, slate.platform, EV_FIELD_SIZE);
+          if (fieldLineups.length >= 100) {
+            const evCandidates = uniqueLineups.map(lu => {
+              let ownProduct = 1;
+              for (const p of lu.lineup) {
+                ownProduct *= Math.min(0.6, Math.max(0.002, (ownByIdEV.get(p.id) ?? 0.5) / 100));
+              }
+              return { key: lu.key, pids: lu.lineup.map(p => p.id), ownProduct };
+            });
+            const evMap = computeTournamentEV(evCandidates, fieldLineups, simProjArrays as any);
+            for (const lu of uniqueLineups as any[]) {
+              const ev = evMap.get(lu.key);
+              if (ev) {
+                lu.evScore = ev.evScore;
+                lu.winPct = ev.winPct;
+                lu.cashPct = ev.cashPct;
+                lu.dupeFactor = ev.dupeFactor;
+              } else {
+                lu.evScore = 0;
+              }
+            }
+            console.log(`[TournamentEV] Scored ${evCandidates.length} candidates vs ${fieldLineups.length}-lineup simulated field`);
+          } else {
+            console.warn(`[TournamentEV] Field generation too sparse (${fieldLineups.length}) — falling back to composite sort`);
+          }
+        } catch (err) {
+          console.error("[TournamentEV] failed (falling back to composite):", err);
+        }
+      }
+
+      const metricKey = ({
         composite: "compositeScore",
         p90:       "p90Score",
         p75:       "p75Score",
         median:    "medianScore",
         avg:       "avgSimScore",
-      }[input.sortMetric] as keyof typeof uniqueLineups[0];
-      uniqueLineups.sort((a, b) => (b[metricKey] as number) - (a[metricKey] as number));
+        ev:        "evScore",
+      } as Record<string, string>)[input.sortMetric] ?? "compositeScore";
+      uniqueLineups.sort((a, b) =>
+        (((b as any)[metricKey] ?? b.compositeScore) as number) - (((a as any)[metricKey] ?? a.compositeScore) as number));
 
       const playerAppearances: Record<number, number> = {};
       const selected: typeof uniqueLineups = [];

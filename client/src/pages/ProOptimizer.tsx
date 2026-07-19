@@ -123,7 +123,7 @@ export default function ProOptimizer() {
   const [numSims, setNumSims] = useState(200);
   const [enforceGameStack, setEnforceGameStack] = useState(false);
   const [stackGameKey, setStackGameKey] = useState<string | null>(null);
-  const [simSortMetric, setSimSortMetric] = useState<"composite" | "p90" | "p75" | "median" | "avg">("composite");
+  const [simSortMetric, setSimSortMetric] = useState<"composite" | "p90" | "p75" | "median" | "avg" | "ev">("composite");
   const [minStarRating, setMinStarRating] = useState<number>(0);
   const [lineupSwaps, setLineupSwaps] = useState<Record<string, Record<string, Player>>>({});
   const [visibleLineupCount, setVisibleLineupCount] = useState(25);
@@ -396,7 +396,7 @@ export default function ProOptimizer() {
     if (simMode && simMutation.data?.lineups) {
       const metricKeyMap: Record<string, string> = {
         p90: "p90Score", p75: "p75Score", median: "medianScore",
-        avg: "avgSimScore", composite: "compositeScore",
+        avg: "avgSimScore", composite: "compositeScore", ev: "evScore",
       };
       const sortKey = metricKeyMap[simSortMetric] || "compositeScore";
       const mapped = simMutation.data.lineups.map((lu: any) => ({
@@ -413,6 +413,9 @@ export default function ProOptimizer() {
           stackCount:    lu.stackCount,
           stackTeams:    lu.stackTeams,
           compositeScore:lu.compositeScore,
+          evScore:       lu.evScore,
+          winPct:        lu.winPct,
+          cashPct:       lu.cashPct,
         },
       }));
       mapped.sort((a: any, b: any) => b.totalProjectedPoints - a.totalProjectedPoints);
@@ -1372,7 +1375,7 @@ export default function ProOptimizer() {
 
                 <div className="flex items-center gap-2">
                   <InfoTip
-                    text="P90 = top 10% ceiling (boom potential). P75 = top 25% upside. Median = middle outcome. Average = mean across all sims. Composite = weighted blend of all metrics for balanced ranking."
+                    text="P90 = top 10% ceiling (boom potential). P75 = top 25% upside. Median = middle outcome. Average = mean across all sims. Composite = weighted blend of all metrics. 🏆 EV = tournament expected value — every lineup is scored against a simulated opponent field built from projected ownership and mapped through a GPP payout curve (with a chalk-duplication penalty). Best for large-field GPPs."
                     side="bottom"
                   />
                   <span className="text-[9px] font-black text-slate-500 uppercase">Sort By</span>
@@ -1383,6 +1386,7 @@ export default function ProOptimizer() {
                       { key: "p75", label: "P75" },
                       { key: "median", label: "Median" },
                       { key: "avg", label: "Average" },
+                      { key: "ev", label: "🏆 EV" },
                     ] as const).map(m => (
                       <button
                         key={m.key}
@@ -2539,6 +2543,18 @@ export default function ProOptimizer() {
                                   <Percent className="w-2.5 h-2.5 text-violet-400" />
                                   <span className="text-[10px] font-black text-violet-400 tabular-nums">{sd.freqPct}%</span>
                                 </div>
+                                {sd.evScore != null && (
+                                  <div
+                                    className="flex items-center gap-1 bg-cyan-500/10 rounded px-1.5 py-0.5 border border-cyan-500/20"
+                                    title={`Tournament EV: ${sd.evScore}x entry vs simulated field · win ${sd.winPct ?? 0}% · cash ${sd.cashPct ?? 0}%`}
+                                  >
+                                    <span className="text-[10px]">🏆</span>
+                                    <span className="text-[10px] font-black text-cyan-300 tabular-nums">{sd.evScore}x</span>
+                                    {sd.cashPct != null && (
+                                      <span className="text-[9px] font-bold text-cyan-500/70 tabular-nums">{sd.cashPct}%💰</span>
+                                    )}
+                                  </div>
+                                )}
                               </>
                             )}
                             {/* Salary */}
