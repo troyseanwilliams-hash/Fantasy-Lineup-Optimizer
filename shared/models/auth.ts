@@ -25,6 +25,9 @@ export const users = pgTable("users", {
   smsConsent: boolean("sms_consent").default(false),
   emailConsent: boolean("email_consent").default(false),
   onboardingComplete: boolean("onboarding_complete").default(false),
+  // Account-level "don't show the tutorial again" — survives new devices,
+  // unlike the localStorage flag.
+  tutorialDisabled: boolean("tutorial_disabled").default(false),
   profileImageUrl: varchar("profile_image_url"),
   isAdmin: boolean("is_admin").default(false),
   createdAt: timestamp("created_at").defaultNow(),

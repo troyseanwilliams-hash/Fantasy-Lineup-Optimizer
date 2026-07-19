@@ -1089,7 +1089,9 @@ function QuickActions({ slateId, tier }: { slateId: number | null; tier: string 
 function AuthenticatedDashboard() {
   const { user } = useAuth();
   const [activeSport, setActiveSport] = useState(ACTIVE_SPORTS[0] || "NBA");
-  const { isActive: tutorialActive, startTutorial, endTutorial } = useTutorial();
+  const { isActive: tutorialActive, startTutorial, endTutorial } = useTutorial(
+    (user as any)?.tutorialDisabled === true,
+  );
 
   const { data: subData } = useQuery<{ tier: string }>({
     queryKey: ["/api/subscription"],

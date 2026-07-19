@@ -92,16 +92,21 @@ const TUTORIAL_STEPS: TutorialStep[] = [
 
 const STORAGE_KEY = "elitelineup_tutorial_completed";
 
-export function useTutorial() {
+export function useTutorial(accountDisabled?: boolean) {
   const [isActive, setIsActive] = useState(false);
 
   useEffect(() => {
+    // Account-level opt-out wins over everything (survives new devices).
+    if (accountDisabled) {
+      setIsActive(false);
+      return;
+    }
     const completed = localStorage.getItem(STORAGE_KEY);
     if (!completed) {
       const timer = setTimeout(() => setIsActive(true), 1500);
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [accountDisabled]);
 
   const startTutorial = useCallback(() => setIsActive(true), []);
   const endTutorial = useCallback(() => {
@@ -112,6 +117,16 @@ export function useTutorial() {
   return { isActive, startTutorial, endTutorial };
 }
 
+/** Persists the account-level opt-out. Fire-and-forget; localStorage is the fallback. */
+function saveTutorialDisabled(disabled: boolean): void {
+  fetch("/api/user/tutorial-preference", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ disabled }),
+  }).catch(() => {});
+}
+
 interface OverlayProps {
   isActive: boolean;
   onEnd: () => void;
@@ -120,7 +135,15 @@ interface OverlayProps {
 export function TutorialOverlay({ isActive, onEnd }: OverlayProps) {
   const [step, setStep] = useState(0);
   const [spotlightRect, setSpotlightRect] = useState<DOMRect | null>(null);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
   const tooltipRef = useRef<HTMLDivElement>(null);
+
+  // Ends the tutorial; if "don't show again" is checked, persists the
+  // opt-out to the account so it never reappears on any device.
+  const handleEnd = useCallback(() => {
+    if (dontShowAgain) saveTutorialDisabled(true);
+    onEnd();
+  }, [dontShowAgain, onEnd]);
 
   const current = TUTORIAL_STEPS[step];
 
@@ -293,7 +316,7 @@ export function TutorialOverlay({ isActive, onEnd }: OverlayProps) {
             {isLast ? (
               <Button
                 size="sm"
-                onClick={onEnd}
+                onClick={handleEnd}
                 className="h-8 px-4 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs"
                 data-testid="tutorial-finish"
               >
@@ -312,10 +335,21 @@ export function TutorialOverlay({ isActive, onEnd }: OverlayProps) {
           </div>
         </div>
 
+        {/* Permanent opt-out (account-level, survives new devices) */}
+        <label className="flex items-center justify-center gap-2 mt-3 cursor-pointer select-none" data-testid="tutorial-dont-show">
+          <input
+            type="checkbox"
+            checked={dontShowAgain}
+            onChange={(e) => setDontShowAgain(e.target.checked)}
+            className="h-3.5 w-3.5 accent-emerald-500"
+          />
+          <span className="text-xs text-slate-400">Don't show this tutorial again</span>
+        </label>
+
         {isFirst && (
           <button
-            onClick={onEnd}
-            className="w-full text-center text-xs text-slate-500 hover:text-slate-300 mt-3 transition-colors"
+            onClick={handleEnd}
+            className="w-full text-center text-xs text-slate-500 hover:text-slate-300 mt-2 transition-colors"
             data-testid="tutorial-skip"
           >
             Skip tutorial

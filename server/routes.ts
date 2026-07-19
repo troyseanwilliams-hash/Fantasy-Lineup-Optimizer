@@ -2438,6 +2438,21 @@ export async function registerRoutes(
     }
   });
 
+  // ── Tutorial preference ────────────────────────────────────────────────────
+  // Account-level "don't show the tutorial again" (checkbox on the overlay).
+  app.post("/api/user/tutorial-preference", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const tutUserId = getSessionUserId(req)!;
+    const disabled = req.body?.disabled === true;
+    try {
+      await db.update(users).set({ tutorialDisabled: disabled }).where(eq(users.id, tutUserId));
+      res.json({ ok: true, tutorialDisabled: disabled });
+    } catch (err) {
+      console.error("[Tutorial] preference update failed:", err);
+      res.status(500).json({ message: "Failed to save preference" });
+    }
+  });
+
   // ── Support tickets ────────────────────────────────────────────────────────
   // Anyone can file (logged-out visitors include their email); admins triage.
   app.post("/api/support", async (req, res) => {
