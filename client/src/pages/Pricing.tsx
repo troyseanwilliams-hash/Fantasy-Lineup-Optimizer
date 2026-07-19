@@ -566,7 +566,7 @@ export default function Pricing() {
                 <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30 text-[10px] font-black px-1.5">ONE-TIME</Badge>
               </div>
               <div className="flex items-baseline gap-2 mb-1">
-                <span className="text-4xl font-black text-white">$59</span>
+                <span className="text-4xl font-black text-white">$49</span>
                 <span className="text-slate-400 font-bold">one-time</span>
               </div>
               <p className="text-xs text-blue-400/70 mb-3">Full access through the 2026 NFL Draft season</p>
@@ -607,7 +607,7 @@ export default function Pricing() {
                     } catch { toast({ title: "Error", description: "Could not start checkout. Please try again.", variant: "destructive" }); }
                   }}
                 >
-                  <span className="mr-2">🏈</span>Buy Draft Hub — $59
+                  <span className="mr-2">🏈</span>Buy Draft Hub — $49
                 </Button>
               )}
               <p className="text-xs text-slate-500 text-center">No refunds. No subscription.</p>

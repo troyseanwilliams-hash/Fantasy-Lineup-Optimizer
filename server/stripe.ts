@@ -213,7 +213,7 @@ export async function createDraftHubCheckoutSession(
   const sub = await storage.getSubscription(userId);
   const customerId = await getOrCreateValidCustomer(userId, email, sub);
 
-  // Get or create the $59 one-time product + price
+  // Get or create the $49 one-time product + price
   const productName = "NFL Draft Hub 2026";
   const existingProducts = await stripe.products.list({ limit: 100 });
   let product = existingProducts.data.find(p => p.name === productName && p.active);
@@ -226,11 +226,11 @@ export async function createDraftHubCheckoutSession(
   }
 
   const existingPrices = await stripe.prices.list({ product: product.id, active: true });
-  let price = existingPrices.data.find(p => p.unit_amount === 5900 && p.type === "one_time");
+  let price = existingPrices.data.find(p => p.unit_amount === 4900 && p.type === "one_time");
   if (!price) {
     price = await stripe.prices.create({
       product: product.id,
-      unit_amount: 5900,
+      unit_amount: 4900,
       currency: "usd",
     });
   }
