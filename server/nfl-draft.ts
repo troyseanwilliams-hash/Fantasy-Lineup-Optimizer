@@ -249,7 +249,50 @@ export async function getDraftRankings(force = false): Promise<LiveDraftPlayer[]
   });
 
   rankingsCache = { players, fetchedAt: Date.now() };
+
+  // Persist today's board so rank movement can be charted over time.
+  void saveDailySnapshot(players);
+
   return players;
+}
+
+// ── Daily rank snapshots (movement history) ──────────────────────────────────
+
+/** Writes one snapshot row per day: { [playerName]: { r: adjustedRank, b: baseRank } }. */
+async function saveDailySnapshot(players: LiveDraftPlayer[]): Promise<void> {
+  try {
+    const { db } = await import("./db");
+    const { draftRankSnapshots } = await import("@shared/schema");
+    const today = new Date().toISOString().slice(0, 10);
+    const ranks: Record<string, { r: number; b: number }> = {};
+    for (const p of players) ranks[p.name] = { r: p.adjustedRank, b: p.rank };
+    await db
+      .insert(draftRankSnapshots)
+      .values({ snapshotDate: today, ranks })
+      .onConflictDoUpdate({ target: draftRankSnapshots.snapshotDate, set: { ranks } });
+  } catch (err) {
+    console.error("[NFLDraft] Failed to save rank snapshot (non-fatal):", err);
+  }
+}
+
+export interface RankHistoryDay {
+  date: string;
+  ranks: Record<string, { r: number; b: number }>;
+}
+
+/** Last N days of snapshots, oldest first. */
+export async function getRankHistory(days = 14): Promise<RankHistoryDay[]> {
+  const { db } = await import("./db");
+  const { draftRankSnapshots } = await import("@shared/schema");
+  const { desc } = await import("drizzle-orm");
+  const rows = await db
+    .select()
+    .from(draftRankSnapshots)
+    .orderBy(desc(draftRankSnapshots.snapshotDate))
+    .limit(Math.min(60, Math.max(1, days)));
+  return rows
+    .reverse()
+    .map((r) => ({ date: String(r.snapshotDate), ranks: r.ranks as RankHistoryDay["ranks"] }));
 }
 
 export function invalidateDraftCache(): void {

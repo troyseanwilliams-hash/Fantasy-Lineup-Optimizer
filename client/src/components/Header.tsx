@@ -236,26 +236,30 @@ export function Header() {
                             <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
                           </div>
                           <span className="text-xs font-black text-slate-500 uppercase tracking-wider">{sport}</span>
-                          <span className="ml-auto text-[9px] font-black text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Fall 2026</span>
+                          <span className="ml-auto text-[9px] font-black text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">{sport === "NFL" ? "Kickoff Sept" : "Fall 2026"}</span>
                         </DropdownMenuLabel>
-                        <Link href="/nfl-mme">
-                          <DropdownMenuItem className="cursor-pointer opacity-70 hover:opacity-100" data-testid={`sport-menu-${sport.toLowerCase()}-mme`}>
-                            <div className="w-6 h-6 rounded bg-blue-500/10 flex items-center justify-center mr-2 shrink-0">
-                              <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                            </div>
-                            <span className="text-sm font-bold text-slate-400">MME Optimizer</span>
-                            <span className="text-[9px] font-black text-blue-400 ml-auto">SOON</span>
-                          </DropdownMenuItem>
-                        </Link>
-                        <Link href="/nfl-draft">
-                          <DropdownMenuItem className="cursor-pointer opacity-70 hover:opacity-100" data-testid={`sport-menu-${sport.toLowerCase()}-draft`}>
-                            <div className="w-6 h-6 rounded bg-amber-500/10 flex items-center justify-center mr-2 shrink-0">
-                              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                            </div>
-                            <span className="text-sm font-bold text-slate-400">Fantasy Draft Hub</span>
-                            <span className="text-[9px] font-black text-amber-400 ml-auto">NEW</span>
-                          </DropdownMenuItem>
-                        </Link>
+                        {sport === "NFL" && (
+                          <>
+                            <Link href="/nfl-draft">
+                              <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-draft`}>
+                                <div className="w-6 h-6 rounded bg-amber-500/10 flex items-center justify-center mr-2 shrink-0">
+                                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                                </div>
+                                <span className="text-sm font-bold text-amber-300">Fantasy Draft Hub</span>
+                                <span className="text-[9px] font-black text-amber-400 ml-auto">DRAFT SZN</span>
+                              </DropdownMenuItem>
+                            </Link>
+                            <Link href="/nfl-mme">
+                              <DropdownMenuItem className="cursor-pointer opacity-70 hover:opacity-100" data-testid={`sport-menu-${sport.toLowerCase()}-mme`}>
+                                <div className="w-6 h-6 rounded bg-blue-500/10 flex items-center justify-center mr-2 shrink-0">
+                                  <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                                </div>
+                                <span className="text-sm font-bold text-slate-400">MME Optimizer</span>
+                                <span className="text-[9px] font-black text-blue-400 ml-auto">SOON</span>
+                              </DropdownMenuItem>
+                            </Link>
+                          </>
+                        )}
                       </div>
                     );
                   })}

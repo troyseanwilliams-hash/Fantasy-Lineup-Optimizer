@@ -2,8 +2,8 @@ import type { Express, Request } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, subscriptions, slates, lineups as lineupsTable } from "@shared/schema";
-import { eq, and, lt, sql } from "drizzle-orm";
+import { users, subscriptions, slates, lineups as lineupsTable, signupEvents } from "@shared/schema";
+import { eq, and, lt, sql, desc, gte } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
@@ -2433,6 +2433,92 @@ export async function registerRoutes(
     }
   });
 
+  // ── Admin: signup funnel visibility ────────────────────────────────────────
+  // Who tried to sign up and failed, who signed up but never subscribed, who
+  // started checkout and bailed. Powers the "User Funnel" tab in Admin.
+  app.get("/api/admin/funnel", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const funnelUserId = getSessionUserId(req)!;
+    const funnelAdmin = await storage.getUser(funnelUserId);
+    if (!funnelAdmin?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+
+    try {
+      const days = Math.min(90, Math.max(1, parseInt(String(req.query.days ?? "30"), 10) || 30));
+      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+      const events = await db
+        .select()
+        .from(signupEvents)
+        .where(gte(signupEvents.createdAt, since))
+        .orderBy(desc(signupEvents.createdAt))
+        .limit(2000);
+
+      // Summary counts by event type.
+      const summary: Record<string, number> = {};
+      for (const e of events) summary[e.eventType] = (summary[e.eventType] ?? 0) + 1;
+
+      // Group events by email to find drop-offs.
+      const byEmail = new Map<string, typeof events>();
+      for (const e of events) {
+        if (!e.email) continue;
+        const list = byEmail.get(e.email) ?? [];
+        list.push(e);
+        byEmail.set(e.email, list);
+      }
+      const failedSignups: { email: string; attempts: number; lastReason: string | null; lastSeen: Date | null }[] = [];
+      const abandonedCheckouts: { email: string; startedAt: Date | null; detail: string | null }[] = [];
+      for (const [email, list] of Array.from(byEmail.entries())) {
+        const succeeded = list.some((e) => e.eventType === "signup_success");
+        const attempted = list.some((e) => e.eventType === "signup_attempt" || e.eventType === "signup_error");
+        if (attempted && !succeeded) {
+          const lastError = list.find((e) => e.eventType === "signup_error" || e.eventType === "signup_duplicate");
+          failedSignups.push({
+            email,
+            attempts: list.filter((e) => e.eventType === "signup_attempt").length,
+            lastReason: lastError?.errorReason ?? null,
+            lastSeen: list[0]?.createdAt ?? null, // events are desc-ordered
+          });
+        }
+        const started = list.find((e) => e.eventType === "checkout_started");
+        const completed = list.some((e) => e.eventType === "checkout_completed");
+        if (started && !completed) {
+          abandonedCheckouts.push({ email, startedAt: started.createdAt, detail: started.errorReason });
+        }
+      }
+
+      // Registered users in the window with no active paid subscription.
+      const recentUsers = await db
+        .select({
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          createdAt: users.createdAt,
+          tier: subscriptions.tier,
+          status: subscriptions.status,
+        })
+        .from(users)
+        .leftJoin(subscriptions, eq(subscriptions.userId, users.id))
+        .where(gte(users.createdAt, since))
+        .orderBy(desc(users.createdAt))
+        .limit(500);
+      const unconvertedUsers = recentUsers.filter(
+        (u) => !u.tier || u.tier === "free" || u.status !== "active",
+      );
+
+      res.json({
+        days,
+        summary,
+        failedSignups: failedSignups.slice(0, 100),
+        abandonedCheckouts: abandonedCheckouts.slice(0, 100),
+        unconvertedUsers: unconvertedUsers.slice(0, 200),
+        recentEvents: events.slice(0, 100),
+      });
+    } catch (err) {
+      console.error("[Admin] Funnel error:", err);
+      res.status(500).json({ message: "Failed to load funnel data" });
+    }
+  });
+
   app.post("/api/admin/seed", async (req, res) => {
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const userId = getSessionUserId(req)!;
@@ -3244,6 +3330,19 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Error fetching NFL draft rankings:", err);
       res.status(500).json({ error: "Failed to fetch draft rankings" });
+    }
+  });
+
+  // Rank movement history: last N daily snapshots for risers/fallers + sparklines.
+  app.get("/api/nfl/draft-rankings/history", async (req, res) => {
+    try {
+      const { getRankHistory } = await import("./nfl-draft");
+      const days = parseInt(String(req.query.days ?? "14"), 10) || 14;
+      const history = await getRankHistory(days);
+      res.json({ history });
+    } catch (err) {
+      console.error("Error fetching draft rank history:", err);
+      res.status(500).json({ error: "Failed to fetch rank history" });
     }
   });
 

@@ -358,6 +358,39 @@ export const insertPerformanceSnapshotSchema = createInsertSchema(performanceSna
 export type PerformanceSnapshot = typeof performanceSnapshots.$inferSelect;
 export type InsertPerformanceSnapshot = z.infer<typeof insertPerformanceSnapshotSchema>;
 
+// ============================================================
+// NFL DRAFT RANK SNAPSHOTS
+// One row per day: the full adjusted-rank board, stored as a
+// compact jsonb map { [playerName]: { r: adjustedRank, b: baseRank } }.
+// Powers rank-movement charts and "risers/fallers" in the Draft Hub.
+// ============================================================
+export const draftRankSnapshots = pgTable("draft_rank_snapshots", {
+  id: serial("id").primaryKey(),
+  snapshotDate: date("snapshot_date").notNull().unique(),
+  ranks: jsonb("ranks").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type DraftRankSnapshot = typeof draftRankSnapshots.$inferSelect;
+
+// ============================================================
+// SIGNUP FUNNEL EVENTS
+// Records every signup/login/checkout touchpoint — success or
+// failure — so admins can see who tried and where they dropped
+// off. No auth required to write; admin-only to read.
+// ============================================================
+export const signupEvents = pgTable("signup_events", {
+  id: serial("id").primaryKey(),
+  email: text("email"),
+  // signup_attempt | signup_success | signup_error | signup_duplicate |
+  // login_error | checkout_started | checkout_completed
+  eventType: text("event_type").notNull(),
+  errorReason: text("error_reason"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type SignupEvent = typeof signupEvents.$inferSelect;
+
 // --- OPTIMIZATION TYPES ---
 export const optimizationConstraintSchema = z.object({
   slateId: z.number(),

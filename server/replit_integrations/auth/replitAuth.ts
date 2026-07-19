@@ -3,6 +3,7 @@ import type { Express, RequestHandler } from "express";
 import connectPg from "connect-pg-simple";
 import bcrypt from "bcryptjs";
 import { authStorage } from "./storage";
+import { recordFunnelEvent } from "../../funnel";
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000;
@@ -34,15 +35,19 @@ export async function setupAuth(app: Express) {
   app.post("/api/auth/register", async (req, res) => {
     try {
       const { email, password, firstName, lastName, phone, smsConsent, emailConsent } = req.body;
+      recordFunnelEvent("signup_attempt", { email, req });
       if (!email || !password) {
+        recordFunnelEvent("signup_error", { email, errorReason: "missing email or password", req });
         return res.status(400).json({ message: "Email and password are required." });
       }
       if (password.length < 6) {
+        recordFunnelEvent("signup_error", { email, errorReason: "password too short", req });
         return res.status(400).json({ message: "Password must be at least 6 characters." });
       }
 
       const existing = await authStorage.getUserByEmail(email);
       if (existing) {
+        recordFunnelEvent("signup_duplicate", { email, errorReason: "email already registered", req });
         return res.status(409).json({ message: "An account with this email already exists." });
       }
 
@@ -58,10 +63,16 @@ export async function setupAuth(app: Express) {
       });
 
       (req.session as any).userId = user.id;
+      recordFunnelEvent("signup_success", { email, req });
       const { password: _, ...safeUser } = user;
       res.json(safeUser);
     } catch (error) {
       console.error("Registration error:", error);
+      recordFunnelEvent("signup_error", {
+        email: req.body?.email,
+        errorReason: error instanceof Error ? error.message : "unknown server error",
+        req,
+      });
       res.status(500).json({ message: "Registration failed. Please try again." });
     }
   });
@@ -75,11 +86,13 @@ export async function setupAuth(app: Express) {
 
       const user = await authStorage.getUserByEmail(email);
       if (!user || !user.password) {
+        recordFunnelEvent("login_error", { email, errorReason: "no account for email", req });
         return res.status(401).json({ message: "Invalid email or password." });
       }
 
       const valid = await bcrypt.compare(password, user.password);
       if (!valid) {
+        recordFunnelEvent("login_error", { email, errorReason: "wrong password", req });
         return res.status(401).json({ message: "Invalid email or password." });
       }
 

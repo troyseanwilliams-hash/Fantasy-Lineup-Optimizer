@@ -1,5 +1,6 @@
 import Stripe from "stripe";
 import { storage } from "./storage";
+import { recordFunnelEvent } from "./funnel";
 
 const stripeSecretKey = process.env.ELITELINEUP_STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
@@ -199,6 +200,7 @@ export async function createCheckoutSession(
     },
   });
 
+  recordFunnelEvent("checkout_started", { email, errorReason: `tier=${tier} billing=${billing}` });
   return session.url!;
 }
 
@@ -245,6 +247,7 @@ export async function createDraftHubCheckoutSession(
     metadata: { userId, type: "draft_hub_2026" },
   });
 
+  recordFunnelEvent("checkout_started", { email, errorReason: "draft_hub_2026 one-time" });
   return session.url!;
 }
 
@@ -296,6 +299,10 @@ export async function handleWebhookEvent(event: Stripe.Event): Promise<void> {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
       const userId = session.metadata?.userId;
+      recordFunnelEvent("checkout_completed", {
+        email: session.customer_details?.email ?? session.customer_email,
+        errorReason: session.metadata?.type ?? session.metadata?.tier ?? null,
+      });
 
       // One-time Draft Hub purchase
       if (session.metadata?.type === "draft_hub_2026" && userId) {

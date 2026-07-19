@@ -11,6 +11,7 @@ import { Loader2, Plus, Upload, FileJson, Database, ShieldAlert, RefreshCw, Chec
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
+import { AdminFunnelPanel } from "@/components/AdminFunnelPanel";
 
 const EXAMPLE_JSON = `[
   {
@@ -181,7 +182,9 @@ export default function Admin() {
           </Button>
         </div>
       </div>
-      
+
+      <AdminFunnelPanel />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
         <div className="card">
           <div className="flex items-center gap-3 mb-6">

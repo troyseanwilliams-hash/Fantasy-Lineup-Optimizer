@@ -12,6 +12,7 @@ import {
 } from "../data/nfl-draft-rankings-2026";
 import type { LiveDraftPlayer } from "../../server/nfl-draft";
 import { useAuth } from "../hooks/use-auth";
+import { MockDraftSimulator } from "../components/draft/MockDraftSimulator";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -2321,7 +2322,7 @@ function DraftAnalyzer({ input, onClose }: { input: DraftAnalysisInput; onClose?
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-type Tab = "rankings" | "draft" | "analyzer" | "bye-weeks" | "handcuffs";
+type Tab = "rankings" | "mock" | "draft" | "analyzer" | "bye-weeks" | "handcuffs";
 
 export default function NFLDraft() {
   const { user } = useAuth();
@@ -2354,6 +2355,7 @@ export default function NFLDraft() {
 
   const tabs: { id: Tab; label: string; icon: string; requiresPaid?: boolean; badge?: string }[] = [
     { id: "rankings",  label: "Rankings",           icon: "📊" },
+    { id: "mock",      label: "Mock Draft",          icon: "🎯", requiresPaid: true, badge: "New" },
     { id: "draft",     label: "Live Draft",          icon: "🏈", requiresPaid: true },
     { id: "analyzer",  label: "Draft Analyzer",      icon: "📈", requiresPaid: true,
       badge: teamAnalysis && teamAnalysis.players.length > 0 ? "Ready" : undefined },
@@ -2467,6 +2469,26 @@ export default function NFLDraft() {
               <div className="space-y-6">
                 <RankingsTab players={players} isStarOrAbove={isStarOrAbove} />
                 {!isStarOrAbove && <PricingCTA />}
+              </div>
+            )}
+
+            {activeTab === "mock" && hasDraftAccess && (
+              <MockDraftSimulator allPlayers={players} />
+            )}
+
+            {activeTab === "mock" && !hasDraftAccess && (
+              <div className="rounded-2xl bg-gradient-to-r from-emerald-900/40 to-blue-900/40 border border-emerald-500/20 p-8 text-center">
+                <div className="text-4xl mb-3">🎯</div>
+                <h3 className="text-xl font-bold text-white mb-2">Mock Draft Simulator</h3>
+                <p className="text-slate-400 text-sm mb-6 max-w-md mx-auto">
+                  Practice unlimited drafts against realistic AI opponents — ADP-driven picks, position
+                  runs, roster needs — and get your team graded after every run.
+                </p>
+                <Link href="/pricing">
+                  <button className="px-8 py-3 bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500 text-white font-bold rounded-xl transition-all">
+                    Unlock with Draft Hub or Champion
+                  </button>
+                </Link>
               </div>
             )}
 

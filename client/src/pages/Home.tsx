@@ -267,6 +267,39 @@ function HeroBanner({ firstName, tier }: { firstName: string; tier: string }) {
   );
 }
 
+// Draft-season flagship callout: fantasy drafts run Aug–Sept and the Draft
+// Hub is the product to funnel everyone into during that window.
+function DraftSeasonBanner() {
+  return (
+    <Link href="/nfl-draft">
+      <div
+        className="relative rounded-2xl overflow-hidden mb-8 cursor-pointer group border border-amber-500/30 bg-gradient-to-r from-amber-950/60 via-slate-900 to-slate-950 hover:border-amber-400/50 transition-colors"
+        data-testid="draft-season-banner"
+      >
+        <div className="relative z-10 px-6 py-5 md:px-8 flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-2xl shrink-0 shadow-lg shadow-amber-500/20">
+              🏈
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg md:text-xl font-black text-white tracking-tight">NFL Draft Season is here</h2>
+                <span className="text-[10px] font-black text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-full uppercase tracking-wider">Aug–Sept</span>
+              </div>
+              <p className="text-slate-400 text-sm font-bold mt-0.5">
+                285 player profiles · live rankings · Draft Assistant · win your league before Week 1
+              </p>
+            </div>
+          </div>
+          <Button className="bg-amber-500 hover:bg-amber-600 text-black font-black gap-1.5 shadow-lg shadow-amber-500/20 shrink-0" data-testid="draft-season-cta">
+            <Sparkles className="w-4 h-4" /> Open Draft Hub
+          </Button>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 function SportSelector({ activeSport, onSelect }: { activeSport: string; onSelect: (s: typeof ACTIVE_SPORTS[number]) => void }) {
   return (
     <div className="flex gap-3 mb-8" data-testid="dashboard-sport-selector">
@@ -1087,6 +1120,7 @@ function AuthenticatedDashboard() {
       </div>
 
       <HeroBanner firstName={firstName} tier={tier} />
+      <DraftSeasonBanner />
       <SportSelector activeSport={activeSport} onSelect={setActiveSport} />
 
       <LiveScoresSection sport={activeSport} />
