@@ -52,7 +52,7 @@ function teamOnClock(overall: number, numTeams: number): number {
 }
 
 function countPos(roster: LiveDraftPlayer[], pos: Position): number {
-  return roster.filter((p) => p.pos === pos).length;
+  return roster.filter((p) => p.position === pos).length;
 }
 
 /** How badly a team needs a position (higher = more urgent). */
@@ -73,7 +73,7 @@ function needMultiplier(roster: LiveDraftPlayer[], pos: Position, round: number,
 /** Position-run bonus: if a position is flying off the board, AI teams chase it. */
 function runBonus(recent: Pick[], pos: Position): number {
   const last5 = recent.slice(-5);
-  const n = last5.filter((p) => p.player.pos === pos).length;
+  const n = last5.filter((p) => p.player.position === pos).length;
   return n >= 3 ? 1.3 : n === 2 ? 1.15 : 1.0;
 }
 
@@ -88,7 +88,7 @@ function aiPick(
   const lateRounds = round >= totalRounds - 1;
   // K/DST: never before the final two rounds.
   const pool = available
-    .filter((p) => (lateRounds ? true : p.pos !== "K" && p.pos !== "DST"))
+    .filter((p) => (lateRounds ? true : p.position !== "K" && p.position !== "DST"))
     .slice()
     .sort((a, b) => a.adp - b.adp)
     .slice(0, 14);
@@ -96,7 +96,7 @@ function aiPick(
 
   const weights = pool.map((p, i) => {
     const adpWeight = 1 / Math.pow(i + 1.4, 1.15); // steep preference for board-top
-    return adpWeight * needMultiplier(roster, p.pos, round, totalRounds) * runBonus(recent, p.pos);
+    return adpWeight * needMultiplier(roster, p.position, round, totalRounds) * runBonus(recent, p.position);
   });
   const total = weights.reduce((s, w) => s + w, 0);
   let roll = Math.random() * total;
@@ -115,12 +115,12 @@ function recommend(
   totalRounds: number,
 ): LiveDraftPlayer | null {
   const lateRounds = round >= totalRounds - 1;
-  const pool = available.filter((p) => (lateRounds ? true : p.pos !== "K" && p.pos !== "DST"));
+  const pool = available.filter((p) => (lateRounds ? true : p.position !== "K" && p.position !== "DST"));
   if (pool.length === 0) return available[0] ?? null;
   let best: LiveDraftPlayer | null = null;
   let bestScore = -Infinity;
   for (const p of pool.slice(0, 30)) {
-    const score = (300 - p.adjustedRank) * needMultiplier(roster, p.pos, round, totalRounds);
+    const score = (300 - p.adjustedRank) * needMultiplier(roster, p.position, round, totalRounds);
     if (score > bestScore) { bestScore = score; best = p; }
   }
   return best;
@@ -129,7 +129,7 @@ function recommend(
 /** Sum of the best legal starting lineup's projections. */
 function starterPoints(roster: LiveDraftPlayer[], fmt: Format): number {
   const byPos: Record<string, LiveDraftPlayer[]> = {};
-  for (const p of roster) (byPos[p.pos] = byPos[p.pos] ?? []).push(p);
+  for (const p of roster) (byPos[p.position] = byPos[p.position] ?? []).push(p);
   for (const pos of Object.keys(byPos)) byPos[pos]!.sort((a, b) => getProj(b, fmt) - getProj(a, fmt));
   let total = 0;
   const used = new Set<number>();
@@ -145,7 +145,7 @@ function starterPoints(roster: LiveDraftPlayer[], fmt: Format): number {
   }
   // FLEX: best remaining RB/WR/TE
   const flexPool = roster
-    .filter((p) => ["RB", "WR", "TE"].includes(p.pos) && !used.has(p.rank))
+    .filter((p) => ["RB", "WR", "TE"].includes(p.position) && !used.has(p.rank))
     .sort((a, b) => getProj(b, fmt) - getProj(a, fmt));
   if (flexPool[0]) total += getProj(flexPool[0], fmt);
   return total;
@@ -230,7 +230,7 @@ export function MockDraftSimulator({ allPlayers }: { allPlayers: LiveDraftPlayer
 
   const bestAvailable = useMemo(() => {
     let list = availableSet.slice().sort((a, b) => a.adjustedRank - b.adjustedRank);
-    if (posFilter !== "ALL") list = list.filter((p) => p.pos === posFilter);
+    if (posFilter !== "ALL") list = list.filter((p) => p.position === posFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((p) => p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q));
@@ -365,7 +365,7 @@ export function MockDraftSimulator({ allPlayers }: { allPlayers: LiveDraftPlayer
               {myPicks.map((p) => (
                 <div key={p.overall} className="flex items-center gap-2 text-sm">
                   <span className="text-slate-500 w-14 shrink-0 text-xs">R{p.round} · {p.overall}</span>
-                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${posClass(p.player.pos)}`}>{p.player.pos}</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${posClass(p.player.position)}`}>{p.player.position}</span>
                   <span className="text-white font-medium">{p.player.name}</span>
                   <span className="text-slate-500 text-xs">{p.player.team}</span>
                   {p.player.adp - p.overall >= 8 && (
@@ -423,7 +423,7 @@ export function MockDraftSimulator({ allPlayers }: { allPlayers: LiveDraftPlayer
           <div className="text-sm">
             <span className="text-slate-400">AI recommends: </span>
             <span className="font-bold text-emerald-300">{rec.name}</span>
-            <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold ${posClass(rec.pos)}`}>{rec.pos}</span>
+            <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold ${posClass(rec.position)}`}>{rec.position}</span>
           </div>
         )}
       </div>
@@ -460,7 +460,7 @@ export function MockDraftSimulator({ allPlayers }: { allPlayers: LiveDraftPlayer
                 }`}
               >
                 <span className="text-slate-500 text-xs w-8 shrink-0">#{p.adjustedRank}</span>
-                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${posClass(p.pos)}`}>{p.pos}</span>
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${posClass(p.position)}`}>{p.position}</span>
                 <span className="text-white font-medium truncate">{p.name}</span>
                 <span className="text-slate-500 text-xs">{p.team}</span>
                 <span className="text-slate-500 text-[11px] ml-auto shrink-0">ADP {p.adp.toFixed(0)}</span>
@@ -487,7 +487,7 @@ export function MockDraftSimulator({ allPlayers }: { allPlayers: LiveDraftPlayer
               {myPicks.map((p) => (
                 <div key={p.overall} className="flex items-center gap-2 text-xs">
                   <span className="text-slate-500 w-8">R{p.round}</span>
-                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${posClass(p.player.pos)}`}>{p.player.pos}</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${posClass(p.player.position)}`}>{p.player.position}</span>
                   <span className="text-slate-200 truncate">{p.player.name}</span>
                 </div>
               ))}
@@ -502,7 +502,7 @@ export function MockDraftSimulator({ allPlayers }: { allPlayers: LiveDraftPlayer
                   <span className={p.teamIdx === userIdx ? "text-emerald-300 font-bold" : "text-slate-400"}>
                     {p.teamIdx === userIdx ? "You" : `T${p.teamIdx + 1}`}
                   </span>
-                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${posClass(p.player.pos)}`}>{p.player.pos}</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${posClass(p.player.position)}`}>{p.player.position}</span>
                   <span className="text-slate-300 truncate">{p.player.name}</span>
                 </div>
               ))}

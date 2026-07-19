@@ -1661,6 +1661,86 @@ function DraftAssistant({
 
 // ── Rankings Tab ──────────────────────────────────────────────────────────────
 
+// Custom-league value modifiers. Superflex leagues start a second QB, which
+// roughly adds a QB1's worth of value to the position; TE-premium adds ~0.5
+// per reception (≈12% of a TE's PPR line).
+const SUPERFLEX_QB_MULT = 1.3;
+const TE_PREMIUM_MULT = 1.12;
+
+function modProj(p: LiveDraftPlayer, fmt: "ppr" | "half" | "standard", superflex: boolean, tePremium: boolean): number {
+  let v = getProj(p, fmt);
+  if (superflex && p.position === "QB") v *= SUPERFLEX_QB_MULT;
+  if (tePremium && p.position === "TE") v *= TE_PREMIUM_MULT;
+  return v;
+}
+
+function buildCheatSheetRows(
+  players: LiveDraftPlayer[],
+  fmt: "ppr" | "half" | "standard",
+  superflex: boolean,
+  tePremium: boolean,
+): (LiveDraftPlayer & { sheetRank: number })[] {
+  const mods = superflex || tePremium;
+  const sorted = mods
+    ? players.slice().sort((a, b) => modProj(b, fmt, superflex, tePremium) - modProj(a, fmt, superflex, tePremium))
+    : players.slice().sort((a, b) => a.adjustedRank - b.adjustedRank);
+  return sorted.map((p, i) => Object.assign({}, p, { sheetRank: i + 1 }));
+}
+
+function downloadCheatSheetCSV(rows: (LiveDraftPlayer & { sheetRank: number })[], fmt: string) {
+  const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
+  const lines = [
+    "Rank,Pos,PosRank,Player,Team,Bye,Tier,ADP,Proj,Upside,Risk,Tags",
+    ...rows.map((p) =>
+      [p.sheetRank, p.position, p.posRank, esc(p.name), p.team, p.bye, p.tierLabel, p.adp.toFixed(1),
+       getProj(p, fmt as "ppr").toFixed(0), p.upside, p.risk, esc(p.tags.join(" "))].join(","),
+    ),
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `elitelineup-cheat-sheet-${fmt}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function printCheatSheet(
+  rows: (LiveDraftPlayer & { sheetRank: number })[],
+  fmt: string,
+  superflex: boolean,
+  tePremium: boolean,
+) {
+  const w = window.open("", "_blank", "width=900,height=700");
+  if (!w) return;
+  const mods = [fmt.toUpperCase(), superflex ? "Superflex" : null, tePremium ? "TE Premium" : null]
+    .filter(Boolean).join(" · ");
+  const rowsHtml = rows
+    .map((p) => `<tr class="t${p.tier}">
+      <td class="r">${p.sheetRank}</td><td class="p">${p.position}</td><td>${p.posRank}</td>
+      <td class="n">${p.name}</td><td>${p.team}</td><td>${p.bye}</td>
+      <td>${p.adp.toFixed(0)}</td><td>${getProj(p, fmt as "ppr").toFixed(0)}</td>
+      <td class="tag">${p.tags.slice(0, 2).join(", ")}</td>
+    </tr>`)
+    .join("");
+  w.document.write(`<!doctype html><html><head><title>EliteLineup AI — Draft Cheat Sheet</title><style>
+    body{font-family:Arial,sans-serif;margin:24px;color:#111}
+    h1{font-size:18px;margin:0 0 2px} .sub{color:#666;font-size:11px;margin-bottom:14px}
+    table{width:100%;border-collapse:collapse;font-size:10.5px}
+    th{background:#111;color:#fff;text-align:left;padding:4px 6px;position:sticky;top:0}
+    td{padding:3px 6px;border-bottom:1px solid #ddd}
+    .r{font-weight:bold} .n{font-weight:bold} .p{font-weight:bold} .tag{color:#777}
+    tr.t1 td{background:#fff7e0} tr.t2 td{background:#eefbf3} tr.t3 td{background:#eef4fd}
+    @media print{ th{position:static} }
+  </style></head><body>
+    <h1>EliteLineup AI — 2026 Fantasy Draft Cheat Sheet</h1>
+    <div class="sub">${mods} · generated ${new Date().toLocaleDateString()} · elitelineup.ai</div>
+    <table><thead><tr><th>#</th><th>Pos</th><th></th><th>Player</th><th>Team</th><th>Bye</th><th>ADP</th><th>Proj</th><th>Notes</th></tr></thead>
+    <tbody>${rowsHtml}</tbody></table>
+    <script>window.onload = () => window.print();</script>
+  </body></html>`);
+  w.document.close();
+}
+
 function RankingsTab({ players, isStarOrAbove }: { players: LiveDraftPlayer[]; isStarOrAbove: boolean }) {
   const [posFilter, setPosFilter] = useState<Position | "ALL">("ALL");
   const [format, setFormat] = useState<"ppr" | "half" | "standard">("ppr");
@@ -1668,6 +1748,33 @@ function RankingsTab({ players, isStarOrAbove }: { players: LiveDraftPlayer[]; i
   const [showOnlySleepers, setShowOnlySleepers] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
+  const [superflex, setSuperflex] = useState(false);
+  const [tePremium, setTePremium] = useState(false);
+
+  // Rank movement: compare the oldest snapshot in the window to today.
+  const { data: historyData } = useQuery<{ history: { date: string; ranks: Record<string, { r: number; b: number }> }[] }>({
+    queryKey: ["/api/nfl/draft-rankings/history"],
+    staleTime: 60 * 60 * 1000,
+  });
+  const movement = useMemo(() => {
+    const hist = historyData?.history ?? [];
+    if (hist.length < 2) return new Map<string, number>();
+    const oldest = hist[0]!.ranks;
+    const m = new Map<string, number>();
+    for (const p of players) {
+      const old = oldest[p.name]?.r;
+      if (old != null && old !== p.adjustedRank) m.set(p.name, old - p.adjustedRank); // + = riser
+    }
+    return m;
+  }, [historyData, players]);
+  const movers = useMemo(() => {
+    const entries = Array.from(movement.entries());
+    const risers = entries.filter(([, d]) => d > 0).sort((a, b) => b[1] - a[1]).slice(0, 4);
+    const fallers = entries.filter(([, d]) => d < 0).sort((a, b) => a[1] - b[1]).slice(0, 4);
+    return { risers, fallers, spanDays: (historyData?.history?.length ?? 0) };
+  }, [movement, historyData]);
+
+  const customLeague = superflex || tePremium;
 
   const filtered = useMemo(() => {
     return players.filter((p) => {
@@ -1746,15 +1853,117 @@ function RankingsTab({ players, isStarOrAbove }: { players: LiveDraftPlayer[]; i
           >
             😴 Sleepers
           </button>
+
+          {/* Custom league modifiers */}
+          <button
+            onClick={() => setSuperflex((v) => !v)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${superflex ? "bg-cyan-600 border-cyan-500 text-white" : "bg-slate-700/40 border-slate-600/30 text-slate-400 hover:text-white"}`}
+            title="Superflex / 2QB league — boosts QB value"
+            data-testid="toggle-superflex"
+          >
+            🦸 Superflex
+          </button>
+          <button
+            onClick={() => setTePremium((v) => !v)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${tePremium ? "bg-pink-600 border-pink-500 text-white" : "bg-slate-700/40 border-slate-600/30 text-slate-400 hover:text-white"}`}
+            title="TE Premium (+0.5/rec) — boosts TE value"
+            data-testid="toggle-te-premium"
+          >
+            🎯 TE Premium
+          </button>
+
+          {/* Cheat sheet export */}
+          {isStarOrAbove && (
+            <div className="flex gap-1 ml-auto">
+              <button
+                onClick={() => printCheatSheet(buildCheatSheetRows(players, format, superflex, tePremium), format, superflex, tePremium)}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold border bg-slate-700/60 border-slate-600/40 text-slate-200 hover:bg-slate-600/60 transition-colors"
+                data-testid="button-print-cheat-sheet"
+              >
+                🖨 Cheat Sheet
+              </button>
+              <button
+                onClick={() => downloadCheatSheetCSV(buildCheatSheetRows(players, format, superflex, tePremium), format)}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold border bg-slate-700/60 border-slate-600/40 text-slate-200 hover:bg-slate-600/60 transition-colors"
+                data-testid="button-csv-cheat-sheet"
+              >
+                ⬇ CSV
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="mt-2 text-xs text-slate-500">
           Showing {filtered.length} of {players.length} players · Rankings updated daily from ESPN NFL news
+          {customLeague && (
+            <span className="text-cyan-400 font-semibold">
+              {" "}· custom-league order ({[superflex && "Superflex", tePremium && "TE Premium"].filter(Boolean).join(" + ")})
+            </span>
+          )}
         </div>
       </div>
 
+      {/* Risers & fallers (rank movement from daily snapshots) */}
+      {(movers.risers.length > 0 || movers.fallers.length > 0) && (
+        <div className="grid md:grid-cols-2 gap-3">
+          <div className="rounded-xl bg-emerald-500/5 border border-emerald-500/20 p-4">
+            <div className="text-xs font-black text-emerald-400 uppercase tracking-wider mb-2">📈 Risers ({movers.spanDays}d)</div>
+            <div className="space-y-1">
+              {movers.risers.length === 0 && <span className="text-xs text-slate-500">No major risers yet.</span>}
+              {movers.risers.map(([name, d]) => {
+                const p = players.find((x) => x.name === name);
+                return (
+                  <div key={name} className="flex items-center gap-2 text-sm">
+                    <span className="text-emerald-400 font-black text-xs w-9">+{d}</span>
+                    <span className="text-white font-medium">{name}</span>
+                    {p && <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${posClass(p.position)}`}>{p.position}</span>}
+                    {p?.newsImpact && <span className="text-[11px] text-slate-500 truncate">{p.newsImpact.headline}</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div className="rounded-xl bg-red-500/5 border border-red-500/20 p-4">
+            <div className="text-xs font-black text-red-400 uppercase tracking-wider mb-2">📉 Fallers ({movers.spanDays}d)</div>
+            <div className="space-y-1">
+              {movers.fallers.length === 0 && <span className="text-xs text-slate-500">No major fallers yet.</span>}
+              {movers.fallers.map(([name, d]) => {
+                const p = players.find((x) => x.name === name);
+                return (
+                  <div key={name} className="flex items-center gap-2 text-sm">
+                    <span className="text-red-400 font-black text-xs w-9">{d}</span>
+                    <span className="text-white font-medium">{name}</span>
+                    {p && <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${posClass(p.position)}`}>{p.position}</span>}
+                    {p?.newsImpact && <span className="text-[11px] text-slate-500 truncate">{p.newsImpact.headline}</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom-league flat order (Superflex / TE Premium re-rank) */}
+      {customLeague && (
+        <div className="space-y-2">
+          {buildCheatSheetRows(filtered, format, superflex, tePremium).map((player) => {
+            const isPaywalled = !player.isFree && !isStarOrAbove;
+            return (
+              <PlayerCard
+                key={player.id}
+                player={player}
+                format={format}
+                isPaywalled={isPaywalled}
+                expanded={expandedId === player.id}
+                onToggle={() => setExpandedId(expandedId === player.id ? null : player.id)}
+              />
+            );
+          })}
+        </div>
+      )}
+
       {/* Tiers */}
-      {Array.from(byTier.entries()).sort(([a], [b]) => a - b).map(([tier, tierPlayers]) => {
+      {!customLeague && Array.from(byTier.entries()).sort(([a], [b]) => a - b).map(([tier, tierPlayers]) => {
         const tc = tierClass(tier);
         return (
           <div key={tier}>

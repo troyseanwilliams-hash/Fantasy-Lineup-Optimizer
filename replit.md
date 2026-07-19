@@ -4,6 +4,19 @@
 
 EliteLineup AI is a web application for Daily Fantasy Sports (DFS) players on DraftKings, FanDuel, and Yahoo. It provides advanced tools for lineup optimization, prop betting, parlay building, and PrizePicks entry optimization across major sports like NBA, NHL, GOLF, MLB, NFL, and SOCCER. The platform utilizes Linear Programming based on player projections to generate optimal lineups, aiming to enhance users' DFS strategies and improve success rates through data-driven insights.
 
+### Draft Hub (July 2026 expansion)
+- **Mock Draft Simulator**: practice drafts vs AI opponents (ADP softmax + roster needs + position runs + late-round K/DST), any slot/size/scoring, graded results with projected league standings. Gated like Live Draft.
+- **Custom league re-rank**: Superflex (QB ×1.3) and TE Premium (TE ×1.12) toggles switch Rankings to a value-ordered flat list.
+- **Cheat sheet export**: print-optimized sheet + CSV download honoring format/modifiers (Star+).
+- **Rank movement**: daily board snapshots in `draft_rank_snapshots` (written on rankings refresh); `GET /api/nfl/draft-rankings/history`; Risers/Fallers strip with news headlines on the Rankings tab.
+
+### Admin funnel (July 2026)
+- `signup_events` table records signup attempts/errors/duplicates, login errors, checkout started/completed (see `server/funnel.ts`).
+- `GET /api/admin/funnel?days=` + "User Funnel" panel in Admin: failed signups, signed-up-but-unpaid users, abandoned checkouts, raw event feed.
+
+### Season state (July 2026)
+- ACTIVE: MLB, GOLF. OFF_SEASON: SOCCER (World Cup ended), NHL. COMING_SOON: NFL ("Kickoff Sept"), NBA. Flip NFL to ACTIVE when DK posts Week 1 slates. Draft SZN banner on Home funnels to /nfl-draft.
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
