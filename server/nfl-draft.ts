@@ -191,21 +191,36 @@ function isCacheValid(): boolean {
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
+const TIER_BANDS: { max: number; tier: number; label: string }[] = [
+  { max: 6, tier: 1, label: "Transcendent" },
+  { max: 18, tier: 2, label: "Elite" },
+  { max: 45, tier: 3, label: "Strong Starter" },
+  { max: 90, tier: 4, label: "Quality Starter" },
+  { max: 150, tier: 5, label: "Flex / Streamer" },
+  { max: 220, tier: 6, label: "Deep Stash" },
+];
+function tierForRank(rank: number): { tier: number; label: string } {
+  for (const b of TIER_BANDS) if (rank <= b.max) return { tier: b.tier, label: b.label };
+  return { tier: 7, label: "Speculative" };
+}
+
 export async function getDraftRankings(force = false): Promise<LiveDraftPlayer[]> {
   if (!force && isCacheValid()) {
     return rankingsCache!.players;
   }
 
-  // Fetch latest news + current rosters in parallel
-  const [articles, rosterTeams] = await Promise.all([
+  // Fetch latest news + current rosters + live ESPN draft ranks in parallel
+  const { fetchESPNDraftRankings } = await import("./espn-draft-rankings");
+  const [articles, rosterTeams, espnRanks] = await Promise.all([
     fetchESPNNFLNews(),
     fetchNFLRosterTeams(),
+    fetchESPNDraftRankings(),
   ]);
   const now = new Date().toISOString();
 
   // Build player list, patching team from live ESPN rosters where found
   let updated = 0;
-  const players: LiveDraftPlayer[] = NFL_DRAFT_RANKINGS_2026.map((p) => {
+  let players: LiveDraftPlayer[] = NFL_DRAFT_RANKINGS_2026.map((p) => {
     const liveTeam = rosterTeams.get(normalizeName(p.name));
     if (liveTeam && liveTeam !== p.team) {
       updated++;
@@ -215,6 +230,95 @@ export async function getDraftRankings(force = false): Promise<LiveDraftPlayer[]
   });
   if (updated > 0) {
     console.log(`[NFLDraft] Updated team for ${updated} players from live ESPN rosters`);
+  }
+
+  // ── Reconcile against live ESPN fantasy draft rankings ─────────────────────
+  // ESPN is the authority for pool membership, ordering, and ADP; the seed
+  // file supplies the deep profiles. Seed players ESPN doesn't rank get
+  // DROPPED (this purges non-NFL / fabricated entries), and top-consensus
+  // players missing a profile get appended with a stub.
+  if (espnRanks.length >= 100) {
+    const espnByName = new Map(espnRanks.map((e) => [normalizeName(e.name), e]));
+    const matchedEspnIds = new Set<number>();
+    const dropped: string[] = [];
+
+    players = players.filter((p) => {
+      const e = espnByName.get(normalizeName(p.name));
+      if (!e) {
+        dropped.push(p.name);
+        return false;
+      }
+      matchedEspnIds.add(e.espnId);
+      // Live ordering + ADP + team from ESPN; profile content stays.
+      p.rank = e.pprRank;
+      p.analystRank = e.pprRank;
+      if (e.adp > 0) p.adp = e.adp;
+      if (e.team !== "FA") p.team = e.team;
+      return true;
+    });
+    if (dropped.length > 0) {
+      console.log(`[NFLDraft] Dropped ${dropped.length} seed players not in ESPN's ranked pool: ${dropped.slice(0, 10).join(", ")}${dropped.length > 10 ? "…" : ""}`);
+    }
+
+    // Append top-consensus ESPN players that have no seed profile yet.
+    let appended = 0;
+    const posCounts = new Map<string, number>();
+    for (const p of players) {
+      posCounts.set(p.position, (posCounts.get(p.position) ?? 0) + 1);
+    }
+    for (const e of espnRanks) {
+      if (e.pprRank > 220 || matchedEspnIds.has(e.espnId)) continue;
+      const t = tierForRank(e.pprRank);
+      const posN = (posCounts.get(e.position) ?? 0) + 1;
+      posCounts.set(e.position, posN);
+      players.push({
+        id: 100000 + e.espnId,
+        rank: e.pprRank,
+        posRank: `${e.position}${posN}`,
+        name: e.name,
+        team: e.team,
+        position: e.position as LiveDraftPlayer["position"],
+        tier: t.tier,
+        tierLabel: t.label,
+        adp: e.adp > 0 ? e.adp : e.pprRank,
+        analystRank: e.pprRank,
+        // Rough projection from rank until a full profile is written.
+        projPPR: Math.max(40, Math.round(330 - e.pprRank * 1.15)),
+        projHalf: Math.max(36, Math.round(310 - e.pprRank * 1.1)),
+        projStd: Math.max(32, Math.round(290 - e.pprRank * 1.05)),
+        upside: "medium",
+        risk: "medium",
+        age: 0,
+        bye: 0,
+        reasoning: `Ranked #${e.pprRank} in live ESPN consensus (ADP ${e.adp > 0 ? e.adp.toFixed(1) : "n/a"}). Full EliteLineup profile coming — ranking and ADP update daily from ESPN's fantasy platform.`,
+        strengths: ["Live ESPN consensus ranking"],
+        concerns: ["Full scouting profile not yet written"],
+        tags: ["espn-consensus"],
+        isFree: e.pprRank <= 5,
+        newsImpact: null,
+        adjustedRank: e.pprRank,
+        lastUpdated: now,
+      } as LiveDraftPlayer);
+      appended++;
+    }
+    if (appended > 0) {
+      console.log(`[NFLDraft] Appended ${appended} ESPN-consensus players missing seed profiles`);
+    }
+
+    // Re-base: order by live ESPN rank, then re-tier and re-number positional
+    // ranks on the fresh ordering.
+    players.sort((a, b) => a.rank - b.rank);
+    const posRankCounts = new Map<string, number>();
+    players.forEach((p, i) => {
+      p.rank = i + 1;
+      const t = tierForRank(p.rank);
+      p.tier = t.tier;
+      p.tierLabel = t.label;
+      p.adjustedRank = p.rank;
+      const n = (posRankCounts.get(p.position) ?? 0) + 1;
+      posRankCounts.set(p.position, n);
+      p.posRank = `${p.position}${n}`;
+    });
   }
 
   // Apply news impacts
