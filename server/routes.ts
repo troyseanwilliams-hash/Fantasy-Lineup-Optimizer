@@ -11,6 +11,7 @@ import solver from "javascript-lp-solver";
 import { getPlatformConfig, ACTIVE_SPORTS, assignPlayersToSlots, type Platform } from "@shared/platform-config";
 import { computeBoostScores, computeCorrelationBonus, applyCeilingMode, applyLeverageMode, applyActualAdjustedProjections, applyWinningLineupAdjustment, applyOutperformerMode } from "./boost-engine";
 import { getHistoricalProfile, applyHistoricalAdjustments } from "./historical-adjustments";
+import { applyMarketProjectionBlend } from "./market-projections";
 
 function getSessionUserId(req: Request): string | null {
   return (req.session as any)?.userId || null;
@@ -671,6 +672,7 @@ export async function registerRoutes(
       });
 
       pool = await applyActualAdjustedProjections(pool, slate.sport);
+      pool = await applyMarketProjectionBlend(pool, slate.sport);
       pool = await applyWinningLineupAdjustment(pool, slate.sport);
 
       if (constraints.outperformerMode) {
@@ -1238,6 +1240,7 @@ export async function registerRoutes(
         });
 
         pool = await applyActualAdjustedProjections(pool, slate.sport);
+      pool = await applyMarketProjectionBlend(pool, slate.sport);
         pool = await applyWinningLineupAdjustment(pool, slate.sport);
 
         if (req.body.outperformerMode === true) {
@@ -1607,6 +1610,7 @@ export async function registerRoutes(
         });
 
         pool = await applyActualAdjustedProjections(pool, slate.sport);
+      pool = await applyMarketProjectionBlend(pool, slate.sport);
         pool = await applyWinningLineupAdjustment(pool, slate.sport);
 
         if (useOutperformerMode) {
@@ -4083,6 +4087,7 @@ export async function registerRoutes(
       });
 
       pool = await applyActualAdjustedProjections(pool, slate.sport);
+      pool = await applyMarketProjectionBlend(pool, slate.sport);
       pool = await applyWinningLineupAdjustment(pool, slate.sport);
 
       if (constraints.outperformerMode) {
@@ -4407,6 +4412,7 @@ export async function registerRoutes(
       });
 
       pool = await applyActualAdjustedProjections(pool, slate.sport);
+      pool = await applyMarketProjectionBlend(pool, slate.sport);
       pool = await applyWinningLineupAdjustment(pool, slate.sport);
 
       if (useOutperformerMode) {

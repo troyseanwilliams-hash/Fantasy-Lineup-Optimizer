@@ -1,5 +1,6 @@
 import type { Player } from "@shared/schema";
 import type { VegasContext } from "./vegas-client";
+import { getEmpiricalCV } from "./variance-profiles";
 
 const POSITION_CV: Record<string, Record<string, number>> = {
   NFL: {
@@ -117,7 +118,11 @@ function extractTeams(gameInfo: string): { away: string; home: string; key: stri
 function getPlayerCV(player: Player, sport: string): number {
   const pos = player.position?.split("/")[0]?.toUpperCase() || "UTIL";
   const sportCVs = POSITION_CV[sport.toUpperCase()] || POSITION_CV.NFL;
-  return sportCVs[pos] ?? 0.35;
+  const staticPrior = sportCVs[pos] ?? 0.35;
+  // Empirical calibration: measured dispersion of actual-vs-projected results
+  // from player_history, per position + projection tier, blended 70/30 with
+  // the static prior. Falls back to the prior until history has loaded.
+  return getEmpiricalCV(sport, pos, Number(player.projectedPoints) || 0, staticPrior);
 }
 
 export function runSingleSim(
