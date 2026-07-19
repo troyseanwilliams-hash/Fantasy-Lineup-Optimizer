@@ -12,6 +12,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import { AdminFunnelPanel } from "@/components/AdminFunnelPanel";
+import { AdminSupportPanel } from "@/components/AdminSupportPanel";
 
 const EXAMPLE_JSON = `[
   {
@@ -182,6 +183,8 @@ export default function Admin() {
           </Button>
         </div>
       </div>
+
+      <AdminSupportPanel />
 
       <AdminFunnelPanel />
 

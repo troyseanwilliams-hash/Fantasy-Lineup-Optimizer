@@ -391,6 +391,25 @@ export const signupEvents = pgTable("signup_events", {
 });
 export type SignupEvent = typeof signupEvents.$inferSelect;
 
+// ============================================================
+// SUPPORT TICKETS
+// Users (or logged-out visitors) file tickets; admins triage
+// them from the Admin panel.
+// ============================================================
+export const supportTickets = pgTable("support_tickets", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").references(() => users.id),
+  email: text("email").notNull(),
+  subject: text("subject").notNull(),
+  message: text("message").notNull(),
+  category: text("category").notNull().default("general"), // general | billing | bug | data | feature
+  status: text("status").notNull().default("open"), // open | in_progress | resolved
+  adminNotes: text("admin_notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type SupportTicket = typeof supportTickets.$inferSelect;
+
 // --- OPTIMIZATION TYPES ---
 export const optimizationConstraintSchema = z.object({
   slateId: z.number(),

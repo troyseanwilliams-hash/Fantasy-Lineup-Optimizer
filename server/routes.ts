@@ -2,7 +2,7 @@ import type { Express, Request } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, subscriptions, slates, lineups as lineupsTable, signupEvents } from "@shared/schema";
+import { users, subscriptions, slates, lineups as lineupsTable, signupEvents, supportTickets } from "@shared/schema";
 import { eq, and, lt, sql, desc, gte } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -2430,6 +2430,85 @@ export async function registerRoutes(
     } catch (err) {
       console.error("[Admin] Set tier error:", err);
       res.status(500).json({ message: "Failed to update tier" });
+    }
+  });
+
+  // ── Support tickets ────────────────────────────────────────────────────────
+  // Anyone can file (logged-out visitors include their email); admins triage.
+  app.post("/api/support", async (req, res) => {
+    try {
+      const body = z
+        .object({
+          email: z.string().email(),
+          subject: z.string().min(3).max(150),
+          message: z.string().min(10).max(4000),
+          category: z.enum(["general", "billing", "bug", "data", "feature"]).default("general"),
+        })
+        .safeParse(req.body);
+      if (!body.success) {
+        return res.status(400).json({ message: body.error.issues[0]?.message ?? "Invalid input" });
+      }
+      const ticketUserId = isLoggedIn(req) ? getSessionUserId(req) : null;
+      const [ticket] = await db
+        .insert(supportTickets)
+        .values({
+          userId: ticketUserId,
+          email: body.data.email.toLowerCase().trim(),
+          subject: body.data.subject.trim(),
+          message: body.data.message.trim(),
+          category: body.data.category,
+        })
+        .returning();
+      res.json({ ok: true, ticketId: ticket!.id });
+    } catch (err) {
+      console.error("[Support] Create ticket error:", err);
+      res.status(500).json({ message: "Failed to submit ticket. Please email support directly." });
+    }
+  });
+
+  app.get("/api/admin/support", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const supUserId = getSessionUserId(req)!;
+    const supAdmin = await storage.getUser(supUserId);
+    if (!supAdmin?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+    try {
+      const status = String(req.query.status ?? "all");
+      const rows = await db
+        .select()
+        .from(supportTickets)
+        .where(status === "all" ? undefined : eq(supportTickets.status, status))
+        .orderBy(desc(supportTickets.createdAt))
+        .limit(300);
+      res.json({ tickets: rows });
+    } catch (err) {
+      console.error("[Support] List error:", err);
+      res.status(500).json({ message: "Failed to load tickets" });
+    }
+  });
+
+  app.patch("/api/admin/support/:id", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const supUserId = getSessionUserId(req)!;
+    const supAdmin = await storage.getUser(supUserId);
+    if (!supAdmin?.isAdmin) return res.status(403).json({ message: "Admin access required" });
+    try {
+      const body = z
+        .object({
+          status: z.enum(["open", "in_progress", "resolved"]).optional(),
+          adminNotes: z.string().max(4000).optional(),
+        })
+        .safeParse(req.body);
+      if (!body.success) return res.status(400).json({ message: "Invalid input" });
+      const [updated] = await db
+        .update(supportTickets)
+        .set({ ...body.data, updatedAt: new Date() })
+        .where(eq(supportTickets.id, parseInt(req.params.id, 10)))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "Ticket not found" });
+      res.json({ ticket: updated });
+    } catch (err) {
+      console.error("[Support] Update error:", err);
+      res.status(500).json({ message: "Failed to update ticket" });
     }
   });
 

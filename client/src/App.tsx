@@ -37,6 +37,7 @@ import ScoutDashboard from "@/pages/ScoutDashboard";
 import SimGuide from "@/pages/SimGuide";
 import NFLMMEOptimizer from "@/pages/NFLMMEOptimizer";
 import NFLDraft from "@/pages/NFLDraft";
+import Support from "@/pages/Support";
 
 import NotFound from "@/pages/not-found";
 import { Header } from "@/components/Header";
@@ -105,6 +106,7 @@ function Router() {
           <Route path="/sim-guide" component={SimGuide} />
           <Route path="/nfl-mme" component={NFLMMEOptimizer} />
           <Route path="/nfl-draft" component={NFLDraft} />
+          <Route path="/support" component={Support} />
           <Route component={NotFound} />
         </Switch>
       </main>

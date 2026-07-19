@@ -35,7 +35,7 @@ export function Footer() {
             <h4 className="text-white font-semibold mb-4" data-testid="footer-company-heading">Company</h4>
             <ul className="space-y-2">
               <li><Link href="/about" className="text-slate-400 hover:text-white text-sm transition-colors" data-testid="footer-link-about">About Us</Link></li>
-              <li><a href="mailto:support@elitelineupai.com" className="text-slate-400 hover:text-white text-sm transition-colors" data-testid="footer-link-contact">Contact Support</a></li>
+              <li><Link href="/support" className="text-slate-400 hover:text-white text-sm transition-colors" data-testid="footer-link-contact">Contact Support</Link></li>
               <li><Link href="/terms" className="text-slate-400 hover:text-white text-sm transition-colors" data-testid="footer-link-terms">Terms of Service</Link></li>
               <li><Link href="/privacy" className="text-slate-400 hover:text-white text-sm transition-colors" data-testid="footer-link-privacy">Privacy Policy</Link></li>
             </ul>
@@ -46,7 +46,7 @@ export function Footer() {
           <div className="flex space-x-6 mt-4 md:mt-0">
             <a href="#" className="hover:text-white" data-testid="footer-link-twitter">Twitter</a>
             <a href="#" className="hover:text-white" data-testid="footer-link-discord">Discord</a>
-            <a href="mailto:support@elitelineupai.com" className="hover:text-white" data-testid="footer-link-support">Support</a>
+            <Link href="/support" className="hover:text-white" data-testid="footer-link-support">Support</Link>
           </div>
         </div>
       </div>
