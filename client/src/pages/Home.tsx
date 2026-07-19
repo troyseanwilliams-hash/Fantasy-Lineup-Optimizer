@@ -1527,6 +1527,52 @@ function WorldCupHero() {
   );
 }
 
+// Draft-season flagship promo for logged-out visitors. Fantasy drafts run
+// Aug–Sept — this is the acquisition window, and rankings are try-before-you-buy
+// (top 5 free), so the CTA goes straight to the Hub, not the signup wall.
+function DraftHubHero() {
+  return (
+    <div className="max-w-5xl mx-auto mb-10" data-testid="landing-draft-hub-hero">
+      <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-amber-950/70 via-slate-900/90 to-slate-950 border border-amber-500/30 p-8 text-left">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_80%_at_15%_50%,rgba(245,158,11,0.10),transparent)]" />
+        <div className="relative z-10 flex flex-col md:flex-row items-center gap-6">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[11px] font-black text-amber-400 uppercase tracking-widest">🏈 Draft Season · Aug–Sept</span>
+            </div>
+            <h3 className="text-2xl md:text-3xl font-black text-white mb-2">
+              Win your league before Week 1
+            </h3>
+            <p className="text-slate-400 text-sm leading-relaxed mb-4">
+              The 2026 NFL Draft Hub: 285 deep player profiles, rankings that move daily with the news,
+              a Mock Draft Simulator with realistic AI opponents, a Live Draft Assistant for the real thing,
+              printable cheat sheets, and Superflex / TE-Premium re-ranks for your exact league.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {["285 Player Profiles", "Mock Draft Simulator", "Live Draft Assistant", "Cheat Sheets", "Superflex & TE Premium", "Risers & Fallers"].map(tag => (
+                <span key={tag} className="text-[11px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-full">{tag}</span>
+              ))}
+            </div>
+          </div>
+          <div className="shrink-0 flex flex-col gap-2 items-stretch">
+            <Link href="/nfl-draft">
+              <button className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-sm transition-colors shadow-lg shadow-amber-500/25">
+                See the Rankings Free
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </Link>
+            <Link href="/pricing">
+              <button className="w-full px-6 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-colors">
+                Full Hub — $49 one-time, no subscription
+              </button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NFLFallTeaser() {
   return (
     <div className="max-w-5xl mx-auto mb-16" data-testid="nfl-fall-teaser">
@@ -1740,13 +1786,13 @@ export default function Home() {
               AI lineup optimizer for DraftKings & FanDuel. Monte Carlo simulation, ownership projections, prop picks, and multi-entry max tools — across all sports.
             </p>
             <div className="flex items-center justify-center gap-3 flex-wrap mb-6 text-sm text-slate-400 font-bold">
-              <span className="flex items-center gap-1.5"><Circle className="w-2 h-2 text-emerald-400 fill-current" /> World Cup Live</span>
+              <span className="flex items-center gap-1.5"><Circle className="w-2 h-2 text-amber-400 fill-current animate-pulse" /> NFL Draft Hub Live</span>
               <span className="text-slate-700">·</span>
               <span className="flex items-center gap-1.5"><Target className="w-3.5 h-3.5 text-red-400" /> MLB In Season</span>
               <span className="text-slate-700">·</span>
               <span className="flex items-center gap-1.5"><Flag className="w-3.5 h-3.5 text-lime-400" /> Golf Active</span>
               <span className="text-slate-700">·</span>
-              <span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5 text-blue-400" /> NFL Coming Fall</span>
+              <span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5 text-blue-400" /> NFL DFS Kickoff Sept</span>
             </div>
             <div className="flex items-center justify-center gap-3 flex-wrap mb-8">
               {ACTIVE_SPORTS.map(sport => {
@@ -1760,8 +1806,8 @@ export default function Home() {
                   </Badge>
                 );
               })}
-              <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 font-bold text-sm px-3 py-1.5 backdrop-blur-sm gap-1.5">
-                <Shield className="w-3.5 h-3.5" /> NFL Fall 2026
+              <Badge className="bg-amber-500/10 text-amber-300 border-amber-500/25 font-bold text-sm px-3 py-1.5 backdrop-blur-sm gap-1.5">
+                🏈 NFL Draft SZN
               </Badge>
             </div>
             <Button
@@ -1772,7 +1818,7 @@ export default function Home() {
               Get Started Free
             </Button>
 
-            <WorldCupHero />
+            <DraftHubHero />
 
             <LandingTopPlays />
 

@@ -508,7 +508,7 @@ export default function Pricing() {
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
-              <span className="font-bold text-amber-300">🏈 NFL Draft Hub (rankings + Live Draft Assistant)</span>
+              <span className="font-bold text-amber-300">🏈 Full NFL Draft Hub (Mock Draft Simulator + Live Draft Assistant + cheat sheets)</span>
             </li>
           </ul>
           {isAdmin ? (
@@ -574,11 +574,13 @@ export default function Pricing() {
                 Just want the Draft Hub? One payment gets you the complete 2026 NFL Draft experience — no subscription required.
               </p>
               <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm text-slate-300">
-                <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" /><span>Full 100-player rankings</span></li>
+                <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" /><span>285 deep player profiles</span></li>
+                <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" /><span className="font-bold text-amber-300">Mock Draft Simulator (new)</span></li>
                 <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" /><span>Live Draft Assistant</span></li>
                 <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" /><span>AI pick per round with reasoning</span></li>
-                <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" /><span>Daily news-adjusted ranks</span></li>
-                <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" /><span>Sleeper alerts</span></li>
+                <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" /><span>Daily news-adjusted ranks + risers/fallers</span></li>
+                <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" /><span>Printable cheat sheets + CSV</span></li>
+                <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" /><span>Superflex &amp; TE-Premium re-ranks</span></li>
                 <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" /><span>Bye week tracker + handcuffs</span></li>
               </ul>
               <p className="text-xs text-slate-500 mt-4">
