@@ -171,7 +171,7 @@ export function MockDraftSimulator({ allPlayers }: { allPlayers: LiveDraftPlayer
   const [rosters, setRosters] = useState<LiveDraftPlayer[][]>([]);
   const [posFilter, setPosFilter] = useState<Position | "ALL">("ALL");
   const [search, setSearch] = useState("");
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error" | "upgrade">("idle");
 
   async function saveTeam(grade: string, userPts: number, leagueRank: number, valueCount: number) {
     setSaveState("saving");
@@ -202,6 +202,10 @@ export function MockDraftSimulator({ allPlayers }: { allPlayers: LiveDraftPlayer
           })),
         }),
       });
+      if (r.status === 403) {
+        setSaveState("upgrade");
+        return;
+      }
       if (!r.ok) throw new Error("save failed");
       setSaveState("saved");
     } catch {
@@ -387,7 +391,10 @@ export function MockDraftSimulator({ allPlayers }: { allPlayers: LiveDraftPlayer
           </div>
           <div className="flex gap-2 flex-wrap">
             <button
-              onClick={() => saveTeam(grade.letter, userPts, leagueRank, valuePicks.length)}
+              onClick={() => {
+                if (saveState === "upgrade") { window.location.href = "/pricing"; return; }
+                saveTeam(grade.letter, userPts, leagueRank, valuePicks.length);
+              }}
               disabled={saveState === "saving" || saveState === "saved"}
               className={`px-4 py-2 text-sm font-black rounded-lg transition-colors ${
                 saveState === "saved"
@@ -396,7 +403,7 @@ export function MockDraftSimulator({ allPlayers }: { allPlayers: LiveDraftPlayer
               }`}
               data-testid="mock-save-team"
             >
-              {saveState === "saved" ? "✓ Saved to My Teams" : saveState === "saving" ? "Saving…" : saveState === "error" ? "Retry save" : "💾 Save team"}
+              {saveState === "saved" ? "✓ Saved to My Teams" : saveState === "saving" ? "Saving…" : saveState === "upgrade" ? "Upgrade to save" : saveState === "error" ? "Retry save" : "💾 Save team"}
             </button>
             <button onClick={() => { setSaveState("idle"); startDraft(false); }} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-lg" data-testid="mock-redraft">
               Draft again

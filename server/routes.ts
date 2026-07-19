@@ -2457,6 +2457,18 @@ export async function registerRoutes(
   app.post("/api/draft-teams", async (req, res) => {
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const dtUserId = getSessionUserId(req)!;
+    // Saving is a paid feature: Champion, Draft Hub purchasers, or admin —
+    // same gate as the Live Draft / Mock Draft tools that produce the teams.
+    const dtUser = await storage.getUser(dtUserId);
+    const dtSub = await storage.getSubscription(dtUserId);
+    const dtIsAdmin = dtUser?.isAdmin === true;
+    const dtHasAccess = dtIsAdmin || dtSub?.tier === "pro" || dtSub?.draftAccess === true;
+    if (!dtHasAccess) {
+      return res.status(403).json({
+        message: "Saving teams requires the Draft Hub or a Champion subscription.",
+        requiresUpgrade: true,
+      });
+    }
     try {
       const body = z
         .object({
