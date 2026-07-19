@@ -2,7 +2,7 @@ import type { Express, Request } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, subscriptions, slates, lineups as lineupsTable, signupEvents, supportTickets } from "@shared/schema";
+import { users, subscriptions, slates, lineups as lineupsTable, signupEvents, supportTickets, draftTeams } from "@shared/schema";
 import { eq, and, lt, sql, desc, gte } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -2450,6 +2450,99 @@ export async function registerRoutes(
     } catch (err) {
       console.error("[Tutorial] preference update failed:", err);
       res.status(500).json({ message: "Failed to save preference" });
+    }
+  });
+
+  // ── Saved draft teams (Draft Hub "My Teams") ───────────────────────────────
+  app.post("/api/draft-teams", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const dtUserId = getSessionUserId(req)!;
+    try {
+      const body = z
+        .object({
+          name: z.string().min(1).max(120),
+          source: z.enum(["mock", "live"]).default("mock"),
+          format: z.enum(["ppr", "half", "standard"]).default("ppr"),
+          numTeams: z.number().int().min(2).max(20).default(12),
+          userSlot: z.number().int().min(1).max(20).default(1),
+          rounds: z.number().int().min(1).max(30).default(14),
+          grade: z.string().max(3).default("—"),
+          projectedPoints: z.number().min(0).max(9999).default(0),
+          leagueRank: z.number().int().min(1).max(20).optional(),
+          valuePicks: z.number().int().min(0).max(50).default(0),
+          players: z
+            .array(
+              z.object({
+                round: z.number().int(),
+                overall: z.number().int(),
+                name: z.string().max(80),
+                team: z.string().max(6),
+                position: z.string().max(6),
+                adp: z.number().optional(),
+              }),
+            )
+            .min(1)
+            .max(40),
+        })
+        .safeParse(req.body);
+      if (!body.success) {
+        return res.status(400).json({ message: body.error.issues[0]?.message ?? "Invalid team" });
+      }
+      const [team] = await db
+        .insert(draftTeams)
+        .values({
+          userId: dtUserId,
+          name: body.data.name,
+          source: body.data.source,
+          format: body.data.format,
+          numTeams: body.data.numTeams,
+          userSlot: body.data.userSlot,
+          rounds: body.data.rounds,
+          grade: body.data.grade,
+          projectedPoints: String(body.data.projectedPoints),
+          leagueRank: body.data.leagueRank ?? null,
+          valuePicks: body.data.valuePicks,
+          players: body.data.players,
+        })
+        .returning();
+      res.json({ team });
+    } catch (err) {
+      console.error("[DraftTeams] save error:", err);
+      res.status(500).json({ message: "Failed to save team" });
+    }
+  });
+
+  app.get("/api/draft-teams", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const dtUserId = getSessionUserId(req)!;
+    try {
+      const teams = await db
+        .select()
+        .from(draftTeams)
+        .where(eq(draftTeams.userId, dtUserId))
+        .orderBy(desc(draftTeams.createdAt))
+        .limit(100);
+      res.json({ teams });
+    } catch (err) {
+      console.error("[DraftTeams] list error:", err);
+      res.status(500).json({ message: "Failed to load teams" });
+    }
+  });
+
+  app.delete("/api/draft-teams/:id", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const dtUserId = getSessionUserId(req)!;
+    try {
+      const id = parseInt(req.params.id, 10);
+      const [deleted] = await db
+        .delete(draftTeams)
+        .where(and(eq(draftTeams.id, id), eq(draftTeams.userId, dtUserId)))
+        .returning();
+      if (!deleted) return res.status(404).json({ message: "Team not found" });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("[DraftTeams] delete error:", err);
+      res.status(500).json({ message: "Failed to delete team" });
     }
   });
 

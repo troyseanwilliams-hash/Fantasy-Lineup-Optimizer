@@ -13,6 +13,7 @@ import {
 import type { LiveDraftPlayer } from "../../server/nfl-draft";
 import { useAuth } from "../hooks/use-auth";
 import { MockDraftSimulator } from "../components/draft/MockDraftSimulator";
+import { SavedDraftTeams } from "../components/draft/SavedDraftTeams";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -2531,7 +2532,7 @@ function DraftAnalyzer({ input, onClose }: { input: DraftAnalysisInput; onClose?
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-type Tab = "rankings" | "mock" | "draft" | "analyzer" | "bye-weeks" | "handcuffs";
+type Tab = "rankings" | "mock" | "draft" | "teams" | "analyzer" | "bye-weeks" | "handcuffs";
 
 export default function NFLDraft() {
   const { user } = useAuth();
@@ -2566,6 +2567,7 @@ export default function NFLDraft() {
     { id: "rankings",  label: "Rankings",           icon: "📊" },
     { id: "mock",      label: "Mock Draft",          icon: "🎯", requiresPaid: true, badge: "New" },
     { id: "draft",     label: "Live Draft",          icon: "🏈", requiresPaid: true },
+    { id: "teams",     label: "My Teams",            icon: "📋", requiresPaid: true },
     { id: "analyzer",  label: "Draft Analyzer",      icon: "📈", requiresPaid: true,
       badge: teamAnalysis && teamAnalysis.players.length > 0 ? "Ready" : undefined },
     { id: "bye-weeks", label: "Bye Weeks",           icon: "📅" },
@@ -2692,6 +2694,23 @@ export default function NFLDraft() {
                 <p className="text-slate-400 text-sm mb-6 max-w-md mx-auto">
                   Practice unlimited drafts against realistic AI opponents — ADP-driven picks, position
                   runs, roster needs — and get your team graded after every run.
+                </p>
+                <Link href="/pricing">
+                  <button className="px-8 py-3 bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500 text-white font-bold rounded-xl transition-all">
+                    Unlock with Draft Hub or Champion
+                  </button>
+                </Link>
+              </div>
+            )}
+
+            {activeTab === "teams" && hasDraftAccess && <SavedDraftTeams />}
+
+            {activeTab === "teams" && !hasDraftAccess && (
+              <div className="rounded-2xl bg-gradient-to-r from-emerald-900/40 to-blue-900/40 border border-emerald-500/20 p-8 text-center">
+                <div className="text-4xl mb-3">📋</div>
+                <h3 className="text-xl font-bold text-white mb-2">My Teams</h3>
+                <p className="text-slate-400 text-sm mb-6 max-w-md mx-auto">
+                  Save every mock draft with its grade and compare rosters side by side as draft day approaches.
                 </p>
                 <Link href="/pricing">
                   <button className="px-8 py-3 bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500 text-white font-bold rounded-xl transition-all">

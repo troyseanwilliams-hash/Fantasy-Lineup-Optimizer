@@ -171,6 +171,43 @@ export function MockDraftSimulator({ allPlayers }: { allPlayers: LiveDraftPlayer
   const [rosters, setRosters] = useState<LiveDraftPlayer[][]>([]);
   const [posFilter, setPosFilter] = useState<Position | "ALL">("ALL");
   const [search, setSearch] = useState("");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+  async function saveTeam(grade: string, userPts: number, leagueRank: number, valueCount: number) {
+    setSaveState("saving");
+    try {
+      const myTeamPicks = picks.filter((p) => p.teamIdx === settings.userSlot - 1);
+      const r = await fetch("/api/draft-teams", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${settings.numTeams}-Team ${settings.format.toUpperCase()} · Slot ${settings.userSlot}`,
+          source: "mock",
+          format: settings.format,
+          numTeams: settings.numTeams,
+          userSlot: settings.userSlot,
+          rounds: settings.rounds,
+          grade,
+          projectedPoints: Math.round(userPts * 10) / 10,
+          leagueRank,
+          valuePicks: valueCount,
+          players: myTeamPicks.map((p) => ({
+            round: p.round,
+            overall: p.overall,
+            name: p.player.name,
+            team: p.player.team,
+            position: p.player.position,
+            adp: p.player.adp,
+          })),
+        }),
+      });
+      if (!r.ok) throw new Error("save failed");
+      setSaveState("saved");
+    } catch {
+      setSaveState("error");
+    }
+  }
 
   const totalPicks = settings.numTeams * settings.rounds;
   const userIdx = settings.userSlot - 1;
@@ -348,11 +385,23 @@ export function MockDraftSimulator({ allPlayers }: { allPlayers: LiveDraftPlayer
               </p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => startDraft(false)} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-lg" data-testid="mock-redraft">
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => saveTeam(grade.letter, userPts, leagueRank, valuePicks.length)}
+              disabled={saveState === "saving" || saveState === "saved"}
+              className={`px-4 py-2 text-sm font-black rounded-lg transition-colors ${
+                saveState === "saved"
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 cursor-default"
+                  : "bg-amber-500 hover:bg-amber-400 text-black"
+              }`}
+              data-testid="mock-save-team"
+            >
+              {saveState === "saved" ? "✓ Saved to My Teams" : saveState === "saving" ? "Saving…" : saveState === "error" ? "Retry save" : "💾 Save team"}
+            </button>
+            <button onClick={() => { setSaveState("idle"); startDraft(false); }} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-lg" data-testid="mock-redraft">
               Draft again
             </button>
-            <button onClick={() => setPhase("setup")} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-bold rounded-lg border border-slate-700">
+            <button onClick={() => { setSaveState("idle"); setPhase("setup"); }} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-bold rounded-lg border border-slate-700">
               Change settings
             </button>
           </div>

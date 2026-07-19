@@ -392,6 +392,31 @@ export const signupEvents = pgTable("signup_events", {
 export type SignupEvent = typeof signupEvents.$inferSelect;
 
 // ============================================================
+// SAVED DRAFT TEAMS
+// Fantasy teams drafted in the Draft Hub (Mock Draft Simulator or
+// Live Draft Assistant), saved with their grade for the "My Teams"
+// tab. players is an array of
+// { round, overall, name, team, position, adp }.
+// ============================================================
+export const draftTeams = pgTable("draft_teams", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  source: text("source").notNull().default("mock"), // mock | live
+  format: text("format").notNull().default("ppr"), // ppr | half | standard
+  numTeams: integer("num_teams").notNull().default(12),
+  userSlot: integer("user_slot").notNull().default(1),
+  rounds: integer("rounds").notNull().default(14),
+  grade: text("grade").notNull().default("—"), // A+ … C
+  projectedPoints: numeric("projected_points").notNull().default("0"),
+  leagueRank: integer("league_rank"),
+  valuePicks: integer("value_picks").notNull().default(0),
+  players: jsonb("players").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type DraftTeam = typeof draftTeams.$inferSelect;
+
+// ============================================================
 // SUPPORT TICKETS
 // Users (or logged-out visitors) file tickets; admins triage
 // them from the Admin panel.
