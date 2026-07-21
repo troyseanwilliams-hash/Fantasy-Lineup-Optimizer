@@ -38,6 +38,7 @@ import SimGuide from "@/pages/SimGuide";
 import NFLMMEOptimizer from "@/pages/NFLMMEOptimizer";
 import NFLDraft from "@/pages/NFLDraft";
 import Support from "@/pages/Support";
+import TeamHype from "@/pages/TeamHype";
 
 import NotFound from "@/pages/not-found";
 import { Header } from "@/components/Header";
@@ -87,6 +88,7 @@ function Router() {
           <Route path="/world-cup-builder" component={WorldCupBuilder} />
 
           <Route path="/news/:sport" component={News} />
+          <Route path="/team-hype" component={TeamHype} />
           <Route path="/pricing" component={Pricing} />
           <Route path="/terms" component={Terms} />
           <Route path="/privacy" component={Privacy} />

@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Users, Settings2, BarChart3, Award, Swords, Circle, Shield } from "lucide-react";
+import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Users, Settings2, BarChart3, Award, Swords, Circle, Shield, Music } from "lucide-react";
 import { ACTIVE_SPORTS, COMING_SOON_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 import { LogoBanner } from "@/components/Logo";
@@ -277,6 +277,19 @@ export function Header() {
                 <Sparkles className="w-4 h-4 text-amber-400" />
                 <span>Draft Hub</span>
                 <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">NEW</span>
+              </div>
+            </Link>
+
+            <Link href="/team-hype">
+              <div
+                className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
+                  location === "/team-hype" ? "text-fuchsia-400" : "text-slate-400 hover:text-white"
+                }`}
+                data-testid="nav-team-hype"
+              >
+                <Music className="w-4 h-4 text-fuchsia-400" />
+                <span>Team Hype</span>
+                <span className="text-[9px] font-black text-fuchsia-400 bg-fuchsia-500/10 px-1.5 py-0.5 rounded">NEW</span>
               </div>
             </Link>
 

@@ -19,6 +19,7 @@ import { subscriptions, slates } from "@shared/schema";
 import { eq, and, ne, isNull, isNotNull, lt, sql } from "drizzle-orm";
 import { showdownRouter } from "./showdown-route";
 import { ingestRouter, startIngestScheduler } from "./routes/ingest";
+import { teamHypeRouter } from "./team-hype";
 
 const SLATE_GRACE_HOURS = 3;
 
@@ -364,6 +365,7 @@ app.use((req, res, next) => {
   await registerRoutes(httpServer, app);
   app.use(showdownRouter);
   app.use("/api/ingest", ingestRouter);
+  app.use(teamHypeRouter);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
