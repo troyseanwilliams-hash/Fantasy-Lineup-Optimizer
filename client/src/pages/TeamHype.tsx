@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { usePageMeta } from "@/hooks/use-page-meta";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
-import { Music, Video, Copy, Sparkles, Loader2, ArrowRight } from "lucide-react";
+import { Music, Video, Copy, Sparkles, Loader2, ArrowRight, Lock } from "lucide-react";
 
 // Partner creation sites (lead funnel). Override at build if the domains change.
 const DIGITAL_DRIFT_STUDIO = "https://digitaldriftproductions.replit.app/studio";
@@ -33,6 +34,7 @@ export default function TeamHype() {
     description: "Turn your favorite team into a custom AI hype anthem, then make the song on Digital Drift and a video on AIBeatSync.",
   });
 
+  const { user, isLoading: authLoading } = useAuth();
   const [sport, setSport] = useState<"NFL" | "NBA">("NFL");
   const [team, setTeam] = useState("");
   const [loading, setLoading] = useState(false);
@@ -41,6 +43,19 @@ export default function TeamHype() {
   const [copied, setCopied] = useState(false);
 
   const teams = sport === "NFL" ? NFL_TEAMS : NBA_TEAMS;
+
+  // Admin-only for now.
+  if (!authLoading && !user?.isAdmin) {
+    return (
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center px-5">
+        <div className="text-center max-w-sm">
+          <Lock className="w-8 h-8 text-muted-foreground mx-auto mb-4" />
+          <h1 className="text-2xl font-bold mb-2">Team Hype</h1>
+          <p className="text-muted-foreground">This feature is in admin-only preview right now. Check back soon.</p>
+        </div>
+      </div>
+    );
+  }
 
   async function generate() {
     if (!team) { setError("Pick your team first."); return; }
