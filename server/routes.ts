@@ -2370,45 +2370,6 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/stripe/webhook", async (req, res) => {
-    try {
-      const { stripe, handleWebhookEvent } = await import("./stripe");
-      if (!stripe) return res.status(500).json({ message: "Stripe not configured" });
-
-      const sig = req.headers["stripe-signature"] as string;
-      const webhookSecret = process.env.ELITELINEUP_STRIPE_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET;
-
-      let event;
-      if (webhookSecret) {
-        if (!sig) {
-          return res.status(400).json({ message: "Missing stripe-signature header" });
-        }
-        try {
-          event = stripe.webhooks.constructEvent(
-            (req as any).rawBody,
-            sig,
-            webhookSecret
-          );
-        } catch (err: any) {
-          console.error("[stripe] Webhook signature verification failed:", err.message);
-          return res.status(400).json({ message: "Webhook signature verification failed" });
-        }
-      } else if (process.env.NODE_ENV === "production") {
-        console.error("[stripe] STRIPE_WEBHOOK_SECRET not set in production — rejecting webhook");
-        return res.status(500).json({ message: "Webhook secret not configured" });
-      } else {
-        console.warn("[stripe] No webhook secret set — accepting unverified event in development");
-        event = req.body;
-      }
-
-      await handleWebhookEvent(event);
-      res.json({ received: true });
-    } catch (err: any) {
-      console.error("[stripe] Webhook error:", err);
-      res.status(500).json({ message: "Webhook processing failed" });
-    }
-  });
-
   app.post("/api/admin/set-tier", async (req, res) => {
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const userId = getSessionUserId(req)!;

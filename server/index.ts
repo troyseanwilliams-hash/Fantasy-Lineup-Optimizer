@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import type Stripe from "stripe";
 import { registerRoutes, seedDatabase, generateDailyProps, refreshPlayerStatuses } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -20,6 +21,7 @@ import { eq, and, ne, isNull, isNotNull, lt, sql } from "drizzle-orm";
 import { showdownRouter } from "./showdown-route";
 import { ingestRouter, startIngestScheduler } from "./routes/ingest";
 import { teamHypeRouter } from "./team-hype";
+import { stripe, handleWebhookEvent } from "./stripe";
 
 const SLATE_GRACE_HOURS = 3;
 
@@ -308,19 +310,46 @@ async function seedDefaultUser() {
 const app = express();
 const httpServer = createServer(app);
 
-declare module "http" {
-  interface IncomingMessage {
-    rawBody: unknown;
-  }
-}
+// Stripe signs the exact request bytes. Register this before any JSON parser
+// changes req.body, otherwise signature verification can fail in production.
+app.post(
+  "/api/stripe/webhook",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    try {
+      if (!stripe) return res.status(500).json({ message: "Stripe not configured" });
 
-app.use(
-  express.json({
-    verify: (req, _res, buf) => {
-      req.rawBody = buf;
-    },
-  }),
+      const signatureHeader = req.headers["stripe-signature"];
+      const signature = Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader;
+      const webhookSecret =
+        process.env.ELITELINEUP_STRIPE_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET;
+
+      if (!webhookSecret) {
+        console.error("[stripe] STRIPE_WEBHOOK_SECRET not set — rejecting webhook");
+        return res.status(500).json({ message: "Webhook secret not configured" });
+      }
+      if (!signature) {
+        return res.status(400).json({ message: "Missing stripe-signature header" });
+      }
+
+      let event: Stripe.Event;
+      try {
+        event = stripe.webhooks.constructEvent(req.body as Buffer, signature, webhookSecret);
+      } catch (err: any) {
+        console.error("[stripe] Webhook signature verification failed:", err.message);
+        return res.status(400).json({ message: "Webhook signature verification failed" });
+      }
+
+      await handleWebhookEvent(event);
+      return res.json({ received: true });
+    } catch (err: any) {
+      console.error("[stripe] Webhook error:", err);
+      return res.status(500).json({ message: "Webhook processing failed" });
+    }
+  },
 );
+
+app.use(express.json());
 
 app.use(express.urlencoded({ extended: false }));
 
