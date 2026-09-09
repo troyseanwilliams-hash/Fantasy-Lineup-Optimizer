@@ -3,15 +3,14 @@ import { type Player } from "./schema";
 export type Platform = "draftkings" | "fanduel" | "yahoo";
 export type Sport = "NBA" | "NHL" | "MLB" | "NFL" | "GOLF" | "SOCCER";
 
-// Season focus (updated July 2026): Baseball + Football. MLB is mid-season,
-// NFL is in draft-prep mode (camps open, fantasy drafts Aug–Sept) with the
-// Draft Hub as the flagship. The World Cup ended July 19 — Soccer is wound
-// down to off-season. Flip NFL into ACTIVE_SPORTS when DK posts week-1 slates.
+// Season focus (updated September 2026): NFL is live with active slates,
+// MLB is in season, and Golf remains active. NBA is returning soon while
+// NHL and Soccer are currently off-season.
 export const SPORT_ORDER: Sport[] = ["MLB", "NFL", "GOLF", "SOCCER", "NHL", "NBA"];
 /** Sports currently in-season and available for DFS contests */
-export const ACTIVE_SPORTS: Sport[] = ["MLB", "GOLF"];
+export const ACTIVE_SPORTS: Sport[] = ["NFL", "MLB", "GOLF"];
 /** Sports off-season now but returning soon — shown in nav with a "Coming Soon" badge */
-export const COMING_SOON_SPORTS: Sport[] = ["NFL", "NBA"];
+export const COMING_SOON_SPORTS: Sport[] = ["NBA"];
 /** Sports fully off-season — hidden from nav and disabled */
 export const OFF_SEASON_SPORTS: Sport[] = ["NHL", "SOCCER"];
 

@@ -1469,7 +1469,7 @@ export default function Home() {
               <span className="text-slate-700">·</span>
               <span className="flex items-center gap-1.5"><Flag className="w-3.5 h-3.5 text-lime-400" /> Golf Active</span>
               <span className="text-slate-700">·</span>
-              <span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5 text-blue-400" /> NFL DFS Kickoff Sept</span>
+              <span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5 text-blue-400" /> NFL DFS Live</span>
             </div>
             <div className="flex items-center justify-center gap-3 flex-wrap mb-8">
               {ACTIVE_SPORTS.map(sport => {

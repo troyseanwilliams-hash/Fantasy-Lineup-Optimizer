@@ -224,7 +224,7 @@ export function Header() {
                       </div>
                     );
                   })}
-                  {/* Coming Soon sports (NFL, NBA) */}
+                  {/* Coming Soon sports */}
                   {COMING_SOON_SPORTS.map((sport) => {
                     const meta = SPORT_META[sport] || { icon: Shield, color: "text-slate-400", bgColor: "bg-slate-500/20" };
                     const Icon = meta.icon;
