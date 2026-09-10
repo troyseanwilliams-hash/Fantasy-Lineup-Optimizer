@@ -33,6 +33,10 @@ showdownRouter.get("/api/showdown/slates", async (req, res) => {
         s.isActive !== false
       )
       .sort((a, b) => {
+        const aIsShowdown = a.gameType?.toLowerCase() === "showdown";
+        const bIsShowdown = b.gameType?.toLowerCase() === "showdown";
+        if (aIsShowdown && !bIsShowdown) return -1;
+        if (!aIsShowdown && bIsShowdown) return 1;
         if (a.isMain && !b.isMain) return -1;
         if (!a.isMain && b.isMain) return  1;
         return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();

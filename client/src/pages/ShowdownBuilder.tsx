@@ -281,16 +281,27 @@ export default function ShowdownBuilder() {
         { credentials: "include" },
       );
       if (!res.ok) throw new Error("Failed to fetch slates");
-      const data: SlateOption[] = await res.json();
-      if (data.length > 0 && !selectedSlateId) {
-        const main = data.find(s => s.isMain) ?? data[0];
-        setSelectedSlateId(main.id);
-      }
-      return data;
+      return res.json();
     },
     refetchOnWindowFocus: true,
-    staleTime: 5 * 60 * 1000,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
+
+  useEffect(() => {
+    if (!slates || slates.length === 0) {
+      if (selectedSlateId !== null) setSelectedSlateId(null);
+      return;
+    }
+
+    const selectedStillExists = selectedSlateId !== null &&
+      slates.some(s => s.id === selectedSlateId);
+    if (selectedStillExists) return;
+
+    const tonightShowdown = slates.find(s => s.gameType.toLowerCase() === "showdown");
+    const preferred = tonightShowdown ?? slates.find(s => s.isMain) ?? slates[0];
+    resetForSlate(preferred.id);
+  }, [slates, selectedSlateId]);
 
   // ── Players ────────────────────────────────────────────────────────────────
   const { data: playerData, isLoading: playersLoading } = useQuery<{
