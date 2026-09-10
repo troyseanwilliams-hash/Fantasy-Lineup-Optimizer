@@ -473,6 +473,45 @@ export interface AvailableDKSlate {
   gameTypeId: number;
 }
 
+const SHOWDOWN_GAME_TYPES = [96, 192, 354, 108, 110];
+
+export async function fetchAvailableDKShowdowns(sport: string): Promise<AvailableDKSlate[]> {
+  try {
+    const dkSport = SPORT_MAP[sport] || sport;
+    const data = await fetchJSON<{ DraftGroups: DKDraftGroup[] }>(
+      `${DK_LOBBY}/getcontests?sport=${dkSport}`
+    );
+    const todayET = getEasternToday();
+
+    return (data.DraftGroups || [])
+      .filter(g => SHOWDOWN_GAME_TYPES.includes(g.GameTypeId))
+      .filter(g => {
+        const start = parseEasternTime(g.StartDateEst);
+        return start.toLocaleDateString("en-CA", { timeZone: "America/New_York" }) === todayET;
+      })
+      .sort((a, b) => {
+        const timeDiff = parseEasternTime(a.StartDateEst).getTime() - parseEasternTime(b.StartDateEst).getTime();
+        if (timeDiff !== 0) return timeDiff;
+        return SHOWDOWN_GAME_TYPES.indexOf(a.GameTypeId) - SHOWDOWN_GAME_TYPES.indexOf(b.GameTypeId);
+      })
+      .map((g, idx) => ({
+        draftGroupId: g.DraftGroupId,
+        gameCount: g.GameCount,
+        startTime: g.StartDateEst,
+        label: `NFL Showdown — ${parseEasternTime(g.StartDateEst).toLocaleDateString("en-US", {
+          month: "numeric",
+          day: "numeric",
+          year: "numeric",
+          timeZone: "America/New_York",
+        })}`,
+        gameTypeId: g.GameTypeId,
+      }));
+  } catch (err) {
+    console.error(`[DK] Error fetching ${sport} showdown slates:`, err);
+    return [];
+  }
+}
+
 export async function fetchAvailableDKSlates(sport: string): Promise<AvailableDKSlate[]> {
   try {
     const dkSport = SPORT_MAP[sport] || sport;

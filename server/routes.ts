@@ -22,7 +22,7 @@ function isLoggedIn(req: Request): boolean {
 }
 
 import { type OptimizationConstraints, type ProOptimizationConstraints, type Player, type Slate, type InsertProp, type InsertAlert, proOptimizationConstraintSchema, insertPrizePicksEntrySchema } from "@shared/schema";
-import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus, fetchLivePlayerStatuses, fetchAvailableDKSlates, fetchDKSlateByDraftGroup, fetchDraftables, isPlayerConfirmedStarter, parseEasternTime, getEasternToday } from "./balldontlie";
+import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus, fetchLivePlayerStatuses, fetchAvailableDKSlates, fetchAvailableDKShowdowns, fetchDKSlateByDraftGroup, fetchDraftables, isPlayerConfirmedStarter, parseEasternTime, getEasternToday } from "./balldontlie";
 import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
 import { getLiveScores, getAllLiveScores, fetchESPNStarters } from "./espn-scores";
 import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analyzeManualPicks, generateProjectionsFromPlayers, getLineMovements } from "./prizepicks";
@@ -6326,6 +6326,49 @@ export async function seedDatabase(forceRefresh = false) {
         }
       }
     }
+  }
+
+  // Showdown contests are separate DraftKings draft groups from classic slates.
+  // Keep today's NFL single-game slate available to the Showdown Builder without
+  // replacing the upcoming Sunday main slate used by the regular optimizer.
+  try {
+    const todayShowdowns = await fetchAvailableDKShowdowns("NFL");
+    const showdown = todayShowdowns[0];
+    if (showdown) {
+      const showdownData = await fetchDKSlateByDraftGroup("NFL", showdown.draftGroupId);
+      if (showdownData && showdownData.dkPlayers.length > 0) {
+        const currentShowdowns = (await storage.getSlates()).filter(
+          s => s.sport === "NFL" && s.platform === "draftkings" && s.gameType === "Showdown",
+        );
+        const existing = currentShowdowns.find(s => s.draftGroupId === showdown.draftGroupId);
+
+        if (!existing || (await storage.getPlayersBySlate(existing.id)).length === 0) {
+          if (existing) await storage.deleteSlateAndPlayers(existing.id);
+
+          const gameLabel = showdownData.games[0]
+            ? `${showdownData.games[0].away}@${showdownData.games[0].home}`
+            : "Single Game";
+          const showdownSlate = await storage.createSlate({
+            sport: "NFL",
+            platform: "draftkings",
+            name: `NFL Showdown — ${gameLabel}`,
+            label: `NFL Showdown — ${gameLabel}`,
+            startTime: showdownData.slateDate,
+            isMain: true,
+            draftGroupId: showdown.draftGroupId,
+            gameType: "Showdown",
+            gameCount: showdownData.games.length,
+            salaryCap: 50000,
+          });
+          await storage.bulkCreatePlayers(
+            showdownData.dkPlayers.map(player => ({ ...player, slateId: showdownSlate.id })),
+          );
+          console.log(`[DK] Seeded today's NFL Showdown ${gameLabel} with ${showdownData.dkPlayers.length} players`);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[DK] Failed to seed today's NFL Showdown slate:", err);
   }
 
   const refreshedSlates = await storage.getSlates();
