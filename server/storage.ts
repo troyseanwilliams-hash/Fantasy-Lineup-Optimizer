@@ -37,6 +37,8 @@ import {
 
 import { authStorage, type IAuthStorage } from "./replit_integrations/auth/storage";
 
+const RETIRED_PLAYER_DETAIL = "No longer listed in the current contest player pool";
+
 export interface IStorage extends IAuthStorage {
   getSlates(): Promise<Slate[]>;
   getSlate(id: number): Promise<Slate | undefined>;
@@ -45,6 +47,7 @@ export interface IStorage extends IAuthStorage {
   deleteSlateAndPlayers(slateId: number): Promise<void>;
   deletePlayersBySlate(slateId: number): Promise<{ oldIdToDkId: Map<number, number> }>;
   migratePlayerOverrides(slateId: number, oldIdToDkId: Map<number, number>): Promise<number>;
+  refreshPlayersByDraftKingsId(slateId: number, incomingPlayers: InsertPlayer[]): Promise<{ updated: number; inserted: number; retired: number }>;
   updateSlateDraftGroupId(slateId: number, draftGroupId: number): Promise<void>;
   updatePlayerDraftKingsId(playerId: number, draftKingsPlayerId: number): Promise<void>;
 
@@ -263,6 +266,85 @@ export class DatabaseStorage implements IStorage {
     }
 
     return migrated;
+  }
+
+  async refreshPlayersByDraftKingsId(slateId: number, incomingPlayers: InsertPlayer[]): Promise<{ updated: number; inserted: number; retired: number }> {
+    return db.transaction(async tx => {
+      const existingPlayers = await tx.select({
+        id: players.id,
+        draftKingsPlayerId: players.draftKingsPlayerId,
+        name: players.name,
+        team: players.team,
+        position: players.position,
+      }).from(players).where(eq(players.slateId, slateId));
+      const existingByDraftKingsId = new Map<number, number>();
+      const existingByIdentity = new Map<string, number>();
+      for (const player of existingPlayers) {
+        if (player.draftKingsPlayerId) existingByDraftKingsId.set(player.draftKingsPlayerId, player.id);
+        const identity = `${player.name.trim().toLowerCase()}|${player.team.trim().toLowerCase()}|${player.position.trim().toLowerCase()}`;
+        if (!existingByIdentity.has(identity)) existingByIdentity.set(identity, player.id);
+      }
+
+      let updated = 0;
+      const newPlayers: InsertPlayer[] = [];
+      const matchedExistingIds = new Set<number>();
+      for (const incoming of incomingPlayers) {
+        const identity = `${incoming.name.trim().toLowerCase()}|${incoming.team.trim().toLowerCase()}|${incoming.position.trim().toLowerCase()}`;
+        const existingId = (incoming.draftKingsPlayerId
+          ? existingByDraftKingsId.get(incoming.draftKingsPlayerId)
+          : undefined) || existingByIdentity.get(identity);
+        if (existingId) {
+          await tx.update(players)
+            .set({ ...incoming, slateId })
+            .where(eq(players.id, existingId));
+          matchedExistingIds.add(existingId);
+          updated++;
+        } else {
+          newPlayers.push({ ...incoming, slateId });
+        }
+      }
+
+      if (newPlayers.length > 0) {
+        await tx.insert(players).values(newPlayers);
+      }
+
+      let retired = 0;
+      const feedLooksComplete = existingPlayers.length === 0 ||
+        incomingPlayers.length >= Math.floor(existingPlayers.length * 0.75);
+      if (feedLooksComplete) {
+        const stalePlayerIds = existingPlayers
+          .filter(player => !matchedExistingIds.has(player.id))
+          .map(player => player.id);
+        if (stalePlayerIds.length > 0) {
+          const slateLineups = await tx.select({ playerIds: lineups.playerIds })
+            .from(lineups)
+            .where(eq(lineups.slateId, slateId));
+          const referencedPlayerIds = new Set(slateLineups.flatMap(lineup => lineup.playerIds));
+          const referencedStaleIds = stalePlayerIds.filter(id => referencedPlayerIds.has(id));
+          const unreferencedStaleIds = stalePlayerIds.filter(id => !referencedPlayerIds.has(id));
+
+          if (referencedStaleIds.length > 0) {
+            await tx.update(players)
+              .set({
+                injuryStatus: "OUT",
+                injuryDetail: RETIRED_PLAYER_DETAIL,
+                projectedPoints: "0",
+                fppg: "0",
+              })
+              .where(inArray(players.id, referencedStaleIds));
+          }
+          if (unreferencedStaleIds.length > 0) {
+            await tx.update(props).set({ playerId: null }).where(inArray(props.playerId, unreferencedStaleIds));
+            await tx.update(alerts).set({ playerId: null }).where(inArray(alerts.playerId, unreferencedStaleIds));
+            await tx.delete(playerOverrides).where(inArray(playerOverrides.playerId, unreferencedStaleIds));
+            await tx.delete(players).where(inArray(players.id, unreferencedStaleIds));
+          }
+          retired = stalePlayerIds.length;
+        }
+      }
+
+      return { updated, inserted: newPlayers.length, retired };
+    });
   }
 
   async updateSlateDraftGroupId(slateId: number, draftGroupId: number): Promise<void> {

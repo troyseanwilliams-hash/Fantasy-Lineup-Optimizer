@@ -41,6 +41,7 @@ const SPORT_META: Record<string, { icon: typeof Dribbble; color: string; bgColor
 export function Header() {
   const { user, logout } = useAuth();
   const [location, navigate] = useLocation();
+  const currentPath = location.split("?")[0];
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const { data: subData } = useQuery<{ tier: string }>({
@@ -279,7 +280,7 @@ export function Header() {
             <Link href="/nfl-draft">
               <div
                 className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                  location === "/nfl-draft" ? "text-amber-400" : "text-slate-400 hover:text-white"
+                  currentPath === "/nfl-draft" ? "text-amber-400" : "text-slate-400 hover:text-white"
                 }`}
                 data-testid="nav-nfl-draft"
               >
@@ -292,7 +293,7 @@ export function Header() {
             <Link href="/team-hype">
               <div
                 className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                  location === "/team-hype" ? "text-fuchsia-400" : "text-slate-400 hover:text-white"
+                  currentPath === "/team-hype" ? "text-fuchsia-400" : "text-slate-400 hover:text-white"
                 }`}
                 data-testid="nav-team-hype"
               >
@@ -306,7 +307,7 @@ export function Header() {
               <DropdownMenuTrigger asChild>
                 <button
                   className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer outline-none ${
-                    ["/props", "/prizepicks", "/showdown", "/player-config", "/ownership", "/nfl-mme"].includes(location)
+                    ["/props", "/prizepicks", "/showdown", "/player-config", "/ownership", "/nfl-mme"].includes(currentPath)
                       ? "text-[#10B981]"
                       : "text-slate-400 hover:text-white"
                   }`}
@@ -375,7 +376,7 @@ export function Header() {
                 <DropdownMenuTrigger asChild>
                   <button
                     className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer outline-none ${
-                      ["/lineups", "/live-scores", "/performance", "/track-record", "/winning-lineups"].includes(location)
+                      ["/lineups", "/live-scores", "/performance", "/track-record", "/winning-lineups"].includes(currentPath)
                         ? "text-emerald-400"
                         : "text-slate-400 hover:text-white"
                     }`}
@@ -435,7 +436,7 @@ export function Header() {
             {!user && (
               <Link href="/pricing">
                 <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                  location === "/pricing" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
+                  currentPath === "/pricing" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
                 }`} data-testid="nav-pricing">
                   <Crown className="w-4 h-4" />
                   <span>Pricing</span>
@@ -445,7 +446,7 @@ export function Header() {
             {user?.isAdmin && (
               <Link href="/admin">
                 <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                  location === "/admin" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
+                  currentPath === "/admin" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
                 }`} data-testid="nav-admin">
                   <ShieldAlert className="w-4 h-4" />
                   <span>Admin</span>
@@ -589,20 +590,6 @@ export function Header() {
             </Link>
           )}
 
-          <Link href="/nfl-draft">
-            <div
-              className={`lg:hidden flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-sm transition-colors ${
-                location === "/nfl-draft"
-                  ? "bg-amber-500/20 text-amber-400"
-                  : "bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
-              }`}
-              data-testid="mobile-header-nfl-draft"
-            >
-              <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>Draft Hub</span>
-            </div>
-          </Link>
-
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="lg:hidden p-2 rounded-lg transition-colors hover:bg-slate-800"
@@ -618,7 +605,7 @@ export function Header() {
       </div>
 
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-border bg-[#0F172A] max-h-[calc(100vh-4rem)] overflow-y-auto" data-testid="mobile-menu">
+        <div className="lg:hidden border-t border-border bg-[#0F172A] max-h-[calc(100dvh-7rem)] overflow-y-auto" data-testid="mobile-menu">
           <div className="container mx-auto px-4 py-4 space-y-1">
             {user && (
               <div className="flex items-center gap-3 px-3 py-3 mb-3 rounded-lg bg-slate-800/50">
@@ -656,7 +643,7 @@ export function Header() {
             <button
               onClick={() => mobileNav("/")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                location === "/" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                currentPath === "/" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
               }`}
               data-testid="mobile-nav-home"
             >
@@ -667,7 +654,7 @@ export function Header() {
             <button
               onClick={() => mobileNav("/nfl-draft")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                location === "/nfl-draft" ? "bg-amber-500/10 text-amber-400" : "text-amber-300 hover:bg-amber-500/10"
+                currentPath === "/nfl-draft" ? "bg-amber-500/10 text-amber-400" : "text-amber-300 hover:bg-amber-500/10"
               }`}
               data-testid="mobile-nav-nfl-draft-top"
             >
@@ -679,7 +666,7 @@ export function Header() {
             <button
               onClick={() => mobileNav("/props")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                location === "/props" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                currentPath === "/props" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
               }`}
               data-testid="mobile-nav-props"
             >
@@ -690,7 +677,7 @@ export function Header() {
             <button
               onClick={() => mobileNav("/prizepicks")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                location === "/prizepicks" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                currentPath === "/prizepicks" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
               }`}
               data-testid="mobile-nav-prizepicks"
             >
@@ -702,7 +689,7 @@ export function Header() {
             <button
               onClick={() => mobileNav("/showdown?sport=NFL")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                location === "/showdown" ? "bg-amber-500/10 text-amber-400" : "text-white hover:bg-slate-800"
+                currentPath === "/showdown" ? "bg-amber-500/10 text-amber-400" : "text-white hover:bg-slate-800"
               }`}
               data-testid="mobile-nav-showdown"
             >
@@ -713,7 +700,7 @@ export function Header() {
             <button
               onClick={() => mobileNav("/lineups")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                location === "/lineups" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                currentPath === "/lineups" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
               }`}
               data-testid="mobile-nav-vault"
             >
@@ -725,7 +712,7 @@ export function Header() {
               <button
                 onClick={() => mobileNav("/player-config")}
                 className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                  location === "/player-config" ? "bg-amber-500/10 text-amber-400" : "text-white hover:bg-slate-800"
+                  currentPath === "/player-config" ? "bg-amber-500/10 text-amber-400" : "text-white hover:bg-slate-800"
                 }`}
                 data-testid="mobile-nav-player-config"
               >
@@ -737,7 +724,7 @@ export function Header() {
               <button
                 onClick={() => mobileNav("/ownership")}
                 className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                  location === "/ownership" ? "bg-amber-500/10 text-amber-400" : "text-white hover:bg-slate-800"
+                  currentPath === "/ownership" ? "bg-amber-500/10 text-amber-400" : "text-white hover:bg-slate-800"
                 }`}
                 data-testid="mobile-nav-ownership"
               >
@@ -751,7 +738,7 @@ export function Header() {
               <button
                 onClick={() => mobileNav("/live-scores")}
                 className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                  location === "/live-scores" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                  currentPath === "/live-scores" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
                 }`}
                 data-testid="mobile-nav-live-scores"
               >
@@ -763,7 +750,7 @@ export function Header() {
               <button
                 onClick={() => mobileNav("/performance")}
                 className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                  location === "/performance" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                  currentPath === "/performance" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
                 }`}
                 data-testid="mobile-nav-performance"
               >
@@ -775,7 +762,7 @@ export function Header() {
               <button
                 onClick={() => mobileNav("/track-record")}
                 className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                  location === "/track-record" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                  currentPath === "/track-record" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
                 }`}
                 data-testid="mobile-nav-track-record"
               >
@@ -787,7 +774,7 @@ export function Header() {
               <button
                 onClick={() => mobileNav("/notifications")}
                 className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                  location === "/notifications" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                  currentPath === "/notifications" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
                 }`}
                 data-testid="mobile-nav-notifications"
               >
@@ -799,7 +786,7 @@ export function Header() {
             <button
               onClick={() => mobileNav("/pricing")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                location === "/pricing" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                currentPath === "/pricing" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
               }`}
               data-testid="mobile-nav-pricing"
             >
@@ -902,7 +889,7 @@ export function Header() {
                 <button
                   onClick={() => mobileNav("/winning-lineups")}
                   className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                    location === "/winning-lineups" ? "bg-amber-500/10 text-amber-400" : "text-white hover:bg-slate-800"
+                    currentPath === "/winning-lineups" ? "bg-amber-500/10 text-amber-400" : "text-white hover:bg-slate-800"
                   }`}
                   data-testid="mobile-nav-winning-lineups"
                 >
@@ -917,7 +904,7 @@ export function Header() {
                 <button
                   onClick={() => mobileNav("/admin")}
                   className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                    location === "/admin" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                    currentPath === "/admin" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
                   }`}
                   data-testid="mobile-nav-admin"
                 >

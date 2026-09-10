@@ -35,6 +35,8 @@ interface LineupWithPlayers {
   players: Player[];
   allPlayers: Player[];
   playerSnapshot?: any[];
+  gameType?: string | null;
+  isShowdown?: boolean;
 }
 
 // ── How long vault data stays fresh before a background refetch is allowed.
@@ -129,8 +131,12 @@ function buildPlatformCSV(lineups: LineupWithPlayers[]): string {
 }
 
 function isShowdownLineup(lineup: LineupWithPlayers): boolean {
+  if (lineup.isShowdown || lineup.gameType?.toLowerCase() === "showdown") return true;
   return Array.isArray(lineup.playerSnapshot) &&
-    lineup.playerSnapshot.some(player => player?.isCaptain === true || player?.slot === "CPT" || player?.slot === "MVP");
+    lineup.playerSnapshot.some(player => {
+      const slot = String(player?.slot || "").toUpperCase();
+      return player?.isCaptain === true || slot === "CPT" || slot === "MVP" || slot === "CAPTAIN";
+    });
 }
 
 function showdownSnapshot(lineup: LineupWithPlayers): any[] {
@@ -142,6 +148,7 @@ function csvCell(value: unknown): string {
 }
 
 function formatExportPlayer(player: any, platform: string): string {
+  if (!player) return "";
   if (platform === "draftkings" && player.draftKingsPlayerId) {
     return `${player.name} (${player.draftKingsPlayerId})`;
   }
@@ -151,22 +158,43 @@ function formatExportPlayer(player: any, platform: string): string {
   return player.name || "";
 }
 
+function isCaptainSnapshotPlayer(player: any): boolean {
+  const slot = String(player?.slot || "").toUpperCase();
+  return player?.isCaptain === true || slot === "CPT" || slot === "MVP" || slot === "CAPTAIN";
+}
+
+function normalizedShowdownSnapshot(lineup: LineupWithPlayers): { captain: any | null; flex: any[] } {
+  const snapshot = showdownSnapshot(lineup).filter(Boolean);
+  if (snapshot.length === 0) return { captain: null, flex: [] };
+
+  const captain = snapshot.find(isCaptainSnapshotPlayer) || snapshot[0];
+  const flex = snapshot
+    .filter(player => player !== captain)
+    .sort((a, b) => {
+      const aSlot = String(a?.slot || "");
+      const bSlot = String(b?.slot || "");
+      const aIndex = Number(aSlot.match(/\d+$/)?.[0] || Number.MAX_SAFE_INTEGER);
+      const bIndex = Number(bSlot.match(/\d+$/)?.[0] || Number.MAX_SAFE_INTEGER);
+      return aIndex - bIndex;
+    });
+
+  return { captain, flex };
+}
+
 function buildShowdownCSV(lineups: LineupWithPlayers[]): string {
-  const firstSnapshot = showdownSnapshot(lineups[0]);
-  const firstCaptain = firstSnapshot.find(player => player.isCaptain || player.slot === "CPT" || player.slot === "MVP");
-  const firstFlex = firstSnapshot.filter(player => player !== firstCaptain);
+  const first = normalizedShowdownSnapshot(lineups[0]);
+  const flexCount = Math.max(first.flex.length, ...lineups.map(lineup => normalizedShowdownSnapshot(lineup).flex.length));
   const headers = [
-    firstCaptain?.slot || "CPT",
-    ...firstFlex.map(() => "FLEX"),
+    lineups[0].platform === "fanduel" ? "MVP" : "CPT",
+    ...Array.from({ length: flexCount }, () => "FLEX"),
   ];
 
   const rows = lineups.map(lineup => {
-    const snapshot = showdownSnapshot(lineup);
-    const captain = snapshot.find(player => player.isCaptain || player.slot === "CPT" || player.slot === "MVP");
-    const flex = snapshot.filter(player => player !== captain);
+    const { captain, flex } = normalizedShowdownSnapshot(lineup);
     return [
       formatExportPlayer(captain, lineup.platform),
       ...flex.map(player => formatExportPlayer(player, lineup.platform)),
+      ...Array.from({ length: flexCount - flex.length }, () => ""),
     ];
   });
 
@@ -175,15 +203,16 @@ function buildShowdownCSV(lineups: LineupWithPlayers[]): string {
 
 function getShowdownDisplayData(lineup: LineupWithPlayers): { slots: string[]; assignments: Record<string, any> } | null {
   if (!isShowdownLineup(lineup)) return null;
-  const snapshot = showdownSnapshot(lineup);
+  const { captain, flex } = normalizedShowdownSnapshot(lineup);
+  if (!captain) return null;
+  const captainSlot = lineup.platform === "fanduel" ? "MVP" : "CPT";
+  const slots = [captainSlot, ...flex.map((_, index) => `FLEX${index + 1}`)];
   const assignments: Record<string, any> = {};
-  snapshot.forEach((player, index) => {
-    assignments[player.slot || (index === 0 ? "CPT" : `FLEX${index}`)] = player;
+  assignments[captainSlot] = captain;
+  flex.forEach((player, index) => {
+    assignments[`FLEX${index + 1}`] = player;
   });
-  return {
-    slots: snapshot.map((player, index) => player.slot || (index === 0 ? "CPT" : `FLEX${index}`)),
-    assignments,
-  };
+  return { slots, assignments };
 }
 
 export default function SavedLineups() {
@@ -1983,11 +2012,11 @@ function LineupCard({
                 if (lineupDetail) onExport(lineupDetail);
               }}
               disabled={!isExpanded || !lineupDetail}
-              className={`h-8 w-8 ${isPaid ? "text-emerald-400 hover:bg-emerald-500/10" : "text-slate-500 opacity-50"}`}
-              title={isPaid ? `Export ${getPlatformLabel(lineup.platform)} CSV` : "Upgrade to export"}
+              className={`h-8 w-8 ${isPaid || isShowdownLineup(lineupDetail || lineup) ? "text-emerald-400 hover:bg-emerald-500/10" : "text-slate-500 opacity-50"}`}
+              title={isPaid || isShowdownLineup(lineupDetail || lineup) ? `Export ${getPlatformLabel(lineup.platform)} CSV` : "Upgrade to export"}
               data-testid={`export-btn-${lineup.id}`}
             >
-              {isPaid ? <Download className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+              {isPaid || isShowdownLineup(lineupDetail || lineup) ? <Download className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
             </Button>
             <Button
               variant="ghost"

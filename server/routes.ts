@@ -91,6 +91,7 @@ function starRatingMinProjection(starRating: number): number {
 }
 
 const YAHOO_OUT_STATUSES = new Set(["INJ", "O", "OUT", "IR", "SUS", "NA"]);
+const RETIRED_PLAYER_DETAIL = "No longer listed in the current contest player pool";
 function isPlayerOut(injuryStatus: string | null): boolean {
   if (!injuryStatus) return false;
   const s = injuryStatus.toUpperCase().trim();
@@ -481,6 +482,9 @@ export async function registerRoutes(
 
     if (liveStatuses.size === 0 && liveStarters.size === 0 && espnStarters.size === 0) return players;
     return players.map(p => {
+      if (p.injuryDetail === RETIRED_PLAYER_DETAIL) {
+        return { ...p, injuryStatus: "OUT", projectedPoints: "0", fppg: "0", isConfirmedStarter: false };
+      }
       if (!p.draftKingsPlayerId) return p;
       let updated = { ...p };
       const isDKStarter = liveStarters.has(p.draftKingsPlayerId);
@@ -740,11 +744,13 @@ export async function registerRoutes(
 
     const slateCache = new Map<number, (Player & { ownershipProjection: number })[]>();
     const slatePlayerIdCache = new Map<number, Set<number>>();
+    const slateGameTypeCache = new Map<number, string | null>();
     const bdlCache = new Map<string, PlayerStatsMap>();
     const enriched = await Promise.all(lineups.map(async (lineup: any) => {
       if (!slateCache.has(lineup.slateId)) {
         const slatePlayers = await storage.getPlayersBySlate(lineup.slateId);
         const slate = await storage.getSlate(lineup.slateId);
+        slateGameTypeCache.set(lineup.slateId, slate?.gameType || null);
         const sport = slate?.sport || "NBA";
         if (!bdlCache.has(sport)) {
           bdlCache.set(sport, await fetchBDLStats(sport));
@@ -760,7 +766,14 @@ export async function registerRoutes(
         .reduce((sum, p) => sum + p.ownershipProjection, 0);
       const resolvedCount = lineup.playerIds.filter((id: number) => playerIdSet.has(id)).length;
       const isOrphaned = resolvedCount < lineup.playerIds.length;
-      return { ...lineup, totalOwnership: Math.round(rosterOwn * 10) / 10, isOrphaned };
+      const gameType = slateGameTypeCache.get(lineup.slateId) || null;
+      return {
+        ...lineup,
+        gameType,
+        isShowdown: gameType?.toLowerCase() === "showdown",
+        totalOwnership: Math.round(rosterOwn * 10) / 10,
+        isOrphaned,
+      };
     }));
 
     const snapshotNames = new Set<string>();
@@ -976,6 +989,7 @@ export async function registerRoutes(
     if (lineup.userId !== userId) return res.sendStatus(403);
 
     const allPlayers = await storage.getPlayersBySlate(lineup.slateId);
+    const slate = await storage.getSlate(lineup.slateId);
     let rosterPlayers = allPlayers.filter(p => lineup.playerIds.includes(p.id));
     const isOrphaned = rosterPlayers.length < lineup.playerIds.length;
     if (isOrphaned && lineup.playerSnapshot && Array.isArray(lineup.playerSnapshot) && (lineup.playerSnapshot as any[]).length > 0) {
@@ -1055,7 +1069,15 @@ export async function registerRoutes(
       console.error("[LineupDetail] enrichment error:", err);
     }
 
-    res.json({ ...lineup, players: rosterPlayers, allPlayers, isOrphaned });
+    const gameType = slate?.gameType || null;
+    res.json({
+      ...lineup,
+      gameType,
+      isShowdown: gameType?.toLowerCase() === "showdown",
+      players: rosterPlayers,
+      allPlayers,
+      isOrphaned,
+    });
   });
 
   app.patch("/api/lineups/:id", async (req, res) => {
@@ -6091,8 +6113,7 @@ function solveLineup(
 
 export async function seedDatabase(forceRefresh = false) {
   if (forceRefresh) {
-    await storage.clearAllSlatesAndPlayers();
-    console.log("Cleared existing slates and players for refresh");
+    console.log("[Seed] Force refresh requested; preserving slate and lineup references while updating data in place");
   }
 
   const existingSlates = await storage.getSlates();
@@ -6189,6 +6210,18 @@ export async function seedDatabase(forceRefresh = false) {
     }
 
     if (existingSlate && !shouldReplace && existingPlayerCount > 0) {
+      if (forceRefresh && !draftGroupChanged) {
+        await storage.updateSlateData(existingSlate.id, {
+          name: seed.dkSlate.name!,
+          startTime: seed.dkSlate.startTime!,
+          draftGroupId: seed.draftGroupId || null,
+        });
+        const refreshed = await storage.refreshPlayersByDraftKingsId(
+          existingSlate.id,
+          seed.dkPlayers.map((player: any) => ({ ...player, slateId: existingSlate.id })) as any,
+        );
+        console.log(`[DK] Refreshed ${refreshed.updated}, inserted ${refreshed.inserted}, and retired ${refreshed.retired} ${seed.sport} players in place for slate ${existingSlate.id}`);
+      }
       continue;
     }
 
@@ -6231,38 +6264,13 @@ export async function seedDatabase(forceRefresh = false) {
     const staleSlateStillExists = slateWasRemoved && (await storage.getSlate(existingSlate?.id as number)) !== undefined;
 
     if (staleSlateStillExists) {
-      const { oldIdToDkId: staleOldIdToDkId } = await storage.deletePlayersBySlate(existingSlate!.id);
-      const updatedSlate = await storage.updateSlateData(existingSlate!.id, {
-        name: seed.dkSlate.name!,
-        startTime: seed.dkSlate.startTime!,
-        draftGroupId: seed.draftGroupId || null,
-      });
-      const createdPlayers = await storage.bulkCreatePlayers(
-        seed.dkPlayers.map((p: any) => ({ ...p, slateId: existingSlate!.id })) as any
-      );
-      const staleMigrated = await storage.migratePlayerOverrides(existingSlate!.id, staleOldIdToDkId);
-      if (staleMigrated > 0) console.log(`[DK] Migrated ${staleMigrated} player overrides for stale ${seed.sport} slate ${existingSlate!.id}`);
-      console.log(`[DK] Repopulated stale ${seed.sport} slate ${existingSlate!.id} with ${createdPlayers.length} players`);
+      await db.update(slates)
+        .set({ isActive: false, isMain: false })
+        .where(eq(slates.id, existingSlate!.id));
+      console.log(`[DK] Preserved stale ${seed.sport} slate ${existingSlate!.id} for saved lineup history`);
+    }
 
-      const today = getEasternToday();
-      try {
-        const historyRecords = createdPlayers.map(p => ({
-          playerName: p.name,
-          team: p.team,
-          sport: seed.sport,
-          position: p.position,
-          salary: p.salary,
-          projectedPoints: p.projectedPoints,
-          slateDate: today,
-          slateId: existingSlate!.id,
-          draftKingsPlayerId: p.draftKingsPlayerId,
-        }));
-        await storage.bulkInsertPlayerHistory(historyRecords);
-        console.log(`[History] Saved ${historyRecords.length} ${seed.sport} player snapshots`);
-      } catch (err) {
-        console.error(`[History] Failed to save ${seed.sport} snapshots:`, err);
-      }
-    } else if (!existingSlate || shouldReplace) {
+    if (!existingSlate || shouldReplace) {
       const dkSlate = await storage.createSlate({
         sport: seed.sport,
         platform: "draftkings",
@@ -6348,9 +6356,6 @@ export async function seedDatabase(forceRefresh = false) {
 
         if (!existing || existingPlayers.length === 0 || needsProjectionRefresh) {
           let showdownSlate = existing;
-          if (showdownSlate) {
-            await storage.deletePlayersBySlate(showdownSlate.id);
-          }
 
           const gameLabel = showdownData.games[0]
             ? `${showdownData.games[0].away}@${showdownData.games[0].home}`
@@ -6369,9 +6374,17 @@ export async function seedDatabase(forceRefresh = false) {
               salaryCap: 50000,
             });
           }
-          await storage.bulkCreatePlayers(
-            showdownData.dkPlayers.map(player => ({ ...player, slateId: showdownSlate.id })),
-          );
+          if (existingPlayers.length > 0) {
+            const refreshed = await storage.refreshPlayersByDraftKingsId(
+              showdownSlate.id,
+              showdownData.dkPlayers.map(player => ({ ...player, slateId: showdownSlate.id })),
+            );
+            console.log(`[DK] Refreshed ${refreshed.updated}, inserted ${refreshed.inserted}, and retired ${refreshed.retired} NFL Showdown players in place`);
+          } else {
+            await storage.bulkCreatePlayers(
+              showdownData.dkPlayers.map(player => ({ ...player, slateId: showdownSlate.id })),
+            );
+          }
           console.log(`[DK] Seeded today's NFL Showdown ${gameLabel} with ${showdownData.dkPlayers.length} players`);
         }
       }
@@ -6528,6 +6541,7 @@ export async function refreshPlayerStatuses() {
       const updates: { playerId: number; injuryStatus: string; injuryDetail: string }[] = [];
 
       for (const player of players) {
+        if (player.injuryDetail === RETIRED_PLAYER_DETAIL) continue;
         if (!player.draftKingsPlayerId) continue;
         const dkStatus = statusMap.get(player.draftKingsPlayerId);
         if (!dkStatus) continue;
