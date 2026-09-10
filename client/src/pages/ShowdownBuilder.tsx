@@ -347,6 +347,45 @@ export default function ShowdownBuilder() {
   const captainLabel = showdownConfig?.captainLabel || (platform === "fanduel" ? "MVP" : "CPT");
   const flexLabel = showdownConfig?.flexLabel || "FLEX";
 
+  const { data: captainAdvice, isLoading: captainAdviceLoading } = useQuery<{
+    lineups?: Array<{ captain?: ShowdownPlayer; totalProjectedPoints?: number }>;
+  }>({
+    queryKey: ["/api/showdown/captain-advice", selectedSlateId, gameFilter],
+    queryFn: async () => {
+      const res = await apiRequest("POST", "/api/showdown/optimize", {
+        slateId: selectedSlateId,
+        platform,
+        sport,
+        lineupCount: 10,
+        projectionMode: "balanced",
+        gameFilter: gameFilter || undefined,
+      });
+      return res.json();
+    },
+    enabled: !!selectedSlateId && players.length > 0,
+    staleTime: 60_000,
+  });
+
+  const captainLeaders = useMemo(() => {
+    const pool = gameFilter ? players.filter(p => p.gameInfo === gameFilter) : players;
+    return pool
+      .map(player => {
+        const projection = toNum(player.projectedPoints);
+        const captainSalary = Math.round(player.salary * salaryMultiplier);
+        return {
+          player,
+          captainSalary,
+          captainProjection: projection * captainMultiplier,
+          value: (projection * captainMultiplier) / Math.max(captainSalary / 1000, 0.1),
+        };
+      })
+      .sort((a, b) => b.captainProjection - a.captainProjection);
+  }, [players, gameFilter, captainMultiplier, salaryMultiplier]);
+
+  const projectionLeader = captainLeaders[0];
+  const ceilingAlternative = captainLeaders[1];
+  const balancedCaptain = captainAdvice?.lineups?.[0]?.captain;
+
   // ── Filtered + enriched player pool ───────────────────────────────────────
   const filteredPlayers = useMemo(() => {
     let pool = players;
@@ -745,6 +784,72 @@ export default function ShowdownBuilder() {
             </SelectContent>
           </Select>
         </div>
+
+        {selectedSlateId && players.length > 0 && projectionLeader && (
+          <Card className="bg-slate-900 border-amber-500/30 mb-4" data-testid="best-captain-section">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base text-white flex items-center gap-2">
+                <Crown className="w-4 h-4 text-amber-400" />
+                Best Captain Projection
+              </CardTitle>
+              <p className="text-xs text-slate-400">
+                Based on the selected game&apos;s current DraftKings flex salaries and projections.
+                Captain salary and points use the {captainMultiplier}x NFL Showdown multiplier.
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+                  <div className="text-[11px] uppercase tracking-wide text-amber-300 font-bold">Projection leader</div>
+                  <div className="text-lg font-bold text-white mt-1">{projectionLeader.player.name}</div>
+                  <div className="text-xs text-slate-400">
+                    {projectionLeader.player.team} {projectionLeader.player.position} · CPT ${projectionLeader.captainSalary.toLocaleString()}
+                  </div>
+                  <div className="text-xl font-black text-amber-300 mt-2">
+                    {projectionLeader.captainProjection.toFixed(2)} pts
+                  </div>
+                  <div className="text-[11px] text-slate-400">Best raw captain ceiling</div>
+                </div>
+
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
+                  <div className="text-[11px] uppercase tracking-wide text-emerald-300 font-bold">
+                    {captainAdviceLoading ? "Finding balanced captain…" : "Balanced lineup captain"}
+                  </div>
+                  {balancedCaptain ? (
+                    <>
+                      <div className="text-lg font-bold text-white mt-1">{balancedCaptain.name}</div>
+                      <div className="text-xs text-slate-400">
+                        {balancedCaptain.team} {balancedCaptain.position} · CPT ${(balancedCaptain.effectiveSalary ?? balancedCaptain.salary * salaryMultiplier).toLocaleString()}
+                      </div>
+                      <div className="text-xl font-black text-emerald-300 mt-2">
+                        {(balancedCaptain.effectiveProjection ?? toNum(balancedCaptain.projectedPoints) * captainMultiplier).toFixed(2)} pts
+                      </div>
+                      <div className="text-[11px] text-slate-400">Highest projected balanced lineup</div>
+                    </>
+                  ) : (
+                    <div className="text-sm text-slate-500 mt-3">Calculating lineup fit…</div>
+                  )}
+                </div>
+
+                {ceilingAlternative && (
+                  <div className="rounded-lg border border-slate-700 bg-slate-800/60 p-3">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-300 font-bold">Next ceiling option</div>
+                    <div className="text-lg font-bold text-white mt-1">{ceilingAlternative.player.name}</div>
+                    <div className="text-xs text-slate-400">
+                      {ceilingAlternative.player.team} {ceilingAlternative.player.position} · CPT ${ceilingAlternative.captainSalary.toLocaleString()}
+                    </div>
+                    <div className="text-xl font-black text-slate-200 mt-2">
+                      {ceilingAlternative.captainProjection.toFixed(2)} pts
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      {ceilingAlternative.value.toFixed(2)} captain pts per $1K
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* ── Empty state ── */}
         {!selectedSlateId ? (
