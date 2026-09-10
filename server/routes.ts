@@ -690,7 +690,22 @@ export async function registerRoutes(
         : pool;
 
       const contestType = constraints.contestType || "cash";
-      const result = solveLineup(salaryFilteredPool, { ...constraints, lockedPlayerIds: mergedLocked, excludedPlayerIds: mergedExclusions, contestType }, slate.sport, platform);
+      let ownershipByPlayerId: Map<number, number> | undefined;
+      if (slate.sport.toUpperCase() === "NFL" && contestType === "gpp") {
+        try {
+          const ownership = await calculateOwnership(salaryFilteredPool, "NFL", "gpp_large");
+          ownershipByPlayerId = new Map(ownership.map(p => [p.playerId, p.projectedOwnership]));
+        } catch (error) {
+          console.warn("[NFL Optimizer] Ownership calculation unavailable; using projection-based GPP scoring.", error);
+        }
+      }
+      const result = solveLineup(
+        salaryFilteredPool,
+        { ...constraints, lockedPlayerIds: mergedLocked, excludedPlayerIds: mergedExclusions, contestType },
+        slate.sport,
+        platform,
+        ownershipByPlayerId,
+      );
 
       if (result.error) {
         if (constraints.projectedPointsFloor) {
@@ -5799,12 +5814,71 @@ async function getInactivePlayerIds(players: Player[], sport: string): Promise<{
   return { inactiveIds, zeroPointCount };
 }
 
-function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport: string, platform: Platform) {
+function normalizeGameKey(gameInfo: string | null | undefined): string {
+  return (gameInfo || "")
+    .replace(/[·|-]?\s*\d{1,2}:\d{2}\s*(AM|PM)\s*ET.*$/i, "")
+    .trim()
+    .toUpperCase();
+}
+
+function isPassCatcher(position: string): boolean {
+  const positions = position.toUpperCase().split("/");
+  return positions.includes("WR") || positions.includes("TE");
+}
+
+function isBringBackCandidate(position: string): boolean {
+  const positions = position.toUpperCase().split("/");
+  return positions.includes("RB") || positions.includes("WR") || positions.includes("TE");
+}
+
+function isDefense(position: string): boolean {
+  const positions = position.toUpperCase().split("/");
+  return positions.includes("DST") || positions.includes("DEF");
+}
+
+function nflTournamentScore(player: Player, ownership: number | undefined): number {
+  const projection = Math.max(0, Number(player.projectedPoints) || 0);
+  const primaryPosition = player.position.toUpperCase().split("/")[0];
+  const ceilingMultipliers: Record<string, number> = {
+    QB: 0.10,
+    RB: 0.16,
+    WR: 0.22,
+    TE: 0.20,
+    DST: 0.18,
+    DEF: 0.18,
+  };
+  const ceilingBonus = projection * (ceilingMultipliers[primaryPosition] || 0.12);
+
+  // Keep median projection dominant while rewarding comparable lower-owned plays.
+  // The logarithm limits the penalty on legitimate high-projection chalk.
+  const ownershipPenalty = ownership == null
+    ? 0
+    : Math.log1p(Math.max(0, ownership)) * 0.72;
+
+  return projection + ceilingBonus - ownershipPenalty;
+}
+
+function solveLineup(
+  pool: Player[],
+  constraints: OptimizationConstraints,
+  sport: string,
+  platform: Platform,
+  ownershipByPlayerId?: Map<number, number>,
+) {
   const config = getPlatformConfig(sport, platform);
   const contestType = (constraints as any).contestType || "cash";
+  const availablePool = pool.filter(p => !constraints.excludedPlayerIds.includes(p.id));
+  const availableGameCount = new Set(
+    availablePool.map(p => normalizeGameKey(p.gameInfo)).filter(Boolean),
+  ).size;
+  const isNflClassicGpp =
+    sport.toUpperCase() === "NFL" &&
+    contestType === "gpp" &&
+    config.rosterSize === 9 &&
+    availableGameCount >= 4;
   
   const model: any = {
-    optimize: "projectedPoints",
+    optimize: isNflClassicGpp ? "tournamentScore" : "projectedPoints",
     opType: "max",
     constraints: {
       salary: { max: constraints.maxSalary || config.salaryCap, ...(constraints.minSalary ? { min: constraints.minSalary } : {}) },
@@ -5835,7 +5909,8 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
     const isLocked = constraints.lockedPlayerIds.includes(p.id);
     const variableName = `p${p.id}`;
     
-    let projectedPoints = Number(p.projectedPoints);
+    const rawProjectedPoints = Number(p.projectedPoints);
+    let projectedPoints = rawProjectedPoints;
     if (contestType === "cash") {
       const fppg = Number((p as any).fppg) || projectedPoints;
       if (fppg > 0 && projectedPoints >= fppg) {
@@ -5849,6 +5924,9 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
     
     const variable: any = {
       projectedPoints,
+      ...(isNflClassicGpp
+        ? { tournamentScore: nflTournamentScore(p, ownershipByPlayerId?.get(p.id)) }
+        : {}),
       salary: p.salary,
       rosterSize: 1,
       ...buildPositionVariables(p.position, sport),
@@ -5865,7 +5943,7 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
       variable[`lock_${variableName}`] = 1;
     }
 
-    const gameKey = (p.gameInfo || "").replace(/\s*\d{1,2}:\d{2}\s*(AM|PM)\s*ET\s*$/i, "").trim();
+    const gameKey = normalizeGameKey(p.gameInfo);
     if (gameKey) {
       if (!gameMap.has(gameKey)) gameMap.set(gameKey, []);
       gameMap.get(gameKey)!.push(variableName);
@@ -5873,6 +5951,54 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
   });
 
   const gameKeys = Array.from(gameMap.keys());
+
+  if (isNflClassicGpp) {
+    const selectablePlayers = pool.filter(p => model.variables[`p${p.id}`]);
+    const quarterbacks = selectablePlayers.filter(p => p.position.toUpperCase().split("/").includes("QB"));
+
+    for (const qb of quarterbacks) {
+      const qbVariable = `p${qb.id}`;
+      const sameTeamPassCatchers = selectablePlayers.filter(
+        p => p.team === qb.team && p.id !== qb.id && isPassCatcher(p.position),
+      );
+      if (sameTeamPassCatchers.length > 0) {
+        const stackConstraint = `nfl_stack_qb_${qb.id}`;
+        model.constraints[stackConstraint] = { max: 0 };
+        model.variables[qbVariable][stackConstraint] = 1;
+        for (const teammate of sameTeamPassCatchers) {
+          model.variables[`p${teammate.id}`][stackConstraint] = -1;
+        }
+      }
+
+      const opponent = (qb.opponent || "").trim().toUpperCase();
+      const bringBacks = opponent
+        ? selectablePlayers.filter(
+            p => p.team.trim().toUpperCase() === opponent && isBringBackCandidate(p.position),
+          )
+        : [];
+      if (bringBacks.length > 0) {
+        const bringBackConstraint = `nfl_bringback_qb_${qb.id}`;
+        model.constraints[bringBackConstraint] = { max: 0 };
+        model.variables[qbVariable][bringBackConstraint] = 1;
+        for (const opponentPlayer of bringBacks) {
+          model.variables[`p${opponentPlayer.id}`][bringBackConstraint] = -1;
+        }
+      }
+
+      const opposingDefenses = opponent
+        ? selectablePlayers.filter(
+            p => p.team.trim().toUpperCase() === opponent && isDefense(p.position),
+          )
+        : [];
+      for (const defense of opposingDefenses) {
+        const conflictConstraint = `nfl_qb_dst_conflict_${qb.id}_${defense.id}`;
+        model.constraints[conflictConstraint] = { max: 1 };
+        model.variables[qbVariable][conflictConstraint] = 1;
+        model.variables[`p${defense.id}`][conflictConstraint] = 1;
+      }
+    }
+  }
+
   if (gameKeys.length >= 2) {
     model.constraints["minGames"] = { min: 2 };
     let gi = 0;
@@ -5911,7 +6037,7 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
   if (gameKeys.length >= 2) {
     const selectedGames = new Set<string>();
     for (const p of selectedPlayers) {
-      const gk = (p.gameInfo || "").replace(/\s*\d{1,2}:\d{2}\s*(AM|PM)\s*ET\s*$/i, "").trim();
+      const gk = normalizeGameKey(p.gameInfo);
       if (gk) selectedGames.add(gk);
     }
     if (selectedGames.size < 2) {
@@ -5935,7 +6061,7 @@ function solveLineup(pool: Player[], constraints: OptimizationConstraints, sport
         if (retryPlayers.length === config.rosterSize) {
           const retryGames = new Set<string>();
           for (const p of retryPlayers) {
-            const gk = (p.gameInfo || "").replace(/\s*\d{1,2}:\d{2}\s*(AM|PM)\s*ET\s*$/i, "").trim();
+            const gk = normalizeGameKey(p.gameInfo);
             if (gk) retryGames.add(gk);
           }
           if (retryGames.size >= 2) {
