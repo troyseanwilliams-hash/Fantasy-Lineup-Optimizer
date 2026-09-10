@@ -30,6 +30,7 @@ showdownRouter.get("/api/showdown/slates", async (req, res) => {
       .filter(s =>
         s.sport    === sport &&
         s.platform === requestedPlatform &&
+        s.gameType?.toLowerCase() === "showdown" &&
         s.isActive !== false
       )
       .sort((a, b) => {
