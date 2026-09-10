@@ -4,3 +4,4 @@
 - [Stripe account mismatch](stripe-account-mismatch.md) — Stripe MCP and app STRIPE_SECRET_KEY point to DIFFERENT accounts; use the app key via a node script for real account writes, not the MCP.
 - [Slate expiration timing](slate-expiration-timing.md) — multi-game slates expire from the latest game start, not the slate’s first kickoff; otherwise active evening games disappear.
 - [DraftKings Showdown rows](draftkings-showdown-rows.md) — DraftKings sends separate captain and flex rows; store the lower flex-priced row and apply captain multipliers in the optimizer.
+- [Playwright post-merge setup](playwright-post-merge.md) — validation workflows need Chromium provisioned by the post-merge hook before Playwright tests can launch.
