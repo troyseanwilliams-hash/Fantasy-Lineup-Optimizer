@@ -547,7 +547,11 @@ export async function fetchAvailableDKSlates(sport: string): Promise<AvailableDK
   }
 }
 
-export async function fetchDKSlateByDraftGroup(sport: string, draftGroupId: number): Promise<LiveSlateData | null> {
+export async function fetchDKSlateByDraftGroup(
+  sport: string,
+  draftGroupId: number,
+  options: { showdown?: boolean } = {},
+): Promise<LiveSlateData | null> {
   try {
     console.log(`[DK] Fetching slate data for ${sport} DraftGroup ${draftGroupId}...`);
 
@@ -557,12 +561,29 @@ export async function fetchDKSlateByDraftGroup(sport: string, draftGroupId: numb
       return null;
     }
 
-    const seen = new Set<number>();
-    const uniquePlayers = draftables.filter(p => {
-      if (seen.has(p.playerId)) return false;
-      seen.add(p.playerId);
-      return true;
-    });
+    let uniquePlayers: DKDraftable[];
+    if (options.showdown) {
+      const playersById = new Map<number, DKDraftable[]>();
+      for (const player of draftables) {
+        const entries = playersById.get(player.playerId) || [];
+        entries.push(player);
+        playersById.set(player.playerId, entries);
+      }
+      // DraftKings exposes separate captain and flex entries for Showdown.
+      // Store the flex-priced row; the optimizer applies the captain multiplier.
+      uniquePlayers = Array.from(playersById.values(), entries =>
+        entries.reduce((lowestSalary, entry) =>
+          entry.salary < lowestSalary.salary ? entry : lowestSalary,
+        ),
+      );
+    } else {
+      const seen = new Set<number>();
+      uniquePlayers = draftables.filter(p => {
+        if (seen.has(p.playerId)) return false;
+        seen.add(p.playerId);
+        return true;
+      });
+    }
 
     if (sport === "GOLF" && uniquePlayers.every(p => !p.salary || p.salary <= 0) && uniquePlayers.length > 0) {
       const maxSal = 12000;

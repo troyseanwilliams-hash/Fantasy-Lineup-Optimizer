@@ -6335,7 +6335,7 @@ export async function seedDatabase(forceRefresh = false) {
     const todayShowdowns = await fetchAvailableDKShowdowns("NFL");
     const showdown = todayShowdowns[0];
     if (showdown) {
-      const showdownData = await fetchDKSlateByDraftGroup("NFL", showdown.draftGroupId);
+      const showdownData = await fetchDKSlateByDraftGroup("NFL", showdown.draftGroupId, { showdown: true });
       if (showdownData && showdownData.dkPlayers.length > 0) {
         const currentShowdowns = (await storage.getSlates()).filter(
           s => s.sport === "NFL" && s.platform === "draftkings" && s.gameType === "Showdown",
