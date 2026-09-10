@@ -6341,25 +6341,34 @@ export async function seedDatabase(forceRefresh = false) {
           s => s.sport === "NFL" && s.platform === "draftkings" && s.gameType === "Showdown",
         );
         const existing = currentShowdowns.find(s => s.draftGroupId === showdown.draftGroupId);
+        const existingPlayers = existing ? await storage.getPlayersBySlate(existing.id) : [];
+        const needsProjectionRefresh = existingPlayers.some(player =>
+          player.salary <= 6000 && Number(player.projectedPoints) > 20,
+        );
 
-        if (!existing || (await storage.getPlayersBySlate(existing.id)).length === 0) {
-          if (existing) await storage.deleteSlateAndPlayers(existing.id);
+        if (!existing || existingPlayers.length === 0 || needsProjectionRefresh) {
+          let showdownSlate = existing;
+          if (showdownSlate) {
+            await storage.deletePlayersBySlate(showdownSlate.id);
+          }
 
           const gameLabel = showdownData.games[0]
             ? `${showdownData.games[0].away}@${showdownData.games[0].home}`
             : "Single Game";
-          const showdownSlate = await storage.createSlate({
-            sport: "NFL",
-            platform: "draftkings",
-            name: `NFL Showdown — ${gameLabel}`,
-            label: `NFL Showdown — ${gameLabel}`,
-            startTime: showdownData.slateDate,
-            isMain: true,
-            draftGroupId: showdown.draftGroupId,
-            gameType: "Showdown",
-            gameCount: showdownData.games.length,
-            salaryCap: 50000,
-          });
+          if (!showdownSlate) {
+            showdownSlate = await storage.createSlate({
+              sport: "NFL",
+              platform: "draftkings",
+              name: `NFL Showdown — ${gameLabel}`,
+              label: `NFL Showdown — ${gameLabel}`,
+              startTime: showdownData.slateDate,
+              isMain: true,
+              draftGroupId: showdown.draftGroupId,
+              gameType: "Showdown",
+              gameCount: showdownData.games.length,
+              salaryCap: 50000,
+            });
+          }
           await storage.bulkCreatePlayers(
             showdownData.dkPlayers.map(player => ({ ...player, slateId: showdownSlate.id })),
           );

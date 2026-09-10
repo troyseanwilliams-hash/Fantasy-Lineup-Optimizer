@@ -629,7 +629,8 @@ export async function fetchDKSlateByDraftGroup(
     for (const p of trimmedPlayers) {
       if (!p.position || !p.salary || p.salary <= 0) continue;
 
-      const fppgNum = extractFppg(p.draftStatAttributes) ?? (p.salary / 250);
+      const fppgNum = extractFppg(p.draftStatAttributes) ??
+        (options.showdown ? 0 : p.salary / 250);
       const fppg = fppgNum.toFixed(1);
       const projectedPoints = fppg;
 
