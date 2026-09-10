@@ -35,6 +35,7 @@ import { buildVegasContext } from "./vegas-client";
 import { buildDvPContext, applyDvPToProjections, buildOpponentMap } from "./dvp-client";
 import { fetchStartingLineups, getStartingLineupsData, clearLineupsCache } from "./lineups-ingest";
 import { projectionAccuracyRouter } from "./projection-accuracy-route";
+import { deactivateExpiredSlates } from "./slate-lifecycle";
 
 
 async function loadOverridesWithCrossRef(
@@ -6166,6 +6167,12 @@ export async function seedDatabase(forceRefresh = false) {
       console.log(`[DK] ${seed.sport} draft group changed (${existingSlate!.draftGroupId} → ${seed.draftGroupId}) but current slate still active — skipping replacement`);
     }
 
+    if (existingSlate && !isStale && existingSlate.isActive === false) {
+      await db.update(slates).set({ isActive: true }).where(eq(slates.id, existingSlate.id));
+      existingSlate.isActive = true;
+      console.log(`[DK] Reactivated ongoing ${seed.sport} slate ${existingSlate.id}`);
+    }
+
     const shouldReplace = isStale || (draftGroupChanged && isStale);
 
     if (shouldReplace) {
@@ -6409,12 +6416,7 @@ export async function seedDatabase(forceRefresh = false) {
 
   await generatePlayerBoostsAndInjuries();
 
-  const graceCutoff = new Date(Date.now() - 3 * 60 * 60 * 1000);
-  const deactivated = await db
-    .update(slates)
-    .set({ isActive: false })
-    .where(and(lt(slates.startTime, graceCutoff), eq(slates.isActive, true)));
-  const deactivatedCount = (deactivated as any)?.rowCount ?? 0;
+  const deactivatedCount = await deactivateExpiredSlates(3);
   if (deactivatedCount > 0) console.log(`[Seed] Deactivated ${deactivatedCount} stale slate(s) after refresh`);
 }
 

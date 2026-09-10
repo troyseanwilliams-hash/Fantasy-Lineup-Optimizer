@@ -215,6 +215,15 @@ export function Header() {
                           </Link>
                         )}
 
+                        {sport === "NFL" && (
+                          <Link href="/showdown?sport=NFL">
+                            <DropdownMenuItem className="cursor-pointer" data-testid="sport-menu-nfl-showdown">
+                              <Swords className="w-4 h-4 mr-2 text-amber-400" />
+                              <span className="text-sm font-bold text-slate-300">NFL Showdown Builder</span>
+                            </DropdownMenuItem>
+                          </Link>
+                        )}
+
                         <Link href={`/props?sport=${sport}`}>
                           <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-props`}>
                             <TrendingUp className="w-4 h-4 mr-2 text-purple-400" />
@@ -691,14 +700,14 @@ export function Header() {
             </button>
 
             <button
-              onClick={() => mobileNav("/showdown")}
+              onClick={() => mobileNav("/showdown?sport=NFL")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
                 location === "/showdown" ? "bg-amber-500/10 text-amber-400" : "text-white hover:bg-slate-800"
               }`}
               data-testid="mobile-nav-showdown"
             >
               <Swords className="w-5 h-5 shrink-0" />
-              <span>Showdown</span>
+              <span>NFL Showdown Builder</span>
             </button>
 
             <button

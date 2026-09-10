@@ -8,6 +8,7 @@ import type { Player } from "@shared/schema";
 import { getCachedSignals } from "./ai-scout";
 import { runSimulations, detectStack } from "./simulation-engine";
 import { applyOutperformerMode } from "./boost-engine";
+import { getLatestGameStart } from "./slate-lifecycle";
 
 function getSessionUserId(req: Request): string | null {
   return (req.session as any)?.userId || null;
@@ -25,20 +26,25 @@ showdownRouter.get("/api/showdown/slates", async (req, res) => {
 
     const allSlates = await storage.getSlates();
 
-    const graceCutoff = new Date(Date.now() - 3 * 60 * 60 * 1000);
-    const filtered = allSlates
+    const candidates = allSlates
       .filter(s =>
         s.sport    === sport &&
         s.platform === requestedPlatform &&
-        s.isActive !== false &&
-        new Date(s.startTime) > graceCutoff
+        s.isActive !== false
       )
       .sort((a, b) => {
         if (a.isMain && !b.isMain) return -1;
         if (!a.isMain && b.isMain) return  1;
         return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
-      })
-      .map(s => ({
+      });
+
+    const filtered = [];
+    for (const s of candidates) {
+      const players = await storage.getPlayersBySlate(s.id);
+      const latestGameStart = getLatestGameStart(s, players);
+      if (latestGameStart.getTime() + 3 * 60 * 60 * 1000 < Date.now()) continue;
+
+      filtered.push({
         id:           s.id,
         sport:        s.sport,
         platform:     s.platform,
@@ -49,7 +55,8 @@ showdownRouter.get("/api/showdown/slates", async (req, res) => {
         gameCount:    s.gameCount    || 0,
         contestCount: s.contestCount || 0,
         salaryCap:    s.salaryCap    || 50000,
-      }));
+      });
+    }
 
     res.json(filtered);
   } catch (err) {

@@ -13,6 +13,7 @@ import { runScoutForAllSports } from "./ai-scout";
 import { fetchStartingLineups } from "./lineups-ingest";
 import { fetchAllActualPointsForDate } from "./actual-points";
 import { players as playersTable, lineups as lineupsTable } from "@shared/schema";
+import { deactivateExpiredSlates } from "./slate-lifecycle";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { users } from "@shared/models/auth";
@@ -264,15 +265,6 @@ async function generatePerformanceSnapshots() {
   if (created > 0) {
     log(`Performance snapshots: created ${created} new snapshot(s)`, "cron");
   }
-}
-
-async function deactivateOldSlates(): Promise<number> {
-  const cutoff = new Date(Date.now() - SLATE_GRACE_HOURS * 60 * 60 * 1000);
-  const result = await db
-    .update(slates)
-    .set({ isActive: false })
-    .where(and(lt(slates.startTime, cutoff), eq(slates.isActive, true)));
-  return (result as any)?.rowCount ?? 0;
 }
 
 async function seedDefaultUser() {
@@ -558,7 +550,7 @@ app.use((req, res, next) => {
           log("Startup seed check completed", "cron");
 
           try {
-            const deactivated = await deactivateOldSlates();
+            const deactivated = await deactivateExpiredSlates(SLATE_GRACE_HOURS);
             if (deactivated > 0) log(`Startup: deactivated ${deactivated} stale slate(s)`, "cron");
           } catch (err) {
             console.error("Startup slate deactivation failed:", err);
@@ -709,7 +701,7 @@ app.use((req, res, next) => {
           console.error("Hourly status refresh failed:", err);
         }
         try {
-          const deactivated = await deactivateOldSlates();
+          const deactivated = await deactivateExpiredSlates(SLATE_GRACE_HOURS);
           if (deactivated > 0) log(`Deactivated ${deactivated} stale slate(s) (start_time > ${SLATE_GRACE_HOURS}h ago)`, "cron");
         } catch (err) {
           console.error("Slate deactivation failed:", err);

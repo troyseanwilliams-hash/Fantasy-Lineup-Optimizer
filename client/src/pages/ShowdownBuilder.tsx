@@ -21,6 +21,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import type { Slate, Player } from "@shared/schema";
 import { usePageMeta } from "@/hooks/use-page-meta";
+import { useLocation } from "wouter";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -119,6 +120,7 @@ export default function ShowdownBuilder() {
   usePageMeta({ title: "Showdown Builder - Single-Game DFS Optimizer", description: "Optimize single-game DFS lineups for DraftKings Showdown and Captain mode contests.", path: "/showdown" });
   const { user } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   // ── Slate / sport ──────────────────────────────────────────────────────────
   const [sport, setSport] = useState(SHOWDOWN_SPORTS[0] ?? "");
@@ -630,7 +632,14 @@ export default function ShowdownBuilder() {
           <CardContent className="p-8 text-center">
             <Swords className="w-12 h-12 text-amber-500 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-white mb-2">Sign In Required</h2>
-            <p className="text-slate-400">Log in to access the Showdown Builder.</p>
+            <p className="text-slate-400 mb-5">Log in to access the NFL Showdown Builder.</p>
+            <Button
+              onClick={() => setLocation("/login")}
+              className="bg-emerald-600 hover:bg-emerald-500"
+              data-testid="showdown-sign-in"
+            >
+              Sign In to Build Lineups
+            </Button>
           </CardContent>
         </Card>
       </div>
