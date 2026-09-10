@@ -34,6 +34,7 @@ interface LineupWithPlayers {
   slateId: number;
   players: Player[];
   allPlayers: Player[];
+  playerSnapshot?: any[];
 }
 
 // ── How long vault data stays fresh before a background refetch is allowed.
@@ -82,6 +83,10 @@ function formatCap(cap: number, platform: string): string {
 function buildPlatformCSV(lineups: LineupWithPlayers[]): string {
   if (lineups.length === 0) return "";
 
+  if (lineups.every(isShowdownLineup)) {
+    return buildShowdownCSV(lineups);
+  }
+
   const firstLineup = lineups[0];
   const platform = firstLineup.platform as Platform;
   const config = getPlatformConfig(firstLineup.sport, platform);
@@ -121,6 +126,64 @@ function buildPlatformCSV(lineups: LineupWithPlayers[]): string {
   });
 
   return [headers.join(","), ...rows.map(r => r.map(cell => `"${cell}"`).join(","))].join("\n");
+}
+
+function isShowdownLineup(lineup: LineupWithPlayers): boolean {
+  return Array.isArray(lineup.playerSnapshot) &&
+    lineup.playerSnapshot.some(player => player?.isCaptain === true || player?.slot === "CPT" || player?.slot === "MVP");
+}
+
+function showdownSnapshot(lineup: LineupWithPlayers): any[] {
+  return Array.isArray(lineup.playerSnapshot) ? lineup.playerSnapshot : [];
+}
+
+function csvCell(value: unknown): string {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+}
+
+function formatExportPlayer(player: any, platform: string): string {
+  if (platform === "draftkings" && player.draftKingsPlayerId) {
+    return `${player.name} (${player.draftKingsPlayerId})`;
+  }
+  if (platform === "fanduel" && player.fanDuelPlayerId) {
+    return `${player.name}:${player.fanDuelPlayerId}`;
+  }
+  return player.name || "";
+}
+
+function buildShowdownCSV(lineups: LineupWithPlayers[]): string {
+  const firstSnapshot = showdownSnapshot(lineups[0]);
+  const firstCaptain = firstSnapshot.find(player => player.isCaptain || player.slot === "CPT" || player.slot === "MVP");
+  const firstFlex = firstSnapshot.filter(player => player !== firstCaptain);
+  const headers = [
+    firstCaptain?.slot || "CPT",
+    ...firstFlex.map(() => "FLEX"),
+  ];
+
+  const rows = lineups.map(lineup => {
+    const snapshot = showdownSnapshot(lineup);
+    const captain = snapshot.find(player => player.isCaptain || player.slot === "CPT" || player.slot === "MVP");
+    const flex = snapshot.filter(player => player !== captain);
+    return [
+      formatExportPlayer(captain, lineup.platform),
+      ...flex.map(player => formatExportPlayer(player, lineup.platform)),
+    ];
+  });
+
+  return [headers, ...rows].map(row => row.map(csvCell).join(",")).join("\n");
+}
+
+function getShowdownDisplayData(lineup: LineupWithPlayers): { slots: string[]; assignments: Record<string, any> } | null {
+  if (!isShowdownLineup(lineup)) return null;
+  const snapshot = showdownSnapshot(lineup);
+  const assignments: Record<string, any> = {};
+  snapshot.forEach((player, index) => {
+    assignments[player.slot || (index === 0 ? "CPT" : `FLEX${index}`)] = player;
+  });
+  return {
+    slots: snapshot.map((player, index) => player.slot || (index === 0 ? "CPT" : `FLEX${index}`)),
+    assignments,
+  };
 }
 
 export default function SavedLineups() {
@@ -591,7 +654,7 @@ export default function SavedLineups() {
   // to keep CSV logic platform-aware for DK / FD / Yahoo.
 
   function handleExportCSV(lineup: LineupWithPlayers) {
-    if (!isPaid) {
+    if (!isPaid && !isShowdownLineup(lineup)) {
       toast({ title: "Paid Feature", description: "Upgrade to Sharpshooter or Champion to export lineups.", variant: "destructive" });
       return;
     }
@@ -609,10 +672,6 @@ export default function SavedLineups() {
   }
 
   async function handleBulkExport() {
-    if (!isPaid) {
-      toast({ title: "Paid Feature", description: "Upgrade to Sharpshooter or Champion to export lineups.", variant: "destructive" });
-      return;
-    }
     if (selectedIds.size === 0) {
       toast({ title: "No Lineups Selected", description: "Select lineups to export using the checkboxes.", variant: "destructive" });
       return;
@@ -632,12 +691,16 @@ export default function SavedLineups() {
       toast({ title: "Export Failed", description: "Could not load lineup details.", variant: "destructive" });
       return;
     }
+    if (!isPaid && details.some(lineup => !isShowdownLineup(lineup))) {
+      toast({ title: "Paid Feature", description: "Classic lineup export requires a Sharpshooter or Champion subscription. Select only Showdown lineups to export on this plan.", variant: "destructive" });
+      return;
+    }
 
     // Group lineups by platform + sport — each group gets its own CSV file
     // because DK, FD, and Yahoo all have different upload formats and slot headers.
     const groups = new Map<string, LineupWithPlayers[]>();
     for (const d of details) {
-      const key = `${d.platform}::${d.sport}`;
+      const key = `${d.platform}::${d.sport}::${isShowdownLineup(d) ? "showdown" : "classic"}`;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(d);
     }
@@ -646,7 +709,7 @@ export default function SavedLineups() {
     const fileCount = groups.size;
 
     for (const [key, groupLineups] of groups.entries()) {
-      const [platform, sport] = key.split("::");
+      const [platform, sport, gameType] = key.split("::");
       const csv = buildPlatformCSV(groupLineups);
       const blob = new Blob([csv], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
@@ -654,7 +717,7 @@ export default function SavedLineups() {
       a.href = url;
       const platformLabel = getPlatformLabel(platform);
       // e.g. elitelineup_nba_fd_3_lineups.csv
-      a.download = `elitelineup_${sport.toLowerCase()}_${platformLabel.toLowerCase()}_${groupLineups.length}_lineup${groupLineups.length > 1 ? "s" : ""}.csv`;
+      a.download = `elitelineup_${sport.toLowerCase()}_${platformLabel.toLowerCase()}_${gameType}_${groupLineups.length}_lineup${groupLineups.length > 1 ? "s" : ""}.csv`;
       a.click();
       URL.revokeObjectURL(url);
       totalExported += groupLineups.length;
@@ -2028,7 +2091,9 @@ function ExpandedRoster({
   isOrphaned?: boolean;
 }) {
   const config = getPlatformConfig(lineup.sport, lineup.platform as any);
-  const slotAssignments = assignPlayersToSlots(lineup.players, config.slots, lineup.sport);
+  const showdownDisplay = getShowdownDisplayData(lineup);
+  const displaySlots = showdownDisplay?.slots || config.slots;
+  const slotAssignments = showdownDisplay?.assignments || assignPlayersToSlots(lineup.players, config.slots, lineup.sport);
   const isSwapping = swappingSlot?.lineupId === lineup.id;
   const currentSwapSlot = isSwapping ? swappingSlot!.slot : null;
   const platform = lineup.platform as string;
@@ -2038,7 +2103,7 @@ function ExpandedRoster({
   const maxProj = Math.max(...lineup.players.map((p: Player) => Number(p.projectedPoints) || 0), 1);
 
   const eligibleReplacements = currentSwapSlot
-    ? lineup.allPlayers.filter(p =>
+    ? showdownDisplay ? [] : lineup.allPlayers.filter(p =>
         !lineup.playerIds.includes(p.id) &&
         positionFitsSlot(p.position, currentSwapSlot, lineup.sport) &&
         (lineup.totalSalary - (slotAssignments[currentSwapSlot]?.salary || 0) + p.salary) <= config.salaryCap
@@ -2062,7 +2127,7 @@ function ExpandedRoster({
             </tr>
           </thead>
           <tbody>
-            {config.slots.map(slot => {
+            {displaySlots.map(slot => {
               const player = slotAssignments[slot];
               const isThisSlotSwapping = isSwapping && currentSwapSlot === slot;
 
@@ -2115,7 +2180,7 @@ function ExpandedRoster({
                     )}
                   </td>
                   <td className="py-3 text-center">
-                    {player && !isOrphaned && (
+                    {player && !isOrphaned && !showdownDisplay && (
                       isThisSlotSwapping ? (
                         <Button
                           variant="ghost"

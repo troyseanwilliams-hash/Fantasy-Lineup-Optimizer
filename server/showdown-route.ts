@@ -725,7 +725,59 @@ showdownRouter.post("/api/showdown/save", async (req, res) => {
   const userId = getSessionUserId(req)!;
 
   try {
-    const { slateId, sport, platform, captainId, flexIds, totalSalary, totalProjectedPoints, playerSnapshot } = req.body;
+    const {
+      slateId,
+      sport,
+      platform,
+      captainId,
+      flexIds,
+      totalSalary,
+      totalProjectedPoints,
+      playerSnapshot,
+    } = req.body;
+    const slate = await storage.getSlate(Number(slateId));
+    if (!slate || slate.sport !== sport || slate.platform !== platform) {
+      return res.status(400).json({ message: "The selected Showdown slate is no longer available." });
+    }
+
+    const config = getShowdownConfig(sport, platform as Platform);
+    if (!config) return res.status(400).json({ message: `Showdown not supported for ${sport} on ${platform}` });
+
+    const slatePlayers = await storage.getPlayersBySlate(Number(slateId));
+    const playerById = new Map(slatePlayers.map(player => [player.id, player]));
+    const captain = playerById.get(Number(captainId));
+    const flexPlayerIds = Array.isArray(flexIds) ? flexIds.map(Number) : [];
+    if (!captain || flexPlayerIds.length !== config.rosterSize - 1 || new Set(flexPlayerIds).size !== flexPlayerIds.length) {
+      return res.status(400).json({ message: "Invalid Showdown roster. Select one captain and the required flex players." });
+    }
+    if (flexPlayerIds.some(id => id === captain.id || !playerById.has(id))) {
+      return res.status(400).json({ message: "Every saved Showdown player must belong to the selected slate." });
+    }
+
+    const submittedSnapshot = Array.isArray(playerSnapshot) ? playerSnapshot : [];
+    const submittedById = new Map(submittedSnapshot.map((player: any) => [Number(player.id), player]));
+    const captainSalary = getEffectiveSalary(captain.salary, true, config);
+    const captainSubmitted = submittedById.get(captain.id);
+    const savedSnapshot = [
+      {
+        ...captain,
+        slot: config.captainLabel,
+        isCaptain: true,
+        effectiveSalary: captainSalary,
+        effectiveProjection: Number(captainSubmitted?.effectiveProjection ?? Number(captain.projectedPoints || 0) * config.captainMultiplier),
+      },
+      ...flexPlayerIds.map((id, index) => {
+        const player = playerById.get(id)!;
+        const submitted = submittedById.get(id);
+        return {
+          ...player,
+          slot: `${config.flexLabel}${index + 1}`,
+          isCaptain: false,
+          effectiveSalary: player.salary,
+          effectiveProjection: Number((submitted?.effectiveProjection ?? player.projectedPoints) || 0),
+        };
+      }),
+    ];
 
     const sub = await storage.getSubscription(userId);
     const dbUser = await storage.getUser(userId);
@@ -741,17 +793,17 @@ showdownRouter.post("/api/showdown/save", async (req, res) => {
       });
     }
 
-    const allPlayerIds = [captainId, ...flexIds];
+    const allPlayerIds = [captain.id, ...flexPlayerIds];
     const lineup = await storage.createLineup({
       userId,
-      slateId,
+      slateId: Number(slateId),
       sport,
       platform: (["draftkings","fanduel","yahoo"].includes(platform) ? platform : "draftkings") as string,
       playerIds: allPlayerIds,
-      totalSalary: totalSalary.toString(),
-      totalProjectedPoints: totalProjectedPoints.toString(),
+      totalSalary: String(totalSalary),
+      totalProjectedPoints: String(totalProjectedPoints),
       status: "active",
-      playerSnapshot: playerSnapshot || null,
+      playerSnapshot: savedSnapshot,
     });
 
     res.status(201).json(lineup);

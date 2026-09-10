@@ -633,15 +633,28 @@ export default function ShowdownBuilder() {
     return val;
   }
 
-  function exportCSV() {
-    if (generatedLineups.length === 0) return;
-    const first = generatedLineups[0];
+  function exportCSV(lineupsToExport = generatedLineups) {
+    if (lineupsToExport.length === 0) return;
+    const first = lineupsToExport[0];
+    // DraftKings expects repeated FLEX headers rather than numbered FLEX1/FLEX2 columns.
     const header = [captainLabel, ...Array.from({ length: first.flexPlayers.length }, () => flexLabel)].join(",");
-    const rows = generatedLineups.map(lu => [csvEscape(lu.captain.name), ...lu.flexPlayers.map(p => csvEscape(p.name))].join(","));
+    const formatPlayer = (player: ShowdownPlayer) => {
+      if (platform === "draftkings" && player.draftKingsPlayerId) {
+        return `${player.name} (${player.draftKingsPlayerId})`;
+      }
+      if (platform === "fanduel" && player.fanDuelPlayerId) {
+        return `${player.name}:${player.fanDuelPlayerId}`;
+      }
+      return player.name;
+    };
+    const rows = lineupsToExport.map(lu => [
+      csvEscape(formatPlayer(lu.captain)),
+      ...lu.flexPlayers.map(p => csvEscape(formatPlayer(p))),
+    ].join(","));
     const blob = new Blob([`${header}\n${rows.join("\n")}`], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `showdown_${sport}_${generatedLineups.length}lineups.csv`; a.click();
+    a.href = url; a.download = `showdown_${sport}_${lineupsToExport.length}lineups.csv`; a.click();
     URL.revokeObjectURL(url);
   }
 
