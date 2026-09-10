@@ -107,7 +107,7 @@ const CLASSIC_GAME_TYPES: Record<string, number[]> = {
   NBA: [70],
   NHL: [125, 70],
   MLB: [70, 177],
-  NFL: [70, 158],
+  NFL: [1],
   GOLF: [70, 177],
   SOCCER: [70, 177],
 };

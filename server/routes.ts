@@ -6162,6 +6162,12 @@ export async function seedDatabase(forceRefresh = false) {
       }
     }
     const draftGroupChanged = existingSlate && seed.draftGroupId && existingSlate.draftGroupId !== seed.draftGroupId;
+    const easternCalendarDay = (date: Date) => date.toLocaleDateString("en-CA", {
+      timeZone: "America/New_York",
+    });
+    const selectedSlateChangedDay = existingSlate
+      ? easternCalendarDay(new Date(existingSlate.startTime)) !== easternCalendarDay(new Date(seed.dkSlate.startTime))
+      : false;
 
     if (draftGroupChanged && !isStale) {
       console.log(`[DK] ${seed.sport} draft group changed (${existingSlate!.draftGroupId} → ${seed.draftGroupId}) but current slate still active — skipping replacement`);
@@ -6173,7 +6179,9 @@ export async function seedDatabase(forceRefresh = false) {
       console.log(`[DK] Reactivated ongoing ${seed.sport} slate ${existingSlate.id}`);
     }
 
-    const shouldReplace = isStale || (draftGroupChanged && isStale);
+    const shouldReplace =
+      isStale ||
+      (draftGroupChanged && seed.sport === "NFL" && selectedSlateChangedDay);
 
     if (shouldReplace) {
       await storage.deleteSlateAndPlayers(existingSlate!.id);

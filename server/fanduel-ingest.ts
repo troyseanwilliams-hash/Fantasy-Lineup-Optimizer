@@ -433,7 +433,7 @@ export async function ingestFanDuelSlate(sport: FDSport): Promise<{
       source = "dk-crossplatform";
       if (derived.dkSlate) {
         startTime = derived.dkSlate.startTime;
-        slateLabel = `${sport} FanDuel Main — ${new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" })}`;
+      slateLabel = `${sport} FanDuel Main — ${startTime.toLocaleDateString("en-US", { timeZone: "America/New_York" })}`;
       }
     }
   }
