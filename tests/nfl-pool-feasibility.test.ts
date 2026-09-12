@@ -3,6 +3,7 @@ import test from "node:test";
 import { solveLineup } from "../server/routes";
 import { runSimulations } from "../server/simulation-engine";
 import type { Player, OptimizationConstraints } from "../shared/schema";
+import { NFL_PRACTICE_SQUAD_DETAIL } from "../server/nfl-roster-eligibility";
 
 const positions = [
   ...Array(35).fill("QB"), ...Array(61).fill("RB"),
@@ -39,4 +40,19 @@ test("NFL simulated projections produce valid rosters when DST is retained", () 
     assert.ok(result.totalSalary <= 50000);
     assert.equal(result.lineup.filter(p => p.position === "DST").length, 1);
   }
+});
+
+test("practice-squad marker is a hard exclusion and locked marker is infeasible", () => {
+  const markedPool = pool.map(p => p.id === 1
+    ? { ...p, injuryStatus: "OUT", injuryDetail: NFL_PRACTICE_SQUAD_DETAIL, projectedPoints: "0", fppg: "0" }
+    : p);
+  const result = solveLineup(markedPool, constraints, "NFL", "draftkings");
+  assert.ok(!result.error, result.error);
+  assert.ok(!result.lineup.some(p => p.id === 1));
+
+  const lockedResult = solveLineup(markedPool, {
+    ...constraints,
+    lockedPlayerIds: [1],
+  }, "NFL", "draftkings");
+  assert.match(lockedResult.error || "", /practice squad/i);
 });

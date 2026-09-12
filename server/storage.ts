@@ -36,6 +36,7 @@ import {
 } from "@shared/schema";
 
 import { authStorage, type IAuthStorage } from "./replit_integrations/auth/storage";
+import { applyNFLRosterEligibility } from "./nfl-roster-eligibility";
 
 const RETIRED_PLAYER_DETAIL = "No longer listed in the current contest player pool";
 
@@ -364,7 +365,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPlayersBySlate(slateId: number): Promise<Player[]> {
-    return await db.select().from(players).where(eq(players.slateId, slateId));
+    const slatePlayers = await db.select().from(players).where(eq(players.slateId, slateId));
+    const [slate] = await db.select({ sport: slates.sport }).from(slates).where(eq(slates.id, slateId));
+    if (slate?.sport?.toUpperCase() !== "NFL") return slatePlayers;
+
+    // Practice-squad status is a derived live overlay.  Never write it to
+    // player rows: an elevated player must regain the stored baseline as soon
+    // as ESPN reports an explicit active status.
+    return applyNFLRosterEligibility(slatePlayers);
   }
 
   async getAllPlayers(): Promise<Player[]> {

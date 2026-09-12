@@ -39,6 +39,7 @@ import { projectionAccuracyRouter } from "./projection-accuracy-route";
 import { deactivateExpiredSlates } from "./slate-lifecycle";
 import { solveWithBudget, validatedIntegralResult, remainingSolverTime, yieldToEventLoop, type SolverBudget } from "./solver-guard";
 import { createLineupEnrichmentLoader } from "./lineups-enrichment";
+import { NFL_PRACTICE_SQUAD_DETAIL, protectNFLPracticeSquadMarker } from "./nfl-roster-eligibility";
 
 
 async function loadOverridesWithCrossRef(
@@ -429,6 +430,7 @@ export async function registerRoutes(
         } else if (isDK && slate.id === mainSlate.id) {
           players = await applyLiveDKStatuses(mainSlatePlayers, slate.draftGroupId, slate.sport);
         }
+        players = players.filter(p => !isPlayerOut(p.injuryStatus));
         for (const p of players) {
           const key = p.draftKingsPlayerId
             ? `dk-${p.draftKingsPlayerId}`
@@ -512,6 +514,12 @@ export async function registerRoutes(
 
     if (liveStatuses.size === 0 && liveStarters.size === 0 && espnStarters.size === 0) return players;
     return players.map(p => {
+      // Practice-squad status is a derived ESPN roster exclusion.  DK's
+      // healthy/empty status must never clear its marker (or restore it into
+      // a playable row) while that roster overlay is in effect.
+      if (p.injuryDetail === NFL_PRACTICE_SQUAD_DETAIL) {
+        return protectNFLPracticeSquadMarker(p);
+      }
       if (p.injuryDetail === RETIRED_PLAYER_DETAIL) {
         return { ...p, injuryStatus: "OUT", projectedPoints: "0", fppg: "0", isConfirmedStarter: false };
       }
@@ -6075,7 +6083,28 @@ export function solveLineup(
 ) {
   const config = getPlatformConfig(sport, platform);
   const contestType = (constraints as any).contestType || "cash";
-  const availablePool = pool.filter(p => !constraints.excludedPlayerIds.includes(p.id));
+  const practiceSquadPlayers = pool.filter(
+    p => p.injuryDetail === NFL_PRACTICE_SQUAD_DETAIL,
+  );
+  const lockedPracticeSquad = practiceSquadPlayers.filter(
+    p => constraints.lockedPlayerIds.includes(p.id),
+  );
+  if (lockedPracticeSquad.length > 0) {
+    return {
+      error: `Locked player ${lockedPracticeSquad[0].name} is on an ESPN practice squad and cannot be used.`,
+      lineup: [],
+      totalSalary: 0,
+      totalProjectedPoints: 0,
+    };
+  }
+
+  // This is a hard exclusion independent of user exclusions, custom
+  // projections, or lock state.  An unlocked marker is simply omitted;
+  // a locked marker above is an explicit infeasibility error.
+  const availablePool = pool.filter(
+    p => !constraints.excludedPlayerIds.includes(p.id) &&
+      p.injuryDetail !== NFL_PRACTICE_SQUAD_DETAIL,
+  );
   const availableGameCount = new Set(
     availablePool.map(p => normalizeGameKey(p.gameInfo)).filter(Boolean),
   ).size;
@@ -6111,7 +6140,7 @@ export function solveLineup(
 
   const gameMap = new Map<string, string[]>();
 
-  pool.forEach(p => {
+  availablePool.forEach(p => {
     if (constraints.excludedPlayerIds.includes(p.id)) return;
 
     const isLocked = constraints.lockedPlayerIds.includes(p.id);
@@ -6159,11 +6188,11 @@ export function solveLineup(
   });
 
   const gameKeys = Array.from(gameMap.keys());
-  addNFLQuarterbackStacks(model, pool, sport);
-  addSimGameStacks(model, pool, constraints.stackGameKeys ?? [], sport);
+  addNFLQuarterbackStacks(model, availablePool, sport);
+  addSimGameStacks(model, availablePool, constraints.stackGameKeys ?? [], sport);
 
   if (isNflClassicGpp) {
-    const selectablePlayers = pool.filter(p => model.variables[`p${p.id}`]);
+    const selectablePlayers = availablePool.filter(p => model.variables[`p${p.id}`]);
     const quarterbacks = selectablePlayers.filter(p => p.position.toUpperCase().split("/").includes("QB"));
 
     for (const qb of quarterbacks) {
@@ -6237,7 +6266,7 @@ export function solveLineup(
     .filter(k => k.startsWith('p') && result[k] > 0.5)
     .map(k => Number(k.substring(1)));
 
-  let selectedPlayers = pool.filter(p => selectedPlayerIds.includes(p.id));
+  let selectedPlayers = availablePool.filter(p => selectedPlayerIds.includes(p.id));
 
   if (selectedPlayers.length !== config.rosterSize) {
     return { error: `Roster size mismatch: got ${selectedPlayers.length}, need ${config.rosterSize}`, lineup: [], totalSalary: 0, totalProjectedPoints: 0 };
@@ -6797,6 +6826,10 @@ export async function refreshPlayerStatuses() {
 
       for (const player of players) {
         if (player.injuryDetail === RETIRED_PLAYER_DETAIL) continue;
+        // Practice-squad is intentionally a live derived overlay. Persisting
+        // it would lose the player's baseline projections before ESPN reports
+        // a later active/elevated status.
+        if (player.injuryDetail === NFL_PRACTICE_SQUAD_DETAIL) continue;
         if (!player.draftKingsPlayerId) continue;
         const dkStatus = statusMap.get(player.draftKingsPlayerId);
         if (!dkStatus) continue;

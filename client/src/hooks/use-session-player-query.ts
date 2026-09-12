@@ -10,7 +10,7 @@ import { useQuery, type UseQueryResult } from "@tanstack/react-query";
  * session can reuse a pool after a reload, while a later session starts clean.
  */
 export const PLAYER_CACHE_TTL_MS = 5 * 60 * 1000;
-const PLAYER_CACHE_PREFIX = "eliteLineup:player-pool:v1:";
+const PLAYER_CACHE_PREFIX = "eliteLineup:player-pool:v2:";
 
 interface PlayerCacheEntry<T> {
   timestamp: number;
@@ -119,7 +119,7 @@ export function useSessionPlayerQuery<T>({
     // prevents an account switch from briefly observing another user's data.
     // Keep the URL first so existing invalidateQueries({ queryKey: [url] })
     // calls still invalidate every user-scoped player query for this slate.
-    queryKey: [url, "session-player-pool", userId ?? "unauthenticated"],
+    queryKey: [url, "session-player-pool-v2", userId ?? "unauthenticated"],
     queryFn: ({ signal }) => fetchPlayers<T>(url, signal),
     // Anonymous pages can still load a player pool, but cacheKey remains null
     // so no unauthenticated data is persisted.

@@ -5,6 +5,12 @@ description: Why recent-game participation data must not determine NFL optimizer
 
 Do not use ESPN recently-played coverage to exclude players from NFL classic optimizer pools. Continue using explicit injury status, zero-point history, user exclusions, and contest player-pool membership.
 
+Explicit practice-squad roster status is different from missing recent-game activity and is a valid exclusion signal.
+
+**Why:** Contest feeds can list practice-squad athletes with positive estimated projections. The user's requirement is roster eligibility, not a blanket rookie or missing-history filter.
+
+**How to apply:** Require a positive, team-matched practice-squad status; never infer it from an absent roster match. Keep last-known exclusions during temporary feed failures, and restore eligibility when the roster feed confirms active status.
+
 **Why:** Early-week NFL history may contain only one or two completed games, and ESPN activity data may omit required DraftKings positions such as DST. Treating every unmatched player as inactive can reduce a valid Sunday slate to an impossible roster pool.
 
 **How to apply:** Keep NFL recent-activity data informational rather than exclusionary. For other sports, apply it only when the current slate has high coverage in the retrieved history.

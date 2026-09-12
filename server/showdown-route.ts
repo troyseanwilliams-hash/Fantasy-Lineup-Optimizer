@@ -10,6 +10,7 @@ import { applyOutperformerMode } from "./boost-engine";
 import { getLatestGameStart } from "./slate-lifecycle";
 import { addNFLQuarterbackStacks } from "./nfl-qb-stacks";
 import { solveWithBudget, validatedIntegralResult, yieldToEventLoop } from "./solver-guard";
+import { NFL_PRACTICE_SQUAD_DETAIL } from "./nfl-roster-eligibility";
 
 function getSessionUserId(req: Request): string | null {
   return (req.session as any)?.userId || null;
@@ -19,6 +20,13 @@ function isLoggedIn(req: Request): boolean {
 }
 
 export const showdownRouter = Router();
+
+const YAHOO_OUT_STATUSES = new Set(["INJ", "O", "OUT", "IR", "SUS", "NA"]);
+function isPlayerOut(injuryStatus: string | null): boolean {
+  if (!injuryStatus) return false;
+  const status = injuryStatus.toUpperCase().trim();
+  return YAHOO_OUT_STATUSES.has(status) || status === "DOUBTFUL";
+}
 
 showdownRouter.get("/api/showdown/slates", async (req, res) => {
   try {
@@ -80,7 +88,8 @@ showdownRouter.get("/api/showdown/players/:slateId", async (req, res) => {
       return res.status(410).json({ message: "This slate has ended and is no longer available." });
     }
 
-    const players = await storage.getPlayersBySlate(slateId);
+    const players = (await storage.getPlayersBySlate(slateId))
+      .filter(player => !isPlayerOut(player.injuryStatus));
 
     const gameMap: Record<string, Player[]> = {};
     for (const p of players) {
@@ -151,13 +160,23 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
 
     const allPlayers = await storage.getPlayersBySlate(input.slateId);
 
+    const lockedPracticeSquad = [
+      input.lockedCaptainId,
+      ...input.lockedFlexIds,
+    ].some(playerId => allPlayers.some(
+      player => player.id === playerId && player.injuryDetail === NFL_PRACTICE_SQUAD_DETAIL,
+    ));
+    if (lockedPracticeSquad) {
+      return res.status(400).json({
+        message: "A practice-squad player cannot be locked into a Showdown lineup.",
+      });
+    }
+
     // Hard excludes: OUT/Questionable + user-excluded
     let pool = allPlayers.filter(p => !input.excludedPlayerIds.includes(p.id));
-    const YAHOO_OUT = new Set(["INJ", "O", "OUT", "IR", "SUS", "NA"]);
-    pool = pool.filter(p => {
-      const s = (p.injuryStatus || "").toUpperCase().trim();
-      return !YAHOO_OUT.has(s) && s !== "QUESTIONABLE" && s !== "GTD" && s !== "DOUBTFUL";
-    });
+    pool = pool.filter(p => !isPlayerOut(p.injuryStatus) &&
+      p.injuryStatus?.toUpperCase().trim() !== "QUESTIONABLE" &&
+      p.injuryStatus?.toUpperCase().trim() !== "GTD");
 
     // Salary filter
     if (input.playerMinSalary !== undefined) pool = pool.filter(p => p.salary >= input.playerMinSalary!);
@@ -463,12 +482,22 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
 
     const allPlayers = await storage.getPlayersBySlate(input.slateId);
 
+    const lockedPracticeSquad = [
+      input.lockedCaptainId,
+      ...input.lockedFlexIds,
+    ].some(playerId => allPlayers.some(
+      player => player.id === playerId && player.injuryDetail === NFL_PRACTICE_SQUAD_DETAIL,
+    ));
+    if (lockedPracticeSquad) {
+      return res.status(400).json({
+        message: "A practice-squad player cannot be locked into a Showdown simulation.",
+      });
+    }
+
     let pool = allPlayers.filter(p => !input.excludedPlayerIds.includes(p.id));
-    const YAHOO_OUT = new Set(["INJ", "O", "OUT", "IR", "SUS", "NA"]);
-    pool = pool.filter(p => {
-      const s = (p.injuryStatus || "").toUpperCase().trim();
-      return !YAHOO_OUT.has(s) && s !== "QUESTIONABLE" && s !== "GTD" && s !== "DOUBTFUL";
-    });
+    pool = pool.filter(p => !isPlayerOut(p.injuryStatus) &&
+      p.injuryStatus?.toUpperCase().trim() !== "QUESTIONABLE" &&
+      p.injuryStatus?.toUpperCase().trim() !== "GTD");
 
     if (input.playerMinSalary !== undefined) pool = pool.filter(p => p.salary >= input.playerMinSalary!);
     if (input.playerMaxSalary !== undefined) pool = pool.filter(p => p.salary <= input.playerMaxSalary!);
@@ -798,6 +827,12 @@ showdownRouter.post("/api/showdown/save", async (req, res) => {
     }
     if (flexPlayerIds.some(id => id === captain.id || !playerById.has(id))) {
       return res.status(400).json({ message: "Every saved Showdown player must belong to the selected slate." });
+    }
+    if (
+      captain.injuryDetail === NFL_PRACTICE_SQUAD_DETAIL ||
+      flexPlayerIds.some(id => playerById.get(id)!.injuryDetail === NFL_PRACTICE_SQUAD_DETAIL)
+    ) {
+      return res.status(400).json({ message: "Practice-squad players cannot be saved in a Showdown lineup." });
     }
 
     const submittedSnapshot = Array.isArray(playerSnapshot) ? playerSnapshot : [];
