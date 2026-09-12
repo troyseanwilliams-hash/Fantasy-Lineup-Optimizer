@@ -40,6 +40,11 @@ import { deactivateExpiredSlates } from "./slate-lifecycle";
 import { solveWithBudget, validatedIntegralResult, remainingSolverTime, yieldToEventLoop, type SolverBudget } from "./solver-guard";
 import { createLineupEnrichmentLoader } from "./lineups-enrichment";
 import { NFL_PRACTICE_SQUAD_DETAIL, protectNFLPracticeSquadMarker } from "./nfl-roster-eligibility";
+import {
+  isGolfMissedCutMarker,
+  isGolfMissedCutMarkerForDraftGroup,
+  protectGolfMissedCutMarker,
+} from "./golf-missed-cut";
 
 
 async function loadOverridesWithCrossRef(
@@ -520,6 +525,9 @@ export async function registerRoutes(
       if (p.injuryDetail === NFL_PRACTICE_SQUAD_DETAIL) {
         return protectNFLPracticeSquadMarker(p);
       }
+      if (isGolfMissedCutMarkerForDraftGroup(p, draftGroupId)) {
+        return protectGolfMissedCutMarker(p, draftGroupId);
+      }
       if (p.injuryDetail === RETIRED_PLAYER_DETAIL) {
         return { ...p, injuryStatus: "OUT", projectedPoints: "0", fppg: "0", isConfirmedStarter: false };
       }
@@ -724,6 +732,9 @@ export async function registerRoutes(
       if (constraints.outperformerMode) {
         pool = await applyOutperformerMode(pool, slate.sport);
       }
+      // Projection/market/scout transforms must not restore points to a
+      // confirmed missed-cut marker (the marker is a hard derived status).
+      pool = pool.map(p => protectGolfMissedCutMarker(p, slate.draftGroupId));
 
       const salaryFilteredPool = (constraints.playerMinSalary || constraints.playerMaxSalary)
         ? pool.filter(p => {
@@ -888,6 +899,12 @@ export async function registerRoutes(
 
       const allPlayers = await storage.getPlayersBySlate(input.slateId);
       const rosterPlayers = allPlayers.filter(p => input.playerIds.includes(p.id));
+      const missedCutPlayer = rosterPlayers.find(p => isGolfMissedCutMarkerForDraftGroup(p, null));
+      if (missedCutPlayer) {
+        return res.status(400).json({
+          message: `Golfer ${missedCutPlayer.name} has missed the cut and cannot be saved.`,
+        });
+      }
 
       const slate = await storage.getSlate(input.slateId);
       if (!slate) {
@@ -1138,6 +1155,12 @@ export async function registerRoutes(
 
     const allPlayers = await storage.getPlayersBySlate(lineup.slateId);
     const rosterPlayers = allPlayers.filter(p => playerIds.includes(p.id));
+    const missedCutPlayer = rosterPlayers.find(p => isGolfMissedCutMarkerForDraftGroup(p, null));
+    if (missedCutPlayer) {
+      return res.status(400).json({
+        message: `Golfer ${missedCutPlayer.name} has missed the cut and cannot be saved.`,
+      });
+    }
 
     if (rosterPlayers.length !== playerIds.length) {
       return res.status(400).json({ message: "One or more player IDs are invalid for this slate" });
@@ -4331,6 +4354,7 @@ export async function registerRoutes(
         pool = await applyOutperformerMode(pool, slate.sport);
         console.log(`[ProOptimizer] Applied outperformer mode for ${slate.sport}`);
       }
+      pool = pool.map(p => protectGolfMissedCutMarker(p, slate.draftGroupId));
 
       const historicalProfile = await getHistoricalProfile(slate.sport);
       if (historicalProfile.ready) {
@@ -4350,6 +4374,7 @@ export async function registerRoutes(
         console.log(`[ProOptimizer] Star filter ${constraints.minStarRating}★ (≥${minProj}pts) removed ${beforeCount - pool.length} players`);
       }
 
+      pool = pool.map(p => protectGolfMissedCutMarker(p, slate.draftGroupId));
       console.log(`[ProOptimizer] Starting for ${slate.sport}, ${allPlayers.length} players (${allPlayers.filter(p => isPlayerOut(p.injuryStatus) || p.injuryStatus === "Questionable" || p.injuryStatus === "GTD").length} OUT/Q excluded), ${constraints.lineupCount} lineups requested`);
       const proStartTime = Date.now();
 
@@ -4625,6 +4650,15 @@ export async function registerRoutes(
       if (allPlayers.length === 0) {
         return res.status(400).json({ message: "No players found for this slate" });
       }
+      const lockedGolfMissedCut = allPlayers.find(p =>
+        input.lockedPlayerIds.includes(p.id) &&
+        isGolfMissedCutMarkerForDraftGroup(p, slate.draftGroupId),
+      );
+      if (lockedGolfMissedCut) {
+        return res.status(400).json({
+          message: `Locked player ${lockedGolfMissedCut.name} has missed the golf cut and cannot be used.`,
+        });
+      }
 
       if (slate.platform === "draftkings") {
         allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
@@ -4685,6 +4719,7 @@ export async function registerRoutes(
           console.warn(`[SimOptimizer] Outperformer mode failed, skipping: ${opErr.message}`);
         }
       }
+      pool = pool.map(p => protectGolfMissedCutMarker(p, slate.draftGroupId));
 
       const simProfile = await getHistoricalProfile(slate.sport);
       if (simProfile.ready) {
@@ -4710,6 +4745,7 @@ export async function registerRoutes(
         }
       }
 
+      pool = pool.map(p => protectGolfMissedCutMarker(p, slate.draftGroupId));
       pool = pool.filter(p => !input.excludedPlayerIds.includes(p.id));
       pool = pool.filter(p => !isPlayerOut(p.injuryStatus));
 
@@ -6097,13 +6133,26 @@ export function solveLineup(
       totalProjectedPoints: 0,
     };
   }
+  const golfMissedCutPlayers = pool.filter(p => isGolfMissedCutMarker(p.injuryDetail));
+  const lockedGolfMissedCut = golfMissedCutPlayers.filter(
+    p => constraints.lockedPlayerIds.includes(p.id),
+  );
+  if (lockedGolfMissedCut.length > 0) {
+    return {
+      error: `Locked player ${lockedGolfMissedCut[0].name} has missed the golf cut and cannot be used.`,
+      lineup: [],
+      totalSalary: 0,
+      totalProjectedPoints: 0,
+    };
+  }
 
   // This is a hard exclusion independent of user exclusions, custom
   // projections, or lock state.  An unlocked marker is simply omitted;
   // a locked marker above is an explicit infeasibility error.
   const availablePool = pool.filter(
     p => !constraints.excludedPlayerIds.includes(p.id) &&
-      p.injuryDetail !== NFL_PRACTICE_SQUAD_DETAIL,
+      p.injuryDetail !== NFL_PRACTICE_SQUAD_DETAIL &&
+      !isGolfMissedCutMarker(p.injuryDetail),
   );
   const availableGameCount = new Set(
     availablePool.map(p => normalizeGameKey(p.gameInfo)).filter(Boolean),
@@ -6830,6 +6879,9 @@ export async function refreshPlayerStatuses() {
         // it would lose the player's baseline projections before ESPN reports
         // a later active/elevated status.
         if (player.injuryDetail === NFL_PRACTICE_SQUAD_DETAIL) continue;
+        // Golf missed-cut status is also derived. Never persist its marker
+        // while refreshing DK's ordinary injury/status columns.
+        if (isGolfMissedCutMarker(player.injuryDetail)) continue;
         if (!player.draftKingsPlayerId) continue;
         const dkStatus = statusMap.get(player.draftKingsPlayerId);
         if (!dkStatus) continue;

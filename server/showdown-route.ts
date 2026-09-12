@@ -11,6 +11,9 @@ import { getLatestGameStart } from "./slate-lifecycle";
 import { addNFLQuarterbackStacks } from "./nfl-qb-stacks";
 import { solveWithBudget, validatedIntegralResult, yieldToEventLoop } from "./solver-guard";
 import { NFL_PRACTICE_SQUAD_DETAIL } from "./nfl-roster-eligibility";
+import {
+  isGolfMissedCutMarkerForDraftGroup,
+} from "./golf-missed-cut";
 
 function getSessionUserId(req: Request): string | null {
   return (req.session as any)?.userId || null;
@@ -169,6 +172,18 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
     if (lockedPracticeSquad) {
       return res.status(400).json({
         message: "A practice-squad player cannot be locked into a Showdown lineup.",
+      });
+    }
+    const lockedGolfMissedCut = [
+      input.lockedCaptainId,
+      ...input.lockedFlexIds,
+    ].some(playerId => allPlayers.some(
+      player => player.id === playerId &&
+        isGolfMissedCutMarkerForDraftGroup(player, slate.draftGroupId),
+    ));
+    if (lockedGolfMissedCut) {
+      return res.status(400).json({
+        message: "A golfer who missed the cut cannot be locked into a Showdown lineup.",
       });
     }
 
@@ -491,6 +506,18 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
     if (lockedPracticeSquad) {
       return res.status(400).json({
         message: "A practice-squad player cannot be locked into a Showdown simulation.",
+      });
+    }
+    const lockedGolfMissedCut = [
+      input.lockedCaptainId,
+      ...input.lockedFlexIds,
+    ].some(playerId => allPlayers.some(
+      player => player.id === playerId &&
+        isGolfMissedCutMarkerForDraftGroup(player, slate.draftGroupId),
+    ));
+    if (lockedGolfMissedCut) {
+      return res.status(400).json({
+        message: "A golfer who missed the cut cannot be locked into a Showdown simulation.",
       });
     }
 
@@ -833,6 +860,12 @@ showdownRouter.post("/api/showdown/save", async (req, res) => {
       flexPlayerIds.some(id => playerById.get(id)!.injuryDetail === NFL_PRACTICE_SQUAD_DETAIL)
     ) {
       return res.status(400).json({ message: "Practice-squad players cannot be saved in a Showdown lineup." });
+    }
+    if (
+      isGolfMissedCutMarkerForDraftGroup(captain, slate.draftGroupId) ||
+      flexPlayerIds.some(id => isGolfMissedCutMarkerForDraftGroup(playerById.get(id)!, slate.draftGroupId))
+    ) {
+      return res.status(400).json({ message: "Golfers who missed the cut cannot be saved in a Showdown lineup." });
     }
 
     const submittedSnapshot = Array.isArray(playerSnapshot) ? playerSnapshot : [];
