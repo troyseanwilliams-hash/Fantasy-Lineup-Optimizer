@@ -121,7 +121,6 @@ export default function ProOptimizer() {
   const [simMode, setSimMode] = useState(false);
   const lineupsRef = useRef<HTMLDivElement>(null);
   const [numSims, setNumSims] = useState(200);
-  const [enforceGameStack, setEnforceGameStack] = useState(false);
   const [stackGameKey, setStackGameKey] = useState<string | null>(null);
   const [simSortMetric, setSimSortMetric] = useState<"composite" | "p90" | "p75" | "median" | "avg" | "ev">("composite");
   const [minStarRating, setMinStarRating] = useState<number>(0);
@@ -615,9 +614,8 @@ export default function ProOptimizer() {
         playerProjections: Object.keys(projections).length > 0 ? projections : undefined,
         playerMinSalary:  salaryRange && salaryRange[0] > salaryBounds.min ? salaryRange[0] : undefined,
         playerMaxSalary:  salaryRange && salaryRange[1] < salaryBounds.max ? salaryRange[1] : undefined,
-        lineupCount: numSims,
+        lineupCount,
         numSims,
-        enforceGameStack,
         stackGameKey: stackGameKey || undefined,
         globalMaxExposure: globalMaxExposure ?? undefined,
         globalMinExposure: globalMinExposure ?? undefined,
@@ -1050,17 +1048,16 @@ export default function ProOptimizer() {
 
             <div className="h-4 w-px bg-slate-700 flex-shrink-0 hidden md:block" />
 
-            <div className={`hidden md:flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0 ${simMode ? "opacity-50 cursor-not-allowed" : ""}`}>
+            <div className="hidden md:flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
               <LabelTip text="Number of unique lineups to generate. More lineups = more diversity and exposure spread."><span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Qty</span></LabelTip>
               <Slider
                 value={[lineupCount]}
-                onValueChange={(v) => !simMode && setLineupCount(Math.min(v[0], maxLineupSlider))}
+                onValueChange={(v) => setLineupCount(Math.min(v[0], maxLineupSlider))}
                 min={1}
                 max={maxLineupSlider}
                 step={1}
                 className="w-20"
                 data-testid="slider-lineup-count"
-                disabled={simMode}
               />
               <span className="text-xs font-black text-amber-400 min-w-[18px] text-center" data-testid="text-lineup-count">{lineupCount}</span>
             </div>
@@ -1179,17 +1176,16 @@ export default function ProOptimizer() {
                   {projectionMode === "ceiling" ? "CEILING" : "BALANCED"}
                 </button>
               </div>
-              <div className={`flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0 ${simMode ? "opacity-50 cursor-not-allowed" : ""}`}>
+              <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
                 <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Qty</span>
                 <Slider
                   value={[lineupCount]}
-                  onValueChange={(v) => !simMode && setLineupCount(Math.min(v[0], maxLineupSlider))}
+                  onValueChange={(v) => setLineupCount(Math.min(v[0], maxLineupSlider))}
                   min={1}
                   max={maxLineupSlider}
                   step={1}
                   className="w-20"
                   data-testid="slider-lineup-count-mobile"
-                  disabled={simMode}
                 />
                 <span className="text-xs font-black text-amber-400 min-w-[18px] text-center">{lineupCount}</span>
               </div>
@@ -1269,17 +1265,16 @@ export default function ProOptimizer() {
           {/* Row 3 (Mobile only for non-Pro): Qty slider */}
           {!isPro && (
             <div className="flex md:hidden items-center gap-2">
-              <div className={`flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0 ${simMode ? "opacity-50 cursor-not-allowed" : ""}`}>
+              <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
                 <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Qty</span>
                 <Slider
                   value={[lineupCount]}
-                  onValueChange={(v) => !simMode && setLineupCount(Math.min(v[0], maxLineupSlider))}
+                  onValueChange={(v) => setLineupCount(Math.min(v[0], maxLineupSlider))}
                   min={1}
                   max={maxLineupSlider}
                   step={1}
                   className="w-20"
                   data-testid="slider-lineup-count-basic-mobile"
-                  disabled={simMode}
                 />
                 <span className="text-xs font-black text-amber-400 min-w-[18px] text-center">{lineupCount}</span>
               </div>
@@ -1312,41 +1307,45 @@ export default function ProOptimizer() {
             </div>
           )}
 
-          {/* ── Sim Mode Toggle ────────────────────────────────────────────── */}
-          <div className={`rounded-xl border transition-all overflow-hidden ${simMode ? "border-violet-500/30 bg-violet-500/5" : "border-slate-700/50 bg-slate-800/30"}`} data-testid="sim-mode-panel">
-            <div
-              onClick={() => setSimMode(v => !v)}
-              className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-slate-800/40 transition-colors cursor-pointer"
-              data-testid="btn-sim-mode-toggle"
-              role="button"
-              tabIndex={0}
-              onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSimMode(v => !v); } }}
-            >
-              <div className="flex items-center gap-2">
-                <Activity className={`w-3.5 h-3.5 ${simMode ? "text-violet-400" : "text-slate-500"}`} />
-                <LabelTip text="Monte Carlo simulation runs thousands of game scenarios to find lineups that perform best across a range of outcomes — ideal for GPP tournaments.">
-                  <span className={`text-xs font-black ${simMode ? "text-violet-400" : "text-slate-300"}`}>Sim Mode</span>
-                </LabelTip>
-                {simMode && (
-                  <Badge className="text-[8px] font-black bg-violet-500/20 text-violet-400 border-violet-500/30 px-1 py-0">
-                    ON
-                  </Badge>
-                )}
+          {/* ── Optimizer Mode ─────────────────────────────────────────────── */}
+          <div className={`rounded-xl border transition-all overflow-hidden ${simMode ? "border-violet-500/40 bg-violet-500/5" : "border-emerald-500/30 bg-emerald-500/5"}`} data-testid="sim-mode-panel">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 py-2">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Activity className={`w-3.5 h-3.5 ${simMode ? "text-violet-400" : "text-emerald-400"}`} />
+                  <span className="text-xs font-black text-white">Optimizer Mode</span>
+                </div>
+                <p className="mt-0.5 text-[10px] text-slate-400">
+                  {simMode
+                    ? "Simulation compares lineups across many possible game outcomes."
+                    : "Normal builds the strongest lineups from the selected projections."}
+                </p>
               </div>
-              <Switch
-                checked={simMode}
-                onCheckedChange={setSimMode}
-                className={`scale-90 ${simMode ? "data-[state=checked]:bg-violet-500" : ""}`}
-                onClick={e => e.stopPropagation()}
-                data-testid="switch-sim-mode"
-              />
+              <div className="grid grid-cols-2 rounded-lg bg-slate-950/60 p-1 border border-slate-700/60" role="group" aria-label="Optimizer mode">
+                <button
+                  type="button"
+                  onClick={() => setSimMode(false)}
+                  className={`px-3 py-1 rounded-md text-[10px] font-black transition-colors ${!simMode ? "bg-emerald-500/20 text-emerald-300" : "text-slate-500 hover:text-slate-300"}`}
+                  data-testid="btn-normal-mode"
+                >
+                  NORMAL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSimMode(true)}
+                  className={`px-3 py-1 rounded-md text-[10px] font-black transition-colors ${simMode ? "bg-violet-500/20 text-violet-300" : "text-slate-500 hover:text-slate-300"}`}
+                  data-testid="btn-sim-mode-toggle"
+                >
+                  SIMULATION
+                </button>
+              </div>
             </div>
 
             {simMode && (
               <div className="px-3 pb-2 pt-1 space-y-2 border-t border-violet-500/10">
-                {/* Sim count + Game stack toggle — single row */}
-                <div className="flex items-center gap-2">
-                  <div className="flex gap-1 flex-1">
+                <div className="space-y-1">
+                  <LabelTip text="Number of game-outcome scenarios evaluated for each candidate lineup. This is separate from the lineup quantity above."><span className="text-[9px] font-black text-violet-300 uppercase">Scenarios</span></LabelTip>
+                  <div className="flex gap-1">
                     {[50, 100, 200, ...(isPro || userIsAdmin ? [500] : [])].map(n => (
                       <button
                         key={n}
@@ -1361,15 +1360,6 @@ export default function ProOptimizer() {
                         {n}
                       </button>
                     ))}
-                  </div>
-                  <div className="flex items-center gap-1.5 pl-2 border-l border-slate-700/40">
-                    <LabelTip text="Require correlated player groups (e.g. QB + WR from the same game) for higher upside in tournaments."><span className="text-[9px] font-black text-slate-500 uppercase">Stacks</span></LabelTip>
-                    <Switch
-                      checked={enforceGameStack}
-                      onCheckedChange={setEnforceGameStack}
-                      className="scale-75"
-                      data-testid="switch-enforce-stack"
-                    />
                   </div>
                 </div>
 
@@ -1463,7 +1453,7 @@ export default function ProOptimizer() {
               )}
               {slateHasStarted ? "SLATE LOCKED"
                 : isOptimizing && simMode ? `Simulating ${numSims}×…`
-                : simMode ? `Sim ${numSims} Lineups`
+                : simMode ? `Simulate ${lineupCount} Lineup${lineupCount === 1 ? "" : "s"}`
                 : `Generate ${lineupCount}`}
             </Button>
 

@@ -3,7 +3,7 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
 import { users, subscriptions, slates, lineups as lineupsTable, signupEvents, supportTickets, draftTeams } from "@shared/schema";
-import { eq, and, lt, sql, desc, gte } from "drizzle-orm";
+import { eq, and, lt, sql, desc, gte, inArray } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
@@ -5811,6 +5811,20 @@ async function getInactivePlayerIds(players: Player[], sport: string): Promise<{
 
   let zeroPointCount = 0;
   let notRecentCount = 0;
+  const recentCoverage = recentlyPlayed && players.length > 0
+    ? players.filter(p => recentlyPlayed!.has(normalizePlayerName(p.name))).length / players.length
+    : 0;
+  const useRecentActivity =
+    sport !== "NFL" &&
+    recentlyPlayed &&
+    recentlyPlayed.size > 0 &&
+    recentCoverage >= 0.7;
+  if (recentlyPlayed && recentlyPlayed.size > 0 && !useRecentActivity) {
+    const reason = sport === "NFL"
+      ? "NFL activity feeds do not reliably include every required roster position"
+      : `only ${Math.round(recentCoverage * 100)}% of this slate appears in the available history`;
+    console.log(`[Inactive Filter] ${sport}: Skipping recently-played filter because ${reason}`);
+  }
   for (const p of players) {
     if (isPlayerOut(p.injuryStatus) || p.injuryStatus === "Questionable" || p.injuryStatus === "GTD") continue;
 
@@ -5820,9 +5834,9 @@ async function getInactivePlayerIds(players: Player[], sport: string): Promise<{
       continue;
     }
 
-    if (recentlyPlayed && recentlyPlayed.size > 0) {
+    if (useRecentActivity) {
       const normalized = normalizePlayerName(p.name);
-      if (!recentlyPlayed.has(normalized)) {
+      if (!recentlyPlayed!.has(normalized)) {
         inactiveIds.push(p.id);
         notRecentCount++;
         continue;
@@ -6116,8 +6130,7 @@ export async function seedDatabase(forceRefresh = false) {
     console.log("[Seed] Force refresh requested; preserving slate and lineup references while updating data in place");
   }
 
-  const existingSlates = await storage.getSlates();
-
+  let existingSlates = await storage.getSlates();
   let liveData = new Map<string, any>();
   try {
     liveData = await fetchAllSportsLiveData();
@@ -6142,9 +6155,38 @@ export async function seedDatabase(forceRefresh = false) {
     return null;
   }).filter(Boolean) as any[];
 
+  const duplicateClassicMainIds: number[] = [];
+  for (const seed of sportSeeds) {
+    const activeMains = existingSlates
+      .filter(s =>
+        s.sport === seed.sport &&
+        s.platform === "draftkings" &&
+        s.isActive !== false &&
+        s.isMain &&
+        s.gameType?.toLowerCase() !== "showdown"
+      )
+      .sort((a, b) => {
+        const aMatchesLive = a.draftGroupId === seed.draftGroupId ? 1 : 0;
+        const bMatchesLive = b.draftGroupId === seed.draftGroupId ? 1 : 0;
+        return bMatchesLive - aMatchesLive || b.id - a.id;
+      });
+    duplicateClassicMainIds.push(...activeMains.slice(1).map(s => s.id));
+  }
+  if (duplicateClassicMainIds.length > 0) {
+    await db.update(slates)
+      .set({ isActive: false, isMain: false })
+      .where(inArray(slates.id, duplicateClassicMainIds));
+    console.log(`[Seed] Deactivated ${duplicateClassicMainIds.length} duplicate DraftKings classic main slates`);
+    existingSlates = await storage.getSlates();
+  }
+
   for (const seed of sportSeeds) {
     const existingSlate = existingSlates.find(
-      s => s.sport === seed.sport && s.platform === "draftkings" && s.isMain
+      s =>
+        s.sport === seed.sport &&
+        s.platform === "draftkings" &&
+        s.isMain &&
+        s.gameType?.toLowerCase() !== "showdown"
     );
 
     const now = new Date();
@@ -6349,6 +6391,10 @@ export async function seedDatabase(forceRefresh = false) {
           s => s.sport === "NFL" && s.platform === "draftkings" && s.gameType === "Showdown",
         );
         const existing = currentShowdowns.find(s => s.draftGroupId === showdown.draftGroupId);
+        if (existing?.isMain) {
+          await db.update(slates).set({ isMain: false }).where(eq(slates.id, existing.id));
+          existing.isMain = false;
+        }
         const existingPlayers = existing ? await storage.getPlayersBySlate(existing.id) : [];
         const needsProjectionRefresh = existingPlayers.some(player =>
           player.salary <= 6000 && Number(player.projectedPoints) > 20,
@@ -6367,7 +6413,7 @@ export async function seedDatabase(forceRefresh = false) {
               name: `NFL Showdown — ${gameLabel}`,
               label: `NFL Showdown — ${gameLabel}`,
               startTime: showdownData.slateDate,
-              isMain: true,
+              isMain: false,
               draftGroupId: showdown.draftGroupId,
               gameType: "Showdown",
               gameCount: showdownData.games.length,
@@ -6414,7 +6460,9 @@ export async function seedDatabase(forceRefresh = false) {
           }
         }
 
-        const mainSlateForSport = existingDkSlates.find(s => s.isMain);
+        const mainSlateForSport = existingDkSlates.find(
+          s => s.isMain && s.gameType?.toLowerCase() !== "showdown",
+        );
         const isMain = mainSlateForSport?.draftGroupId === avSlate.draftGroupId;
         if (isMain) continue;
 
