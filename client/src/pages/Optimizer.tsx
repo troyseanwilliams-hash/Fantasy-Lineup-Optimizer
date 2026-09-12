@@ -25,6 +25,7 @@ import { PlayerInfoHoverCard } from "@/components/PlayerInfoHoverCard";
 import { ScoutPanel } from "@/components/ScoutPanel";
 import { InfoTip, LabelTip } from "@/components/InfoTip";
 import { usePageMeta } from "@/hooks/use-page-meta";
+import { useResolvedSlate } from "@/hooks/use-resolved-slate";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "fppg" | "value";
 type SortDir = "asc" | "desc";
@@ -100,7 +101,7 @@ export default function Optimizer() {
   const [platform, setPlatform] = useState<Platform>("draftkings");
 
   const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"], refetchInterval: 300000 });
-  const slate = useMemo(() => slates?.find(s => s.id === slateId), [slates, slateId]);
+  const slate = useResolvedSlate(slateId, slates, "/optimizer");
   const sport = (slate?.sport || "NBA") as Sport;
 
   const { data: accuracyData } = useQuery<{ players: Array<{ playerName: string; hitRate: number; avgDelta: number; slatesAnalyzed: number }> }>({

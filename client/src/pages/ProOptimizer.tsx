@@ -28,6 +28,7 @@ import { PlayerInfoHoverCard } from "@/components/PlayerInfoHoverCard";
 import { ScoutPanel } from "@/components/ScoutPanel";
 import { InfoTip, LabelTip } from "@/components/InfoTip";
 import { usePageMeta } from "@/hooks/use-page-meta";
+import { useResolvedSlate } from "@/hooks/use-resolved-slate";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "boostedProj" | "ownershipProjection";
 type SortDir = "asc" | "desc";
@@ -134,7 +135,7 @@ export default function ProOptimizer() {
   const [platform, setPlatform] = useState<Platform>("draftkings");
 
   const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"], refetchInterval: 300000 });
-  const slate = useMemo(() => slates?.find(s => s.id === slateId), [slates, slateId]);
+  const slate = useResolvedSlate(slateId, slates, "/optimizer-pro");
   const sport = (slate?.sport || "NBA") as Sport;
 
   const config = useMemo(() => {
@@ -614,7 +615,7 @@ export default function ProOptimizer() {
         playerProjections: Object.keys(projections).length > 0 ? projections : undefined,
         playerMinSalary:  salaryRange && salaryRange[0] > salaryBounds.min ? salaryRange[0] : undefined,
         playerMaxSalary:  salaryRange && salaryRange[1] < salaryBounds.max ? salaryRange[1] : undefined,
-        lineupCount,
+        lineupCount: numSims,
         numSims,
         stackGameKey: stackGameKey || undefined,
         globalMaxExposure: globalMaxExposure ?? undefined,
@@ -1048,7 +1049,7 @@ export default function ProOptimizer() {
 
             <div className="h-4 w-px bg-slate-700 flex-shrink-0 hidden md:block" />
 
-            <div className="hidden md:flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+            {!simMode && <div className="hidden md:flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
               <LabelTip text="Number of unique lineups to generate. More lineups = more diversity and exposure spread."><span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Qty</span></LabelTip>
               <Slider
                 value={[lineupCount]}
@@ -1060,14 +1061,14 @@ export default function ProOptimizer() {
                 data-testid="slider-lineup-count"
               />
               <span className="text-xs font-black text-amber-400 min-w-[18px] text-center" data-testid="text-lineup-count">{lineupCount}</span>
-            </div>
+            </div>}
 
           </div>
 
           {/* Row 2 (Desktop): Max Exposure + Salary Range */}
-          {(isPro && lineupCount > 1 || (players && players.length > 0)) && (
+          {(isPro && (simMode ? numSims : lineupCount) > 1 || (players && players.length > 0)) && (
             <div className="hidden md:flex items-center gap-3 overflow-x-auto scrollbar-hide">
-              {isPro && lineupCount > 1 && (
+              {isPro && (simMode ? numSims : lineupCount) > 1 && (
                 <>
                   <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
                     <LabelTip text="Minimum % any player must appear across all generated lineups. Guarantees exposure for key players."><span className="text-[10px] font-black text-emerald-400 uppercase whitespace-nowrap">Min Exp</span></LabelTip>
@@ -1176,7 +1177,7 @@ export default function ProOptimizer() {
                   {projectionMode === "ceiling" ? "CEILING" : "BALANCED"}
                 </button>
               </div>
-              <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+              {!simMode && <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
                 <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Qty</span>
                 <Slider
                   value={[lineupCount]}
@@ -1188,8 +1189,8 @@ export default function ProOptimizer() {
                   data-testid="slider-lineup-count-mobile"
                 />
                 <span className="text-xs font-black text-amber-400 min-w-[18px] text-center">{lineupCount}</span>
-              </div>
-              {lineupCount > 1 && (
+              </div>}
+              {(simMode ? numSims : lineupCount) > 1 && (
                 <>
                   <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
                     <span className="text-[10px] font-black text-emerald-400 uppercase whitespace-nowrap">Min Exp</span>
@@ -1265,7 +1266,7 @@ export default function ProOptimizer() {
           {/* Row 3 (Mobile only for non-Pro): Qty slider */}
           {!isPro && (
             <div className="flex md:hidden items-center gap-2">
-              <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+              {!simMode && <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
                 <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Qty</span>
                 <Slider
                   value={[lineupCount]}
@@ -1277,7 +1278,7 @@ export default function ProOptimizer() {
                   data-testid="slider-lineup-count-basic-mobile"
                 />
                 <span className="text-xs font-black text-amber-400 min-w-[18px] text-center">{lineupCount}</span>
-              </div>
+              </div>}
               {players && players.length > 0 && (
                 <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
                   <span className={`text-[10px] font-black ${pColors.text} uppercase whitespace-nowrap`}>Salary</span>
@@ -1344,7 +1345,7 @@ export default function ProOptimizer() {
             {simMode && (
               <div className="px-3 pb-2 pt-1 space-y-2 border-t border-violet-500/10">
                 <div className="space-y-1">
-                  <LabelTip text="Number of game-outcome scenarios evaluated for each candidate lineup. This is separate from the lineup quantity above."><span className="text-[9px] font-black text-violet-300 uppercase">Scenarios</span></LabelTip>
+                  <LabelTip text="Sets the simulation count and the maximum number of unique lineups to return. Fewer may be returned when scenarios produce duplicate lineups or constraints limit the pool. Normal-mode Qty does not apply."><span className="text-[9px] font-black text-violet-300 uppercase">Sim lineup count</span></LabelTip>
                   <div className="flex gap-1">
                     {[50, 100, 200, ...(isPro || userIsAdmin ? [500] : [])].map(n => (
                       <button
@@ -1453,7 +1454,7 @@ export default function ProOptimizer() {
               )}
               {slateHasStarted ? "SLATE LOCKED"
                 : isOptimizing && simMode ? `Simulating ${numSims}×…`
-                : simMode ? `Simulate ${lineupCount} Lineup${lineupCount === 1 ? "" : "s"}`
+                : simMode ? `Simulate up to ${numSims} Lineups`
                 : `Generate ${lineupCount}`}
             </Button>
 
@@ -2813,7 +2814,9 @@ export default function ProOptimizer() {
                 </div>
                 <h3 className="text-lg font-black text-white mb-2">Ready to Optimize</h3>
                 <p className="text-sm text-slate-400 max-w-xs">
-                  Configure your settings and click Generate to create {lineupCount} optimized lineup{lineupCount > 1 ? "s" : ""}.
+                  {simMode
+                    ? `Choose a Sim lineup count and simulate up to ${numSims} unique lineups.`
+                    : `Configure your settings and click Generate to create ${lineupCount} optimized lineup${lineupCount > 1 ? "s" : ""}.`}
                 </p>
               </div>
             )}

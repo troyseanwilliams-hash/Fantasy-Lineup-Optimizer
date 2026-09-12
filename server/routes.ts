@@ -163,6 +163,33 @@ export async function registerRoutes(
     );
   });
 
+  app.get("/api/slates/:id/resolve", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isSafeInteger(id) || id <= 0) {
+        return res.status(400).json({ message: "Invalid slate ID" });
+      }
+      const original = await storage.getSlate(id);
+      if (!original) return res.status(404).json({ message: "Slate not found" });
+      if (original.isActive !== false) return res.json(original);
+      const candidates = await storage.getSlates();
+      const replacement = original.draftGroupId
+        ? candidates.find(s =>
+            s.isActive !== false &&
+            s.sport === original.sport &&
+            s.platform === original.platform &&
+            (s.gameType || "Classic") === (original.gameType || "Classic") &&
+            s.draftGroupId === original.draftGroupId)
+        : undefined;
+      // Preserve historical metadata when there is no identical active contest.
+      // Never redirect a saved link to a different slate merely sharing its sport.
+      return res.json(replacement || original);
+    } catch (err) {
+      console.error("Slate resolution error:", err);
+      return res.status(500).json({ message: "Failed to resolve slate" });
+    }
+  });
+
   app.get(api.slates.list.path, async (req, res) => {
     try {
       const allSlates = await storage.getSlates();

@@ -7,3 +7,4 @@
 - [NFL activity filtering](nfl-activity-filtering.md) — do not use ESPN recently-played coverage to exclude NFL optimizer players; required positions such as DST may be absent.
 - [DraftKings Showdown rows](draftkings-showdown-rows.md) — DraftKings sends separate captain and flex rows; store the lower flex-priced row and apply captain multipliers in the optimizer.
 - [Playwright post-merge setup](playwright-post-merge.md) — validation workflows need Chromium provisioned by the post-merge hook before Playwright tests can launch.
+- [Sim count UX](sim-count-ux.md) — Sim uses its own count selector; Normal Qty must be hidden and ignored in Sim Mode.
