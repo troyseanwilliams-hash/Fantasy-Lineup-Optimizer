@@ -21,7 +21,7 @@ import {
   Crown, TrendingUp, TrendingDown, AlertTriangle,
   ShieldAlert, Activity, SaveAll, Star, Flag, MapPin,
   Cloud, Sun, Wind, CloudRain, Droplets, Target,
-  Trophy, Flame, Award, BarChart3, Users, Percent, ArrowLeftRight, Plus
+  Trophy, Flame, Award, BarChart3, Users, Percent, ArrowLeftRight, Plus, Maximize2, Minimize2
 } from "lucide-react";
 import { gradeLineup, GRADE_COLORS } from "@/lib/lineup-grader";
 import { PlayerInfoHoverCard } from "@/components/PlayerInfoHoverCard";
@@ -131,6 +131,9 @@ export default function ProOptimizer() {
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
   const [mobileView, setMobileView] = useState<"players" | "lineup">("players");
   const [lineupSortBy, setLineupSortBy] = useState<"index" | "projected" | "salary" | "ceiling" | "p90" | "median" | "freq">("index");
+  const [simSettingsExpanded, setSimSettingsExpanded] = useState(false);
+  const [playerFocus, setPlayerFocus] = useState(false);
+  const playerPoolRef = useRef<HTMLDivElement>(null);
 
   const [platform, setPlatform] = useState<Platform>("draftkings");
 
@@ -425,6 +428,16 @@ export default function ProOptimizer() {
   }, [simMode, simMutation.data, optimizeMutation.data, simSortMetric]);
 
   const isOptimizing = optimizeMutation.isPending || simMutation.isPending;
+
+  const togglePlayerFocus = useCallback(() => {
+    setPlayerFocus(focused => {
+      const nextFocused = !focused;
+      if (nextFocused) {
+        window.setTimeout(() => playerPoolRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+      }
+      return nextFocused;
+    });
+  }, []);
 
   const playersById = useMemo(() => new Map(players?.map(p => [p.id, p]) ?? []), [players]);
 
@@ -958,9 +971,9 @@ export default function ProOptimizer() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] overflow-hidden" data-testid="pro-optimizer-page">
+    <div className={`flex flex-col ${playerFocus ? "fixed inset-0 z-50 h-[100dvh] overflow-hidden bg-slate-950" : "min-h-[calc(100dvh-80px)] overflow-visible xl:h-[calc(100vh-80px)] xl:overflow-hidden"}`} data-testid="pro-optimizer-page">
       {/* Top Controls Bar */}
-      <div className="border-b border-slate-800 bg-slate-900/60 px-4 py-2">
+      {!playerFocus && <div className="border-b border-slate-800 bg-slate-900/60 px-4 py-2">
         <div className="flex flex-col gap-2 md:gap-0">
           {/* Row 1: Slate info + selector */}
           <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide">
@@ -1364,6 +1377,21 @@ export default function ProOptimizer() {
                   </div>
                 </div>
 
+                <button
+                  type="button"
+                  onClick={() => setSimSettingsExpanded(expanded => !expanded)}
+                  className="flex w-full items-center justify-between rounded-md border border-violet-500/20 bg-slate-950/40 px-2 py-1.5 text-left transition-colors hover:bg-violet-500/10"
+                  aria-expanded={simSettingsExpanded}
+                  data-testid="button-toggle-sim-settings"
+                >
+                  <span className="text-[10px] font-black uppercase tracking-wide text-violet-200">
+                    Advanced simulation settings
+                    {stackGameKeys.length > 0 ? ` · ${stackGameKeys.length} game stack${stackGameKeys.length === 1 ? "" : "s"} selected` : ""}
+                  </span>
+                  {simSettingsExpanded ? <ChevronUp className="h-3.5 w-3.5 text-violet-300" /> : <ChevronDown className="h-3.5 w-3.5 text-violet-300" />}
+                </button>
+
+                {simSettingsExpanded && <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <InfoTip
                     text="P90 = top 10% ceiling (boom potential). P75 = top 25% upside. Median = middle outcome. Average = mean across all sims. Composite = weighted blend of all metrics. 🏆 EV = tournament expected value — every lineup is scored against a simulated opponent field built from projected ownership and mapped through a GPP payout curve (with a chalk-duplication penalty). Best for large-field GPPs."
@@ -1394,6 +1422,7 @@ export default function ProOptimizer() {
                     ))}
                   </div>
                 </div>
+                </div>}
 
                 {/* Target game stack — compact */}
                 {availableGames.length > 0 && (
@@ -1519,10 +1548,10 @@ export default function ProOptimizer() {
             </Button>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Mobile Tab Toggle */}
-      <div className="xl:hidden flex border-b border-slate-800 bg-slate-900/80">
+      {!playerFocus && <div className="xl:hidden flex border-b border-slate-800 bg-slate-900/80">
         <button
           onClick={() => setMobileView("players")}
           data-testid="pro-mobile-tab-players"
@@ -1545,13 +1574,13 @@ export default function ProOptimizer() {
         >
           Lineups {optimizeMutation.data ? `(${optimizeMutation.data.lineups?.length || 0})` : ""}
         </button>
-      </div>
+      </div>}
 
-      <div className="flex flex-col xl:flex-row flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col xl:flex-row xl:overflow-hidden">
         {/* LEFT: Player Pool */}
-        <div className={`flex-1 flex flex-col overflow-hidden border-r border-slate-800 ${mobileView !== "players" ? "hidden xl:flex" : ""}`}>
+        <div ref={playerPoolRef} className={`flex min-w-0 flex-1 flex-col border-r border-slate-800 xl:overflow-hidden ${playerFocus ? "w-full min-h-0 overflow-hidden" : ""} ${!playerFocus && mobileView !== "players" ? "hidden xl:flex" : ""}`}>
           {/* AI Scout Panel */}
-          <div className="px-3 sm:px-4 pt-2">
+          {!playerFocus && <div className="px-3 sm:px-4 pt-2">
             <ScoutPanel
               sport={sport}
               players={players}
@@ -1560,7 +1589,7 @@ export default function ProOptimizer() {
                 setCustomProjections(prev => ({ ...projections, ...prev }));
               }}
             />
-          </div>
+          </div>}
 
           {/* Filter Bar */}
           <div className="px-4 py-3 border-b border-slate-800 bg-slate-900/20 flex flex-col md:flex-row gap-3 items-stretch md:items-center">
@@ -1593,6 +1622,16 @@ export default function ProOptimizer() {
             <div className="text-[11px] text-slate-400 font-bold ml-auto" data-testid="text-player-count">
               {filteredPlayers.length} players
             </div>
+            <button
+              type="button"
+              onClick={togglePlayerFocus}
+              aria-pressed={playerFocus}
+              data-testid="button-player-focus"
+              className={`inline-flex items-center justify-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-black uppercase tracking-wide transition-colors ${playerFocus ? "border-amber-400/50 bg-amber-500/15 text-amber-300" : "border-slate-700 bg-slate-900 text-slate-300 hover:border-amber-500/40 hover:text-amber-300"}`}
+            >
+              {playerFocus ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+              {playerFocus ? "Back to optimizer" : "Expand players"}
+            </button>
           </div>
 
           {slate && (slate as any).games?.length > 0 && !isGolf && (
@@ -1695,8 +1734,8 @@ export default function ProOptimizer() {
           )}
 
           {/* Player Table - Desktop */}
-          <div className="flex-1 overflow-auto hidden md:block">
-            <table className="w-full text-left border-collapse min-w-[800px]">
+          <div className={`hidden flex-1 overflow-auto md:block xl:min-h-0 ${playerFocus ? "min-h-0" : "min-h-[52dvh]"}`} data-testid="pro-player-pool-scroll">
+            <table className="w-full text-left border-collapse min-w-[760px]">
               <thead className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800">
                 <tr className="text-slate-400">
                   <th className="px-3 py-3 w-10 text-center text-[11px] font-black uppercase">Lock</th>
@@ -1790,13 +1829,13 @@ export default function ProOptimizer() {
                           <X className="w-3.5 h-3.5" />
                         </button>
                       </td>
-                      <td className="px-3 py-2">
-                        <span className="font-mono text-[11px] font-bold text-amber-400/80">{player.position}</span>
+                      <td className="px-3 py-2.5">
+                        <span className="font-mono text-xs font-bold text-amber-400/80">{player.position}</span>
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2.5">
                         <div className="flex items-center gap-2 flex-wrap">
                           <PlayerHistoryCard playerName={player.name} sport={sport} currentProjection={Number(player.projectedPoints)} currentSalary={player.salary} position={player.position} team={player.team} boostScore={player.boostScore}>
-                            <span className="font-bold text-sm text-white group-hover:text-amber-400 transition-colors cursor-default" data-testid={`text-player-name-${player.id}`}>
+                            <span className="text-[15px] font-bold text-white transition-colors group-hover:text-amber-400 cursor-default" data-testid={`text-player-name-${player.id}`}>
                               {player.name}
                             </span>
                           </PlayerHistoryCard>
@@ -1817,11 +1856,11 @@ export default function ProOptimizer() {
                           )}
                         </div>
                         {player.gameInfo && (
-                          <div className="text-[11px] text-slate-400 font-medium">{player.gameInfo}</div>
+                        <div className="text-xs text-slate-400 font-medium">{player.gameInfo}</div>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-[11px] font-bold text-slate-400 uppercase" data-testid={`text-team-${player.id}`}>{player.team}</td>
-                      <td className="px-3 py-2 font-mono text-sm font-bold text-white" data-testid={`text-salary-${player.id}`}>{platform === "yahoo" ? `$${player.salary}` : `$${player.salary.toLocaleString()}`}</td>
+                      <td className="px-3 py-2.5 text-xs font-bold text-slate-400 uppercase" data-testid={`text-team-${player.id}`}>{player.team}</td>
+                      <td className="px-3 py-2.5 font-mono text-[15px] font-bold text-white" data-testid={`text-salary-${player.id}`}>{platform === "yahoo" ? `$${player.salary}` : `$${player.salary.toLocaleString()}`}</td>
                       <td className="px-3 py-2 hidden lg:table-cell">
                         {(player as any).recentActualAvg != null ? (
                           <div className="flex flex-col items-end">
@@ -1832,12 +1871,12 @@ export default function ProOptimizer() {
                           <span className="text-[10px] text-slate-600">—</span>
                         )}
                       </td>
-                      <td className="px-3 py-2 font-mono text-sm text-slate-400" data-testid={`text-base-proj-${player.id}`}>
+                      <td className="px-3 py-2.5 font-mono text-[15px] text-slate-400" data-testid={`text-base-proj-${player.id}`}>
                         {player.baseProj.toFixed(1)}
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1" data-testid={`text-boosted-proj-${player.id}`}>
-                          <span className={`font-mono text-sm font-bold ${player.boost > 0 ? "text-emerald-400" : player.boost < 0 ? "text-red-400" : "text-slate-400"}`}>
+                          <span className={`font-mono text-[15px] font-bold ${player.boost > 0 ? "text-emerald-400" : player.boost < 0 ? "text-red-400" : "text-slate-400"}`}>
                             {player.boostedProj.toFixed(1)}
                           </span>
                           {player.boost !== 0 && (
@@ -1963,7 +2002,7 @@ export default function ProOptimizer() {
           </div>
 
           {/* Player Cards - Mobile */}
-          <div className="flex-1 overflow-auto md:hidden p-2 space-y-1.5">
+          <div className={`flex-1 overflow-auto p-2 md:hidden ${playerFocus ? "min-h-0" : "min-h-[52dvh]"}`} data-testid="pro-mobile-player-pool-scroll">
             {filteredPlayers.map(player => {
               const isLocked = lockedIds.includes(player.id);
               const isExcluded = excludedIds.includes(player.id);
@@ -1985,7 +2024,7 @@ export default function ProOptimizer() {
                 <div
                   key={player.id}
                   data-testid={`mobile-pro-player-card-${player.id}`}
-                  className={`rounded-lg border p-2.5 transition-all ${
+                    className={`mb-1.5 rounded-lg border p-3 transition-all ${
                     isSwapIneligible ? "opacity-30 border-slate-800 bg-slate-900/30" :
                     isSwapEligible ? "border-emerald-500/30 bg-emerald-500/5 cursor-pointer" :
                     isExcluded ? "border-red-500/30 bg-red-500/5 opacity-50" :
@@ -1998,7 +2037,7 @@ export default function ProOptimizer() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400">{player.position}</span>
-                        <span className="text-sm font-bold text-white truncate">{player.name}</span>
+                        <span className="text-[15px] font-bold text-white truncate">{player.name}</span>
                         {player.isConfirmedStarter && (
                           <Badge variant="outline" className="text-[8px] font-bold py-0 px-1 border-emerald-500/50 text-emerald-400 bg-emerald-500/10">STARTER</Badge>
                         )}
@@ -2014,8 +2053,8 @@ export default function ProOptimizer() {
                         {player.opponent && <span>vs {player.opponent}</span>}
                       </div>
                       <div className="flex items-center gap-3 mt-1.5">
-                        <span className="text-sm font-mono font-bold text-white">${player.salary.toLocaleString()}</span>
-                        <span className="text-sm font-mono font-bold text-amber-400">{Number(player.projectedPoints).toFixed(1)} pts</span>
+                        <span className="text-[15px] font-mono font-bold text-white">${player.salary.toLocaleString()}</span>
+                        <span className="text-[15px] font-mono font-bold text-amber-400">{Number(player.projectedPoints).toFixed(1)} pts</span>
                         {(player as any).recentActualAvg != null && (
                           <span className="text-[10px] font-mono font-bold text-cyan-400">{(player as any).recentActualAvg}<span className="text-slate-500">/{(player as any).gamesTracked}g</span></span>
                         )}
@@ -2129,7 +2168,7 @@ export default function ProOptimizer() {
         </div>
 
         {/* RIGHT: Results & Summary Panels */}
-        <div className={`w-full xl:w-[480px] flex flex-col bg-slate-900/30 overflow-hidden ${mobileView !== "lineup" ? "hidden xl:flex" : ""}`}>
+        <div className={`w-full xl:w-[400px] 2xl:w-[440px] flex-col bg-slate-900/30 xl:overflow-hidden ${playerFocus ? "hidden" : mobileView !== "lineup" ? "hidden xl:flex" : "flex"}`}>
           <div className="flex-1 overflow-auto p-4 space-y-4">
             {/* GOLF Tournament Analysis */}
             {isGolf && golfAnalysis && (
