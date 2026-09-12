@@ -31,6 +31,7 @@ import { refreshRecentlyPlayed, getRecentlyPlayedCache, normalizePlayerName } fr
 import { calculateOwnership, computeOwnershipForPlayers, type ContestType } from "./ownership-engine";
 import { getCachedSignals, getScoutStatus, refreshAll, forceRefreshAll, secondsUntilRefresh, triggerLazyRefreshIfStale } from "./ai-scout";
 import { runSimulations, detectStack, scoreLineupsAcrossSims } from "./simulation-engine";
+import { addSimGameStacks, stackGameKey as getStackGameKey } from "./sim-game-stacks";
 import { buildVegasContext } from "./vegas-client";
 import { buildDvPContext, applyDvPToProjections, buildOpponentMap } from "./dvp-client";
 import { fetchStartingLineups, getStartingLineupsData, clearLineupsCache } from "./lineups-ingest";
@@ -4463,6 +4464,7 @@ export async function registerRoutes(
     enforceGameStack:     z.boolean().default(false),
     minStackSize:         z.number().min(2).max(5).default(2),
     stackGameKey:         z.string().optional(),
+    stackGameKeys:        z.array(z.string().regex(/^[A-Z0-9]+-[A-Z0-9]+$/)).max(32).optional(),
     minStarRating:        z.number().min(0).max(5).default(0),
     sortMetric:           z.enum(["composite", "p90", "p75", "median", "avg", "ev"]).default("composite"),
     useBoosts:            z.boolean().default(true),
@@ -4627,22 +4629,11 @@ export async function registerRoutes(
         }
       }
 
-      if (input.stackGameKey) {
-        const stackKey = input.stackGameKey.trim().toUpperCase();
-        let matchedCount = 0;
-        for (const p of pool) {
-          const gi = p.gameInfo || "";
-          const teams = gi.match(/^([A-Z0-9]+)\s*[@vs.]+\s*([A-Z0-9]+)/i);
-          if (teams) {
-            const key = [teams[1].toUpperCase(), teams[2].toUpperCase()].sort().join("-");
-            if (key === stackKey) {
-              const pid = p.id;
-              projOverrides[pid] = (projOverrides[pid] ?? Number(p.projectedPoints)) * 1.15;
-              matchedCount++;
-            }
-          }
-        }
-        console.log(`[SimOptimizer] Manual stack target: ${stackKey} — boosted ${matchedCount} players by 15%`);
+      const stackGameKeys = [...new Set(input.stackGameKeys ??
+        (input.stackGameKey ? [input.stackGameKey.trim().toUpperCase()] : []))];
+      const slateGames = new Set(allPlayers.map(p => getStackGameKey(p.gameInfo)));
+      if (stackGameKeys.some(key => !slateGames.has(key))) {
+        return res.status(400).json({ message: "A selected stack game is not in this slate. Clear your game selections and try again." });
       }
 
       const simPosGroups = new Map<string, Player[]>();
@@ -4709,6 +4700,7 @@ export async function registerRoutes(
         excludedPlayerIds: input.excludedPlayerIds,
         lineupCount: 1,
         maxSalary: config.salaryCap,
+        stackGameKeys,
       } as OptimizationConstraints;
 
       const calT0 = Date.now();
@@ -4778,7 +4770,9 @@ export async function registerRoutes(
       if (lineupMap.size === 0) {
         return res.status(200).json({
           lineups: [],
-          message: "No feasible lineups found in simulations. Try relaxing constraints.",
+          message: stackGameKeys.length
+            ? "No feasible lineups satisfy your selected game stacks. Check player locks, exclusions, and salary filters, or select another game."
+            : "No feasible lineups found in simulations. Try relaxing constraints.",
           simsRun: sims.length,
         });
       }
@@ -5924,7 +5918,7 @@ function nflTournamentScore(player: Player, ownership: number | undefined): numb
 
 export function solveLineup(
   pool: Player[],
-  constraints: OptimizationConstraints,
+  constraints: OptimizationConstraints & { stackGameKeys?: string[] },
   sport: string,
   platform: Platform,
   ownershipByPlayerId?: Map<number, number>,
@@ -6015,6 +6009,7 @@ export function solveLineup(
   });
 
   const gameKeys = Array.from(gameMap.keys());
+  addSimGameStacks(model, pool, constraints.stackGameKeys ?? [], sport);
 
   if (isNflClassicGpp) {
     const selectablePlayers = pool.filter(p => model.variables[`p${p.id}`]);

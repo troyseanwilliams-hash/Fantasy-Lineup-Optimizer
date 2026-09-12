@@ -122,7 +122,7 @@ export default function ProOptimizer() {
   const [simMode, setSimMode] = useState(false);
   const lineupsRef = useRef<HTMLDivElement>(null);
   const [numSims, setNumSims] = useState(200);
-  const [stackGameKey, setStackGameKey] = useState<string | null>(null);
+  const [stackGameKeys, setStackGameKeys] = useState<string[]>([]);
   const [simSortMetric, setSimSortMetric] = useState<"composite" | "p90" | "p75" | "median" | "avg" | "ev">("composite");
   const [minStarRating, setMinStarRating] = useState<number>(0);
   const [lineupSwaps, setLineupSwaps] = useState<Record<string, Record<string, Player>>>({});
@@ -617,7 +617,7 @@ export default function ProOptimizer() {
         playerMaxSalary:  salaryRange && salaryRange[1] < salaryBounds.max ? salaryRange[1] : undefined,
         lineupCount: numSims,
         numSims,
-        stackGameKey: stackGameKey || undefined,
+        stackGameKeys,
         globalMaxExposure: globalMaxExposure ?? undefined,
         globalMinExposure: globalMinExposure ?? undefined,
         minExposureLimits: Object.keys(minExposureLimits).length > 0 ? minExposureLimits : undefined,
@@ -864,7 +864,7 @@ export default function ProOptimizer() {
     setLineupSwaps({});
     setSwappingTarget(null);
     setUseBoostsUserOverride(null);
-    setStackGameKey(null);
+    setStackGameKeys([]);
     setMinStarRating(0);
     optimizeMutation.reset();
     simMutation.reset();
@@ -1399,10 +1399,10 @@ export default function ProOptimizer() {
                 {availableGames.length > 0 && (
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <LabelTip text="Pick a specific game to target. Players from this game get a 15% projection boost, making them more likely to appear in your lineups."><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Target Game</span></LabelTip>
-                      {stackGameKey && (
+                      <LabelTip text="Select one or more games. Every lineup must stack one selected game. NFL stacks require a QB, same-team WR/TE, and opposing RB/WR/TE; other sports require three players from a game, including both teams. No selections means no forced stack."><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Game Stacks ({stackGameKeys.length} selected)</span></LabelTip>
+                      {stackGameKeys.length > 0 && (
                         <button
-                          onClick={() => setStackGameKey(null)}
+                          onClick={() => setStackGameKeys([])}
                           className="text-[9px] font-black text-red-400 hover:text-red-300 transition-colors"
                           data-testid="btn-clear-stack-game"
                         >
@@ -1414,9 +1414,10 @@ export default function ProOptimizer() {
                       {availableGames.map(g => (
                         <button
                           key={g.key}
-                          onClick={() => setStackGameKey(stackGameKey === g.key ? null : g.key)}
+                          onClick={() => setStackGameKeys(keys => keys.includes(g.key) ? keys.filter(key => key !== g.key) : [...keys, g.key])}
+                          aria-pressed={stackGameKeys.includes(g.key)}
                           className={`px-1.5 py-0.5 rounded text-[9px] font-black transition-all border ${
-                            stackGameKey === g.key
+                            stackGameKeys.includes(g.key)
                               ? "bg-violet-500/20 text-violet-400 border-violet-500/40 ring-1 ring-violet-500/20"
                               : "text-slate-500 border-slate-700/50 hover:text-slate-300 hover:border-slate-600"
                           }`}
@@ -1426,6 +1427,13 @@ export default function ProOptimizer() {
                         </button>
                       ))}
                     </div>
+                    <p className="text-[10px] text-slate-400">
+                      {stackGameKeys.length
+                        ? sport === "NFL"
+                          ? "Each lineup: QB + same-team WR/TE + opposing RB/WR/TE from one selected game."
+                          : "Each lineup: 3+ players from one selected game, including both teams."
+                        : "Select games to require stacks. None selected: unrestricted."}
+                    </p>
                   </div>
                 )}
               </div>

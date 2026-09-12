@@ -23,7 +23,12 @@ for (const route of ["/optimizer", "/optimizer-pro"]) {
         position: "QB", salary: 7000, fppg: "24", projectedPoints: "24",
         opponent: "HOU", gameInfo: "BUF @ HOU 1:00 PM ET",
         boostScore: "0", injuryStatus: null,
+      }, {
+        id: 2, slateId: slate.id, name: "Second Quarterback", team: "DET",
+        position: "QB", salary: 6500, fppg: "20", projectedPoints: "20",
+        opponent: "NO", gameInfo: "NO @ DET 1:00 PM ET", boostScore: "0", injuryStatus: null,
       }];
+      else if (path === "/api/optimize/sim") data = { lineups: [], message: "Fixture response", simsRun: 50 };
       else if (path === "/api/alerts") data = { alerts: [] };
       else if (path.includes("/scout/signals")) data = { signals: [], count: 0 };
       await intercepted.fulfill({ json: data });
@@ -32,5 +37,20 @@ for (const route of ["/optimizer", "/optimizer-pro"]) {
     await expect(page).toHaveURL(new RegExp(`${route}/900002$`));
     await expect(page.getByText("Test Quarterback").locator("visible=true").first()).toBeVisible();
     expect(errors).toEqual([]);
+    if (route === "/optimizer-pro") {
+      await page.getByTestId("btn-sim-mode-toggle").click();
+      const first = page.getByTestId("btn-stack-game-BUF-HOU");
+      const second = page.getByTestId("btn-stack-game-DET-NO");
+      await first.click();
+      await second.click();
+      await expect(first).toHaveAttribute("aria-pressed", "true");
+      await expect(second).toHaveAttribute("aria-pressed", "true");
+      const request = page.waitForRequest(req => req.url().endsWith("/api/optimize/sim"));
+      await page.getByTestId("button-generate").click();
+      expect((await request).postDataJSON().stackGameKeys).toEqual(["BUF-HOU", "DET-NO"]);
+      await page.getByTestId("btn-clear-stack-game").click();
+      await expect(first).toHaveAttribute("aria-pressed", "false");
+      await expect(second).toHaveAttribute("aria-pressed", "false");
+    }
   });
 }
