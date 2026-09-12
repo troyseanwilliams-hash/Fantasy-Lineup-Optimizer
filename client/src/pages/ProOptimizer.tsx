@@ -30,6 +30,14 @@ import { InfoTip, LabelTip } from "@/components/InfoTip";
 import { usePageMeta } from "@/hooks/use-page-meta";
 import { useResolvedSlate } from "@/hooks/use-resolved-slate";
 import { useSessionPlayerQuery } from "@/hooks/use-session-player-query";
+import {
+  csvEscape,
+  exportFilename,
+  formatResolvedPlayer,
+  resolveExportPlayers,
+  resolvedPlayersById,
+  validateExportSlate,
+} from "@/lib/resolve-export-players";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "boostedProj" | "ownershipProjection";
 type SortDir = "asc" | "desc";
@@ -136,6 +144,17 @@ export default function ProOptimizer() {
   const [simSettingsExpanded, setSimSettingsExpanded] = useState(false);
   const [playerFocus, setPlayerFocus] = useState(false);
   const playerPoolRef = useRef<HTMLDivElement>(null);
+  const currentSlateIdRef = useRef(slateId);
+  currentSlateIdRef.current = slateId;
+  const componentMountedRef = useRef(true);
+  const exportInFlightRef = useRef(false);
+
+  useEffect(() => {
+    componentMountedRef.current = true;
+    return () => {
+      componentMountedRef.current = false;
+    };
+  }, []);
 
   const [platform, setPlatform] = useState<Platform>("draftkings");
 
@@ -839,38 +858,77 @@ export default function ProOptimizer() {
     }
   };
 
-  const handleExportCSV = () => {
-    if (generatedLineups.length === 0) return;
-    const headers = config.slots.map(slot => getSlotDisplayName(slot));
-    let missingIdCount = 0;
-    const rows = generatedLineups.map(lineupData => {
-      const lineupPlayers = lineupData.lineup || [];
-      const slotAssignments = assignPlayersToSlots(lineupPlayers, config.slots, sport);
-      return config.slots.map(slot => {
-        const p = slotAssignments[slot];
-        if (!p) return "";
-        if (platform === "draftkings") {
-          const dkId = (p as any).draftKingsPlayerId;
-          if (!dkId) missingIdCount++;
-          return dkId ? `${p.name} (${dkId})` : p.name;
-        } else if (platform === "fanduel") {
-          return `${(p as any).draftKingsPlayerId || p.id}:${p.name}`;
-        }
-        return p.name;
-      });
+  const handleExportCSV = async () => {
+    if (generatedLineups.length === 0 || exportInFlightRef.current) return;
+
+    // Snapshot the rows and slate before resolving IDs. The generated lineup
+    // state can be replaced if the user changes slates during the request.
+    const exportSlateId = slateId;
+    const exportSport = sport;
+    const exportPlatform = platform;
+    const exportSlots = [...config.slots];
+    const exportRows: Array<Array<Player | null>> = generatedLineups.map((lineupData: any) => {
+      const slotAssignments = assignPlayersToSlots(lineupData.lineup || [], exportSlots, exportSport);
+      return exportSlots.map(slot => slotAssignments[slot] || null);
     });
-    const csv = [headers.join(","), ...rows.map(r => r.map(cell => `"${cell}"`).join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `elitelineup_${config.shortLabel}_${sport}_${generatedLineups.length}_lineups.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    if (missingIdCount > 0) {
-      toast({ title: "CSV Exported (Partial IDs)", description: `${missingIdCount} player(s) missing platform IDs. These entries may need manual editing before upload.`, variant: "destructive" });
-    } else {
-      toast({ title: "CSV Exported", description: `${generatedLineups.length} lineup${generatedLineups.length > 1 ? "s" : ""} exported for ${config.label} upload.` });
+    const playerIds = exportRows
+      .flatMap(row => row.map(player => player?.id))
+      .filter((id): id is number => typeof id === "number");
+
+    if (playerIds.length === 0) {
+      toast({ title: "CSV Export Failed", description: "These lineups have no players to export.", variant: "destructive" });
+      return;
+    }
+
+    exportInFlightRef.current = true;
+    try {
+      // Pro bulk export resolves the union once, rather than making one
+      // request per lineup.
+      const resolved = await resolveExportPlayers({ slateId: exportSlateId, playerIds });
+      validateExportSlate(resolved, {
+        slateId: exportSlateId,
+        sport: exportSport,
+        platform: exportPlatform,
+      });
+      if (!componentMountedRef.current || currentSlateIdRef.current !== exportSlateId) {
+        throw new Error("Export canceled because the slate changed.");
+      }
+
+      const playersById = resolvedPlayersById(resolved);
+      const rows = exportRows.map((row, lineupIndex) => row.map((player, slotIndex) => {
+        const slot = exportSlots[slotIndex];
+        if (!player) throw new Error(`Export slot ${getSlotDisplayName(slot)} is empty in lineup ${lineupIndex + 1}.`);
+        const resolvedPlayer = playersById.get(Number(player.id));
+        if (!resolvedPlayer) throw new Error(`Export player missing for ${getSlotDisplayName(slot)} in lineup ${lineupIndex + 1}.`);
+        return csvEscape(formatResolvedPlayer(resolvedPlayer, exportPlatform));
+      }));
+      const csv = [
+        exportSlots.map(slot => csvEscape(getSlotDisplayName(slot))).join(","),
+        ...rows.map(row => row.join(",")),
+      ].join("\n");
+
+      if (!componentMountedRef.current || currentSlateIdRef.current !== exportSlateId) {
+        throw new Error("Export canceled because the slate changed.");
+      }
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = exportFilename(resolved.slate, exportSport, exportPlatform, `${exportRows.length}-lineups`);
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({
+        title: "CSV Exported",
+        description: `${exportRows.length} lineup${exportRows.length > 1 ? "s" : ""} exported for ${config.label} upload.`,
+      });
+    } catch (error) {
+      toast({
+        title: "CSV Export Failed",
+        description: error instanceof Error ? error.message : "Could not resolve platform player IDs.",
+        variant: "destructive",
+      });
+    } finally {
+      exportInFlightRef.current = false;
     }
   };
 

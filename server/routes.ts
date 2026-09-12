@@ -45,6 +45,11 @@ import {
   isGolfMissedCutMarkerForDraftGroup,
   protectGolfMissedCutMarker,
 } from "./golf-missed-cut";
+import {
+  ExportResolutionError,
+  resolvePlayersForExport,
+  type ExportDraftable,
+} from "./export-player-resolver";
 
 
 async function loadOverridesWithCrossRef(
@@ -258,6 +263,67 @@ export async function registerRoutes(
       } else {
         res.status(500).json({ message: "Internal Server Error" });
       }
+    }
+  });
+
+  // Resolve provider IDs only for the current export.  This endpoint is
+  // intentionally read-only: saved lineup snapshots must retain their
+  // historical contest IDs.
+  app.post(api.exports.resolvePlayers.path, async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+
+    try {
+      const input = api.exports.resolvePlayers.input.parse(req.body);
+      const slate = await storage.getSlate(input.slateId);
+      if (!slate) return res.status(404).json({ message: "Slate not found" });
+
+      const players = await storage.getPlayersBySlate(slate.id);
+      let draftables: ExportDraftable[] | undefined;
+      if ((slate.platform || "").toLowerCase() === "draftkings") {
+        if (!slate.draftGroupId) {
+          return res.status(400).json({
+            message: "The selected DraftKings slate has no current contest group.",
+          });
+        }
+        try {
+          draftables = await fetchDraftables(slate.draftGroupId);
+        } catch (error) {
+          console.error("[Export] DraftKings contest lookup failed:", error);
+          return res.status(503).json({
+            message: "The current DraftKings contest player pool is unavailable. Try again.",
+          });
+        }
+      }
+
+      const resolvedPlayers = resolvePlayersForExport({
+        slate,
+        players,
+        playerIds: input.playerIds,
+        captainId: input.captainId,
+        draftables,
+      });
+
+      return res.json({
+        slate: {
+          id: slate.id,
+          sport: slate.sport,
+          platform: slate.platform,
+          draftGroupId: slate.draftGroupId,
+          gameType: slate.gameType || "Classic",
+          label: slate.label || slate.name,
+          name: slate.name,
+        },
+        players: resolvedPlayers,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      if (error instanceof ExportResolutionError) {
+        return res.status(error.status).json({ message: error.message });
+      }
+      console.error("[Export] Player resolution failed:", error);
+      return res.status(500).json({ message: "Failed to resolve export players" });
     }
   });
 

@@ -27,6 +27,14 @@ import { InfoTip, LabelTip } from "@/components/InfoTip";
 import { usePageMeta } from "@/hooks/use-page-meta";
 import { useResolvedSlate } from "@/hooks/use-resolved-slate";
 import { useSessionPlayerQuery } from "@/hooks/use-session-player-query";
+import {
+  csvEscape,
+  exportFilename,
+  formatResolvedPlayer,
+  resolveExportPlayers,
+  resolvedPlayersById,
+  validateExportSlate,
+} from "@/lib/resolve-export-players";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "fppg" | "value";
 type SortDir = "asc" | "desc";
@@ -100,6 +108,17 @@ export default function Optimizer() {
   const [mobileView, setMobileView] = useState<"players" | "lineup">("players");
   const [playerFocus, setPlayerFocus] = useState(false);
   const playerPoolRef = useRef<HTMLDivElement>(null);
+  const currentSlateIdRef = useRef(slateId);
+  currentSlateIdRef.current = slateId;
+  const componentMountedRef = useRef(true);
+  const exportInFlightRef = useRef(false);
+
+  useEffect(() => {
+    componentMountedRef.current = true;
+    return () => {
+      componentMountedRef.current = false;
+    };
+  }, []);
 
   const [platform, setPlatform] = useState<Platform>("draftkings");
 
@@ -561,35 +580,72 @@ export default function Optimizer() {
     }
   };
 
-  const handleExportCSV = () => {
-    if (!activeLineupPlayers.length || !lineupSlots) return;
-    let csv = "";
-    if (platform === "draftkings") {
-      csv = config.slots.map(s => getSlotDisplayName(s)).join(",") + "\n";
-      csv += config.slots.map(s => {
-        const p = lineupSlots[s];
-        return p ? `"${p.name} (${(p as any).draftKingsPlayerId || p.id})"` : "";
-      }).join(",");
-    } else if (platform === "fanduel") {
-      csv = config.slots.map(s => getSlotDisplayName(s)).join(",") + "\n";
-      csv += config.slots.map(s => {
-        const p = lineupSlots[s];
-        return p ? `"${(p as any).draftKingsPlayerId || p.id}:${p.name}"` : "";
-      }).join(",");
-    } else {
-      csv = config.slots.map(s => getSlotDisplayName(s)).join(",") + "\n";
-      csv += config.slots.map(s => {
-        const p = lineupSlots[s];
-        return p ? `"${p.name}"` : "";
-      }).join(",");
+  const handleExportCSV = async () => {
+    if (!lineupSlots || exportInFlightRef.current) return;
+
+    // Capture both the slate and the roster rows before awaiting the resolver.
+    // A route/slate change while the request is in flight must never download
+    // the old lineup with IDs from the new draft group.
+    const exportSlateId = slateId;
+    const exportSport = sport;
+    const exportPlatform = platform;
+    const exportSlots = [...config.slots];
+    const exportRows = exportSlots.map(slot => ({
+      slot,
+      player: lineupSlots[slot] || null,
+    }));
+    const playerIds = exportRows
+      .map(({ player }) => player?.id)
+      .filter((id): id is number => typeof id === "number");
+
+    if (playerIds.length === 0) {
+      toast({ title: "CSV Export Failed", description: "This lineup has no players to export.", variant: "destructive" });
+      return;
     }
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${config.shortLabel}_${sport}_lineup.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+
+    exportInFlightRef.current = true;
+    try {
+      const resolved = await resolveExportPlayers({ slateId: exportSlateId, playerIds });
+      validateExportSlate(resolved, {
+        slateId: exportSlateId,
+        sport: exportSport,
+        platform: exportPlatform,
+      });
+      if (!componentMountedRef.current || currentSlateIdRef.current !== exportSlateId) {
+        throw new Error("Export canceled because the slate changed.");
+      }
+
+      const playersById = resolvedPlayersById(resolved);
+      const values = exportRows.map(({ slot, player }) => {
+        if (!player) throw new Error(`Export slot ${getSlotDisplayName(slot)} is empty.`);
+        const resolvedPlayer = playersById.get(Number(player.id));
+        if (!resolvedPlayer) throw new Error(`Export player missing for ${getSlotDisplayName(slot)}.`);
+        return csvEscape(formatResolvedPlayer(resolvedPlayer, exportPlatform));
+      });
+      const csv = [
+        exportSlots.map(slot => csvEscape(getSlotDisplayName(slot))).join(","),
+        values.join(","),
+      ].join("\n");
+
+      if (!componentMountedRef.current || currentSlateIdRef.current !== exportSlateId) {
+        throw new Error("Export canceled because the slate changed.");
+      }
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = exportFilename(resolved.slate, exportSport, exportPlatform, "lineup");
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({
+        title: "CSV Export Failed",
+        description: error instanceof Error ? error.message : "Could not resolve platform player IDs.",
+        variant: "destructive",
+      });
+    } finally {
+      exportInFlightRef.current = false;
+    }
   };
 
   const positions = ["ALL", ...(config.positionFilters || ["PG", "SG", "SF", "PF", "C"])];

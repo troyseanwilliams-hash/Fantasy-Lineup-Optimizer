@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -23,6 +23,15 @@ import type { Slate, Player } from "@shared/schema";
 import { usePageMeta } from "@/hooks/use-page-meta";
 import { useLocation } from "wouter";
 import { useSessionPlayerQuery } from "@/hooks/use-session-player-query";
+import {
+  csvEscape,
+  exportFilename,
+  formatResolvedPlayer,
+  resolveExportPlayers,
+  resolvedPlayersById,
+  validateExportSlate,
+  type ExportPlayersResponse,
+} from "@/lib/resolve-export-players";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -195,6 +204,17 @@ export default function ShowdownBuilder() {
   const [savedLineupIndices, setSavedLineupIndices] = useState<Set<number>>(new Set());
   const [lineupSortKey, setLineupSortKey] = useState<"proj" | "median" | "p75" | "p90" | "freq">("proj");
   const [expandedLineupIdx, setExpandedLineupIdx] = useState<number | null>(null);
+  const currentSlateIdRef = useRef<number | null>(selectedSlateId);
+  currentSlateIdRef.current = selectedSlateId;
+  const componentMountedRef = useRef(true);
+  const exportInFlightRef = useRef(false);
+
+  useEffect(() => {
+    componentMountedRef.current = true;
+    return () => {
+      componentMountedRef.current = false;
+    };
+  }, []);
 
   // ── Subscription ───────────────────────────────────────────────────────────
   const { data: subscription } = useQuery<{ tier: string }>({
@@ -632,34 +652,130 @@ export default function ShowdownBuilder() {
     setExpandedSettingsId(prev => prev === playerId ? null : playerId);
   }
 
-  function csvEscape(val: string) {
-    if (/[",\n\r]/.test(val)) return `"${val.replace(/"/g, '""')}"`;
-    return val;
-  }
+  async function exportCSV(lineupsToExport = generatedLineups) {
+    if (lineupsToExport.length === 0 || exportInFlightRef.current) return;
+    if (selectedSlateId === null) {
+      toast({ title: "CSV Export Failed", description: "Choose a showdown slate before exporting.", variant: "destructive" });
+      return;
+    }
 
-  function exportCSV(lineupsToExport = generatedLineups) {
-    if (lineupsToExport.length === 0) return;
-    const first = lineupsToExport[0];
-    // DraftKings expects repeated FLEX headers rather than numbered FLEX1/FLEX2 columns.
-    const header = [captainLabel, ...Array.from({ length: first.flexPlayers.length }, () => flexLabel)].join(",");
-    const formatPlayer = (player: ShowdownPlayer) => {
-      if (platform === "draftkings" && player.draftKingsPlayerId) {
-        return `${player.name} (${player.draftKingsPlayerId})`;
+    // Capture the exact rows, role labels, and slate before any resolver
+    // requests. The captain is part of each request because role-specific
+    // DraftKings IDs can differ between captain and FLEX exports.
+    const exportSlateId = selectedSlateId;
+    const exportSport = sport;
+    const exportPlatform = platform;
+    const exportCaptainLabel = captainLabel;
+    const exportFlexLabel = flexLabel;
+    const exportLineups = lineupsToExport.map(lineup => ({
+      captain: lineup.captain,
+      flexPlayers: [...lineup.flexPlayers],
+    }));
+
+    exportInFlightRef.current = true;
+    try {
+      let nextIndex = 0;
+      let resolverFailed = false;
+      const resolvedLineups: ExportPlayersResponse[] = new Array(exportLineups.length);
+      const resolveOne = async () => {
+        while (true) {
+          if (resolverFailed) return;
+          const index = nextIndex++;
+          if (index >= exportLineups.length) return;
+          const lineup = exportLineups[index];
+          const playerIds = [lineup.captain, ...lineup.flexPlayers]
+            .map(player => player?.id)
+            .filter((id): id is number => typeof id === "number");
+          if (playerIds.length === 0 || lineup.captain?.id == null) {
+            resolverFailed = true;
+            throw new Error(`Showdown lineup ${index + 1} is missing a captain or roster players.`);
+          }
+          // At most four resolver calls are active at once to avoid flooding
+          // the endpoint when exporting a multi-lineup set.
+          try {
+            resolvedLineups[index] = await resolveExportPlayers({
+              slateId: exportSlateId,
+              playerIds,
+              captainId: lineup.captain.id,
+            });
+          } catch (error) {
+            resolverFailed = true;
+            throw error;
+          }
+        }
+      };
+      const resolverResults = await Promise.allSettled(
+        Array.from({ length: Math.min(4, exportLineups.length) }, () => resolveOne()),
+      );
+      const resolverFailure = resolverResults.find(
+        (result): result is PromiseRejectedResult => result.status === "rejected",
+      );
+      if (resolverFailure) throw resolverFailure.reason;
+
+      if (!componentMountedRef.current || currentSlateIdRef.current !== exportSlateId) {
+        throw new Error("Export canceled because the slate changed.");
       }
-      if (platform === "fanduel" && player.fanDuelPlayerId) {
-        return `${player.name}:${player.fanDuelPlayerId}`;
+      if (resolvedLineups.length === 0 || !resolvedLineups[0]) {
+        throw new Error("The export resolver returned no slate.");
       }
-      return player.name;
-    };
-    const rows = lineupsToExport.map(lu => [
-      csvEscape(formatPlayer(lu.captain)),
-      ...lu.flexPlayers.map(p => csvEscape(formatPlayer(p))),
-    ].join(","));
-    const blob = new Blob([`${header}\n${rows.join("\n")}`], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `showdown_${sport}_${lineupsToExport.length}lineups.csv`; a.click();
-    URL.revokeObjectURL(url);
+      const firstResolved = resolvedLineups[0];
+      validateExportSlate(firstResolved, {
+        slateId: exportSlateId,
+        sport: exportSport,
+        platform: exportPlatform,
+      });
+      const firstDraftGroup = firstResolved.slate.draftGroupId;
+      for (const resolved of resolvedLineups) {
+        validateExportSlate(resolved, {
+          slateId: exportSlateId,
+          sport: exportSport,
+          platform: exportPlatform,
+        });
+        if (resolved.slate.draftGroupId !== firstDraftGroup) {
+          throw new Error("The export resolver returned different draft groups.");
+        }
+      }
+
+      const rows = exportLineups.map((lineup, lineupIndex) => {
+        const playersById = resolvedPlayersById(resolvedLineups[lineupIndex]);
+        const players = [lineup.captain, ...lineup.flexPlayers].map((player, slotIndex) => {
+          if (!player) {
+            throw new Error(`Showdown lineup ${lineupIndex + 1} has an empty slot.`);
+          }
+          const resolved = playersById.get(Number(player.id));
+          if (!resolved) {
+            throw new Error(`Showdown lineup ${lineupIndex + 1} is missing player ${slotIndex + 1}.`);
+          }
+          return csvEscape(formatResolvedPlayer(resolved, exportPlatform));
+        });
+        return players.join(",");
+      });
+      const flexCount = exportLineups[0].flexPlayers.length;
+      const header = [
+        csvEscape(exportCaptainLabel),
+        ...Array.from({ length: flexCount }, () => csvEscape(exportFlexLabel)),
+      ].join(",");
+      const csv = [header, ...rows].join("\n");
+
+      if (!componentMountedRef.current || currentSlateIdRef.current !== exportSlateId) {
+        throw new Error("Export canceled because the slate changed.");
+      }
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = exportFilename(firstResolved.slate, exportSport, exportPlatform, `${exportLineups.length}-lineups`);
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({
+        title: "CSV Export Failed",
+        description: error instanceof Error ? error.message : "Could not resolve platform player IDs.",
+        variant: "destructive",
+      });
+    } finally {
+      exportInFlightRef.current = false;
+    }
   }
 
   function resetAll() {
@@ -1660,7 +1776,7 @@ export default function ShowdownBuilder() {
                                 {savingAll ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <CheckCheck className="w-3 h-3 mr-1" />}
                                 Save All
                               </Button>
-                              <Button variant="outline" size="sm" onClick={exportCSV} className="h-7 text-[10px] border-slate-600 text-slate-300 hover:bg-slate-800 px-2" data-testid="btn-export-csv">
+                              <Button variant="outline" size="sm" onClick={() => void exportCSV()} className="h-7 text-[10px] border-slate-600 text-slate-300 hover:bg-slate-800 px-2" data-testid="btn-export-csv">
                                 <Download className="w-3 h-3 mr-1" />CSV
                               </Button>
                             </div>
@@ -1876,7 +1992,7 @@ export default function ShowdownBuilder() {
                                   >
                                     {saveMut.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : isSaved ? "✓ Saved" : <><Save className="w-4 h-4 mr-1" />Save</>}
                                   </Button>
-                                  <Button variant="outline" onClick={exportCSV} className="border-slate-600 text-slate-300 hover:bg-slate-800 text-xs" data-testid="btn-export-csv">
+                                  <Button variant="outline" onClick={() => void exportCSV()} className="border-slate-600 text-slate-300 hover:bg-slate-800 text-xs" data-testid="btn-export-csv">
                                     <Download className="w-4 h-4 mr-1" />CSV
                                   </Button>
                                 </div>

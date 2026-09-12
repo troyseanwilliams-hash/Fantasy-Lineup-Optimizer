@@ -18,6 +18,13 @@ import type { Player, Slate } from "@shared/schema";
 import { PlayerInfoHoverCard } from "@/components/PlayerInfoHoverCard";
 import { InfoTip } from "@/components/InfoTip";
 import { usePageMeta } from "@/hooks/use-page-meta";
+import {
+  exportFilename,
+  formatResolvedPlayer,
+  resolveExportPlayers,
+  validateExportSlate,
+  type ExportSlate,
+} from "@/lib/resolve-export-players";
 
 type VaultSortKey = "newest" | "oldest" | "projection_high" | "projection_low" | "ownership_high" | "ownership_low" | "salary_high" | "salary_low" | "grade_high" | "grade_low" | "p75_high" | "p90_high" | "median_high" | "freq_high" | "composite_high";
 type VaultTab = "active" | "review";
@@ -87,7 +94,7 @@ function formatCap(cap: number, platform: string): string {
 // ── Platform-aware CSV builders ───────────────────────────────────────────────
 
 // DraftKings upload format: slot headers + "Name (dkPlayerId)" cells
-// FanDuel upload format:    slot headers + "Name:fdPlayerId" cells (or just Name)
+// FanDuel upload format:    slot headers + "fdPlayerId:Name" cells (or just Name)
 // Yahoo upload format:      slot headers + "Name" cells (Yahoo matches by name)
 
 function buildPlatformCSV(lineups: LineupWithPlayers[]): string {
@@ -116,16 +123,9 @@ function buildPlatformCSV(lineups: LineupWithPlayers[]): string {
       const p = slotAssignments[slot] as any;
       if (!p) return "";
 
-      if (platform === "draftkings") {
-        // DK: "FirstName LastName (12345678)"
-        return p.draftKingsPlayerId ? `${p.name} (${p.draftKingsPlayerId})` : p.name;
-      } else if (platform === "fanduel") {
-        // FD: "FirstName LastName:12345678" (colon-separated ID, no parens)
-        return p.fanDuelPlayerId ? `${p.name}:${p.fanDuelPlayerId}` : p.name;
-      } else {
-        // Yahoo: player name only — Yahoo matches by name in their CSV upload
-        return p.name;
-      }
+      // Yahoo uses names; DK and FD use the provider-specific IDs resolved
+      // immediately before export.
+      return formatResolvedPlayer(p, platform);
     });
 
     if (platform === "draftkings" && hasDkEntries) {
@@ -135,7 +135,7 @@ function buildPlatformCSV(lineups: LineupWithPlayers[]): string {
     return playerCells;
   });
 
-  return [headers.join(","), ...rows.map(r => r.map(cell => `"${cell}"`).join(","))].join("\n");
+  return [headers.map(csvCell).join(","), ...rows.map(r => r.map(csvCell).join(","))].join("\n");
 }
 
 function isShowdownLineup(lineup: LineupWithPlayers): boolean {
@@ -157,13 +157,7 @@ function csvCell(value: unknown): string {
 
 function formatExportPlayer(player: any, platform: string): string {
   if (!player) return "";
-  if (platform === "draftkings" && player.draftKingsPlayerId) {
-    return `${player.name} (${player.draftKingsPlayerId})`;
-  }
-  if (platform === "fanduel" && player.fanDuelPlayerId) {
-    return `${player.name}:${player.fanDuelPlayerId}`;
-  }
-  return player.name || "";
+  return formatResolvedPlayer(player, platform);
 }
 
 function isCaptainSnapshotPlayer(player: any): boolean {
@@ -175,7 +169,29 @@ function normalizedShowdownSnapshot(lineup: LineupWithPlayers): { captain: any |
   const snapshot = showdownSnapshot(lineup).filter(Boolean);
   if (snapshot.length === 0) return { captain: null, flex: [] };
 
-  const captain = snapshot.find(isCaptainSnapshotPlayer) || snapshot[0];
+  // Never infer the captain from array order.  Legacy showdown snapshots are
+  // allowed only when their server detail includes explicit captain metadata
+  // (captainId/captainPlayerId), not merely because one player happens to be
+  // first.
+  const explicitCaptain = snapshot.filter(isCaptainSnapshotPlayer);
+  const captainId = Number((lineup as any).captainId ?? (lineup as any).captainPlayerId);
+  const metadataCaptain = Number.isFinite(captainId)
+    ? snapshot.find(player => Number(player?.id) === captainId)
+    : null;
+  if (
+    explicitCaptain.length === 1 &&
+    Number.isInteger(captainId) &&
+    Number(explicitCaptain[0]?.id) !== captainId
+  ) {
+    return { captain: null, flex: [] };
+  }
+  const captain = explicitCaptain.length === 1
+    ? explicitCaptain[0]
+    : explicitCaptain.length > 1
+      ? null
+      : metadataCaptain;
+  if (!captain) return { captain: null, flex: [] };
+
   const flex = snapshot
     .filter(player => player !== captain)
     .sort((a, b) => {
@@ -190,15 +206,19 @@ function normalizedShowdownSnapshot(lineup: LineupWithPlayers): { captain: any |
 }
 
 function buildShowdownCSV(lineups: LineupWithPlayers[]): string {
-  const first = normalizedShowdownSnapshot(lineups[0]);
-  const flexCount = Math.max(first.flex.length, ...lineups.map(lineup => normalizedShowdownSnapshot(lineup).flex.length));
+  const normalized = lineups.map(normalizedShowdownSnapshot);
+  if (normalized.some(({ captain }) => !captain)) {
+    throw new Error("Showdown captain could not be verified from the saved lineup.");
+  }
+  const first = normalized[0];
+  const flexCount = Math.max(first.flex.length, ...normalized.map(({ flex }) => flex.length));
   const headers = [
     lineups[0].platform === "fanduel" ? "MVP" : "CPT",
     ...Array.from({ length: flexCount }, () => "FLEX"),
   ];
 
-  const rows = lineups.map(lineup => {
-    const { captain, flex } = normalizedShowdownSnapshot(lineup);
+  const rows = lineups.map((lineup, index) => {
+    const { captain, flex } = normalized[index];
     return [
       formatExportPlayer(captain, lineup.platform),
       ...flex.map(player => formatExportPlayer(player, lineup.platform)),
@@ -223,6 +243,212 @@ function getShowdownDisplayData(lineup: LineupWithPlayers): { slots: string[]; a
   return { slots, assignments };
 }
 
+interface ResolvedExportLineup extends LineupWithPlayers {
+  exportSlate: ExportSlate;
+  exportFormat: "classic" | "showdown";
+}
+
+function exportPlayerIds(lineup: LineupWithPlayers): number[] {
+  const candidateIds = Array.isArray(lineup.playerIds) && lineup.playerIds.length > 0
+    ? lineup.playerIds
+    : (Array.isArray(lineup.players) ? lineup.players : []).map(player => player.id);
+  const ids = candidateIds.map(id => Number(id));
+  if (ids.length === 0) {
+    throw new Error("This lineup has no valid player IDs to export.");
+  }
+  if (ids.some(id => !Number.isInteger(id) || id <= 0)) {
+    throw new Error("This lineup contains invalid player IDs.");
+  }
+  const uniqueIds = Array.from(new Set(ids));
+  if (uniqueIds.length !== ids.length) {
+    throw new Error("This lineup contains invalid or duplicate player IDs.");
+  }
+  return uniqueIds;
+}
+
+function explicitShowdownCaptainId(lineup: LineupWithPlayers, playerIds: number[]): number | undefined {
+  if (!isShowdownLineup(lineup)) return undefined;
+
+  const snapshot = showdownSnapshot(lineup).filter(Boolean);
+  const markedCaptains = snapshot.filter(isCaptainSnapshotPlayer);
+  if (markedCaptains.length > 1) {
+    throw new Error("This showdown lineup has more than one marked captain.");
+  }
+  const detail = lineup as any;
+  const detailCaptainId = Number(
+    detail.captainId ??
+    detail.captainPlayerId ??
+    detail.captain?.id ??
+    detail.captainPlayer?.id,
+  );
+  if (markedCaptains.length === 1) {
+    const id = Number(markedCaptains[0]?.id);
+    if (Number.isInteger(detailCaptainId) && detailCaptainId !== id) {
+      throw new Error("The saved showdown captain metadata conflicts.");
+    }
+    if (playerIds.includes(id)) return id;
+    throw new Error("The saved showdown captain is not part of this slate roster.");
+  }
+
+  // Some older detail responses carry the captain separately even though the
+  // snapshot predates slot/isCaptain metadata.  This is explicit metadata;
+  // array order is not.
+  if (Number.isInteger(detailCaptainId) && playerIds.includes(detailCaptainId)) {
+    return detailCaptainId;
+  }
+  throw new Error("This showdown lineup has no verified captain metadata.");
+}
+
+function preserveSnapshotExportFields(source: any, resolved: any): any {
+  const merged = { ...resolved };
+  // Keep lineup-specific values that are not part of the live player record.
+  // projectedPoints is intentionally retained from the saved snapshot so a
+  // live refresh cannot silently change the saved lineup's projection.
+  for (const field of ["slot", "isCaptain", "effectiveSalary", "effectiveProjection", "projection", "projectedPoints"]) {
+    if (source && Object.prototype.hasOwnProperty.call(source, field)) {
+      merged[field] = source[field];
+    }
+  }
+  return merged;
+}
+
+async function resolveExportLineup(lineup: LineupWithPlayers): Promise<ResolvedExportLineup> {
+  const playerIds = exportPlayerIds(lineup);
+  const captainId = explicitShowdownCaptainId(lineup, playerIds);
+  const data = await resolveExportPlayers({
+    slateId: lineup.slateId,
+    playerIds,
+    ...(captainId !== undefined ? { captainId } : {}),
+  });
+  const slate = data?.slate as ExportSlate | undefined;
+  if (!slate || !Number.isInteger(Number(slate.id)) || !slate.sport || !slate.platform) {
+    throw new Error("The export resolver returned an invalid slate.");
+  }
+  validateExportSlate(data, {
+    slateId: lineup.slateId,
+    sport: lineup.sport,
+    platform: lineup.platform,
+  });
+
+  const resolvedById = new Map<number, any>();
+  for (const player of data.players) {
+    const id = Number(player?.id);
+    if (!Number.isInteger(id) || !player || Number(player.slateId) !== Number(slate.id)) {
+      throw new Error("The export resolver returned a player outside the saved slate.");
+    }
+    if (resolvedById.has(id)) {
+      throw new Error("The export resolver returned duplicate players.");
+    }
+    resolvedById.set(id, player);
+  }
+  for (const id of playerIds) {
+    if (!resolvedById.has(id)) {
+      throw new Error("The export resolver did not resolve every saved player.");
+    }
+  }
+  if (captainId !== undefined && !resolvedById.has(captainId)) {
+    throw new Error("The export resolver did not resolve the saved captain.");
+  }
+
+  const snapshot = Array.isArray(lineup.playerSnapshot) ? lineup.playerSnapshot.filter(Boolean) : [];
+  const lineupPlayers = Array.isArray(lineup.players) ? lineup.players : [];
+  const sourceById = new Map<number, any>();
+  for (const player of [...snapshot, ...lineupPlayers]) {
+    const id = Number(player?.id);
+    if (Number.isInteger(id) && !sourceById.has(id)) sourceById.set(id, player);
+  }
+  const mergePlayer = (id: number) => preserveSnapshotExportFields(sourceById.get(id), resolvedById.get(id));
+  const mergedPlayers = playerIds.map(mergePlayer);
+  const snapshotIds = snapshot
+    .map(player => Number(player?.id))
+    .filter(id => playerIds.includes(id));
+  const orderedSnapshotIds = [
+    ...snapshotIds,
+    ...playerIds.filter(id => !snapshotIds.includes(id)),
+  ];
+  const mergedSnapshot = orderedSnapshotIds.map(mergePlayer);
+
+  return {
+    ...lineup,
+    players: mergedPlayers as Player[],
+    playerSnapshot: mergedSnapshot,
+    exportSlate: {
+      id: Number(slate.id),
+      sport: slate.sport,
+      platform: slate.platform,
+      draftGroupId: slate.draftGroupId ?? null,
+      gameType: slate.gameType ?? null,
+      label: slate.label ?? null,
+      name: slate.name,
+    },
+    exportFormat: isShowdownLineup(lineup) ? "showdown" : "classic",
+  };
+}
+
+async function fetchExportLineupDetail(id: number): Promise<LineupWithPlayers> {
+  const response = await fetch(`/api/lineups/${id}`, { credentials: "include" });
+  if (!response.ok) {
+    throw new Error(`Could not load lineup ${id} for export.`);
+  }
+  const detail = await response.json();
+  if (!detail || Number(detail.id) !== Number(id)) {
+    throw new Error(`The server returned invalid details for lineup ${id}.`);
+  }
+  return detail as LineupWithPlayers;
+}
+
+const EXPORT_CONCURRENCY = 4;
+
+/**
+ * Run export requests in input order with a small fixed worker pool. Every
+ * item is still attempted before the error is rethrown so a failed item cannot
+ * leave a partial export while other workers continue in the background.
+ */
+async function mapExportWithConcurrency<T, R>(
+  items: T[],
+  mapper: (item: T, index: number) => Promise<R>,
+  concurrency = EXPORT_CONCURRENCY,
+): Promise<R[]> {
+  if (items.length === 0) return [];
+
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  let failed = false;
+  let firstError: unknown;
+  const worker = async () => {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= items.length) return;
+      try {
+        results[index] = await mapper(items[index], index);
+      } catch (error) {
+        if (!failed) {
+          failed = true;
+          firstError = error;
+        }
+      }
+    }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(Math.max(1, concurrency), items.length) }, worker),
+  );
+  if (failed) {
+    throw firstError instanceof Error ? firstError : new Error("Export request failed.");
+  }
+  return results;
+}
+
+function downloadExportCSV(csv: string, filename: string): void {
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function SavedLineups() {
   usePageMeta({ title: "Saved Lineups - Your Lineup Vault", description: "Manage your saved DFS lineups, run simulations, and export for contest entry.", path: "/lineups" });
   const { user, isLoading: authLoading } = useAuth();
@@ -230,6 +456,8 @@ export default function SavedLineups() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [swappingSlot, setSwappingSlot] = useState<{ lineupId: number; slot: string; currentPlayerId: number } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const exportInFlightRef = useRef(false);
+  const [exportInFlight, setExportInFlight] = useState(false);
   const [vaultSort, setVaultSort] = useState<VaultSortKey>("projection_high");
   const [activeTab, setActiveTab] = useState<VaultTab>("active");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -693,81 +921,115 @@ export default function SavedLineups() {
   // buildPlatformCSV is defined at module level (above component)
   // to keep CSV logic platform-aware for DK / FD / Yahoo.
 
-  function handleExportCSV(lineup: LineupWithPlayers) {
+  async function handleExportCSV(lineup: LineupWithPlayers) {
+    if (exportInFlightRef.current) return;
     if (!isPaid && !isShowdownLineup(lineup)) {
       toast({ title: "Paid Feature", description: "Upgrade to Sharpshooter or Champion to export lineups.", variant: "destructive" });
       return;
     }
-    const csv = buildPlatformCSV([lineup]);
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    // e.g. nba_fanduel_lineup_42.csv  /  nfl_yahoo_lineup_7.csv
-    a.download = `${lineup.sport.toLowerCase()}_${lineup.platform}_lineup_${lineup.id}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    const platformLabel = getPlatformLabel(lineup.platform);
-    toast({ title: "Exported", description: `${lineup.sport} ${platformLabel} lineup downloaded.` });
+    exportInFlightRef.current = true;
+    setExportInFlight(true);
+    try {
+      // Resolve live provider IDs before building the file.  Do not create a
+      // download until both resolution and CSV generation have succeeded.
+      const resolved = await resolveExportLineup(lineup);
+      const csv = buildPlatformCSV([resolved]);
+      downloadExportCSV(
+        csv,
+        exportFilename(
+          resolved.exportSlate,
+          resolved.sport,
+          resolved.platform,
+          `${resolved.exportFormat}-lineup-${resolved.id}`,
+        ),
+      );
+      const platformLabel = getPlatformLabel(resolved.exportSlate.platform);
+      toast({ title: "Exported", description: `${resolved.exportSlate.sport} ${platformLabel} lineup downloaded.` });
+    } catch (err: any) {
+      toast({
+        title: "Export Failed",
+        description: err?.message || "Could not resolve this lineup for export.",
+        variant: "destructive",
+      });
+    } finally {
+      exportInFlightRef.current = false;
+      setExportInFlight(false);
+    }
   }
 
   async function handleBulkExport() {
+    if (exportInFlightRef.current) return;
     if (selectedIds.size === 0) {
       toast({ title: "No Lineups Selected", description: "Select lineups to export using the checkboxes.", variant: "destructive" });
       return;
     }
 
-    // Fetch full player details for every selected lineup
-    const details: LineupWithPlayers[] = [];
+    exportInFlightRef.current = true;
+    setExportInFlight(true);
     const ids = Array.from(selectedIds);
-    for (let i = 0; i < ids.length; i++) {
-      try {
-        const res = await fetch(`/api/lineups/${ids[i]}`, { credentials: "include" });
-        if (res.ok) details.push(await res.json());
-      } catch {}
-    }
+    try {
+      // A fixed worker pool prevents a large vault selection from opening
+      // hundreds of detail requests at once. A single failure still aborts the
+      // whole export before any browser download is started.
+      const details = await mapExportWithConcurrency(ids, fetchExportLineupDetail);
+      if (!isPaid && details.some(lineup => !isShowdownLineup(lineup))) {
+        throw new Error("Classic lineup export requires a Sharpshooter or Champion subscription. Select only Showdown lineups to export on this plan.");
+      }
 
-    if (details.length === 0) {
-      toast({ title: "Export Failed", description: "Could not load lineup details.", variant: "destructive" });
-      return;
-    }
-    if (!isPaid && details.some(lineup => !isShowdownLineup(lineup))) {
-      toast({ title: "Paid Feature", description: "Classic lineup export requires a Sharpshooter or Champion subscription. Select only Showdown lineups to export on this plan.", variant: "destructive" });
-      return;
-    }
+      // Resolve every lineup before generating or downloading any file.  This
+      // also makes resolver failures atomic rather than producing partial
+      // downloads.
+      const resolved = await mapExportWithConcurrency(details, resolveExportLineup);
 
-    // Group lineups by platform + sport — each group gets its own CSV file
-    // because DK, FD, and Yahoo all have different upload formats and slot headers.
-    const groups = new Map<string, LineupWithPlayers[]>();
-    for (const d of details) {
-      const key = `${d.platform}::${d.sport}::${isShowdownLineup(d) ? "showdown" : "classic"}`;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(d);
+      // Every key is deliberately slate + sport + platform + format.  A sport
+      // can have multiple active slate IDs, and classic/showdown slot layouts
+      // are not interchangeable.
+      const groups = new Map<string, ResolvedExportLineup[]>();
+      for (const lineup of resolved) {
+        const key = [
+          lineup.exportSlate.id,
+          lineup.exportSlate.sport,
+          lineup.exportSlate.platform,
+          lineup.exportFormat,
+        ].join("::");
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(lineup);
+      }
+
+      // Build every CSV before the first download so a malformed/ambiguous
+      // lineup cannot leave the user with only part of the requested export.
+      const files = Array.from(groups.values()).map(groupLineups => ({
+        csv: buildPlatformCSV(groupLineups),
+        filename: exportFilename(
+          groupLineups[0].exportSlate,
+          groupLineups[0].sport,
+          groupLineups[0].platform,
+          `${groupLineups[0].exportFormat}-${groupLineups.length}-lineups`,
+        ),
+      }));
+      for (let i = 0; i < files.length; i++) {
+        downloadExportCSV(files[i].csv, files[i].filename);
+        if (i < files.length - 1) {
+          // Small delay between downloads to avoid browser blocking multiple
+          // files in browsers that rate-limit synthetic clicks.
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+      }
+
+      setSelectedIds(new Set());
+      const totalExported = resolved.length;
+      const fileNote = files.length > 1 ? ` across ${files.length} files (grouped by slate, sport, platform & format)` : "";
+      toast({ title: "Bulk Export Complete", description: `${totalExported} lineup${totalExported > 1 ? "s" : ""} exported${fileNote}.` });
+    } catch (err: any) {
+      toast({
+        title: "Export Failed",
+        description: err?.message || "Could not load all selected lineup details.",
+        variant: "destructive",
+      });
+    } finally {
+      exportInFlightRef.current = false;
+      setExportInFlight(false);
     }
-
-    let totalExported = 0;
-    const fileCount = groups.size;
-
-    for (const [key, groupLineups] of groups.entries()) {
-      const [platform, sport, gameType] = key.split("::");
-      const csv = buildPlatformCSV(groupLineups);
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const platformLabel = getPlatformLabel(platform);
-      // e.g. elitelineup_nba_fd_3_lineups.csv
-      a.download = `elitelineup_${sport.toLowerCase()}_${platformLabel.toLowerCase()}_${gameType}_${groupLineups.length}_lineup${groupLineups.length > 1 ? "s" : ""}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-      totalExported += groupLineups.length;
-      // Small delay between downloads to avoid browser blocking multiple files
-      if (fileCount > 1) await new Promise(r => setTimeout(r, 300));
-    }
-
-    setSelectedIds(new Set());
-    const fileNote = fileCount > 1 ? ` across ${fileCount} files (grouped by platform & sport)` : "";
-    toast({ title: "Bulk Export Complete", description: `${totalExported} lineup${totalExported > 1 ? "s" : ""} exported${fileNote}.` });
   }
 
   function toggleSelect(id: number) {
@@ -1025,10 +1287,12 @@ export default function SavedLineups() {
                       {isPaid && (
                         <Button
                           onClick={handleBulkExport}
+                          disabled={exportInFlight}
                           className="bg-emerald-600 hover:bg-emerald-700 text-white"
                           data-testid="bulk-export-btn"
                         >
-                          <Download className="w-4 h-4 mr-2" /> Export {selectedIds.size}
+                          {exportInFlight ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                          {exportInFlight ? "Exporting..." : `Export ${selectedIds.size}`}
                         </Button>
                       )}
                     </>
@@ -1561,6 +1825,7 @@ export default function SavedLineups() {
                     isPaid={isPaid}
                     isPro={isPro}
                     isUpdating={updateMutation.isPending}
+                    isExporting={exportInFlight}
                     isSelected={selectedIds.has(lineup.id)}
                     onToggleSelect={() => toggleSelect(lineup.id)}
                     grade={lineupGrades.get(lineup.id)}
@@ -1885,6 +2150,7 @@ function LineupCard({
   isPaid,
   isPro,
   isUpdating,
+  isExporting,
   isSelected,
   onToggleSelect,
   grade,
@@ -1900,6 +2166,7 @@ function LineupCard({
   isPaid: boolean;
   isPro: boolean;
   isUpdating: boolean;
+  isExporting: boolean;
   isSelected: boolean;
   onToggleSelect: () => void;
   grade?: LineupGrade;
@@ -2037,12 +2304,12 @@ function LineupCard({
               onClick={() => {
                 if (lineupDetail) onExport(lineupDetail);
               }}
-              disabled={!isExpanded || !lineupDetail}
+              disabled={!isExpanded || !lineupDetail || isExporting}
               className={`h-8 w-8 ${isPaid || isShowdownLineup(lineupDetail || lineup) ? "text-emerald-400 hover:bg-emerald-500/10" : "text-slate-500 opacity-50"}`}
               title={isPaid || isShowdownLineup(lineupDetail || lineup) ? `Export ${getPlatformLabel(lineup.platform)} CSV` : "Upgrade to export"}
               data-testid={`export-btn-${lineup.id}`}
             >
-              {isPaid || isShowdownLineup(lineupDetail || lineup) ? <Download className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+              {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : isPaid || isShowdownLineup(lineupDetail || lineup) ? <Download className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
             </Button>
             <Button
               variant="ghost"

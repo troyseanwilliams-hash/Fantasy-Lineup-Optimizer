@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Download } from "@playwright/test";
 
 const normalSlate = {
   id: 920001,
@@ -221,6 +221,11 @@ async function mockSavedLineupsApi(
       return;
     }
 
+    if (path.startsWith("/api/player-overrides/")) {
+      await route.fulfill({ json: [] });
+      return;
+    }
+
     if (path === "/api/lineups/review") {
       if (!authReady) reviewBeforeAuth++;
       if (reviewMode === "fail" || reviewMode === "fail-next") {
@@ -333,6 +338,60 @@ test("saved normal and showdown summary cards expand snapshots and scroll to the
   const finalCard = page.getByTestId(`lineup-card-${lineups[lineups.length - 1].id}`);
   await finalCard.scrollIntoViewIfNeeded();
   await expect(finalCard).toBeInViewport();
+});
+
+test("bulk export separates slates and uses verified captain and flex IDs", async ({ page }) => {
+  const lineups = makeManyLineups().slice(0, 2);
+  await mockSavedLineupsApi(page, { lineups });
+  await page.route("**/api/exports/resolve-players", async route => {
+    const body = route.request().postDataJSON();
+    const lineup = lineups.find(item => item.slateId === body.slateId)!;
+    const slate = body.slateId === normalSlate.id ? normalSlate : showdownSlate;
+    await route.fulfill({ json: {
+      slate: { ...slate, draftGroupId: slate.id + 100 },
+      players: lineup.playerSnapshot.map(player => ({
+        ...player,
+        draftKingsPlayerId: player.id + (body.captainId === player.id ? 20000000 : 10000000),
+      })),
+    } });
+  });
+  await gotoLineups(page);
+  await page.getByTestId("select-all-btn").click();
+  const downloads: Download[] = [];
+  page.on("download", download => downloads.push(download));
+  await page.getByTestId("bulk-export-btn").click();
+  await expect.poll(() => downloads.length).toBe(2);
+  const files = await Promise.all(downloads.map(async download => {
+    const stream = await download.createReadStream();
+    let text = "";
+    for await (const chunk of stream!) text += chunk.toString();
+    return { name: download.suggestedFilename(), text };
+  }));
+  const classic = files.find(file => /^"?QB"?,/.test(file.text))!;
+  const showdown = files.find(file => /^"?CPT"?,/.test(file.text))!;
+  expect(classic).toBeTruthy();
+  expect(showdown).toBeTruthy();
+  expect(classic.name).toContain(String(normalSlate.id));
+  expect(showdown.name).toContain(String(showdownSlate.id));
+  expect(classic.text.trim().split("\n")).toHaveLength(2);
+  expect(showdown.text.trim().split("\n")).toHaveLength(2);
+  const captain = lineups[1].playerSnapshot.find(player => player.isCaptain)!;
+  expect(showdown.text).toContain(`(${captain.id + 20000000})`);
+  expect(showdown.text).not.toContain(`(${captain.id + 10000000})`);
+});
+
+test("export refuses unverifiable slate IDs instead of downloading an invalid file", async ({ page }) => {
+  const lineups = makeManyLineups().slice(0, 1);
+  await mockSavedLineupsApi(page, { lineups });
+  await page.route("**/api/exports/resolve-players", route =>
+    route.fulfill({ status: 409, json: { message: "Player IDs could not be verified for this slate." } }));
+  await gotoLineups(page);
+  await page.getByTestId("select-all-btn").click();
+  const downloads: Download[] = [];
+  page.on("download", download => downloads.push(download));
+  await page.getByTestId("bulk-export-btn").click();
+  await expect(page.getByText(/Player IDs could not be verified for this slate/).first()).toBeVisible();
+  expect(downloads).toHaveLength(0);
 });
 
 test("a failed saved-lineups GET shows its error, recovers, and preserves cards after a failed refresh", async ({ page }) => {

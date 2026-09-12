@@ -24,6 +24,35 @@ export const errorSchemas = {
 };
 
 export const api = {
+  exports: {
+    resolvePlayers: {
+      method: 'POST' as const,
+      path: '/api/exports/resolve-players' as const,
+      input: z.object({
+        slateId: z.number().int().positive(),
+        playerIds: z.array(z.number().int().positive()).min(1),
+        captainId: z.number().int().positive().optional(),
+      }),
+      responses: {
+        200: z.object({
+          slate: z.object({
+            id: z.number(),
+            sport: z.string(),
+            platform: z.string(),
+            draftGroupId: z.number().nullable(),
+            gameType: z.string(),
+            label: z.string(),
+            name: z.string(),
+          }),
+          players: z.array(z.custom<typeof players.$inferSelect>()),
+        }),
+        400: errorSchemas.validation,
+        401: z.object({ message: z.string() }),
+        404: errorSchemas.notFound,
+        503: errorSchemas.internal,
+      },
+    },
+  },
   slates: {
     list: {
       method: 'GET' as const,
