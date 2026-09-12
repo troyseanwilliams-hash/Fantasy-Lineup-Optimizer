@@ -7,7 +7,6 @@ import { eq, and, lt, sql, desc, gte, inArray } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
-import solver from "javascript-lp-solver";
 import { getPlatformConfig, ACTIVE_SPORTS, assignPlayersToSlots, type Platform } from "@shared/platform-config";
 import { computeBoostScores, computeCorrelationBonus, applyCeilingMode, applyLeverageMode, applyActualAdjustedProjections, applyWinningLineupAdjustment, applyOutperformerMode } from "./boost-engine";
 import { getHistoricalProfile, applyHistoricalAdjustments } from "./historical-adjustments";
@@ -26,7 +25,7 @@ import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus, fetchLiv
 import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
 import { getLiveScores, getAllLiveScores, fetchESPNStarters } from "./espn-scores";
 import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analyzeManualPicks, generateProjectionsFromPlayers, getLineMovements } from "./prizepicks";
-import { fetchBDLStats, type PlayerStatsMap, normalizeName } from "./balldontlie-stats";
+import { fetchBDLStats, normalizeName } from "./balldontlie-stats";
 import { refreshRecentlyPlayed, getRecentlyPlayedCache, normalizePlayerName } from "./espn-activity";
 import { calculateOwnership, computeOwnershipForPlayers, type ContestType } from "./ownership-engine";
 import { getCachedSignals, getScoutStatus, refreshAll, forceRefreshAll, secondsUntilRefresh, triggerLazyRefreshIfStale } from "./ai-scout";
@@ -38,6 +37,8 @@ import { buildDvPContext, applyDvPToProjections, buildOpponentMap } from "./dvp-
 import { fetchStartingLineups, getStartingLineupsData, clearLineupsCache } from "./lineups-ingest";
 import { projectionAccuracyRouter } from "./projection-accuracy-route";
 import { deactivateExpiredSlates } from "./slate-lifecycle";
+import { solveWithBudget, validatedIntegralResult, remainingSolverTime, yieldToEventLoop, type SolverBudget } from "./solver-guard";
+import { createLineupEnrichmentLoader } from "./lineups-enrichment";
 
 
 async function loadOverridesWithCrossRef(
@@ -623,6 +624,8 @@ export async function registerRoutes(
   });
 
   app.post(api.optimizer.optimize.path, async (req, res) => {
+    const optimizeStartTime = Date.now();
+    const optimizeDeadline = optimizeStartTime + 26_000;
     try {
       const constraints = api.optimizer.optimize.input.parse(req.body);
       const slate = await storage.getSlate(constraints.slateId);
@@ -733,12 +736,14 @@ export async function registerRoutes(
           console.warn("[NFL Optimizer] Ownership calculation unavailable; using projection-based GPP scoring.", error);
         }
       }
+      await yieldToEventLoop();
       const result = solveLineup(
         salaryFilteredPool,
         { ...constraints, lockedPlayerIds: mergedLocked, excludedPlayerIds: mergedExclusions, contestType },
         slate.sport,
         platform,
         ownershipByPlayerId,
+        { deadline: optimizeDeadline, timeoutMs: 2_000 },
       );
 
       if (result.error) {
@@ -754,7 +759,14 @@ export async function registerRoutes(
         return res.status(400).json(result);
       }
 
-      res.json({ ...result, platform });
+      res.json({
+        ...result,
+        platform,
+        partial: !!result.timedOut,
+        message: result.timedOut
+          ? "Partial results: returned a validated lineup before the solver time budget was reached."
+          : undefined,
+      });
 
     } catch (err) {
        if (err instanceof z.ZodError) {
@@ -768,79 +780,73 @@ export async function registerRoutes(
 
   app.get(api.lineups.list.path, async (req, res) => {
     if (!isLoggedIn(req)) return res.sendStatus(401);
-    const userId = getSessionUserId(req)!;
-    const lineups = await storage.getLineups(userId);
+    try {
+      const userId = getSessionUserId(req)!;
+      const lineups = await storage.getLineups(userId);
+      const enrichmentLoader = createLineupEnrichmentLoader({
+        getPlayersBySlate: storage.getPlayersBySlate.bind(storage),
+        getSlate: storage.getSlate.bind(storage),
+        fetchBDLStats,
+        calculateOwnership,
+        computeOwnershipForPlayers,
+      });
+      const enriched = await Promise.all(lineups.map(async (lineup: any) => {
+        const { allWithOwnership, playerIdSet, gameType } =
+          await enrichmentLoader.getSlateEnrichment(lineup.slateId);
+        const rosterOwn = allWithOwnership
+          .filter(p => lineup.playerIds.includes(p.id))
+          .reduce((sum, p) => sum + p.ownershipProjection, 0);
+        const resolvedCount = lineup.playerIds.filter((id: number) => playerIdSet.has(id)).length;
+        const isOrphaned = resolvedCount < lineup.playerIds.length;
+        return {
+          ...lineup,
+          gameType,
+          isShowdown: gameType?.toLowerCase() === "showdown",
+          totalOwnership: Math.round(rosterOwn * 10) / 10,
+          isOrphaned,
+        };
+      }));
 
-    const slateCache = new Map<number, (Player & { ownershipProjection: number })[]>();
-    const slatePlayerIdCache = new Map<number, Set<number>>();
-    const slateGameTypeCache = new Map<number, string | null>();
-    const bdlCache = new Map<string, PlayerStatsMap>();
-    const enriched = await Promise.all(lineups.map(async (lineup: any) => {
-      if (!slateCache.has(lineup.slateId)) {
-        const slatePlayers = await storage.getPlayersBySlate(lineup.slateId);
-        const slate = await storage.getSlate(lineup.slateId);
-        slateGameTypeCache.set(lineup.slateId, slate?.gameType || null);
-        const sport = slate?.sport || "NBA";
-        if (!bdlCache.has(sport)) {
-          bdlCache.set(sport, await fetchBDLStats(sport));
-        }
-        const ownershipResults = await calculateOwnership(slatePlayers, sport, "gpp_large", bdlCache.get(sport));
-        slateCache.set(lineup.slateId, computeOwnershipForPlayers(slatePlayers, ownershipResults));
-        slatePlayerIdCache.set(lineup.slateId, new Set(slatePlayers.map(p => p.id)));
+      const snapshotNames = new Set<string>();
+      for (const lu of enriched) {
+        const snap = lu.playerSnapshot && Array.isArray(lu.playerSnapshot) ? lu.playerSnapshot as any[] : [];
+        for (const p of snap) { if (p.name) snapshotNames.add(p.name); }
       }
-      const allWithOwn = slateCache.get(lineup.slateId)!;
-      const playerIdSet = slatePlayerIdCache.get(lineup.slateId)!;
-      const rosterOwn = allWithOwn
-        .filter(p => lineup.playerIds.includes(p.id))
-        .reduce((sum, p) => sum + p.ownershipProjection, 0);
-      const resolvedCount = lineup.playerIds.filter((id: number) => playerIdSet.has(id)).length;
-      const isOrphaned = resolvedCount < lineup.playerIds.length;
-      const gameType = slateGameTypeCache.get(lineup.slateId) || null;
-      return {
-        ...lineup,
-        gameType,
-        isShowdown: gameType?.toLowerCase() === "showdown",
-        totalOwnership: Math.round(rosterOwn * 10) / 10,
-        isOrphaned,
-      };
-    }));
-
-    const snapshotNames = new Set<string>();
-    for (const lu of enriched) {
-      const snap = lu.playerSnapshot && Array.isArray(lu.playerSnapshot) ? lu.playerSnapshot as any[] : [];
-      for (const p of snap) { if (p.name) snapshotNames.add(p.name); }
-    }
-    if (snapshotNames.size > 0) {
-      try {
-        const historyRows = await storage.getRecentPlayerHistory(Array.from(snapshotNames));
-        const actualMap = new Map<string, { actualPoints: number; gamesTracked: number }>();
-        for (const h of historyRows) {
-          const existing = actualMap.get(h.playerName);
-          if (!existing) {
-            actualMap.set(h.playerName, { actualPoints: Number(h.actualPoints), gamesTracked: 1 });
-          } else if (existing.gamesTracked < 5) {
-            actualMap.set(h.playerName, {
-              actualPoints: (existing.actualPoints * existing.gamesTracked + Number(h.actualPoints)) / (existing.gamesTracked + 1),
-              gamesTracked: existing.gamesTracked + 1,
-            });
-          }
-        }
-        for (const lu of enriched) {
-          const snap = lu.playerSnapshot && Array.isArray(lu.playerSnapshot) ? lu.playerSnapshot as any[] : [];
-          for (const p of snap) {
-            const actual = actualMap.get(p.name);
-            if (actual) {
-              (p as any).recentActualAvg = Math.round(actual.actualPoints * 10) / 10;
-              (p as any).gamesTracked = actual.gamesTracked;
+      if (snapshotNames.size > 0) {
+        try {
+          const historyRows = await storage.getRecentPlayerHistory(Array.from(snapshotNames));
+          const actualMap = new Map<string, { actualPoints: number; gamesTracked: number }>();
+          for (const h of historyRows) {
+            const existing = actualMap.get(h.playerName);
+            if (!existing) {
+              actualMap.set(h.playerName, { actualPoints: Number(h.actualPoints), gamesTracked: 1 });
+            } else if (existing.gamesTracked < 5) {
+              actualMap.set(h.playerName, {
+                actualPoints: (existing.actualPoints * existing.gamesTracked + Number(h.actualPoints)) / (existing.gamesTracked + 1),
+                gamesTracked: existing.gamesTracked + 1,
+              });
             }
           }
+          for (const lu of enriched) {
+            const snap = lu.playerSnapshot && Array.isArray(lu.playerSnapshot) ? lu.playerSnapshot as any[] : [];
+            for (const p of snap) {
+              const actual = actualMap.get(p.name);
+              if (actual) {
+                (p as any).recentActualAvg = Math.round(actual.actualPoints * 10) / 10;
+                (p as any).gamesTracked = actual.gamesTracked;
+              }
+            }
+          }
+        } catch (err) {
+          console.error("[Lineups] snapshot enrichment error:", err);
         }
-      } catch (err) {
-        console.error("[Lineups] snapshot enrichment error:", err);
       }
-    }
 
-    res.json(enriched);
+      return res.json(enriched);
+    } catch (err) {
+      console.error("[Lineups] failed to load lineups:", err);
+      return res.status(500).json({ message: "Failed to fetch lineups" });
+    }
   });
 
   app.post(api.lineups.create.path, async (req, res) => {
@@ -1223,6 +1229,9 @@ export async function registerRoutes(
       return res.status(403).json({ message: "Sharpshooter or Champion subscription required.", requiresUpgrade: true });
     }
 
+    const bulkStartTime = Date.now();
+    const bulkSolveDeadline = bulkStartTime + 26_000;
+    let bulkTimedOut = false;
     const results: { id: number; status: string; error?: string }[] = [];
 
     const slateCache = new Map<number, { slate: any; pool: Player[]; allPlayers: Player[]; baseExcluded: number[]; platform: Platform; lockedOverrideIds: number[]; overrideExposure: Record<string, { min?: number; max?: number }> }>();
@@ -1238,6 +1247,13 @@ export async function registerRoutes(
     const origSlatePerGroup = new Map<number, number>();
 
     for (const id of ids) {
+      if (Date.now() >= bulkSolveDeadline) {
+        bulkTimedOut = true;
+        for (const remainingId of ids.slice(results.length)) {
+          results.push({ id: Number(remainingId), status: "skipped", error: "Partial results: bulk solver time budget reached." });
+        }
+        break;
+      }
       const lineup = await storage.getLineup(Number(id));
       if (!lineup || lineup.userId !== userId) {
         results.push({ id, status: "skipped", error: "Not found or not yours" });
@@ -1356,6 +1372,10 @@ export async function registerRoutes(
       let updated = false;
 
       for (let attempt = 0; attempt < maxAttempts && !updated; attempt++) {
+        if (Date.now() >= bulkSolveDeadline) {
+          bulkTimedOut = true;
+          break;
+        }
         const noiseScale = (iteration + attempt) === 0 ? 0 : Math.min(0.10 + (iteration + attempt) * 0.04, 0.40);
         const perturbedPool = pool.map(p => {
           const base = Number(p.projectedPoints);
@@ -1405,12 +1425,16 @@ export async function registerRoutes(
           : perturbedPool;
 
         const bulkContestType = req.body.contestType === "gpp" ? "gpp" : "cash";
+        await yieldToEventLoop();
         const solveResult = solveLineup(
           salaryFilteredPool,
           { slateId: effectiveSlateId, platform, lockedPlayerIds: [...new Set([...lockedOverrideIds, ...bulkMinLocks])], excludedPlayerIds: iterationExcluded, maxSalary: undefined, minSalary: undefined, playerProjections: {}, contestType: bulkContestType } as any,
           slate.sport,
-          platform
+          platform,
+          undefined,
+          { deadline: bulkSolveDeadline, timeoutMs: 2_000 },
         );
+        if (solveResult.timedOut) bulkTimedOut = true;
 
         if (solveResult.error || !solveResult.lineup || solveResult.lineup.length === 0) {
           if (attempt === 0) console.log(`[BulkGenerate] Solver failed for lineup ${id} attempt ${attempt}: ${solveResult.error || 'empty result'}, pool=${salaryFilteredPool.length}, excluded=${iterationExcluded.length}`);
@@ -1465,7 +1489,15 @@ export async function registerRoutes(
     }
 
     const updatedCount = results.filter(r => r.status === "updated").length;
-    res.json({ results, updated: updatedCount, total: ids.length });
+    res.json({
+      results,
+      updated: updatedCount,
+      total: ids.length,
+      partial: bulkTimedOut,
+      message: bulkTimedOut
+        ? `Partial results: updated ${updatedCount} of ${ids.length} lineups before the solver time budget was reached.`
+        : undefined,
+    });
   });
 
   app.post("/api/lineups/sim-score", async (req, res) => {
@@ -1596,6 +1628,8 @@ export async function registerRoutes(
     const startTime = Date.now();
     const LP_BUDGET_MS = 20000;
     const MAX_RUNTIME_MS = 35000;
+    const solverDeadline = startTime + MAX_RUNTIME_MS - 3_000;
+    let simRegenTimedOut = false;
 
     console.log(`[SimRegen] Starting: ${ids.length} lineups, max ${tierSims} sims (tier=${tier}), sortBy=${sortKey}, contest=${simContestType}, boosts=${useBoosts}, ceiling=${ceilingMode}, leverage=${leverageMode}, opm=${outperformerMode}, maxExp=${globalMaxExposure}, minExp=${globalMinExposure}, projFloor=${projFloor}, minSal=${minSalary}, maxSal=${maxSalary}, overrideSlate=${overrideSlateId}`);
 
@@ -1608,6 +1642,10 @@ export async function registerRoutes(
       const results: { id: number; status: string; error?: string }[] = [];
 
       for (const id of ids) {
+        if (Date.now() >= solverDeadline) {
+          simRegenTimedOut = true;
+          break;
+        }
         const lineup = await storage.getLineup(Number(id));
         if (!lineup || lineup.userId !== userId) {
           results.push({ id: Number(id), status: "skipped", error: "Not found or not yours" });
@@ -1800,8 +1838,11 @@ export async function registerRoutes(
         const baselineResult = solveLineup(
           lpPool,
           { slateId, lockedPlayerIds: [...simRegenLocked], excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
-          slate.sport, platform
+          slate.sport, platform,
+          undefined,
+          { deadline: solverDeadline, timeoutMs: 2_000 },
         );
+        if (baselineResult.timedOut) simRegenTimedOut = true;
         const baselineTotal = baselineResult.totalProjectedPoints || 0;
         const autoFloor = baselineTotal > 0 ? Math.round(baselineTotal * 0.85 * 10) / 10 : 0;
         console.log(`[SimRegen] Baseline optimal: ${baselineTotal.toFixed(1)} pts, auto floor: ${autoFloor}`);
@@ -1810,7 +1851,12 @@ export async function registerRoutes(
         const calibrationSims = runSimulations(pool, slate.sport, CALIBRATION_BATCH, dvpAdjusted, vegasContext ?? undefined);
 
         const calStart = Date.now();
+        let calibrationAttempts = 0;
         for (let i = 0; i < calibrationSims.length; i++) {
+          if (Date.now() >= solverDeadline) {
+            simRegenTimedOut = true;
+            break;
+          }
           const sim = calibrationSims[i];
           const simPool = lpPool.map(p => {
             const simProj = sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0;
@@ -1820,11 +1866,16 @@ export async function registerRoutes(
             return { ...p, projectedPoints: Math.max(0, blended + noise).toString() };
           });
           const simLocks = getSimLocks(i, 200);
+          await yieldToEventLoop();
+          calibrationAttempts++;
           const result = solveLineup(
             simPool,
             { slateId, lockedPlayerIds: simLocks, excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
-            slate.sport, platform
+            slate.sport, platform,
+            undefined,
+            { deadline: solverDeadline, timeoutMs: 2_000 },
           );
+          if (result.timedOut) simRegenTimedOut = true;
           if (result.error || result.lineup.length === 0) continue;
           const key = result.lineup.map((p: Player) => p.id).sort().join(",");
           const existing = lineupMap.get(key);
@@ -1832,12 +1883,16 @@ export async function registerRoutes(
           else { lineupMap.set(key, { lineup: result.lineup as Player[], frequency: 1, simScores: [result.totalProjectedPoints] }); }
         }
         const calElapsed = Date.now() - calStart;
-        const msPerSolve = Math.max(1, calElapsed / CALIBRATION_BATCH);
+        const msPerSolve = Math.max(1, calElapsed / Math.max(1, calibrationAttempts));
 
         if (lineupMap.size === 0 && lpPool.length < pool.length) {
           console.log(`[SimRegen] Trimmed pool infeasible, falling back to full pool (${pool.length} players)`);
           lpPool = pool;
           for (let i = 0; i < calibrationSims.length; i++) {
+            if (Date.now() >= solverDeadline) {
+              simRegenTimedOut = true;
+              break;
+            }
             const sim = calibrationSims[i];
             const simPool = lpPool.map(p => {
               const simProj = sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0;
@@ -1847,7 +1902,16 @@ export async function registerRoutes(
               return { ...p, projectedPoints: Math.max(0, blended + noise).toString() };
             });
             const fbLocks = getSimLocks(i, 200);
-            const result = solveLineup(simPool, { slateId, lockedPlayerIds: fbLocks, excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints, slate.sport, platform);
+            await yieldToEventLoop();
+            const result = solveLineup(
+              simPool,
+              { slateId, lockedPlayerIds: fbLocks, excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
+              slate.sport,
+              platform,
+              undefined,
+              { deadline: solverDeadline, timeoutMs: 2_000 },
+            );
+            if (result.timedOut) simRegenTimedOut = true;
             if (result.error || result.lineup.length === 0) continue;
             const key = result.lineup.map((p: Player) => p.id).sort().join(",");
             const existing = lineupMap.get(key);
@@ -1870,7 +1934,8 @@ export async function registerRoutes(
 
         let actualSimsSolved = CALIBRATION_BATCH;
         for (let i = CALIBRATION_BATCH; i < allSims.length; i++) {
-          if (Date.now() - startTime > MAX_RUNTIME_MS) {
+          if (Date.now() >= solverDeadline) {
+            simRegenTimedOut = true;
             console.log(`[SimRegen] Hard time cap reached after ${actualSimsSolved} sims`);
             break;
           }
@@ -1883,11 +1948,15 @@ export async function registerRoutes(
             return { ...p, projectedPoints: Math.max(0, blended + noise).toString() };
           });
           const mainLocks = getSimLocks(i, totalTargetSims);
+          await yieldToEventLoop();
           const result = solveLineup(
             simPool,
             { slateId, lockedPlayerIds: mainLocks, excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
-            slate.sport, platform
+            slate.sport, platform,
+            undefined,
+            { deadline: solverDeadline, timeoutMs: 2_000 },
           );
+          if (result.timedOut) simRegenTimedOut = true;
           actualSimsSolved++;
           if (result.error || result.lineup.length === 0) continue;
           const key = result.lineup.map((p: Player) => p.id).sort().join(",");
@@ -2090,7 +2159,17 @@ export async function registerRoutes(
       const updatedCount = results.filter(r => r.status === "updated").length;
       const totalElapsed = Date.now() - startTime;
       console.log(`[SimRegen] Completed: ${updatedCount}/${ids.length} lineups regenerated by ${sortKey}, ${totalElapsed}ms`);
-      res.json({ results, updated: updatedCount, total: ids.length, simsRun: totalSimsRun || tierSims, sortBy: sortKey });
+      res.json({
+        results,
+        updated: updatedCount,
+        total: ids.length,
+        simsRun: totalSimsRun || tierSims,
+        sortBy: sortKey,
+        partial: simRegenTimedOut || Date.now() >= solverDeadline,
+        message: simRegenTimedOut || Date.now() >= solverDeadline
+          ? `Partial results: regenerated ${updatedCount} of ${ids.length} lineups before the solver time budget was reached.`
+          : undefined,
+      });
     } catch (err: any) {
       console.error("[SimRegen] Error:", err);
       res.status(500).json({ message: err.message || "Sim regeneration failed" });
@@ -4151,6 +4230,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/optimize/pro", async (req, res) => {
+    const proSolveDeadline = Date.now() + 26_000;
     try {
       if (!isLoggedIn(req)) return res.sendStatus(401);
       const userId = getSessionUserId(req)!;
@@ -4313,13 +4393,14 @@ export async function registerRoutes(
 
       const maxAttempts = constraints.lineupCount * 10;
       let attempts = 0;
-      const SOLVER_TIMEOUT = 45000;
+      let proTimedOut = false;
 
       const playerAppearances: Record<number, number> = {};
       const candidateLineups: { result: any; correlationScore: number }[] = [];
 
       while (lineupResults.length < constraints.lineupCount && attempts < maxAttempts) {
-        if (Date.now() - proStartTime > SOLVER_TIMEOUT) {
+        if (Date.now() >= proSolveDeadline) {
+          proTimedOut = true;
           console.log(`[ProOptimizer] Timeout after ${attempts} attempts, ${lineupResults.length} lineups found`);
           break;
         }
@@ -4389,9 +4470,18 @@ export async function registerRoutes(
 
         const combinedLocks = [...new Set([...constraints.lockedPlayerIds, ...minExposureLocks])];
         const modConstraints = { ...constraints, excludedPlayerIds: iterationExcluded, lockedPlayerIds: combinedLocks };
+        await yieldToEventLoop();
         const solveStart = Date.now();
-        const result = solveLineup(perturbedPool, modConstraints, slate.sport, platform);
+        const result = solveLineup(
+          perturbedPool,
+          modConstraints,
+          slate.sport,
+          platform,
+          undefined,
+          { deadline: proSolveDeadline, timeoutMs: 2_000 },
+        );
         console.log(`[ProOptimizer] Solve attempt ${attempts} took ${Date.now() - solveStart}ms, feasible: ${!result.error}`);
+        if (result.timedOut) proTimedOut = true;
 
         if (!result.error && result.lineup.length > 0) {
           const key = result.lineup.map((p: Player) => p.id).sort().join(",");
@@ -4403,6 +4493,10 @@ export async function registerRoutes(
               playerAppearances[p.id] = (playerAppearances[p.id] || 0) + 1;
             }
           }
+        }
+        if (Date.now() >= proSolveDeadline) {
+          proTimedOut = true;
+          break;
         }
       }
 
@@ -4432,13 +4526,18 @@ export async function registerRoutes(
           detail: p.injuryDetail || "",
         }));
 
+      const partialResults = proTimedOut || Date.now() >= proSolveDeadline;
       const message = lineupResults.length === 0
         ? constraints.projectedPointsFloor
           ? `No lineups could reach the ${constraints.projectedPointsFloor}-point floor. Try lowering it or relaxing other constraints.`
-          : "Could not generate any feasible lineups with the current constraints."
-        : undefined;
+          : partialResults
+            ? "Solver time budget reached before a validated lineup was generated."
+            : "Could not generate any feasible lineups with the current constraints."
+        : partialResults
+          ? `Partial results: generated ${lineupResults.length} of ${constraints.lineupCount} requested lineups before the solver time budget was reached.`
+          : undefined;
 
-      res.json({ lineups: lineupResults, boostsSummary, injurySummary, message });
+      res.json({ lineups: lineupResults, boostsSummary, injurySummary, message, partial: partialResults });
     } catch (err) {
       if (err instanceof z.ZodError) {
         res.status(400).json({ message: err.errors[0].message });
@@ -4479,6 +4578,12 @@ export async function registerRoutes(
 
     const startTime = Date.now();
     const MAX_RUNTIME_MS = 30_000;
+    // Leave time for candidate scoring and serialization. A synchronous MIP
+    // solve cannot be cancelled from outside the solver, so every attempt
+    // also receives the remaining absolute deadline below.
+    const RESPONSE_RESERVE_MS = 4_000;
+    const solverDeadline = startTime + MAX_RUNTIME_MS - RESPONSE_RESERVE_MS;
+    let simTimedOut = false;
 
     try {
       const userId = getSessionUserId(req)!;
@@ -4705,14 +4810,29 @@ export async function registerRoutes(
       } as OptimizationConstraints;
 
       const calT0 = Date.now();
+      let calibrationAttempts = 0;
       for (let i = 0; i < calSims.length; i++) {
+        if (Date.now() >= solverDeadline) {
+          simTimedOut = true;
+          break;
+        }
         const sim = calSims[i];
         const simPool = lpSimPool.map(p => {
           const simProj = sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0;
           const noise = simProj * (Math.random() * 0.06 - 0.03);
           return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
         });
-        const result = solveLineup(simPool, simConstraintsBase, sport, platform);
+        await yieldToEventLoop();
+        calibrationAttempts++;
+        const result = solveLineup(
+          simPool,
+          simConstraintsBase,
+          sport,
+          platform,
+          undefined,
+          { deadline: solverDeadline, timeoutMs: 2_000 },
+        );
+        if (result.timedOut) simTimedOut = true;
         if (result.error || result.lineup.length === 0) continue;
         const key = result.lineup.map((p: Player) => p.id).sort().join(",");
         const existing = lineupMap.get(key);
@@ -4720,19 +4840,32 @@ export async function registerRoutes(
         else { lineupMap.set(key, { lineup: result.lineup as Player[], frequency: 1, simScores: [result.totalProjectedPoints] }); }
       }
       const calMs = Date.now() - calT0;
-      const msPerLP = Math.max(1, calMs / SIM_CAL_BATCH);
+      const msPerLP = Math.max(1, calMs / Math.max(1, calibrationAttempts));
 
       if (lineupMap.size === 0 && lpSimPool.length < pool.length) {
         console.log(`[SimOptimizer] Trimmed pool infeasible, falling back to full pool (${pool.length} players)`);
         lpSimPool = pool;
         for (let i = 0; i < calSims.length; i++) {
+          if (Date.now() >= solverDeadline) {
+            simTimedOut = true;
+            break;
+          }
           const sim = calSims[i];
           const simPool = lpSimPool.map(p => {
             const simProj = sim.projections[p.id] ?? Number(p.projectedPoints) ?? 0;
             const noise = simProj * (Math.random() * 0.06 - 0.03);
             return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
           });
-          const result = solveLineup(simPool, simConstraintsBase, sport, platform);
+          await yieldToEventLoop();
+          const result = solveLineup(
+            simPool,
+            simConstraintsBase,
+            sport,
+            platform,
+            undefined,
+            { deadline: solverDeadline, timeoutMs: 2_000 },
+          );
+          if (result.timedOut) simTimedOut = true;
           if (result.error || result.lineup.length === 0) continue;
           const key = result.lineup.map((p: Player) => p.id).sort().join(",");
           const existing = lineupMap.get(key);
@@ -4750,7 +4883,8 @@ export async function registerRoutes(
       const sims = [...calSims, ...remainingSims];
 
       for (let i = SIM_CAL_BATCH; i < sims.length; i++) {
-        if (Date.now() - startTime > MAX_RUNTIME_MS) {
+        if (Date.now() >= solverDeadline) {
+          simTimedOut = true;
           console.log(`[SimOptimizer] Time cap reached after ${i} sims`);
           break;
         }
@@ -4760,7 +4894,16 @@ export async function registerRoutes(
           const noise = simProj * (Math.random() * 0.06 - 0.03);
           return { ...p, projectedPoints: Math.max(0, simProj + noise).toString() };
         });
-        const result = solveLineup(simPool, simConstraintsBase, sport, platform);
+        await yieldToEventLoop();
+        const result = solveLineup(
+          simPool,
+          simConstraintsBase,
+          sport,
+          platform,
+          undefined,
+          { deadline: solverDeadline, timeoutMs: 2_000 },
+        );
+        if (result.timedOut) simTimedOut = true;
         if (result.error || result.lineup.length === 0) continue;
         const key = result.lineup.map((p: Player) => p.id).sort().join(",");
         const existing = lineupMap.get(key);
@@ -4769,12 +4912,16 @@ export async function registerRoutes(
       }
 
       if (lineupMap.size === 0) {
+        const partial = simTimedOut || Date.now() >= solverDeadline;
         return res.status(200).json({
           lineups: [],
           message: stackGameKeys.length
             ? "No feasible lineups satisfy your selected game stacks. Check player locks, exclusions, and salary filters, or select another game."
-            : "No feasible lineups found in simulations. Try relaxing constraints.",
+            : partial
+              ? "Partial results: the solver time budget expired before a validated lineup was generated."
+              : "No feasible lineups found in simulations. Try relaxing constraints.",
           simsRun: sims.length,
+          partial,
         });
       }
 
@@ -4948,6 +5095,10 @@ export async function registerRoutes(
       }
 
       const elapsedMs = Date.now() - startTime;
+      const partial = simTimedOut || Date.now() >= solverDeadline;
+      const partialMessage = partial
+        ? `Partial results: generated ${selected.length} of ${input.lineupCount} requested lineups before the solver time budget was reached.`
+        : undefined;
 
       const ownershipMap: Record<number, number> = {};
       for (const lu of selected) {
@@ -4988,6 +5139,8 @@ export async function registerRoutes(
           dvpApplied,
           dvpTeamsFound:    dvpContext ? dvpContext.size / 8 : 0,
         },
+        partial,
+        message: partialMessage,
       });
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
@@ -5918,6 +6071,7 @@ export function solveLineup(
   sport: string,
   platform: Platform,
   ownershipByPlayerId?: Map<number, number>,
+  solverBudget?: SolverBudget,
 ) {
   const config = getPlatformConfig(sport, platform);
   const contestType = (constraints as any).contestType || "cash";
@@ -6062,10 +6216,21 @@ export function solveLineup(
     }
   }
 
-  const result: any = solver.Solve(model);
+  const guardedSolve = solveWithBudget(model, solverBudget);
+  const result = validatedIntegralResult(guardedSolve.result, model);
+  let solveTimedOut = guardedSolve.timedOut;
 
-  if (!result.feasible) {
-    return { error: "Could not find a feasible lineup with these constraints.", lineup: [], totalSalary: 0, totalProjectedPoints: 0 };
+  if (!result) {
+    return {
+      error: guardedSolve.timedOut
+        ? "Solver timed out before finding a validated feasible lineup."
+        : "Could not find a feasible lineup with these constraints.",
+      lineup: [],
+      totalSalary: 0,
+      totalProjectedPoints: 0,
+      timedOut: guardedSolve.timedOut,
+      solveTimeMs: guardedSolve.elapsedMs,
+    };
   }
 
   const selectedPlayerIds = Object.keys(result)
@@ -6084,6 +6249,7 @@ export function solveLineup(
       const gk = normalizeGameKey(p.gameInfo);
       if (gk) selectedGames.add(gk);
     }
+    let satisfiesGameConstraint = selectedGames.size >= 2;
     if (selectedGames.size < 2) {
       const retryModel = JSON.parse(JSON.stringify(model));
       const maxFromAnyGame = config.rosterSize - 1;
@@ -6096,8 +6262,27 @@ export function solveLineup(
           }
         }
       }
-      const retryResult: any = solver.Solve(retryModel);
-      if (retryResult.feasible) {
+      const retryBudget = solverBudget
+        ? { ...solverBudget, timeoutMs: Math.min(solverBudget.timeoutMs ?? guardedSolve.timeoutMs, remainingSolverTime(solverBudget)) }
+        : undefined;
+      const guardedRetry = solveWithBudget(retryModel, retryBudget);
+      const retryResult = validatedIntegralResult(guardedRetry.result, retryModel);
+      solveTimedOut = solveTimedOut || guardedRetry.timedOut;
+      if (guardedRetry.timedOut) {
+        // Keep the first incumbent only if it already passed validation;
+        // otherwise the caller receives the explicit timeout error below.
+        if (!retryResult) {
+          return {
+            error: "Solver timed out before the minimum two-game lineup constraint could be validated.",
+            lineup: [],
+            totalSalary: 0,
+            totalProjectedPoints: 0,
+            timedOut: true,
+            solveTimeMs: guardedRetry.elapsedMs,
+          };
+        }
+      }
+      if (retryResult) {
         const retryIds = Object.keys(retryResult)
           .filter(k => k.startsWith('p') && retryResult[k] > 0.5)
           .map(k => Number(k.substring(1)));
@@ -6110,8 +6295,17 @@ export function solveLineup(
           }
           if (retryGames.size >= 2) {
             selectedPlayers = retryPlayers;
+            satisfiesGameConstraint = true;
           }
         }
+      }
+      if (!satisfiesGameConstraint) {
+        return {
+          error: "Could not validate the minimum two-game lineup constraint.",
+          lineup: [],
+          totalSalary: 0,
+          totalProjectedPoints: 0,
+        };
       }
     }
   }
@@ -6128,7 +6322,9 @@ export function solveLineup(
   return {
     lineup: selectedPlayers,
     totalSalary,
-    totalProjectedPoints: totalPoints
+    totalProjectedPoints: totalPoints,
+    timedOut: solveTimedOut,
+    solveTimeMs: guardedSolve.elapsedMs,
   };
 }
 

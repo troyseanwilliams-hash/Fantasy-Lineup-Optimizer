@@ -2,7 +2,6 @@ import { Router } from "express";
 import type { Request } from "express";
 import { storage } from "./storage";
 import { z } from "zod";
-import solver from "javascript-lp-solver";
 import { getShowdownConfig, getEffectiveSalary, getShowdownProjectedPoints, type Platform } from "@shared/platform-config";
 import type { Player } from "@shared/schema";
 import { getCachedSignals } from "./ai-scout";
@@ -10,6 +9,7 @@ import { runSimulations, detectStack } from "./simulation-engine";
 import { applyOutperformerMode } from "./boost-engine";
 import { getLatestGameStart } from "./slate-lifecycle";
 import { addNFLQuarterbackStacks } from "./nfl-qb-stacks";
+import { solveWithBudget, validatedIntegralResult, yieldToEventLoop } from "./solver-guard";
 
 function getSessionUserId(req: Request): string | null {
   return (req.session as any)?.userId || null;
@@ -135,6 +135,9 @@ const showdownOptimizeSchema = z.object({
 });
 
 showdownRouter.post("/api/showdown/optimize", async (req, res) => {
+  const requestStartTime = Date.now();
+  const solverDeadline = requestStartTime + 26_000;
+  let solverTimedOut = false;
   try {
     const input = showdownOptimizeSchema.parse(req.body);
     const slate = await storage.getSlate(input.slateId);
@@ -237,12 +240,12 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
       return false;
     }
 
-    function solveShowdown(
+    const solveShowdown = async (
       captainId: number,
       lockedFlexIds: number[],
       excludeFromResult: Set<string>,
       targetLineupIndex: number,
-    ): any | null {
+    ): Promise<any | null> => {
       const captain = pool.find(p => p.id === captainId);
       if (!captain) return null;
 
@@ -287,8 +290,11 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
       });
 
       addNFLQuarterbackStacks(model, flexPool, input.sport, captain);
-      const result: any = solver.Solve(model);
-      if (!result.feasible) return null;
+      await yieldToEventLoop();
+      const guardedSolve = solveWithBudget(model, { deadline: solverDeadline, timeoutMs: 2_000 });
+      if (guardedSolve.timedOut) solverTimedOut = true;
+      const result = validatedIntegralResult(guardedSolve.result, model);
+      if (!result) return null;
 
       const flexIds = Object.keys(result)
         .filter(k => k.startsWith("p") && result[k] > 0.5)
@@ -320,7 +326,7 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
         totalProjectedPoints: Math.round(totalProj * 100) / 100,
         key,
       };
-    }
+    };
 
     function recordAppearances(lineup: any) {
       playerAppearances[lineup.captain.id] = (playerAppearances[lineup.captain.id] || 0) + 1;
@@ -331,12 +337,17 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
 
     if (input.lockedCaptainId) {
       for (let i = 0; i < input.lineupCount && i < 20; i++) {
-        const result = solveShowdown(input.lockedCaptainId, input.lockedFlexIds, usedKeys, i + 1);
+        if (Date.now() >= solverDeadline) {
+          solverTimedOut = true;
+          break;
+        }
+        const result = await solveShowdown(input.lockedCaptainId, input.lockedFlexIds, usedKeys, i + 1);
         if (result) {
           lineups.push(result);
           usedKeys.add(result.key);
           recordAppearances(result);
         } else {
+          if (solverTimedOut) break;
           break;
         }
       }
@@ -347,12 +358,17 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
 
       for (const candidate of candidates) {
         if (lineups.length >= input.lineupCount) break;
-        const result = solveShowdown(candidate.id, input.lockedFlexIds, usedKeys, lineups.length + 1);
+        if (Date.now() >= solverDeadline) {
+          solverTimedOut = true;
+          break;
+        }
+        const result = await solveShowdown(candidate.id, input.lockedFlexIds, usedKeys, lineups.length + 1);
         if (result) {
           lineups.push(result);
           usedKeys.add(result.key);
           recordAppearances(result);
         }
+        if (solverTimedOut) break;
       }
 
       lineups.sort((a, b) => b.totalProjectedPoints - a.totalProjectedPoints);
@@ -360,11 +376,21 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
     }
 
     if (lineups.length === 0) {
-      return res.status(400).json({ message: "Could not generate any feasible showdown lineups." });
+      return res.status(solverTimedOut ? 200 : 400).json({
+        lineups: [],
+        partial: solverTimedOut,
+        message: solverTimedOut
+          ? "Partial results: the solver time budget expired before a validated showdown lineup was generated."
+          : "Could not generate any feasible showdown lineups.",
+      });
     }
 
     res.json({
       lineups,
+      partial: solverTimedOut,
+      message: solverTimedOut
+        ? `Partial results: generated ${lineups.length} of ${input.lineupCount} requested showdown lineups before the solver time budget was reached.`
+        : undefined,
       config: {
         captainLabel: config.captainLabel,
         flexLabel: config.flexLabel,
@@ -499,6 +525,9 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
 
     const startTime = Date.now();
     const MAX_RUNTIME_MS = 30_000;
+    const RESPONSE_RESERVE_MS = 4_000;
+    const solverDeadline = startTime + MAX_RUNTIME_MS - RESPONSE_RESERVE_MS;
+    let simTimedOut = false;
 
     console.log(`[ShowdownSim] Starting ${input.numSims} sims for ${input.sport} slate ${input.slateId}, pool: ${pool.length} players, requesting ${input.lineupCount} lineups`);
 
@@ -513,7 +542,8 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
     }>();
 
     for (let i = 0; i < sims.length; i++) {
-      if (Date.now() - startTime > MAX_RUNTIME_MS) {
+      if (Date.now() >= solverDeadline) {
+        simTimedOut = true;
         console.log(`[ShowdownSim] Time cap reached after ${i} sims`);
         break;
       }
@@ -573,8 +603,11 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
       });
 
       addNFLQuarterbackStacks(model, flexPool, input.sport, captain);
-      const result: any = solver.Solve(model);
-      if (!result.feasible) continue;
+      await yieldToEventLoop();
+      const guardedSolve = solveWithBudget(model, { deadline: solverDeadline, timeoutMs: 2_000 });
+      if (guardedSolve.timedOut) simTimedOut = true;
+      const result = validatedIntegralResult(guardedSolve.result, model);
+      if (!result) continue;
 
       const flexIds = Object.keys(result)
         .filter(k => k.startsWith("p") && result[k] > 0.5)
@@ -613,10 +646,14 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
     }
 
     if (lineupMap.size === 0) {
+      const partial = simTimedOut || Date.now() >= solverDeadline;
       return res.status(200).json({
         lineups: [],
-        message: "No feasible lineups found in simulations. Try relaxing constraints.",
+        message: partial
+          ? "Partial results: the solver time budget expired before a validated showdown lineup was generated."
+          : "No feasible lineups found in simulations. Try relaxing constraints.",
         simsRun: sims.length,
+        partial,
         config: {
           captainLabel: config.captainLabel,
           flexLabel: config.flexLabel,
@@ -700,10 +737,15 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
     }
 
     const elapsedMs = Date.now() - startTime;
+    const partial = simTimedOut || Date.now() >= solverDeadline;
     console.log(`[ShowdownSim] Completed: ${sims.length} sims, ${lineupMap.size} unique lineups, selected ${selected.length}, ${elapsedMs}ms`);
 
     res.json({
       lineups: selected,
+      partial,
+      message: partial
+        ? `Partial results: generated ${selected.length} of ${input.lineupCount} requested showdown lineups before the solver time budget was reached.`
+        : undefined,
       simsRun: sims.length,
       uniqueCount: lineupMap.size,
       elapsedMs,

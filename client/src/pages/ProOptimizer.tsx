@@ -16,7 +16,7 @@ import { PlayerHistoryCard } from "@/components/PlayerHistoryCard";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import {
-  Lock, Unlock, X, Zap, Save, Search, Download,
+  Lock, Unlock, X, Zap, Save, Search, Download, RefreshCw,
   ChevronDown, ChevronUp, ArrowUpDown, Loader2,
   Crown, TrendingUp, TrendingDown, AlertTriangle,
   ShieldAlert, Activity, SaveAll, Star, Flag, MapPin,
@@ -29,6 +29,7 @@ import { ScoutPanel } from "@/components/ScoutPanel";
 import { InfoTip, LabelTip } from "@/components/InfoTip";
 import { usePageMeta } from "@/hooks/use-page-meta";
 import { useResolvedSlate } from "@/hooks/use-resolved-slate";
+import { useSessionPlayerQuery } from "@/hooks/use-session-player-query";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "boostedProj" | "ownershipProjection";
 type SortDir = "asc" | "desc";
@@ -126,7 +127,8 @@ export default function ProOptimizer() {
   const [simSortMetric, setSimSortMetric] = useState<"composite" | "p90" | "p75" | "median" | "avg" | "ev">("composite");
   const [minStarRating, setMinStarRating] = useState<number>(0);
   const [lineupSwaps, setLineupSwaps] = useState<Record<string, Record<string, Player>>>({});
-  const [visibleLineupCount, setVisibleLineupCount] = useState(25);
+  const [visibleLineupCount, setVisibleLineupCount] = useState(10);
+  const [visiblePlayerCount, setVisiblePlayerCount] = useState(75);
   const [swappingTarget, setSwappingTarget] = useState<{ lineupIdx: number; slot: string } | null>(null);
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
   const [mobileView, setMobileView] = useState<"players" | "lineup">("players");
@@ -152,10 +154,16 @@ export default function ProOptimizer() {
   }, [slates, sport, platform]);
 
   const playerUrl = buildUrl("/api/slates/:id/players", { id: slateId });
-  const { data: players, isLoading } = useQuery<PlayerWithOwnership[]>({
-    queryKey: [playerUrl],
+  const {
+    data: players,
+    isLoading,
+    isFetching: isFetchingPlayers,
+    playerRefreshError,
+    refreshPlayers,
+  } = useSessionPlayerQuery<PlayerWithOwnership[]>({
+    url: playerUrl,
+    userId,
     enabled: !!slateId,
-    refetchInterval: 300000,
   });
 
   const { data: subData } = useQuery<{ tier: string; lineupCount: number; maxLineups: number; sportCounts: Record<string, number> }>({
@@ -220,6 +228,7 @@ export default function ProOptimizer() {
       return res.json();
     },
     onSuccess: (data) => {
+      if (data.lineups?.length) setMobileView("lineup");
       // Warn if server returned lineups that violate the requested exposure limits.
       // This can happen due to solver rounding or insufficient player pool diversity.
       if (data?.lineups && (Object.keys(exposureLimits).length > 0 || globalMaxExposure)) {
@@ -257,9 +266,12 @@ export default function ProOptimizer() {
       if (data?.lineups?.length === 0) {
         toast({ title: "No sim lineups", description: data.message || "Try reducing constraints.", variant: "destructive" });
       } else if (data?.lineups?.length > 0) {
+        setMobileView("lineup");
         toast({
           title: `${data.lineups.length} Sim Lineups Built`,
-          description: `${data.simsRun} sims · ${data.uniqueLineups} unique lineups found · ${data.gamesRepresented} games represented`,
+          description: data.partial && data.message
+            ? data.message
+            : `${data.simsRun} sims · ${data.uniqueLineups} unique lineups found · ${data.gamesRepresented} games represented`,
         });
         setTimeout(() => lineupsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
       }
@@ -276,6 +288,10 @@ export default function ProOptimizer() {
     // could match different players on the new slate.
     handleReset();
   }, [slateId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    setVisiblePlayerCount(75);
+  }, [slateId, search, posFilter]);
 
   const [savedIndices, setSavedIndices] = useState<Set<number>>(new Set());
   const [isSavingAll, setIsSavingAll] = useState(false);
@@ -616,7 +632,7 @@ export default function ProOptimizer() {
     setSavedIndices(new Set());
     setLineupSwaps({});
     setSwappingTarget(null);
-    setVisibleLineupCount(25);
+    setVisibleLineupCount(10);
 
     if (simMode) {
       // ── Simulation mode: Monte Carlo game-script optimization ──────────────
@@ -971,7 +987,7 @@ export default function ProOptimizer() {
   }
 
   return (
-    <div className={`flex flex-col ${playerFocus ? "fixed inset-0 z-50 h-[100dvh] overflow-hidden bg-slate-950" : "min-h-[calc(100dvh-80px)] overflow-visible xl:h-[calc(100vh-80px)] xl:overflow-hidden"}`} data-testid="pro-optimizer-page">
+    <div className={`flex flex-col ${playerFocus ? "fixed inset-0 z-50 h-[100dvh] overflow-hidden bg-slate-950" : "min-h-full overflow-visible"}`} data-testid="pro-optimizer-page">
       {/* Top Controls Bar */}
       {!playerFocus && <div className="border-b border-slate-800 bg-slate-900/60 px-4 py-2">
         <div className="flex flex-col gap-2 md:gap-0">
@@ -1626,6 +1642,18 @@ export default function ProOptimizer() {
             </div>
             <button
               type="button"
+              onClick={() => { void refreshPlayers(); }}
+              disabled={isFetchingPlayers}
+              title="Refresh player pool"
+              aria-label="Refresh player pool"
+              data-testid="button-refresh-players"
+              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-[11px] font-black uppercase tracking-wide text-slate-300 transition-colors hover:border-amber-500/50 hover:text-amber-300 disabled:cursor-wait disabled:opacity-60"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isFetchingPlayers ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+            <button
+              type="button"
               onClick={togglePlayerFocus}
               aria-pressed={playerFocus}
               data-testid="button-player-focus"
@@ -1635,6 +1663,22 @@ export default function ProOptimizer() {
               {playerFocus ? "Back to optimizer" : "Expand players"}
             </button>
           </div>
+          {playerRefreshError && players && (
+            <div
+              role="alert"
+              data-testid="player-refresh-warning"
+              className="flex items-center justify-between gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-[11px] font-bold text-amber-300"
+            >
+              <span>Player data could not be refreshed. Showing the last loaded pool.</span>
+              <button
+                type="button"
+                onClick={() => { void refreshPlayers(); }}
+                className="shrink-0 underline underline-offset-2 hover:text-amber-100"
+              >
+                Try again
+              </button>
+            </div>
+          )}
 
           {slate && (slate as any).games?.length > 0 && !isGolf && (
             <div className={`px-3 sm:px-4 py-1.5 border-b bg-slate-950/80 ${pColors.border} flex items-center gap-2 overflow-x-auto`} data-testid="pro-slate-games-strip">
@@ -1736,7 +1780,7 @@ export default function ProOptimizer() {
           )}
 
           {/* Player Table - Desktop */}
-          <div className={`hidden flex-1 overflow-auto md:block xl:min-h-0 ${playerFocus ? "min-h-0" : "min-h-[52dvh]"}`} data-testid="pro-player-pool-scroll">
+          <div className={`hidden overflow-auto md:block ${playerFocus ? "min-h-0 flex-1" : "h-[60dvh] shrink-0"}`} data-testid="pro-player-pool-scroll">
             <table className="w-full text-left border-collapse min-w-[760px]">
               <thead className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800">
                 <tr className="text-slate-400">
@@ -1792,7 +1836,7 @@ export default function ProOptimizer() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/50">
-                {filteredPlayers.map(player => {
+                {filteredPlayers.slice(0, visiblePlayerCount).map(player => {
                   const isLocked = lockedIds.includes(player.id);
                   const hasInjury = player.injuryStatus && player.injuryStatus !== "Healthy";
                   const injuryColor = hasInjury ? (INJURY_COLORS[player.injuryStatus!] || INJURY_COLORS["Day-to-Day"]) : "";
@@ -2005,7 +2049,7 @@ export default function ProOptimizer() {
 
           {/* Player Cards - Mobile */}
           <div className={`flex-1 overflow-auto p-2 md:hidden ${playerFocus ? "min-h-0" : "min-h-[52dvh]"}`} data-testid="pro-mobile-player-pool-scroll">
-            {filteredPlayers.map(player => {
+            {filteredPlayers.slice(0, visiblePlayerCount).map(player => {
               const isLocked = lockedIds.includes(player.id);
               const isExcluded = excludedIds.includes(player.id);
               const isFaded = fadedIds.includes(player.id);
@@ -2112,6 +2156,16 @@ export default function ProOptimizer() {
           </div>
 
           {/* Excluded Players Bar */}
+          {filteredPlayers.length > visiblePlayerCount && (
+            <button
+              type="button"
+              className="shrink-0 border-t border-slate-800 bg-slate-900 px-4 py-2 text-xs font-bold text-amber-400"
+              data-testid="show-more-players"
+              onClick={() => setVisiblePlayerCount(count => count + 75)}
+            >
+              Show more players ({visiblePlayerCount} of {filteredPlayers.length})
+            </button>
+          )}
           {excludedPlayers.length > 0 && (
             <div className="border-t border-slate-800 bg-slate-900/60 px-4 py-2 flex items-center gap-2 flex-wrap">
               <span className="text-[11px] font-black text-red-400 uppercase tracking-widest">Excluded:</span>
@@ -2171,7 +2225,7 @@ export default function ProOptimizer() {
 
         {/* RIGHT: Results & Summary Panels */}
         <div className={`w-full xl:w-[400px] 2xl:w-[440px] flex-col bg-slate-900/30 xl:overflow-hidden ${playerFocus ? "hidden" : mobileView !== "lineup" ? "hidden xl:flex" : "flex"}`}>
-          <div className="flex-1 overflow-auto p-4 space-y-4">
+          <div className="min-h-0 flex-1 overflow-auto p-4 space-y-4 xl:max-h-[75dvh]" data-testid="pro-lineup-scroll">
             {/* GOLF Tournament Analysis */}
             {isGolf && golfAnalysis && (
               <>
@@ -2502,7 +2556,7 @@ export default function ProOptimizer() {
                       ].filter(opt => !opt.sim || (generatedLineups[0] as any)?.simData).map(opt => (
                         <button
                           key={opt.key}
-                          onClick={() => { setLineupSortBy(opt.key as typeof lineupSortBy); setVisibleLineupCount(25); }}
+                          onClick={() => { setLineupSortBy(opt.key as typeof lineupSortBy); setVisibleLineupCount(10); }}
                           className={`px-2 py-1 rounded text-[10px] font-black transition-all border ${
                             lineupSortBy === opt.key
                               ? "bg-amber-500/20 text-amber-400 border-amber-500/30"

@@ -26,6 +26,7 @@ import { ScoutPanel } from "@/components/ScoutPanel";
 import { InfoTip, LabelTip } from "@/components/InfoTip";
 import { usePageMeta } from "@/hooks/use-page-meta";
 import { useResolvedSlate } from "@/hooks/use-resolved-slate";
+import { useSessionPlayerQuery } from "@/hooks/use-session-player-query";
 
 type SortKey = "name" | "position" | "team" | "salary" | "projectedPoints" | "fppg" | "value";
 type SortDir = "asc" | "desc";
@@ -144,10 +145,16 @@ export default function Optimizer() {
   }, [slates, sport, platform]);
 
   const playerUrl = buildUrl("/api/slates/:id/players", { id: slateId });
-  const { data: players, isLoading } = useQuery<Player[]>({
-    queryKey: [playerUrl],
+  const {
+    data: players,
+    isLoading,
+    isFetching: isFetchingPlayers,
+    playerRefreshError,
+    refreshPlayers,
+  } = useSessionPlayerQuery<Player[]>({
+    url: playerUrl,
+    userId,
     enabled: !!slateId,
-    refetchInterval: 300000,
   });
 
   const { data: subData } = useQuery<{ tier: string; lineupCount: number; maxLineups: number; maxLineupsPerSport: number; sportCounts: Record<string, number> }>({
@@ -595,7 +602,7 @@ export default function Optimizer() {
   };
 
   return (
-    <div className={`flex flex-col xl:flex-row ${playerFocus ? "fixed inset-0 z-50 h-[100dvh] overflow-hidden bg-slate-950" : "min-h-[calc(100dvh-80px)] overflow-visible xl:h-[calc(100vh-80px)] xl:overflow-hidden"}`}>
+    <div className={`flex flex-col xl:flex-row ${playerFocus ? "fixed inset-0 z-50 h-[100dvh] overflow-hidden bg-slate-950" : "min-h-full overflow-visible"}`}>
       {/* Mobile Tab Toggle */}
       {!playerFocus && <div className="xl:hidden flex border-b border-slate-800 bg-slate-900/80 sticky top-0 z-20">
         <button
@@ -887,6 +894,18 @@ export default function Optimizer() {
           </div>
           <button
             type="button"
+            onClick={() => { void refreshPlayers(); }}
+            disabled={isFetchingPlayers}
+            title="Refresh player pool"
+            aria-label="Refresh player pool"
+            data-testid="button-refresh-players"
+            className="inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-[11px] font-black uppercase tracking-wide text-slate-300 transition-colors hover:border-emerald-500/50 hover:text-emerald-300 disabled:cursor-wait disabled:opacity-60"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetchingPlayers ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+          <button
+            type="button"
             onClick={togglePlayerFocus}
             aria-pressed={playerFocus}
             data-testid="button-player-focus"
@@ -896,6 +915,22 @@ export default function Optimizer() {
             {playerFocus ? "Back to optimizer" : "Expand players"}
           </button>
         </div>
+        {playerRefreshError && players && (
+          <div
+            role="alert"
+            data-testid="player-refresh-warning"
+            className="flex items-center justify-between gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 sm:px-4 py-2 text-[11px] font-bold text-amber-300"
+          >
+            <span>Player data could not be refreshed. Showing the last loaded pool.</span>
+            <button
+              type="button"
+              onClick={() => { void refreshPlayers(); }}
+              className="shrink-0 underline underline-offset-2 hover:text-amber-100"
+            >
+              Try again
+            </button>
+          </div>
+        )}
 
         {/* Replacement/Swap Mode Banner */}
         {activeSwapSlot && (
@@ -928,7 +963,7 @@ export default function Optimizer() {
         )}
 
         {/* Player Table - Desktop */}
-        <div className={`hidden flex-1 overflow-auto md:block xl:min-h-0 ${playerFocus ? "min-h-0" : "min-h-[52dvh]"}`} data-testid="player-pool-scroll">
+        <div className={`hidden overflow-auto md:block ${playerFocus ? "min-h-0 flex-1" : "h-[60dvh] shrink-0"}`} data-testid="player-pool-scroll">
           <table className="w-full text-left border-collapse min-w-[680px]">
             <thead className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800">
               <tr className="text-slate-400">

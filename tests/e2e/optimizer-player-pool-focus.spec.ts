@@ -37,6 +37,10 @@ test(`${pro ? "Pro" : "Standard"} optimizer expands the player pool`, async ({ p
     ? page.getByTestId(pro ? "pro-player-pool-scroll" : "player-pool-scroll")
     : page.getByTestId(pro ? "pro-mobile-player-pool-scroll" : "mobile-player-pool-scroll");
   await expect(playerViewport).toBeVisible();
+  const lastPlayer = playerViewport.getByText("Fixture Player 30", { exact: true });
+  await lastPlayer.scrollIntoViewIfNeeded();
+  await expect(lastPlayer).toBeInViewport();
+  await playerViewport.evaluate(element => { element.scrollTop = 0; });
   await expect(page.getByTestId("nfl-rookie-filter-helper")).toHaveCount(0);
   if (pro) {
   await page.getByTestId("btn-sim-mode-toggle").click();

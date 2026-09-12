@@ -22,6 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import type { Slate, Player } from "@shared/schema";
 import { usePageMeta } from "@/hooks/use-page-meta";
 import { useLocation } from "wouter";
+import { useSessionPlayerQuery } from "@/hooks/use-session-player-query";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -119,6 +120,7 @@ const SHOWDOWN_SPORTS = ACTIVE_SPORTS.filter(s => s !== "GOLF");
 export default function ShowdownBuilder() {
   usePageMeta({ title: "Showdown Builder - Single-Game DFS Optimizer", description: "Optimize single-game DFS lineups for DraftKings Showdown and Captain mode contests.", path: "/showdown" });
   const { user } = useAuth();
+  const userId = (user as any)?.id as string | undefined;
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
@@ -304,17 +306,19 @@ export default function ShowdownBuilder() {
   }, [slates, selectedSlateId]);
 
   // ── Players ────────────────────────────────────────────────────────────────
-  const { data: playerData, isLoading: playersLoading } = useQuery<{
+  const {
+    data: playerData,
+    isLoading: playersLoading,
+    isFetching: playersFetching,
+    playerRefreshError,
+    refreshPlayers,
+  } = useSessionPlayerQuery<{
     slate: any;
     games: Record<string, Player[]>;
     players: Player[];
   }>({
-    queryKey: ["/api/showdown/players", selectedSlateId],
-    queryFn: async () => {
-      const res = await fetch(`/api/showdown/players/${selectedSlateId}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch players");
-      return res.json();
-    },
+    url: `/api/showdown/players/${selectedSlateId ?? ""}`,
+    userId,
     enabled: !!selectedSlateId,
   });
 
@@ -923,7 +927,33 @@ export default function ShowdownBuilder() {
                 >
                   <RefreshCw className="w-4 h-4 mr-1" /> Reset All
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { void refreshPlayers(); }}
+                  disabled={playersFetching}
+                  className="border-slate-600 text-slate-300 hover:bg-slate-800"
+                  data-testid="btn-refresh-players"
+                >
+                  <RefreshCw className={`w-4 h-4 mr-1 ${playersFetching ? "animate-spin" : ""}`} /> Refresh Players
+                </Button>
               </div>
+              {playerRefreshError && playerData && (
+                <div
+                  role="alert"
+                  data-testid="player-refresh-warning"
+                  className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] font-bold text-amber-300"
+                >
+                  <span>Player data could not be refreshed. Showing the last loaded pool.</span>
+                  <button
+                    type="button"
+                    onClick={() => { void refreshPlayers(); }}
+                    className="shrink-0 underline underline-offset-2 hover:text-amber-100"
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
 
               {/* ── Sim Mode Panel ── */}
               {isPaidUser && (

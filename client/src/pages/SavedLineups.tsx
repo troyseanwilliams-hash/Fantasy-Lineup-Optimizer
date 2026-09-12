@@ -48,6 +48,14 @@ interface LineupWithPlayers {
 const VAULT_STALE_TIME = 1000 * 60 * 30;     // 30 minutes
 const DETAIL_STALE_TIME = 1000 * 60 * 15;    // 15 minutes — expanded lineup detail
 
+async function fetchSavedLineups(path: string, signal: AbortSignal): Promise<any[]> {
+  const response = await fetch(path, { credentials: "include", signal });
+  if (!response.ok) throw new Error("Saved lineups could not be loaded. Please try again.");
+  const data = await response.json();
+  if (!Array.isArray(data)) throw new Error("The server returned an invalid lineup list. Please try again.");
+  return data;
+}
+
 // ── Platform helpers ──────────────────────────────────────────────────────────
 
 type Platform = "draftkings" | "fanduel" | "yahoo";
@@ -217,7 +225,7 @@ function getShowdownDisplayData(lineup: LineupWithPlayers): { slots: string[]; a
 
 export default function SavedLineups() {
   usePageMeta({ title: "Saved Lineups - Your Lineup Vault", description: "Manage your saved DFS lineups, run simulations, and export for contest entry.", path: "/lineups" });
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [swappingSlot, setSwappingSlot] = useState<{ lineupId: number; slot: string; currentPlayerId: number } | null>(null);
@@ -240,8 +248,10 @@ export default function SavedLineups() {
   const [regenSlateId, setRegenSlateId] = useState<number | null>(null);
   const [simMetric, setSimMetric] = useState<"composite" | "p90" | "p75" | "median" | "avg">("composite");
 
-  const { data: lineups, isLoading } = useQuery<any[]>({
-    queryKey: ["/api/lineups"],
+  const { data: lineups, isLoading, error: lineupsError, refetch: refreshLineups, isFetching: refreshingLineups } = useQuery<any[]>({
+    queryKey: ["/api/lineups", user?.id],
+    queryFn: ({ signal }) => fetchSavedLineups("/api/lineups", signal),
+    enabled: !!user,
     staleTime: VAULT_STALE_TIME,
     refetchOnMount: "always",
     refetchOnWindowFocus: false,
@@ -437,9 +447,10 @@ export default function SavedLineups() {
     }
   });
 
-  const { data: reviewLineups, isLoading: reviewLoading } = useQuery<any[]>({
-    queryKey: ["/api/lineups/review"],
-    enabled: activeTab === "review" && isPaid,
+  const { data: reviewLineups, isLoading: reviewLoading, error: reviewError, refetch: refreshReview, isFetching: refreshingReview } = useQuery<any[]>({
+    queryKey: ["/api/lineups/review", user?.id],
+    queryFn: ({ signal }) => fetchSavedLineups("/api/lineups/review", signal),
+    enabled: !!user && activeTab === "review" && isPaid,
     // Review lineups are read-only historical data — no need to ever
     // refetch them on window focus. They only change at the 3 AM ET reset.
     staleTime: VAULT_STALE_TIME,
@@ -782,7 +793,7 @@ export default function SavedLineups() {
     updateMutation.mutate({ id: lineupId, playerIds: newPlayerIds });
   }
 
-  if (!user) {
+  if (!user && !authLoading) {
     return (
       <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4">
         <div className="max-w-lg text-center space-y-6">
@@ -840,7 +851,7 @@ export default function SavedLineups() {
     );
   }
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="container mx-auto px-4 py-12">
         <Skeleton className="h-12 w-48 bg-slate-800 mb-8" />
@@ -1281,12 +1292,27 @@ export default function SavedLineups() {
         </div>
 
         {activeTab === "review" && isPaid ? (
+          reviewError && !reviewLineups ? (
+            <div role="alert" className="rounded-xl border border-amber-500/40 p-6 text-slate-200">
+              <p>Review lineups could not be loaded. Your saved lineups have not been deleted.</p>
+              <Button className="mt-4" onClick={() => void refreshReview()} disabled={refreshingReview}>Retry</Button>
+            </div>
+          ) :
           <ReviewTabContent
             reviewLineups={reviewLineups || []}
             isLoading={reviewLoading}
           />
         ) : (
           <>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <p role={lineupsError ? "alert" : undefined} className="text-sm text-amber-300">
+                {lineupsError ? "Saved lineups could not be refreshed. Your saved lineups have not been deleted." : ""}
+              </p>
+              <Button variant="outline" onClick={() => void refreshLineups()} disabled={refreshingLineups} data-testid="refresh-saved-lineups">
+                <RefreshCw className={`mr-2 h-4 w-4 ${refreshingLineups ? "animate-spin" : ""}`} />
+                {lineupsError ? "Retry" : "Refresh"}
+              </Button>
+            </div>
             <a
               href={AFFILIATE_LINKS.draftkings.dfs.url}
               target="_blank"
@@ -1546,8 +1572,8 @@ export default function SavedLineups() {
                 <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-6">
                   <Shield className="w-10 h-10 text-emerald-500/40" />
                 </div>
-                <h5 className="text-xl font-black text-white mb-2" data-testid="no-lineups-message">No Saved Lineups Yet</h5>
-                <p className="text-slate-400 max-w-sm mx-auto mb-6">Optimize a lineup and save it here to track, edit, and export to DraftKings, FanDuel, or Yahoo.</p>
+                <h5 className="text-xl font-black text-white mb-2" data-testid={lineupsError ? "saved-lineups-error" : "no-lineups-message"}>{lineupsError ? "Unable to Load Saved Lineups" : "No Saved Lineups Yet"}</h5>
+                <p className="text-slate-400 max-w-sm mx-auto mb-6">{lineupsError ? "Use Retry above to load your saved lineups again." : "Optimize a lineup and save it here to track, edit, and export to DraftKings, FanDuel, or Yahoo."}</p>
                 <Link href="/">
                   <Button className="btn-primary" data-testid="build-first-lineup">
                     <Zap className="w-4 h-4 mr-2" /> Build Your First Lineup

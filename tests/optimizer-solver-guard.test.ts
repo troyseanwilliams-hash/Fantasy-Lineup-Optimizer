@@ -1,0 +1,107 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { solveLineup } from "../server/routes";
+import { solveWithBudget, validatedIntegralResult } from "../server/solver-guard";
+import type { OptimizationConstraints, Player } from "../shared/schema";
+
+test("solver guard passes javascript-lp-solver timeout options", () => {
+  const model: any = {
+    optimize: "points",
+    opType: "max",
+    constraints: { roster: { equal: 1 } },
+    variables: { x: { points: 1, roster: 1 } },
+    ints: { x: 1 },
+  };
+
+  const guarded = solveWithBudget(model, { timeoutMs: 1 });
+
+  assert.equal(model.timeout, 1);
+  assert.equal(model.options.timeout, 1);
+  assert.ok(guarded.elapsedMs >= 0);
+  assert.ok(guarded.elapsedMs < 1000, `solve exceeded guard budget: ${guarded.elapsedMs}ms`);
+  assert.ok(guarded.result === null || guarded.result.feasible === true);
+});
+
+test("expired request budgets do not start another solve", () => {
+  const result = solveWithBudget({}, { deadline: Date.now() - 1 });
+  assert.equal(result.result, null);
+  assert.equal(result.timedOut, true);
+  assert.equal(result.elapsedMs, 0);
+});
+
+test("only complete integral incumbents satisfying all constraints are accepted", () => {
+  const model = {
+    variables: { p1: { roster: 1, stack: -1 }, p2: { roster: 1, stack: 1 } },
+    ints: { p1: 1, p2: 1 },
+    constraints: { roster: { equal: 2 }, stack: { min: 0 } },
+  };
+  assert.equal(validatedIntegralResult({ feasible: true, p1: 1, p2: 1 }, model), null);
+  assert.equal(validatedIntegralResult({ feasible: true, isIntegral: true, p1: 1.5, p2: 0.5 }, model), null);
+  assert.equal(validatedIntegralResult({ feasible: true, isIntegral: true, p1: 1 }, model), null);
+  assert.ok(validatedIntegralResult({ feasible: true, isIntegral: true, p1: 1, p2: 1 }, model));
+});
+
+function nflPlayer(
+  id: number,
+  position: string,
+  team: string,
+  projectedPoints: number,
+  salary = 5_000,
+): Player {
+  return {
+    id,
+    slateId: 1,
+    name: `Fixture ${id}`,
+    position,
+    team,
+    salary,
+    projectedPoints: String(projectedPoints),
+    fppg: String(projectedPoints),
+    opponent: team === "HOU" ? "BUF" : "HOU",
+    gameInfo: "HOU @ BUF 1:00 PM ET",
+    injuryStatus: null,
+  } as Player;
+}
+
+test("mandatory NFL QB stacks remain enforced with bounded solves", () => {
+  const pool = [
+    nflPlayer(1, "QB", "HOU", 30, 7_000),
+    nflPlayer(2, "QB", "BUF", 10, 7_000),
+    nflPlayer(3, "WR", "HOU", 24),
+    nflPlayer(4, "WR", "BUF", 18),
+    nflPlayer(5, "WR", "BUF", 17),
+    nflPlayer(6, "WR", "HOU", 16),
+    nflPlayer(7, "RB", "HOU", 15),
+    nflPlayer(8, "RB", "BUF", 14),
+    nflPlayer(9, "TE", "HOU", 13),
+    nflPlayer(10, "TE", "BUF", 8),
+    nflPlayer(11, "DST", "HOU", 8, 2_500),
+    nflPlayer(12, "DST", "BUF", 7, 2_500),
+  ];
+  const constraints = {
+    slateId: 1,
+    lockedPlayerIds: [1],
+    excludedPlayerIds: [],
+    lineupCount: 1,
+    maxSalary: 50_000,
+  } as OptimizationConstraints;
+
+  const result = solveLineup(
+    pool,
+    constraints,
+    "NFL",
+    "draftkings",
+    undefined,
+    { timeoutMs: 500 },
+  );
+
+  assert.ok(!result.error, result.error);
+  assert.equal(result.lineup.length, 9);
+  assert.ok(
+    result.lineup.some(
+      p => p.team === "HOU" && (p.position === "WR" || p.position === "TE"),
+    ),
+    "locked HOU quarterback must have a same-team WR/TE",
+  );
+  assert.ok(result.totalSalary <= 50_000);
+});

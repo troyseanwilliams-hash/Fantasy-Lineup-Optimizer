@@ -72,9 +72,9 @@ function Router() {
   }
 
   return (
-    <div className={`flex flex-col ${isOptimizer ? "h-screen overflow-hidden" : isOnboarding || isLoginPage ? "" : "min-h-screen"} bg-[#0F172A]`}>
+    <div className={`flex flex-col ${isOptimizer ? "h-[100dvh] overflow-hidden" : isOnboarding || isLoginPage ? "" : "min-h-screen"} bg-[#0F172A]`}>
       {!isOnboarding && !isLoginPage && <Header />}
-      <main className={isOptimizer ? "flex-1 overflow-hidden" : "flex-grow"}>
+      <main className={isOptimizer ? "min-h-0 flex-1 overflow-y-auto" : "flex-grow"} data-testid={isOptimizer ? "optimizer-page-scroll" : undefined}>
         <Switch>
           <Route path="/" component={Home} />
           <Route path="/login" component={Login} />
