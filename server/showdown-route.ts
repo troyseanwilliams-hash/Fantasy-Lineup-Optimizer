@@ -9,6 +9,7 @@ import { getCachedSignals } from "./ai-scout";
 import { runSimulations, detectStack } from "./simulation-engine";
 import { applyOutperformerMode } from "./boost-engine";
 import { getLatestGameStart } from "./slate-lifecycle";
+import { addNFLQuarterbackStacks } from "./nfl-qb-stacks";
 
 function getSessionUserId(req: Request): string | null {
   return (req.session as any)?.userId || null;
@@ -285,6 +286,7 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
         }
       });
 
+      addNFLQuarterbackStacks(model, flexPool, input.sport, captain);
       const result: any = solver.Solve(model);
       if (!result.feasible) return null;
 
@@ -570,6 +572,7 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
         }
       });
 
+      addNFLQuarterbackStacks(model, flexPool, input.sport, captain);
       const result: any = solver.Solve(model);
       if (!result.feasible) continue;
 

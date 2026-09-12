@@ -1428,7 +1428,7 @@ export default function ProOptimizer() {
                 {availableGames.length > 0 && (
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <LabelTip text="Select one or more games. Every lineup must stack one selected game. NFL stacks require a QB, same-team WR/TE, and opposing RB/WR/TE; other sports require three players from a game, including both teams. No selections means no forced stack."><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Game Stacks ({stackGameKeys.length} selected)</span></LabelTip>
+                      <LabelTip text="NFL quarterbacks always pair with at least one same-team WR/TE. Select games to also require that pair and an opposing RB/WR/TE from one selected game. Other sports require three players from a selected game, including both teams; no selection leaves them unrestricted."><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Game Stacks ({stackGameKeys.length} selected)</span></LabelTip>
                       {stackGameKeys.length > 0 && (
                         <button
                           onClick={() => setStackGameKeys([])}
@@ -1461,7 +1461,9 @@ export default function ProOptimizer() {
                         ? sport === "NFL"
                           ? "Each lineup: QB + same-team WR/TE + opposing RB/WR/TE from one selected game."
                           : "Each lineup: 3+ players from one selected game, including both teams."
-                        : "Select games to require stacks. None selected: unrestricted."}
+                        : sport === "NFL"
+                          ? "Always required: QB + at least one same-team WR/TE. Select games to add an opposing player."
+                          : "Select games to require stacks. None selected: unrestricted."}
                     </p>
                   </div>
                 )}

@@ -32,6 +32,7 @@ import { calculateOwnership, computeOwnershipForPlayers, type ContestType } from
 import { getCachedSignals, getScoutStatus, refreshAll, forceRefreshAll, secondsUntilRefresh, triggerLazyRefreshIfStale } from "./ai-scout";
 import { runSimulations, detectStack, scoreLineupsAcrossSims } from "./simulation-engine";
 import { addSimGameStacks, stackGameKey as getStackGameKey } from "./sim-game-stacks";
+import { addNFLQuarterbackStacks } from "./nfl-qb-stacks";
 import { buildVegasContext } from "./vegas-client";
 import { buildDvPContext, applyDvPToProjections, buildOpponentMap } from "./dvp-client";
 import { fetchStartingLineups, getStartingLineupsData, clearLineupsCache } from "./lineups-ingest";
@@ -5879,11 +5880,6 @@ function normalizeGameKey(gameInfo: string | null | undefined): string {
     .toUpperCase();
 }
 
-function isPassCatcher(position: string): boolean {
-  const positions = position.toUpperCase().split("/");
-  return positions.includes("WR") || positions.includes("TE");
-}
-
 function isBringBackCandidate(position: string): boolean {
   const positions = position.toUpperCase().split("/");
   return positions.includes("RB") || positions.includes("WR") || positions.includes("TE");
@@ -6009,6 +6005,7 @@ export function solveLineup(
   });
 
   const gameKeys = Array.from(gameMap.keys());
+  addNFLQuarterbackStacks(model, pool, sport);
   addSimGameStacks(model, pool, constraints.stackGameKeys ?? [], sport);
 
   if (isNflClassicGpp) {
@@ -6017,18 +6014,6 @@ export function solveLineup(
 
     for (const qb of quarterbacks) {
       const qbVariable = `p${qb.id}`;
-      const sameTeamPassCatchers = selectablePlayers.filter(
-        p => p.team === qb.team && p.id !== qb.id && isPassCatcher(p.position),
-      );
-      if (sameTeamPassCatchers.length > 0) {
-        const stackConstraint = `nfl_stack_qb_${qb.id}`;
-        model.constraints[stackConstraint] = { max: 0 };
-        model.variables[qbVariable][stackConstraint] = 1;
-        for (const teammate of sameTeamPassCatchers) {
-          model.variables[`p${teammate.id}`][stackConstraint] = -1;
-        }
-      }
-
       const opponent = (qb.opponent || "").trim().toUpperCase();
       const bringBacks = opponent
         ? selectablePlayers.filter(
