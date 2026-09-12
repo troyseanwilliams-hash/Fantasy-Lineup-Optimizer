@@ -14,3 +14,9 @@ Preserve the full eligible NFL DraftKings pool during ingestion; do not take the
 **Why:** A global salary cap on player count removed every low-priced defense from an otherwise populated Sunday slate. Player count alone did not reveal that no valid roster could be formed.
 
 **How to apply:** Verify required-position coverage and solve actual nine-slot rosters when changing ingestion or pool filtering. Apply performance trimming at solve time with position coverage, not by discarding contest members during import.
+
+Missing NFL scoring averages require a conservative prior, not a salary-derived historical average.
+
+**Why:** Salary-only estimates elevated rookies without history into high-projection picks. A valid full player pool does not make its projections reliable.
+
+**How to apply:** Treat missing averages separately from reported zero or negative scores. Keep fallback projections conservative and distinct from historical FPPG; the positional caps are provisional heuristics, not calibrated forecasts. Preserve legitimate rookies and DST rather than excluding them for missing data.

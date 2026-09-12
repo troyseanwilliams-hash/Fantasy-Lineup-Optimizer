@@ -1,5 +1,6 @@
 import type { InsertPlayer } from "@shared/schema";
 import { PLATFORM_CONFIGS } from "@shared/platform-config";
+import { dkProjectionBaseline } from "./dk-projection-baseline";
 
 const DK_API_BASE = "https://api.draftkings.com";
 const DK_LOBBY = "https://www.draftkings.com/lobby";
@@ -354,9 +355,9 @@ export async function fetchLiveDKData(sport: string): Promise<LiveSlateData | nu
   for (const p of trimmedPlayers) {
     if (!p.position || !p.salary || p.salary <= 0) continue;
 
-    const fppgNum = extractFppg(p.draftStatAttributes) ?? (p.salary / 250);
-    const fppg = fppgNum.toFixed(1);
-    const projectedPoints = fppg;
+    const { fppg, projectedPoints } = dkProjectionBaseline(
+      sport, p.position, p.salary, extractFppg(p.draftStatAttributes),
+    );
 
     let opponent = "TBD";
     let gameInfo = `${p.teamAbbreviation} TBD`;
@@ -630,10 +631,9 @@ export async function fetchDKSlateByDraftGroup(
     for (const p of trimmedPlayers) {
       if (!p.position || !p.salary || p.salary <= 0) continue;
 
-      const fppgNum = extractFppg(p.draftStatAttributes) ??
-        (options.showdown ? 0 : p.salary / 250);
-      const fppg = fppgNum.toFixed(1);
-      const projectedPoints = fppg;
+      const { fppg, projectedPoints } = dkProjectionBaseline(
+        sport, p.position, p.salary, extractFppg(p.draftStatAttributes), options.showdown,
+      );
 
       let opponent = "TBD";
       let gameInfo = `${p.teamAbbreviation} TBD`;

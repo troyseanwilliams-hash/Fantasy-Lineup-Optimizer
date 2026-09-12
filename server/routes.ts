@@ -6279,8 +6279,7 @@ export async function seedDatabase(forceRefresh = false) {
     }
 
     if (existingSlate && !shouldReplace && existingPlayerCount > 0) {
-      const incompleteNflPool = seed.sport === "NFL" && existingPlayerCount < seed.dkPlayers.length;
-      if ((forceRefresh || incompleteNflPool) && !draftGroupChanged) {
+      if ((forceRefresh || seed.sport === "NFL") && !draftGroupChanged) {
         await storage.updateSlateData(existingSlate.id, {
           name: seed.dkSlate.name!,
           startTime: seed.dkSlate.startTime!,
@@ -6484,8 +6483,7 @@ export async function seedDatabase(forceRefresh = false) {
           const existing = existingDkSlates.find(s => s.draftGroupId === avSlate.draftGroupId);
           if (existing) {
             const players = await storage.getPlayersBySlate(existing.id);
-            const missingNflDefense = sport === "NFL" && !players.some(p => p.position === "DST");
-            if (players.length > 0 && !missingNflDefense) continue;
+            if (players.length > 0 && sport !== "NFL") continue;
           }
         }
 
