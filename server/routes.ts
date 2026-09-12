@@ -5922,7 +5922,7 @@ function nflTournamentScore(player: Player, ownership: number | undefined): numb
   return projection + ceilingBonus - ownershipPenalty;
 }
 
-function solveLineup(
+export function solveLineup(
   pool: Player[],
   constraints: OptimizationConstraints,
   sport: string,
@@ -6279,7 +6279,8 @@ export async function seedDatabase(forceRefresh = false) {
     }
 
     if (existingSlate && !shouldReplace && existingPlayerCount > 0) {
-      if (forceRefresh && !draftGroupChanged) {
+      const incompleteNflPool = seed.sport === "NFL" && existingPlayerCount < seed.dkPlayers.length;
+      if ((forceRefresh || incompleteNflPool) && !draftGroupChanged) {
         await storage.updateSlateData(existingSlate.id, {
           name: seed.dkSlate.name!,
           startTime: seed.dkSlate.startTime!,
@@ -6483,7 +6484,8 @@ export async function seedDatabase(forceRefresh = false) {
           const existing = existingDkSlates.find(s => s.draftGroupId === avSlate.draftGroupId);
           if (existing) {
             const players = await storage.getPlayersBySlate(existing.id);
-            if (players.length > 0) continue;
+            const missingNflDefense = sport === "NFL" && !players.some(p => p.position === "DST");
+            if (players.length > 0 && !missingNflDefense) continue;
           }
         }
 
@@ -6520,9 +6522,13 @@ export async function seedDatabase(forceRefresh = false) {
             slateId = newSlate.id;
           }
 
-          const createdPlayers = await storage.bulkCreatePlayers(
-            slateData.dkPlayers.map((p: any) => ({ ...p, slateId })) as any
-          );
+          const incomingPlayers = slateData.dkPlayers.map((p: any) => ({ ...p, slateId }));
+          if (existingEntry) {
+            await storage.refreshPlayersByDraftKingsId(slateId, incomingPlayers);
+          } else {
+            await storage.bulkCreatePlayers(incomingPlayers);
+          }
+          const createdPlayers = await storage.getPlayersBySlate(slateId);
           console.log(`[DK] Loaded ${sport} alt slate DG ${avSlate.draftGroupId} (${avSlate.label}) with ${createdPlayers.length} players`);
 
           const today2 = getEasternToday();

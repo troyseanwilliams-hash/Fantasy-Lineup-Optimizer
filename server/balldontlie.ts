@@ -323,7 +323,8 @@ export async function fetchLiveDKData(sport: string): Promise<LiveSlateData | nu
   const validPlayers = uniquePlayers.filter(p => p.salary && p.salary > 0 && p.position);
   const sortedPlayers = validPlayers.sort((a, b) => b.salary - a.salary);
   const maxPlayers = sport === "MLB" ? 250 : sport === "NFL" ? 150 : sport === "SOCCER" ? 200 : 250;
-  const trimmedPlayers = sortedPlayers.slice(0, maxPlayers);
+  // NFL salary sorting places required DST and value players below the old cap.
+  const trimmedPlayers = sport === "NFL" ? sortedPlayers : sortedPlayers.slice(0, maxPlayers);
 
   console.log(`[DK] ${sport}: ${trimmedPlayers.length} players (of ${uniquePlayers.length} unique) from ${mainSlate.GameCount} games`);
 
@@ -598,7 +599,7 @@ export async function fetchDKSlateByDraftGroup(
     const validPlayers = uniquePlayers.filter(p => p.salary && p.salary > 0 && p.position);
     const sortedPlayers = validPlayers.sort((a, b) => b.salary - a.salary);
     const maxPlayers = sport === "MLB" ? 250 : sport === "NFL" ? 150 : sport === "SOCCER" ? 200 : 250;
-    const trimmedPlayers = sortedPlayers.slice(0, maxPlayers);
+    const trimmedPlayers = sport === "NFL" ? sortedPlayers : sortedPlayers.slice(0, maxPlayers);
 
     const games = new Map<number, { away: string; home: string; time: string; date: string }>();
     for (const p of uniquePlayers) {
