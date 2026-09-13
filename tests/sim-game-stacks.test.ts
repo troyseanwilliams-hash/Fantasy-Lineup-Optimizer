@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { solveLineup } from "../server/routes";
 import type { Player, OptimizationConstraints } from "../shared/schema";
-import { stackGameKey } from "../server/sim-game-stacks";
+import { stackGameKey, type SimStackAlternative } from "../server/sim-game-stacks";
 import { addNFLQuarterbackStacks } from "../server/nfl-qb-stacks";
 import solver from "javascript-lp-solver";
 
@@ -34,6 +34,55 @@ test("impossible selected stack does not silently become unrestricted", () => {
     excludedPlayerIds: pool.filter(p => p.position === "QB" && ["BUF", "HOU"].includes(p.team)).map(p => p.id),
   }, "NFL", "draftkings");
   assert.ok(result.error);
+});
+test("exact-player stack alternative keeps every selected player together", () => {
+  const alternatives: SimStackAlternative[] = [
+    { kind: "players", playerIds: [1, 4, 12] },
+  ];
+  const result = solveLineup(pool, { ...base, stackAlternatives: alternatives }, "NFL", "draftkings");
+  assert.ok(!result.error, result.error);
+  assert.equal(result.stackChoiceIndex, 0);
+  for (const playerId of alternatives[0].playerIds!) {
+    assert.ok(result.lineup.some(player => player.id === playerId), `missing exact player ${playerId}`);
+  }
+});
+test("game and exact-player favorites share one alternative selector", () => {
+  const alternatives: SimStackAlternative[] = [
+    { kind: "players", id: 101, name: "BUF player stack", playerIds: [1, 4, 12] },
+    { kind: "game", id: 102, name: "Detroit game", gameKey: "DET-NO" },
+  ];
+  const result = solveLineup(pool, { ...base, stackAlternatives: alternatives }, "NFL", "draftkings");
+  assert.ok(!result.error, result.error);
+  assert.ok(result.stackChoiceIndex === 0 || result.stackChoiceIndex === 1);
+  if (result.stackChoiceIndex === 0) {
+    assert.equal(
+      alternatives[0].playerIds!.every(id => result.lineup.some(player => player.id === id)),
+      true,
+    );
+  } else {
+    const quarterback = result.lineup.find(player => player.position === "QB")!;
+    assert.equal(stackGameKey(quarterback.gameInfo), "DET-NO");
+    assert.ok(result.lineup.some(player => player.team === quarterback.team && ["WR", "TE"].includes(player.position)));
+    assert.ok(result.lineup.some(player => player.team === quarterback.opponent && ["RB", "WR", "TE"].includes(player.position)));
+  }
+});
+test("unselected game child requirements do not block a feasible exact QB favorite", () => {
+  const alternatives: SimStackAlternative[] = [
+    { kind: "game", gameKey: "BUF-HOU" },
+    { kind: "players", id: 103, name: "BUF QB/catcher", playerIds: [1, 4] },
+  ];
+  const result = solveLineup(pool, {
+    ...base,
+    lockedPlayerIds: [1],
+    excludedPlayerIds: pool
+      .filter(player => player.team === "HOU" && ["RB", "WR", "TE"].includes(player.position))
+      .map(player => player.id),
+    stackAlternatives: alternatives,
+  }, "NFL", "draftkings");
+  assert.ok(!result.error, result.error);
+  assert.equal(result.stackChoiceIndex, 1);
+  assert.ok(result.lineup.some(player => player.id === 1));
+  assert.ok(result.lineup.some(player => player.id === 4));
 });
 for (const contestType of ["cash", "gpp"]) {
   for (const platform of ["draftkings", "fanduel", "yahoo"] as const) {

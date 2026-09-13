@@ -18,7 +18,7 @@ function getTodayLineupCutoff(): Date {
 }
 import {
   slates, players, lineups, subscriptions, props, alerts, prizePicksEntries, playerHistory, winningLineups, playerOverrides,
-  lineupScores, alertDeliveries, notificationPreferences, performanceSnapshots,
+  lineupScores, alertDeliveries, notificationPreferences, performanceSnapshots, favoriteStacks,
   type Slate, type InsertSlate,
   type Player, type InsertPlayer,
   type Lineup, type InsertLineup,
@@ -33,6 +33,7 @@ import {
   type AlertDelivery, type InsertAlertDelivery,
   type NotificationPreference, type InsertNotificationPreference,
   type PerformanceSnapshot, type InsertPerformanceSnapshot,
+  type FavoriteStack, type InsertFavoriteStack,
 } from "@shared/schema";
 
 import { authStorage, type IAuthStorage } from "./replit_integrations/auth/storage";
@@ -121,6 +122,10 @@ export interface IStorage extends IAuthStorage {
   deletePlayerOverride(userId: string, slateId: number, playerId: number): Promise<void>;
   deletePlayerOverridesBySlate(slateId: number): Promise<void>;
   deletePlayerOverridesByUser(userId: string, slateId: number): Promise<void>;
+
+  getFavoriteStacks(userId: string, slateId: number): Promise<FavoriteStack[]>;
+  createFavoriteStack(data: InsertFavoriteStack): Promise<FavoriteStack>;
+  deleteFavoriteStack(userId: string, slateId: number, id: number): Promise<boolean>;
 
   getAllLineups(userId: string): Promise<Lineup[]>;
   getLineupScores(userId: string): Promise<LineupScore[]>;
@@ -226,6 +231,7 @@ export class DatabaseStorage implements IStorage {
     }
     const remainingLineups = await db.select({ id: lineups.id }).from(lineups).where(eq(lineups.slateId, slateId));
     if (remainingLineups.length === 0) {
+      await db.delete(favoriteStacks).where(eq(favoriteStacks.slateId, slateId));
       await db.delete(slates).where(eq(slates.id, slateId));
     } else {
       console.log(`[Storage] Keeping slate ${slateId} — ${remainingLineups.length} review lineups still reference it`);
@@ -954,6 +960,28 @@ export class DatabaseStorage implements IStorage {
   async deletePlayerOverridesByUser(userId: string, slateId: number): Promise<void> {
     await db.delete(playerOverrides)
       .where(and(eq(playerOverrides.userId, userId), eq(playerOverrides.slateId, slateId)));
+  }
+
+  async getFavoriteStacks(userId: string, slateId: number): Promise<FavoriteStack[]> {
+    return await db.select().from(favoriteStacks)
+      .where(and(eq(favoriteStacks.userId, userId), eq(favoriteStacks.slateId, slateId)))
+      .orderBy(desc(favoriteStacks.id));
+  }
+
+  async createFavoriteStack(data: InsertFavoriteStack): Promise<FavoriteStack> {
+    const [created] = await db.insert(favoriteStacks).values(data).returning();
+    return created;
+  }
+
+  async deleteFavoriteStack(userId: string, slateId: number, id: number): Promise<boolean> {
+    const deleted = await db.delete(favoriteStacks)
+      .where(and(
+        eq(favoriteStacks.id, id),
+        eq(favoriteStacks.userId, userId),
+        eq(favoriteStacks.slateId, slateId),
+      ))
+      .returning({ id: favoriteStacks.id });
+    return deleted.length > 0;
   }
 
   async getAllLineups(userId: string): Promise<Lineup[]> {

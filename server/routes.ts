@@ -2,7 +2,7 @@ import type { Express, Request } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, subscriptions, slates, lineups as lineupsTable, signupEvents, supportTickets, draftTeams } from "@shared/schema";
+import { users, subscriptions, slates, lineups as lineupsTable, signupEvents, supportTickets, draftTeams, type FavoriteStack } from "@shared/schema";
 import { eq, and, lt, sql, desc, gte, inArray } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -31,7 +31,7 @@ import { refreshRecentlyPlayed, getRecentlyPlayedCache, normalizePlayerName } fr
 import { calculateOwnership, computeOwnershipForPlayers, type ContestType } from "./ownership-engine";
 import { getCachedSignals, getScoutStatus, refreshAll, forceRefreshAll, secondsUntilRefresh, triggerLazyRefreshIfStale } from "./ai-scout";
 import { runSimulations, detectStack, scoreLineupsAcrossSims } from "./simulation-engine";
-import { addSimGameStacks, stackGameKey as getStackGameKey } from "./sim-game-stacks";
+import { addSimGameStacks, addSimStackAlternatives, stackGameKey as getStackGameKey, type SimStackAlternative } from "./sim-game-stacks";
 import { addNFLQuarterbackStacks } from "./nfl-qb-stacks";
 import { buildVegasContext } from "./vegas-client";
 import { buildDvPContext, applyDvPToProjections, buildOpponentMap } from "./dvp-client";
@@ -164,6 +164,28 @@ function isPlayerUnavailable(injuryStatus: string | null): boolean {
   if (!injuryStatus) return false;
   const s = injuryStatus.toUpperCase().trim();
   return isPlayerOut(injuryStatus) || s === "QUESTIONABLE" || s === "GTD";
+}
+
+function normalizeStackGameKey(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const parts = value.trim().toUpperCase().split("-");
+  if (parts.length !== 2 || parts.some(part => !/^[A-Z0-9]+$/.test(part))) return null;
+  return parts.sort().join("-");
+}
+
+function isClassicSlate(slate: Slate): boolean {
+  return (slate.gameType || "Classic").trim().toLowerCase() === "classic";
+}
+
+function serializeFavoriteStack(stack: FavoriteStack) {
+  return {
+    id: stack.id,
+    slateId: stack.slateId,
+    kind: stack.kind as "game" | "players",
+    name: stack.name,
+    gameKey: stack.gameKey,
+    playerIds: stack.playerIds || [],
+  };
 }
 
 type ScoutSignalMap = Map<string, { signal_type: string; boost_value: number }>;
@@ -302,6 +324,120 @@ export async function registerRoutes(
       console.error("Slates error:", err);
       res.status(500).json({ message: "Failed to fetch slates" });
     }
+  });
+
+  const favoriteStackBodySchema = z.object({
+    kind: z.enum(["game", "players"]),
+    name: z.string().trim().min(1).max(80),
+    gameKey: z.string().trim().nullable().optional(),
+    playerIds: z.array(z.number().int().positive()).optional(),
+  }).strict();
+
+  app.get("/api/slates/:slateId/favorite-stacks", async (req, res) => {
+    const userId = getSessionUserId(req);
+    if (!userId) return res.status(401).json({ message: "Not authenticated" });
+    const slateId = Number(req.params.slateId);
+    if (!Number.isSafeInteger(slateId) || slateId <= 0) {
+      return res.status(400).json({ message: "Invalid slate ID" });
+    }
+    const slate = await storage.getSlate(slateId);
+    if (!slate) return res.status(404).json({ message: "Slate not found" });
+    if (!isClassicSlate(slate)) {
+      return res.status(400).json({ message: "Favorite stacks are available only for classic slates." });
+    }
+    const stacks = await storage.getFavoriteStacks(userId, slateId);
+    return res.json(stacks.map(serializeFavoriteStack));
+  });
+
+  app.post("/api/slates/:slateId/favorite-stacks", async (req, res) => {
+    const userId = getSessionUserId(req);
+    if (!userId) return res.status(401).json({ message: "Not authenticated" });
+    const slateId = Number(req.params.slateId);
+    if (!Number.isSafeInteger(slateId) || slateId <= 0) {
+      return res.status(400).json({ message: "Invalid slate ID" });
+    }
+
+    const parsed = favoriteStackBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: parsed.error.errors[0]?.message || "Invalid favorite stack" });
+    }
+    const slate = await storage.getSlate(slateId);
+    if (!slate) return res.status(404).json({ message: "Slate not found" });
+    if (!isClassicSlate(slate)) {
+      return res.status(400).json({ message: "Favorite stacks are available only for classic slates." });
+    }
+
+    const input = parsed.data;
+    const currentPlayers = await storage.getPlayersBySlate(slateId);
+    let gameKey: string | null = null;
+    let playerIds: number[] = [];
+
+    if (input.kind === "game") {
+      gameKey = normalizeStackGameKey(input.gameKey);
+      if (!gameKey) {
+        return res.status(400).json({ message: "A valid canonical game key is required for a game favorite." });
+      }
+      if (input.playerIds && input.playerIds.length > 0) {
+        return res.status(400).json({ message: "Game favorites cannot include player IDs." });
+      }
+      const slateGameKeys = new Set(currentPlayers.map(player => getStackGameKey(player.gameInfo)).filter(Boolean));
+      if (!slateGameKeys.has(gameKey)) {
+        return res.status(400).json({ message: "That game is not in the selected slate." });
+      }
+    } else {
+      const requestedIds = input.playerIds || [];
+      if (requestedIds.length < 2 || requestedIds.length > 5) {
+        return res.status(400).json({ message: "Player favorites must contain 2 to 5 players." });
+      }
+      if (new Set(requestedIds).size !== requestedIds.length) {
+        return res.status(400).json({ message: "Player favorites cannot contain duplicate players." });
+      }
+      const playersById = new Map(currentPlayers.map(player => [player.id, player]));
+      const selectedPlayers = requestedIds.map(id => playersById.get(id));
+      if (selectedPlayers.some(player => !player)) {
+        return res.status(400).json({ message: "Every selected player must be from the current slate. Refresh the player pool and try again." });
+      }
+      const selectedGameKeys = new Set(selectedPlayers.map(player => getStackGameKey(player!.gameInfo)));
+      if (selectedGameKeys.size !== 1 || selectedGameKeys.has("")) {
+        return res.status(400).json({ message: "Player favorites must use players from one game in the current slate." });
+      }
+      const selectedGameKey = selectedGameKeys.values().next().value as string;
+      if (input.gameKey != null && normalizeStackGameKey(input.gameKey) !== selectedGameKey) {
+        return res.status(400).json({ message: "The supplied game key does not match the selected players' game." });
+      }
+      // Keep the canonical game key as useful additive metadata for player
+      // favorites too; the exact player IDs remain the source of truth.
+      gameKey = selectedGameKey;
+      playerIds = [...requestedIds].sort((a, b) => a - b);
+    }
+
+    const created = await storage.createFavoriteStack({
+      userId,
+      slateId,
+      kind: input.kind,
+      name: input.name,
+      gameKey,
+      playerIds,
+    });
+    return res.status(201).json(serializeFavoriteStack(created));
+  });
+
+  app.delete("/api/slates/:slateId/favorite-stacks/:id", async (req, res) => {
+    const userId = getSessionUserId(req);
+    if (!userId) return res.status(401).json({ message: "Not authenticated" });
+    const slateId = Number(req.params.slateId);
+    const id = Number(req.params.id);
+    if (!Number.isSafeInteger(slateId) || slateId <= 0 || !Number.isSafeInteger(id) || id <= 0) {
+      return res.status(400).json({ message: "Invalid favorite stack ID" });
+    }
+    const slate = await storage.getSlate(slateId);
+    if (!slate) return res.status(404).json({ message: "Slate not found" });
+    if (!isClassicSlate(slate)) {
+      return res.status(400).json({ message: "Favorite stacks are available only for classic slates." });
+    }
+    const deleted = await storage.deleteFavoriteStack(userId, slateId, id);
+    if (!deleted) return res.status(404).json({ message: "Favorite stack not found" });
+    return res.sendStatus(204);
   });
 
   // DraftKings publishes several independent groups for the same kickoff.
@@ -576,7 +712,12 @@ export async function registerRoutes(
       }
     }
 
-    res.json(playersWithOwnership);
+    // Add the canonical sorted pair used by saved stacks without changing
+    // the existing player response contract.
+    res.json(playersWithOwnership.map((player: any) => ({
+      ...player,
+      gameKey: getStackGameKey(player.gameInfo),
+    })));
   });
 
   app.get("/api/players/all/:sport", async (req, res) => {
@@ -5174,6 +5315,7 @@ export async function registerRoutes(
     minStackSize:         z.number().min(2).max(5).default(2),
     stackGameKey:         z.string().optional(),
     stackGameKeys:        z.array(z.string().regex(/^[A-Z0-9]+-[A-Z0-9]+$/)).max(32).optional(),
+    favoriteStackIds:     z.array(z.number().int().positive()).max(64).default([]),
     minStarRating:        z.number().min(0).max(5).default(0),
     sortMetric:           z.enum(["composite", "p90", "p75", "median", "avg", "ev"]).default("composite"),
     useBoosts:            z.boolean().default(true),
@@ -5214,6 +5356,10 @@ export async function registerRoutes(
       if (!slate) return res.status(404).json({ message: "Slate not found" });
       if (slate.isActive === false) return res.status(410).json({ message: "This slate has ended." });
 
+      if (input.favoriteStackIds.length > 0 && !isClassicSlate(slate)) {
+        return res.status(400).json({ message: "Favorite stacks are available only for classic slates." });
+      }
+
       if (new Date(slate.startTime) <= new Date()) {
         return res.status(400).json({ message: "This slate has already started. Lineups can no longer be generated." });
       }
@@ -5225,6 +5371,46 @@ export async function registerRoutes(
       let allPlayers = await storage.getPlayersBySlate(input.slateId);
       if (allPlayers.length === 0) {
         return res.status(400).json({ message: "No players found for this slate" });
+      }
+
+      let selectedFavoriteStacks: FavoriteStack[] = [];
+      if (input.favoriteStackIds.length > 0) {
+        if (new Set(input.favoriteStackIds).size !== input.favoriteStackIds.length) {
+          return res.status(400).json({ message: "favoriteStackIds cannot contain duplicates." });
+        }
+        const favoriteStacks = await storage.getFavoriteStacks(userId, input.slateId);
+        const favoriteById = new Map(favoriteStacks.map(stack => [stack.id, stack]));
+        selectedFavoriteStacks = input.favoriteStackIds.map(id => favoriteById.get(id)).filter(Boolean) as FavoriteStack[];
+        if (selectedFavoriteStacks.length !== input.favoriteStackIds.length) {
+          return res.status(400).json({ message: "One or more selected favorite stacks are not saved for this slate. Refresh your favorites and try again." });
+        }
+
+        const currentPlayerIds = new Set(allPlayers.map(player => player.id));
+        const currentGameKeys = new Set(allPlayers.map(player => getStackGameKey(player.gameInfo)).filter(Boolean));
+        for (const favorite of selectedFavoriteStacks) {
+          if (favorite.kind === "game") {
+            const gameKey = normalizeStackGameKey(favorite.gameKey);
+            if (!gameKey || !currentGameKeys.has(gameKey)) {
+              return res.status(400).json({ message: `Favorite stack "${favorite.name}" no longer matches a game in this slate. Refresh your favorites.` });
+            }
+          } else {
+            const stalePlayer = (favorite.playerIds || []).find(playerId => !currentPlayerIds.has(playerId));
+            if (stalePlayer !== undefined) {
+              return res.status(400).json({ message: `Favorite stack "${favorite.name}" contains a stale player for this slate. Re-save the stack from the current player pool.` });
+            }
+            const favoritePlayers = (favorite.playerIds || []).map(playerId => allPlayers.find(player => player.id === playerId)!);
+            const favoriteGames = new Set(favoritePlayers.map(player => getStackGameKey(player.gameInfo)));
+            const favoriteGameKey = favoriteGames.values().next().value as string | undefined;
+            if (favoritePlayers.length < 2 ||
+                favoritePlayers.length > 5 ||
+                new Set(favorite.playerIds || []).size !== favoritePlayers.length ||
+                favoriteGames.size !== 1 ||
+                favoriteGames.has("") ||
+                (favorite.gameKey != null && normalizeStackGameKey(favorite.gameKey) !== favoriteGameKey)) {
+              return res.status(400).json({ message: `Favorite stack "${favorite.name}" no longer contains a valid one-game player group. Re-save the stack from the current player pool.` });
+            }
+          }
+        }
       }
       const lockedGolfMissedCut = allPlayers.find(p =>
         input.lockedPlayerIds.includes(p.id) &&
@@ -5386,12 +5572,55 @@ export async function registerRoutes(
         return res.status(400).json({ message: simRequiredPositionMessage });
       }
 
-      const stackGameKeys = [...new Set(input.stackGameKeys ??
-        (input.stackGameKey ? [input.stackGameKey.trim().toUpperCase()] : []))];
+      const requestedGameKeyInputs = Array.from(new Set(input.stackGameKeys ??
+        (input.stackGameKey ? [input.stackGameKey.trim().toUpperCase()] : [])));
+      const normalizedRequestedGameKeys = requestedGameKeyInputs.map(key => normalizeStackGameKey(key));
+      if (normalizedRequestedGameKeys.some(key => !key)) {
+        return res.status(400).json({ message: "Selected stack games must use a canonical TEAM-TEAM game key." });
+      }
+      const requestedGameKeys = normalizedRequestedGameKeys.filter((key): key is string => Boolean(key));
       const slateGames = new Set(allPlayers.map(p => getStackGameKey(p.gameInfo)));
-      if (stackGameKeys.some(key => !slateGames.has(key))) {
+      if (requestedGameKeys.some(key => !slateGames.has(key))) {
         return res.status(400).json({ message: "A selected stack game is not in this slate. Clear your game selections and try again." });
       }
+      const stackAlternatives: SimStackAlternative[] = [];
+      const seenGameAlternatives = new Set<string>();
+      const seenPlayerAlternatives = new Set<string>();
+      for (const gameKey of requestedGameKeys) {
+        if (seenGameAlternatives.has(gameKey)) continue;
+        seenGameAlternatives.add(gameKey);
+        stackAlternatives.push({ kind: "game", gameKey });
+      }
+      for (const favorite of selectedFavoriteStacks) {
+        if (favorite.kind === "game") {
+          const gameKey = normalizeStackGameKey(favorite.gameKey)!;
+          if (seenGameAlternatives.has(gameKey)) continue;
+          seenGameAlternatives.add(gameKey);
+          stackAlternatives.push({
+            kind: "game",
+            gameKey,
+            id: favorite.id,
+            name: favorite.name,
+          });
+        } else {
+          const playerIds = Array.from(favorite.playerIds || []).sort((a, b) => a - b);
+          const playerKey = playerIds.join(",");
+          if (seenPlayerAlternatives.has(playerKey)) continue;
+          seenPlayerAlternatives.add(playerKey);
+          stackAlternatives.push({
+            kind: "players",
+            gameKey: favorite.gameKey || undefined,
+            playerIds,
+            id: favorite.id,
+            name: favorite.name,
+          });
+        }
+      }
+      const stackGameKeys = stackAlternatives
+        .filter((alternative): alternative is SimStackAlternative & { kind: "game"; gameKey: string } =>
+          alternative.kind === "game" && Boolean(alternative.gameKey),
+        )
+        .map(alternative => alternative.gameKey);
 
       const simPosGroups = new Map<string, Player[]>();
       for (const p of pool) {
@@ -5403,6 +5632,21 @@ export async function registerRoutes(
       }
       const simKeepIds = new Set<number>();
       for (const pid of input.lockedPlayerIds) simKeepIds.add(pid);
+      // Keep every player that can satisfy a selected alternative in the
+      // reduced LP pool.  Excluded/inactive players are not reintroduced;
+      // their exact-player selector remains infeasible instead of receiving a
+      // silent substitute.
+      for (const alternative of stackAlternatives) {
+        if (alternative.kind === "players") {
+          for (const pid of alternative.playerIds || []) {
+            if (pool.some(player => player.id === pid)) simKeepIds.add(pid);
+          }
+        } else {
+          for (const player of pool) {
+            if (getStackGameKey(player.gameInfo) === alternative.gameKey) simKeepIds.add(player.id);
+          }
+        }
+      }
       const simTopPerPos = sport === "GOLF" ? 50 : 20;
       const simCheapReserve = 5;
       for (const [, players] of simPosGroups) {
@@ -5449,6 +5693,7 @@ export async function registerRoutes(
         lineup:    Player[];
         frequency: number;
         simScores: number[];
+        stackChoiceIndex?: number;
       }>();
 
       const simConstraintsBase = {
@@ -5459,7 +5704,13 @@ export async function registerRoutes(
         lineupCount: 1,
         maxSalary: config.salaryCap,
         stackGameKeys,
-      } as OptimizationConstraints;
+        stackAlternatives,
+      } as unknown as OptimizationConstraints & {
+        stackGameKeys?: string[];
+        stackAlternatives?: SimStackAlternative[];
+        maxSalary?: number;
+        minSalary?: number;
+      };
 
       const calT0 = Date.now();
       let calibrationAttempts = 0;
@@ -5488,8 +5739,18 @@ export async function registerRoutes(
         if (result.error || result.lineup.length === 0) continue;
         const key = result.lineup.map((p: Player) => p.id).sort().join(",");
         const existing = lineupMap.get(key);
-        if (existing) { existing.frequency++; existing.simScores.push(result.totalProjectedPoints); }
-        else { lineupMap.set(key, { lineup: result.lineup as Player[], frequency: 1, simScores: [result.totalProjectedPoints] }); }
+        if (existing) {
+          existing.frequency++;
+          existing.simScores.push(result.totalProjectedPoints);
+          if (existing.stackChoiceIndex == null && result.stackChoiceIndex != null) existing.stackChoiceIndex = result.stackChoiceIndex;
+        } else {
+          lineupMap.set(key, {
+            lineup: result.lineup as Player[],
+            frequency: 1,
+            simScores: [result.totalProjectedPoints],
+            stackChoiceIndex: result.stackChoiceIndex,
+          });
+        }
       }
       const calMs = Date.now() - calT0;
       const msPerLP = Math.max(1, calMs / Math.max(1, calibrationAttempts));
@@ -5521,8 +5782,18 @@ export async function registerRoutes(
           if (result.error || result.lineup.length === 0) continue;
           const key = result.lineup.map((p: Player) => p.id).sort().join(",");
           const existing = lineupMap.get(key);
-          if (existing) { existing.frequency++; existing.simScores.push(result.totalProjectedPoints); }
-          else { lineupMap.set(key, { lineup: result.lineup as Player[], frequency: 1, simScores: [result.totalProjectedPoints] }); }
+          if (existing) {
+            existing.frequency++;
+            existing.simScores.push(result.totalProjectedPoints);
+            if (existing.stackChoiceIndex == null && result.stackChoiceIndex != null) existing.stackChoiceIndex = result.stackChoiceIndex;
+          } else {
+            lineupMap.set(key, {
+              lineup: result.lineup as Player[],
+              frequency: 1,
+              simScores: [result.totalProjectedPoints],
+              stackChoiceIndex: result.stackChoiceIndex,
+            });
+          }
         }
       }
 
@@ -5559,16 +5830,26 @@ export async function registerRoutes(
         if (result.error || result.lineup.length === 0) continue;
         const key = result.lineup.map((p: Player) => p.id).sort().join(",");
         const existing = lineupMap.get(key);
-        if (existing) { existing.frequency++; existing.simScores.push(result.totalProjectedPoints); }
-        else { lineupMap.set(key, { lineup: result.lineup as Player[], frequency: 1, simScores: [result.totalProjectedPoints] }); }
+        if (existing) {
+          existing.frequency++;
+          existing.simScores.push(result.totalProjectedPoints);
+          if (existing.stackChoiceIndex == null && result.stackChoiceIndex != null) existing.stackChoiceIndex = result.stackChoiceIndex;
+        } else {
+          lineupMap.set(key, {
+            lineup: result.lineup as Player[],
+            frequency: 1,
+            simScores: [result.totalProjectedPoints],
+            stackChoiceIndex: result.stackChoiceIndex,
+          });
+        }
       }
 
       if (lineupMap.size === 0) {
         const partial = simTimedOut || Date.now() >= solverDeadline;
         return res.status(200).json({
           lineups: [],
-          message: stackGameKeys.length
-            ? "No feasible lineups satisfy your selected game stacks. Check player locks, exclusions, and salary filters, or select another game."
+          message: stackAlternatives.length
+            ? "No feasible lineups satisfy your selected stacks. Check player locks, exclusions, player status, salary/FLEX filters, or select another stack."
             : partial
               ? "Partial results: the solver time budget expired before a validated lineup was generated."
               : "No feasible lineups found in simulations. Try relaxing constraints.",
@@ -5616,6 +5897,7 @@ export async function registerRoutes(
           stackedGame:  stack.game,
           stackCount:   stack.count,
           stackTeams:   stack.teams,
+          stackChoice:  data.stackChoiceIndex == null ? undefined : stackAlternatives[data.stackChoiceIndex] || undefined,
         };
       });
 
@@ -5791,6 +6073,7 @@ export async function registerRoutes(
           dvpApplied,
           dvpTeamsFound:    dvpContext ? dvpContext.size / 8 : 0,
         },
+        favoriteStacks: selectedFavoriteStacks.map(serializeFavoriteStack),
         partial,
         message: partialMessage,
       });
@@ -6719,7 +7002,12 @@ function nflTournamentScore(player: Player, ownership: number | undefined): numb
 
 export function solveLineup(
   pool: Player[],
-  constraints: OptimizationConstraints & { stackGameKeys?: string[] },
+  constraints: OptimizationConstraints & {
+    stackGameKeys?: string[];
+    stackAlternatives?: SimStackAlternative[];
+    maxSalary?: number;
+    minSalary?: number;
+  },
   sport: string,
   platform: Platform,
   ownershipByPlayerId?: Map<number, number>,
@@ -6924,7 +7212,11 @@ export function solveLineup(
 
   const gameKeys = Array.from(gameMap.keys());
   addNFLQuarterbackStacks(model, availablePool, sport);
-  addSimGameStacks(model, availablePool, constraints.stackGameKeys ?? [], sport);
+  if (constraints.stackAlternatives?.length) {
+    addSimStackAlternatives(model, availablePool, constraints.stackAlternatives, sport);
+  } else {
+    addSimGameStacks(model, availablePool, constraints.stackGameKeys ?? [], sport);
+  }
 
   if (isNflClassicGpp) {
     const selectablePlayers = availablePool.filter(p => model.variables[`p${p.id}`]);
@@ -7000,6 +7292,11 @@ export function solveLineup(
   const selectedPlayerIds = Object.keys(result)
     .filter(k => k.startsWith('p') && result[k] > 0.5)
     .map(k => Number(k.substring(1)));
+  const stackChoiceIndex = constraints.stackAlternatives?.length
+    ? Object.keys(result)
+      .map(key => key.match(/^sim_stack_(\d+)$/))
+      .find(match => match && result[match[0]] > 0.5)?.[1]
+    : undefined;
 
   let selectedPlayers = availablePool.filter(p => selectedPlayerIds.includes(p.id));
 
@@ -7087,6 +7384,7 @@ export function solveLineup(
     lineup: selectedPlayers,
     totalSalary,
     totalProjectedPoints: totalPoints,
+    stackChoiceIndex: stackChoiceIndex == null ? undefined : Number(stackChoiceIndex),
     timedOut: solveTimedOut,
     solveTimeMs: guardedSolve.elapsedMs,
   };

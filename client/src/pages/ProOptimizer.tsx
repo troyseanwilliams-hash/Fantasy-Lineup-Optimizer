@@ -53,6 +53,15 @@ interface PlayerWithOwnership extends Player {
   ownershipProjection?: number;
 }
 
+interface FavoriteStack {
+  id: number;
+  slateId: number;
+  kind: "game" | "players";
+  name: string;
+  gameKey: string | null;
+  playerIds: number[];
+}
+
 const INJURY_COLORS: Record<string, string> = {
   OUT: "bg-red-500/20 text-red-400 border-red-500/30",
   Doubtful: "bg-orange-500/20 text-orange-400 border-orange-500/30",
@@ -186,6 +195,7 @@ export default function ProOptimizer() {
   const lineupsRef = useRef<HTMLDivElement>(null);
   const [numSims, setNumSims] = useState(200);
   const [stackGameKeys, setStackGameKeys] = useState<string[]>([]);
+  const [favoriteStackIds, setFavoriteStackIds] = useState<number[]>([]);
   const [simSortMetric, setSimSortMetric] = useState<"composite" | "p90" | "p75" | "median" | "avg" | "ev">("composite");
   const [minStarRating, setMinStarRating] = useState<number>(0);
   const [lineupSwaps, setLineupSwaps] = useState<Record<string, Record<string, Player>>>({});
@@ -199,6 +209,7 @@ export default function ProOptimizer() {
   const [playerFocus, setPlayerFocus] = useState(false);
   const playerPoolRef = useRef<HTMLDivElement>(null);
   const currentSlateIdRef = useRef(slateId);
+  const favoriteStackHandoffAppliedRef = useRef<number | null>(null);
   currentSlateIdRef.current = slateId;
   const componentMountedRef = useRef(true);
   const exportInFlightRef = useRef(false);
@@ -215,7 +226,27 @@ export default function ProOptimizer() {
   const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"], refetchInterval: 300000 });
   const slate = useResolvedSlate(slateId, slates, "/optimizer-pro");
   const sport = (slate?.sport || "NBA") as Sport;
+  const isClassic = (slate?.gameType || "Classic").trim().toLowerCase() === "classic";
   const isNflClassic = sport === "NFL" && (slate?.gameType || "Classic").toLowerCase() === "classic";
+
+  const favoriteStacksQueryKey = `/api/slates/${slateId}/favorite-stacks`;
+  const {
+    data: favoriteStacks,
+  } = useQuery<FavoriteStack[]>({
+    queryKey: [favoriteStacksQueryKey],
+    queryFn: async () => {
+      const response = await fetch(favoriteStacksQueryKey, { credentials: "include" });
+      if (!response.ok) {
+        throw new Error("Failed to load saved stacks");
+      }
+      const data = await response.json();
+      if (!Array.isArray(data)) {
+        throw new Error("Saved stacks response was invalid");
+      }
+      return data as FavoriteStack[];
+    },
+    enabled: !!slate && Number.isFinite(slateId) && isClassic,
+  });
 
   const config = useMemo(() => {
     try { return getPlatformConfig(sport, platform); }
@@ -569,6 +600,52 @@ export default function ProOptimizer() {
 
   const playersById = useMemo(() => new Map(players?.map(p => [p.id, p]) ?? []), [players]);
 
+  const selectableFavoriteStacks = useMemo(() => {
+    if (!isClassic || !favoriteStacks) return [];
+    return favoriteStacks.filter(stack =>
+      Number(stack.slateId) === slateId
+      && Number.isFinite(Number(stack.id))
+      && (stack.kind === "game" || stack.kind === "players")
+      && typeof stack.name === "string"
+      && (stack.gameKey === null || typeof stack.gameKey === "string")
+      && Array.isArray(stack.playerIds)
+    );
+  }, [favoriteStacks, isClassic, slateId]);
+
+  const selectedFavoriteStackIds = useMemo(() => {
+    const validIds = new Set(selectableFavoriteStacks.map(stack => Number(stack.id)));
+    return favoriteStackIds.filter(id => validIds.has(Number(id)));
+  }, [favoriteStackIds, selectableFavoriteStacks]);
+
+  const useFavoriteStacksQueryFlag = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("useFavoriteStacks") === "1";
+  }, [slateId]);
+
+  useEffect(() => {
+    if (!isClassic || !favoriteStacks) {
+      if (!isClassic) setFavoriteStackIds([]);
+      return;
+    }
+    const validIds = new Set(selectableFavoriteStacks.map(stack => Number(stack.id)));
+    setFavoriteStackIds(previous => previous.filter(id => validIds.has(Number(id))));
+  }, [favoriteStacks, isClassic, selectableFavoriteStacks]);
+
+  useEffect(() => {
+    if (
+      !useFavoriteStacksQueryFlag
+      || !isClassic
+      || !favoriteStacks
+      || favoriteStackHandoffAppliedRef.current === slateId
+    ) {
+      return;
+    }
+    favoriteStackHandoffAppliedRef.current = slateId;
+    setSimMode(true);
+    setSimSettingsExpanded(true);
+    setFavoriteStackIds(selectableFavoriteStacks.map(stack => Number(stack.id)));
+  }, [favoriteStacks, isClassic, selectableFavoriteStacks, slateId, useFavoriteStacksQueryFlag]);
+
   const generatedLineups = useMemo(() => {
     const enrichPlayer = (p: any) => {
       const enriched = playersById.get(p.id);
@@ -758,6 +835,7 @@ export default function ProOptimizer() {
         lineupCount: numSims,
         numSims,
         stackGameKeys,
+         favoriteStackIds: isClassic ? selectedFavoriteStackIds : [],
         globalMaxExposure: globalMaxExposure ?? undefined,
         minProjection: minProjection ?? undefined,
         minStarRating,
@@ -1045,6 +1123,7 @@ export default function ProOptimizer() {
     setSwappingTarget(null);
     setUseBoostsUserOverride(null);
     setStackGameKeys([]);
+    setFavoriteStackIds([]);
     setMinStarRating(0);
     optimizeMutation.reset();
     simMutation.reset();
@@ -1653,13 +1732,16 @@ export default function ProOptimizer() {
                 </div>}
 
                 {/* Target game stack — compact */}
-                {availableGames.length > 0 && (
+                {(availableGames.length > 0 || (isClassic && selectableFavoriteStacks.length > 0)) && (
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
                       <LabelTip text="NFL quarterbacks always pair with at least one same-team WR/TE. Select games to also require that pair and an opposing RB/WR/TE from one selected game. Other sports require three players from a selected game, including both teams; no selection leaves them unrestricted."><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Game Stacks ({stackGameKeys.length} selected)</span></LabelTip>
-                      {stackGameKeys.length > 0 && (
+                      {(stackGameKeys.length > 0 || favoriteStackIds.length > 0) && (
                         <button
-                          onClick={() => setStackGameKeys([])}
+                          onClick={() => {
+                            setStackGameKeys([]);
+                            setFavoriteStackIds([]);
+                          }}
                           className="text-[9px] font-black text-red-400 hover:text-red-300 transition-colors"
                           data-testid="btn-clear-stack-game"
                         >
@@ -1684,6 +1766,69 @@ export default function ProOptimizer() {
                         </button>
                       ))}
                     </div>
+                    {isClassic && selectableFavoriteStacks.length > 0 && (
+                      <div className="mt-2 space-y-1.5 border-t border-violet-500/10 pt-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[9px] font-black uppercase tracking-wider text-violet-300">
+                            Saved stack alternatives ({selectedFavoriteStackIds.length} selected)
+                          </span>
+                          <Link
+                            href={`/top-stacks?slateId=${slateId}`}
+                            className="text-[9px] font-black text-violet-300 hover:text-violet-200 whitespace-nowrap"
+                            data-testid="link-manage-top-stacks"
+                          >
+                            Manage / Top Stacks
+                          </Link>
+                        </div>
+                        <div className="grid gap-1 sm:grid-cols-2">
+                          {selectableFavoriteStacks.map(stack => {
+                            const stackPlayers = stack.playerIds
+                              .map(playerId => playersById.get(Number(playerId)))
+                              .filter((player): player is PlayerWithOwnership => !!player);
+                            const playerDetails = stack.playerIds.map(playerId => {
+                              const player = playersById.get(Number(playerId));
+                              return player
+                                ? `${player.name} (${player.position} · ${player.team})`
+                                : `Player #${playerId}`;
+                            }).join(", ");
+                            const gameLabel = stack.gameKey
+                              ? availableGames.find(game => game.key === stack.gameKey)?.label || stack.gameKey
+                              : null;
+                            const detail = stack.kind === "game"
+                              ? `${gameLabel ? `Game: ${gameLabel}` : "Saved game"}${playerDetails ? ` · ${playerDetails}` : ""}`
+                              : `Exact players: ${playerDetails || "Saved exact-player stack"}`;
+                            const selected = selectedFavoriteStackIds.includes(Number(stack.id));
+                            return (
+                              <button
+                                key={stack.id}
+                                type="button"
+                                onClick={() => setFavoriteStackIds(ids => selected
+                                  ? ids.filter(id => Number(id) !== Number(stack.id))
+                                  : [...ids, Number(stack.id)])}
+                                aria-pressed={selected}
+                                className={`min-w-0 rounded border px-2 py-1 text-left transition-all ${
+                                  selected
+                                    ? "border-violet-500/40 bg-violet-500/20 text-violet-200 ring-1 ring-violet-500/20"
+                                    : "border-slate-700/50 text-slate-400 hover:border-violet-500/30 hover:text-slate-200"
+                                }`}
+                                data-testid={`btn-favorite-stack-${stack.id}`}
+                              >
+                                <span className="block truncate text-[10px] font-black">{stack.name}</span>
+                                <span className="block truncate text-[9px] font-medium text-slate-500" title={detail}>
+                                  {detail}
+                                </span>
+                                {stack.kind === "players" && stackPlayers.length > 0 && (
+                                  <span className="sr-only">{stackPlayers.length} saved players</span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[10px] leading-tight text-slate-400">
+                          Saved stacks are alternatives to the game buttons. Each lineup uses one chosen alternative — not all selected alternatives combined.
+                        </p>
+                      </div>
+                    )}
                     <p className="text-[10px] text-slate-400">
                       {stackGameKeys.length
                         ? sport === "NFL"

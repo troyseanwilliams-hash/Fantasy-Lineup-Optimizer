@@ -7,7 +7,7 @@ import {
   insertLineupSchema, 
   lineups, 
   optimizationConstraintSchema,
-  optimizeResponseSchema
+  optimizeResponseSchema,
 } from './schema';
 
 export const errorSchemas = {
@@ -76,6 +76,54 @@ export const api = {
       responses: {
         200: z.array(z.custom<typeof players.$inferSelect>()),
         404: errorSchemas.notFound,
+      },
+    },
+    favoriteStacks: {
+      list: {
+        method: 'GET' as const,
+        path: '/api/slates/:slateId/favorite-stacks' as const,
+        responses: {
+          200: z.array(z.object({
+            id: z.number(),
+            slateId: z.number(),
+            kind: z.enum(["game", "players"]),
+            name: z.string(),
+            gameKey: z.string().nullable(),
+            playerIds: z.array(z.number()),
+          })),
+        },
+      },
+      create: {
+        method: 'POST' as const,
+        path: '/api/slates/:slateId/favorite-stacks' as const,
+        input: z.object({
+          kind: z.enum(["game", "players"]),
+          name: z.string().min(1),
+          gameKey: z.string().nullable().optional(),
+          playerIds: z.array(z.number().int().positive()).optional(),
+        }),
+        responses: {
+          201: z.object({
+            id: z.number(),
+            slateId: z.number(),
+            kind: z.enum(["game", "players"]),
+            name: z.string(),
+            gameKey: z.string().nullable(),
+            playerIds: z.array(z.number()),
+          }),
+          400: errorSchemas.validation,
+          401: z.object({ message: z.string() }),
+          404: errorSchemas.notFound,
+        },
+      },
+      delete: {
+        method: 'DELETE' as const,
+        path: '/api/slates/:slateId/favorite-stacks/:id' as const,
+        responses: {
+          204: z.void(),
+          401: z.object({ message: z.string() }),
+          404: errorSchemas.notFound,
+        },
       },
     },
   },

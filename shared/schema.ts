@@ -272,6 +272,25 @@ export const insertPlayerOverrideSchema = createInsertSchema(playerOverrides).om
 export type PlayerOverride = typeof playerOverrides.$inferSelect;
 export type InsertPlayerOverride = z.infer<typeof insertPlayerOverrideSchema>;
 
+// --- FAVORITE STACKS ---
+// Stack definitions are deliberately scoped to a slate.  Player IDs are
+// contest-pool IDs (not provider IDs), so a favorite can never be reused
+// accidentally against a different slate after a refresh.
+export const favoriteStacks = pgTable("favorite_stacks", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  slateId: integer("slate_id").notNull().references(() => slates.id),
+  kind: text("kind").notNull(), // game | players
+  name: text("name").notNull(),
+  gameKey: text("game_key"),
+  playerIds: integer("player_ids").array().notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertFavoriteStackSchema = createInsertSchema(favoriteStacks).omit({ id: true, createdAt: true });
+export type FavoriteStack = typeof favoriteStacks.$inferSelect;
+export type InsertFavoriteStack = z.infer<typeof insertFavoriteStackSchema>;
+
 // --- LINEUP SCORES (live scoring per lineup) ---
 export const lineupScores = pgTable("lineup_scores", {
   id: serial("id").primaryKey(),
@@ -536,6 +555,12 @@ export type ProOptimizeResponse = z.infer<typeof proOptimizeResponseSchema>;
  *      ALTER COLUMN created_at TYPE timestamp USING created_at::timestamp;
  *    ALTER TABLE props
  *      ALTER COLUMN created_at SET DEFAULT NOW();
+ *
+ * 4. favorite_stacks table:
+ *
+ *    Apply migrations/0001_favorite_stacks.sql before enabling the Top
+ *    Stacks endpoints.  The migration is intentionally idempotent and does
+ *    not modify any existing table.
  *
  * ============================================================
  */

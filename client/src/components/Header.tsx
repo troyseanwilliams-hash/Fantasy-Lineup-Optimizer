@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Users, Settings2, BarChart3, Award, Swords, Circle, Shield } from "lucide-react";
+import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Users, Settings2, BarChart3, Award, Swords, Circle, Shield, GitBranch } from "lucide-react";
 import { ACTIVE_SPORTS, COMING_SOON_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 import { LogoBanner } from "@/components/Logo";
@@ -294,7 +294,7 @@ export function Header() {
               <DropdownMenuTrigger asChild>
                 <button
                   className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer outline-none ${
-                    ["/props", "/prizepicks", "/showdown", "/player-config", "/ownership", "/nfl-mme"].includes(currentPath)
+                    ["/props", "/prizepicks", "/showdown", "/player-config", "/ownership", "/nfl-mme", "/top-stacks"].includes(currentPath)
                       ? "text-[#10B981]"
                       : "text-slate-400 hover:text-white"
                   }`}
@@ -328,6 +328,12 @@ export function Header() {
                   <DropdownMenuItem className="cursor-pointer" data-testid="nav-showdown">
                     <Swords className="w-4 h-4 mr-2 text-amber-400" />
                     <span className="text-sm font-bold text-slate-300">Showdown</span>
+                  </DropdownMenuItem>
+                </Link>
+                <Link href="/top-stacks">
+                  <DropdownMenuItem className="cursor-pointer" data-testid="nav-top-stacks">
+                    <GitBranch className="w-4 h-4 mr-2 text-emerald-400" />
+                    <span className="text-sm font-bold text-slate-300">Top Stacks</span>
                   </DropdownMenuItem>
                 </Link>
                 {(isPaid || user?.isAdmin) && (
@@ -682,6 +688,17 @@ export function Header() {
             >
               <Swords className="w-5 h-5 shrink-0" />
               <span>NFL Showdown Builder</span>
+            </button>
+
+            <button
+              onClick={() => mobileNav("/top-stacks")}
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                currentPath === "/top-stacks" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+              }`}
+              data-testid="mobile-nav-top-stacks"
+            >
+              <GitBranch className="w-5 h-5 shrink-0 text-emerald-400" />
+              <span>Top Stacks</span>
             </button>
 
             <button
