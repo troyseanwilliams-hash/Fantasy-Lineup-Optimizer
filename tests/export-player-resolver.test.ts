@@ -65,6 +65,138 @@ function draftable(overrides: Partial<ExportDraftable> = {}): ExportDraftable {
   };
 }
 
+function michaelWilson(overrides: Partial<Player> = {}): Player {
+  return player({
+    name: "Michael Wilson",
+    team: "ARI",
+    position: "WR",
+    salary: 5300,
+    ...overrides,
+  });
+}
+
+function michaelWilsonDraftables(): ExportDraftable[] {
+  return [
+    {
+      draftableId: 43727681,
+      playerId: 1123529,
+      displayName: "Michael Wilson",
+      teamAbbreviation: "ARI",
+      position: "WR",
+      rosterSlotId: 68,
+      salary: 5300,
+      draftGroupId: 151307,
+    },
+    {
+      draftableId: 43727682,
+      playerId: 1123529,
+      displayName: "Michael Wilson",
+      teamAbbreviation: "ARI",
+      position: "WR",
+      rosterSlotId: 70,
+      salary: 5300,
+      draftGroupId: 151307,
+    },
+  ];
+}
+
+test("Classic export prefers either stored Michael Wilson contest draftable ID", () => {
+  for (const storedId of [43727681, 43727682]) {
+    const result = resolvePlayersForExport({
+      slate: slate({
+        sport: "NFL",
+        draftGroupId: 151307,
+      }),
+      players: [michaelWilson({ draftKingsPlayerId: storedId })],
+      playerIds: [1],
+      draftables: michaelWilsonDraftables(),
+    });
+
+    assert.equal(result[0].draftKingsPlayerId, storedId);
+  }
+});
+
+test("Classic export never uses an exact Michael Wilson row from another draft group", () => {
+  assert.throws(
+    () => resolvePlayersForExport({
+      slate: slate({
+        sport: "NFL",
+        draftGroupId: 151307,
+      }),
+      players: [michaelWilson({ draftKingsPlayerId: 43727681 })],
+      playerIds: [1],
+      draftables: [
+        ...michaelWilsonDraftables().map(row =>
+          row.draftableId === 43727681
+            ? { ...row, draftGroupId: 999999 }
+            : row,
+        ),
+      ],
+    }),
+    (error: unknown) =>
+      error instanceof ExportResolutionError &&
+      /missing from the current contest/.test(error.message),
+  );
+});
+
+test("Classic export requires identity verification before using an exact Michael Wilson row", () => {
+  assert.throws(
+    () => resolvePlayersForExport({
+      slate: slate({
+        sport: "NFL",
+        draftGroupId: 151307,
+      }),
+      players: [michaelWilson({ draftKingsPlayerId: 43727681 })],
+      playerIds: [1],
+      draftables: [
+        {
+          ...michaelWilsonDraftables()[0],
+          displayName: "Different Player",
+        },
+        michaelWilsonDraftables()[1],
+      ],
+    }),
+    (error: unknown) =>
+      error instanceof ExportResolutionError &&
+      /missing from the current contest/.test(error.message),
+  );
+});
+
+test("Showdown export still rejects equal-salary Michael Wilson CPT/FLEX alternatives", () => {
+  assert.throws(
+    () => resolvePlayersForExport({
+      slate: slate({
+        sport: "NFL",
+        gameType: "Showdown",
+        draftGroupId: 151307,
+      }),
+      players: [michaelWilson({ draftKingsPlayerId: 43727681 })],
+      playerIds: [1],
+      draftables: michaelWilsonDraftables(),
+    }),
+    (error: unknown) =>
+      error instanceof ExportResolutionError &&
+      /flex row .*missing|flex row .*ambiguous/i.test(error.message),
+  );
+});
+
+test("legacy Michael Wilson athlete IDs remain ambiguous across equal-priced contest rows", () => {
+  assert.throws(
+    () => resolvePlayersForExport({
+      slate: slate({
+        sport: "NFL",
+        draftGroupId: 151307,
+      }),
+      players: [michaelWilson({ draftKingsPlayerId: 1123529 })],
+      playerIds: [1],
+      draftables: michaelWilsonDraftables(),
+    }),
+    (error: unknown) =>
+      error instanceof ExportResolutionError &&
+      /flex row .*ambiguous/i.test(error.message),
+  );
+});
+
 test("scopes live rows to the selected draft group before resolving captain and flex IDs", () => {
   const result = resolvePlayersForExport({
     slate: slate({ draftGroupId: 200 }),

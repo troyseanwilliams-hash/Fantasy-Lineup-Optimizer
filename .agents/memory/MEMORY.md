@@ -6,6 +6,7 @@
 - [Slate refresh lineup integrity](slate-refresh-lineup-integrity.md) — refresh active-slate players in place; preserve referenced retired rows as optimizer-ineligible so saved lineup IDs remain valid.
 - [NFL activity filtering](nfl-activity-filtering.md) — do not use ESPN recently-played coverage to exclude NFL optimizer players; required positions such as DST may be absent.
 - [DraftKings Showdown rows](draftkings-showdown-rows.md) — DraftKings sends separate captain and flex rows; store the lower flex-priced row and apply captain multipliers in the optimizer.
+- [DraftKings Classic rows](draftkings-classic-rows.md) — live NFL feeds can return equal-priced positional/FLEX entries; verified exact contest IDs disambiguate Classic exports.
 - [Playwright post-merge setup](playwright-post-merge.md) — validation workflows need Chromium provisioned by the post-merge hook before Playwright tests can launch.
 - [Sim count UX](sim-count-ux.md) — Sim uses its own count selector; Normal Qty must be hidden and ignored in Sim Mode.
 - [Projection cutoff semantics](projection-cutoff-semantics.md) — input eligibility stays separate from automatic scoring and simulation; manual boosts affect the cutoff.

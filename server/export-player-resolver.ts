@@ -269,6 +269,20 @@ function resolveDraftableForPlayer(
     return roleMatches[0];
   }
 
+  // Classic contest rows are contest-specific, so a saved canonical
+  // draftable ID is enough to break an equal-salary duplicate tie once the
+  // row has already passed group, stable-athlete, and player-identity checks.
+  // Do not use this shortcut for Showdown: CPT/FLEX rows intentionally share
+  // an athlete and must still be resolved by their role.
+  if (!allowNumericShowdownRoles) {
+    const exactCanonicalRows = roleMatches.filter(
+      row => positiveInteger(row.draftableId) === canonicalId,
+    );
+    if (exactCanonicalRows.length === 1) {
+      return exactCanonicalRows[0];
+    }
+  }
+
   // A player can have more than one non-captain row in some DK feeds.  The
   // lower-priced live row is the flex row; equal-priced alternatives are
   // ambiguous and must not be guessed.
