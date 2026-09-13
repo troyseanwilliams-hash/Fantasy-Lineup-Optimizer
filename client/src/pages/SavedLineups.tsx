@@ -25,6 +25,16 @@ import {
   validateExportSlate,
   type ExportSlate,
 } from "@/lib/resolve-export-players";
+import {
+  availableSlateTargets,
+  formatDraftGroupIdentity,
+  formatSlateIdentity,
+  formatSlateOptionLabel,
+  slateForId,
+  type SlateIdentitySource,
+} from "@/lib/slate-identity";
+import { summarizeRegeneration } from "@/lib/regeneration-result";
+import { sanitizeGameInfo } from "@/lib/game-info";
 
 type VaultSortKey = "newest" | "oldest" | "projection_high" | "projection_low" | "ownership_high" | "ownership_low" | "salary_high" | "salary_low" | "grade_high" | "grade_low" | "p75_high" | "p90_high" | "median_high" | "freq_high" | "composite_high";
 type VaultTab = "active" | "review";
@@ -44,6 +54,7 @@ interface LineupWithPlayers {
   playerSnapshot?: any[];
   gameType?: string | null;
   isShowdown?: boolean;
+  slate?: SlateIdentitySource | null;
 }
 
 // ── How long vault data stays fresh before a background refetch is allowed.
@@ -449,6 +460,54 @@ function downloadExportCSV(csv: string, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
+function SavedSlateIdentity({
+  lineup,
+  slates,
+  testId,
+  className = "",
+}: {
+  lineup: Pick<LineupWithPlayers, "id" | "slateId" | "sport" | "platform" | "slate">;
+  slates: Slate[] | undefined;
+  testId: string;
+  className?: string;
+}) {
+  const listedSlate = slateForId(slates, lineup.slateId);
+  const { data: resolvedSlate, isError } = useQuery<Slate>({
+    queryKey: [`/api/slates/${lineup.slateId}/resolve`],
+    queryFn: async () => {
+      const response = await fetch(`/api/slates/${lineup.slateId}/resolve`, { credentials: "include" });
+      if (!response.ok) throw new Error("Saved slate metadata is unavailable.");
+      return response.json() as Promise<Slate>;
+    },
+    // Retired slates are intentionally not replaced in the lineup. Resolving
+    // only supplies display metadata (normally the same DraftKings group).
+    enabled: !listedSlate && !lineup.slate && Number(lineup.slateId) > 0,
+    staleTime: VAULT_STALE_TIME,
+    refetchOnWindowFocus: false,
+  });
+
+  const metadata = listedSlate || lineup.slate || resolvedSlate;
+  const identity: SlateIdentitySource = metadata
+    ? { ...metadata, id: Number(lineup.slateId), sport: lineup.sport, platform: lineup.platform }
+    : {
+      id: Number(lineup.slateId),
+      name: `${lineup.sport} saved slate`,
+      sport: lineup.sport,
+      platform: lineup.platform,
+    };
+
+  return (
+    <span className={className} data-testid={testId} title={formatSlateIdentity(identity)}>
+      {formatSlateIdentity(identity)}
+      {isError && (
+        <span className="ml-1 text-amber-400" aria-label="Slate metadata unavailable">
+          · metadata unavailable
+        </span>
+      )}
+    </span>
+  );
+}
+
 export default function SavedLineups() {
   usePageMeta({ title: "Saved Lineups - Your Lineup Vault", description: "Manage your saved DFS lineups, run simulations, and export for contest entry.", path: "/lineups" });
   const { user, isLoading: authLoading } = useAuth();
@@ -512,13 +571,11 @@ export default function SavedLineups() {
 
   const availableSlates = useMemo(() => {
     if (!allSlates || !selectedLineupSport || !selectedLineupPlatform) return [];
-    return allSlates.filter(
-      (s: any) =>
-        s.sport === selectedLineupSport &&
-        s.platform === selectedLineupPlatform &&
-        s.id !== selectedLineupSlateId &&
-        (s.playerCount === undefined || s.playerCount > 0)
-    );
+    return availableSlateTargets(allSlates, {
+      id: selectedLineupSlateId || 0,
+      sport: selectedLineupSport,
+      platform: selectedLineupPlatform,
+    });
   }, [allSlates, selectedLineupSport, selectedLineupPlatform, selectedLineupSlateId]);
 
   useEffect(() => {
@@ -592,7 +649,7 @@ export default function SavedLineups() {
         if (!counts.has(key)) {
           counts.set(key, {
             name: p.name, position: p.position || "", team: p.team || "", salary: p.salary || 0, count: 0,
-            projSum: 0, actualAvg: p.recentActualAvg ?? null, opponent: p.opponent || "", gameInfo: p.gameInfo || "",
+            projSum: 0, actualAvg: p.recentActualAvg ?? null, opponent: p.opponent || "", gameInfo: sanitizeGameInfo(p.gameInfo),
             boostScore: Number(p.boostScore) || 0, boostReason: p.boostReason || "",
             injuryStatus: p.injuryStatus || null, isConfirmedStarter: !!p.isConfirmedStarter,
             recentActualAvg: p.recentActualAvg ?? null, gamesTracked: p.gamesTracked ?? null,
@@ -629,6 +686,10 @@ export default function SavedLineups() {
   const isPaid = tier === "pro" || tier === "star";
 
   const effectiveSlateId = regenSlateId || selectedLineupSlateId;
+  const regenDraftGroupId = useMemo(() => {
+    if (!regenSlateId) return undefined;
+    return availableSlates.find(slate => slate.id === regenSlateId)?.draftGroupId;
+  }, [availableSlates, regenSlateId]);
 
   const { data: slateOverrides } = useQuery<any[]>({
     queryKey: ["/api/player-overrides", effectiveSlateId],
@@ -711,18 +772,30 @@ export default function SavedLineups() {
   });
 
   const bulkGenerateMutation = useMutation({
-    mutationFn: async ({ ids, useBoosts, ceilingMode, leverageMode, outperformerMode, globalMaxExposure, projFloor, minSalary, maxSalary, slateId }: { ids: number[]; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; outperformerMode?: boolean; globalMaxExposure?: number; projFloor?: number; minSalary?: number; maxSalary?: number; slateId?: number }) => {
-      const res = await apiRequest("POST", "/api/lineups/bulk-generate", { ids, useBoosts: useBoosts !== false, ceilingMode: ceilingMode || false, leverageMode: leverageMode || false, outperformerMode: outperformerMode || false, globalMaxExposure: globalMaxExposure ?? undefined, projFloor: projFloor ?? undefined, minSalary: minSalary ?? undefined, maxSalary: maxSalary ?? undefined, slateId: slateId ?? undefined });
+    mutationFn: async ({ ids, useBoosts, ceilingMode, leverageMode, outperformerMode, globalMaxExposure, projFloor, minSalary, maxSalary, slateId, draftGroupId }: { ids: number[]; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; outperformerMode?: boolean; globalMaxExposure?: number; projFloor?: number; minSalary?: number; maxSalary?: number; slateId?: number; draftGroupId?: number }) => {
+      const res = await apiRequest("POST", "/api/lineups/bulk-generate", { ids, useBoosts: useBoosts !== false, ceilingMode: ceilingMode || false, leverageMode: leverageMode || false, outperformerMode: outperformerMode || false, globalMaxExposure: globalMaxExposure ?? undefined, projFloor: projFloor ?? undefined, minSalary: minSalary ?? undefined, maxSalary: maxSalary ?? undefined, slateId: slateId ?? undefined, draftGroupId: draftGroupId ?? undefined, preserveSourceSlateId: true });
       return res.json();
     },
-    onSuccess: (data) => {
-      const updated = data.updated || 0;
-      const failed = (data.results || []).filter((r: any) => r.status !== "updated").length;
-      let desc = `${updated} lineup${updated !== 1 ? "s" : ""} optimized with fresh rosters.`;
-      if (failed > 0) desc += ` ${failed} skipped.`;
-      toast({ title: "Lineups Regenerated", description: desc });
+    onSuccess: async (data, variables) => {
+      const summary = summarizeRegeneration(data);
+      const generated = summary.cloned + summary.updated;
+      const targetDescription = variables?.draftGroupId
+        ? `DraftKings draftGroupId ${variables.draftGroupId}`
+        : "the source slate";
+      let desc = summary.cloned > 0
+        ? `${summary.cloned} new lineup${summary.cloned !== 1 ? "s" : ""} cloned for ${targetDescription}. Source lineups were preserved.`
+        : `${generated} lineup${generated !== 1 ? "s" : ""} optimized with fresh rosters.`;
+      if (summary.updated > 0 && summary.cloned > 0) desc += ` ${summary.updated} same-slate lineup${summary.updated !== 1 ? "s" : ""} updated.`;
+      if (summary.newLineupIds.length > 0) {
+        const shownIds = summary.newLineupIds.slice(0, 5).join(", ");
+        desc += ` New IDs: ${shownIds}${summary.newLineupIds.length > 5 ? ", …" : ""}.`;
+      }
+      if (summary.failed + summary.skipped > 0) desc += ` ${summary.failed + summary.skipped} skipped.`;
+      if (data?.partial && data?.message) desc += ` ${data.message}`;
+      toast({ title: summary.cloned > 0 ? "New Lineups Created" : "Lineups Regenerated", description: desc });
       setSelectedIds(new Set());
-      queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
+      await refreshLineups();
     },
     onError: (err: any) => {
       toast({ title: "Generation Failed", description: err.message || "Could not generate lineups.", variant: "destructive" });
@@ -749,19 +822,29 @@ export default function SavedLineups() {
   });
 
   const simRegenMutation = useMutation({
-    mutationFn: async (params: { ids: number[]; numSims?: number; sortBy: string; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; outperformerMode?: boolean; contestType?: string; globalMaxExposure?: number; projFloor?: number; minSalary?: number; maxSalary?: number; slateId?: number }) => {
-      const res = await apiRequest("POST", "/api/lineups/sim-regenerate", params);
+    mutationFn: async (params: { ids: number[]; numSims?: number; sortBy: string; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; outperformerMode?: boolean; contestType?: string; globalMaxExposure?: number; projFloor?: number; minSalary?: number; maxSalary?: number; slateId?: number; draftGroupId?: number }) => {
+      const res = await apiRequest("POST", "/api/lineups/sim-regenerate", { ...params, preserveSourceSlateId: true });
       return res.json();
     },
-    onSuccess: (data) => {
-      const updated = data.updated || 0;
-      const skipped = (data.results || []).filter((r: any) => r.status !== "updated").length;
+    onSuccess: async (data, variables) => {
+      const summary = summarizeRegeneration(data);
       const metricLabel = { p90: "P90", p75: "P75", composite: "Composite", median: "Median", avg: "Average" }[data.sortBy] || data.sortBy;
-      let desc = `${updated} lineup${updated !== 1 ? "s" : ""} regenerated using ${data.simsRun} sims, optimized for ${metricLabel}.`;
-      if (skipped > 0) desc += ` ${skipped} skipped.`;
-      toast({ title: "Sim Regeneration Complete", description: desc });
+      const targetDescription = variables?.draftGroupId
+        ? `DraftKings draftGroupId ${variables.draftGroupId}`
+        : "the source slate";
+      let desc = summary.cloned > 0
+        ? `${summary.cloned} new lineup${summary.cloned !== 1 ? "s" : ""} cloned for ${targetDescription} using ${data.simsRun} sims, optimized for ${metricLabel}. Source lineups were preserved.`
+        : `${summary.updated} lineup${summary.updated !== 1 ? "s" : ""} regenerated using ${data.simsRun} sims, optimized for ${metricLabel}.`;
+      if (summary.newLineupIds.length > 0) {
+        const shownIds = summary.newLineupIds.slice(0, 5).join(", ");
+        desc += ` New IDs: ${shownIds}${summary.newLineupIds.length > 5 ? ", …" : ""}.`;
+      }
+      if (summary.failed + summary.skipped > 0) desc += ` ${summary.failed + summary.skipped} skipped.`;
+      if (data?.partial && data?.message) desc += ` ${data.message}`;
+      toast({ title: summary.cloned > 0 ? "New Sim Lineups Created" : "Sim Regeneration Complete", description: desc });
       setSelectedIds(new Set());
-      queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
+      await refreshLineups();
     },
     onError: (err: any) => {
       toast({ title: "Sim Regeneration Failed", description: err.message || "Could not regenerate lineups.", variant: "destructive" });
@@ -784,16 +867,8 @@ export default function SavedLineups() {
     }
   });
 
-  const { data: slates } = useQuery<any[]>({
-    queryKey: ["/api/slates"],
-    // Slate list is only needed for DK import sport-matching.
-    // Doesn't need to refetch on every window focus.
-    staleTime: VAULT_STALE_TIME,
-    refetchOnWindowFocus: false,
-  });
-
   const importMutation = useMutation({
-    mutationFn: async (data: { entries: any[]; sport: string; slateId: number }) => {
+    mutationFn: async (data: { entries: any[]; sport: string }) => {
       const res = await apiRequest("POST", "/api/lineups/import-dk", data);
       return res.json();
     },
@@ -801,7 +876,7 @@ export default function SavedLineups() {
       queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
       const failed = data.results?.filter((r: any) => r.status === "failed").length || 0;
       if (failed > 0) {
-        toast({ title: "Import Complete", description: `${data.imported} of ${data.total} entries imported. ${failed} failed (player mismatch).` });
+        toast({ title: "Import Complete", description: `${data.imported} of ${data.total} entries imported. ${failed} failed (contest or player identity could not be verified).` });
       } else {
         toast({ title: "Import Successful", description: `${data.imported} DraftKings entries imported.` });
       }
@@ -910,10 +985,10 @@ export default function SavedLineups() {
         return;
       }
 
-      const matchingSlate = slates?.find((s: any) => s.sport === sport && s.platform === "draftkings");
-      const slateId = matchingSlate?.id ?? null;
-
-      importMutation.mutate({ entries, sport, slateId });
+      // The server resolves every row independently from its live DK Contest
+      // ID.  Do not select the first local sport slate here: a CSV can contain
+      // both the featured and extended contests, whose player pools overlap.
+      importMutation.mutate({ entries, sport });
     };
     reader.readAsText(file);
   }
@@ -944,7 +1019,10 @@ export default function SavedLineups() {
         ),
       );
       const platformLabel = getPlatformLabel(resolved.exportSlate.platform);
-      toast({ title: "Exported", description: `${resolved.exportSlate.sport} ${platformLabel} lineup downloaded.` });
+      toast({
+        title: "Exported",
+        description: `${resolved.exportSlate.sport} ${platformLabel} lineup downloaded for ${formatSlateIdentity(resolved.exportSlate)}.`,
+      });
     } catch (err: any) {
       toast({
         title: "Export Failed",
@@ -1018,7 +1096,7 @@ export default function SavedLineups() {
 
       setSelectedIds(new Set());
       const totalExported = resolved.length;
-      const fileNote = files.length > 1 ? ` across ${files.length} files (grouped by slate, sport, platform & format)` : "";
+      const fileNote = files.length > 1 ? ` across ${files.length} files (grouped by slate, DraftKings group, sport, platform & format)` : "";
       toast({ title: "Bulk Export Complete", description: `${totalExported} lineup${totalExported > 1 ? "s" : ""} exported${fileNote}.` });
     } catch (err: any) {
       toast({
@@ -1216,7 +1294,7 @@ export default function SavedLineups() {
                       </Button>
                       {isPaid && (
                         <Button
-                          onClick={() => bulkGenerateMutation.mutate({ ids: Array.from(selectedIds), useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, outperformerMode: regenOutperformerMode, contestType: regenContestType, globalMaxExposure: regenMaxExposure ?? undefined, globalMinExposure: regenMinExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined, slateId: regenSlateId ?? undefined })}
+                          onClick={() => bulkGenerateMutation.mutate({ ids: Array.from(selectedIds), useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, outperformerMode: regenOutperformerMode, contestType: regenContestType, globalMaxExposure: regenMaxExposure ?? undefined, globalMinExposure: regenMinExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined, slateId: regenSlateId ?? undefined, draftGroupId: regenDraftGroupId })}
                           disabled={bulkGenerateMutation.isPending || regenContestType === "gpp"}
                           className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
                           data-testid="bulk-generate-btn"
@@ -1258,7 +1336,7 @@ export default function SavedLineups() {
                             {simScoreMutation.isPending ? "Scoring..." : "Score"}
                           </Button>
                           <Button
-                            onClick={() => simRegenMutation.mutate({ ids: Array.from(selectedIds), sortBy: simMetric, useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, outperformerMode: regenOutperformerMode, contestType: regenContestType, globalMaxExposure: regenMaxExposure ?? undefined, globalMinExposure: regenMinExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined, slateId: regenSlateId ?? undefined })}
+                            onClick={() => simRegenMutation.mutate({ ids: Array.from(selectedIds), sortBy: simMetric, useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, outperformerMode: regenOutperformerMode, contestType: regenContestType, globalMaxExposure: regenMaxExposure ?? undefined, globalMinExposure: regenMinExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined, slateId: regenSlateId ?? undefined, draftGroupId: regenDraftGroupId })}
                             disabled={simRegenMutation.isPending || simScoreMutation.isPending || regenContestType === "cash"}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-md rounded-l-none text-xs disabled:opacity-40"
                             data-testid="sim-regen-btn"
@@ -1448,8 +1526,8 @@ export default function SavedLineups() {
                 </div>
                 {availableSlates.length > 0 && (
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Slate</span>
-                    <InfoTip text="Override the player pool slate used during regeneration. Defaults to the lineup's original slate." side="bottom" />
+                      <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Target group</span>
+                      <InfoTip text="Generate a new roster against this available slate. The saved lineup keeps its original slate ID and DraftKings group identity." side="bottom" />
                     <select
                       value={regenSlateId ?? ""}
                       onChange={(e) => setRegenSlateId(e.target.value ? Number(e.target.value) : null)}
@@ -1458,18 +1536,23 @@ export default function SavedLineups() {
                     >
                       <option value="">Original Slate</option>
                       {availableSlates.map((s: any) => {
-                        const platform = s.platform === "fanduel" ? "FD" : s.platform === "yahoo" ? "YH" : "DK";
-                        const time = new Date(s.startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" });
-                        const date = new Date(s.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-                        const gc = s.gameCount ?? 0;
-                        const games = gc > 0 ? ` (${gc}G)` : "";
                         return (
                           <option key={s.id} value={s.id}>
-                            {platform} - {s.label || s.name} — {date} {time}{games}
+                              {formatSlateOptionLabel(s)}
                           </option>
                         );
                       })}
                     </select>
+                      {(() => {
+                        const target = regenSlateId
+                          ? availableSlates.find((s: any) => s.id === regenSlateId)
+                          : null;
+                        return target ? (
+                          <span className="text-[10px] text-amber-300 truncate" data-testid="regen-target-slate-identity">
+                            {formatSlateIdentity(target)}
+                          </span>
+                        ) : null;
+                      })()}
                   </div>
                 )}
               </div>
@@ -1565,6 +1648,7 @@ export default function SavedLineups() {
           <ReviewTabContent
             reviewLineups={reviewLineups || []}
             isLoading={reviewLoading}
+            slates={allSlates}
           />
         ) : (
           <>
@@ -1675,7 +1759,7 @@ export default function SavedLineups() {
                                     projectedPoints: p.avgProj,
                                     fppg: actualVal || p.avgProj,
                                     opponent: p.opponent || null,
-                                    gameInfo: p.gameInfo || null,
+                                    gameInfo: sanitizeGameInfo(p.gameInfo) || null,
                                     boostScore: p.boostScore,
                                     boostReason: p.boostReason || null,
                                     injuryStatus: p.injuryStatus,
@@ -1793,6 +1877,7 @@ export default function SavedLineups() {
                             minSalary: regenMinSalary ?? undefined,
                             maxSalary: regenMaxSalary ?? undefined,
                             slateId: regenSlateId ?? undefined,
+                            draftGroupId: regenDraftGroupId,
                           })}
                           data-testid="exposure-resim-btn"
                         >
@@ -1829,6 +1914,7 @@ export default function SavedLineups() {
                     isSelected={selectedIds.has(lineup.id)}
                     onToggleSelect={() => toggleSelect(lineup.id)}
                     grade={lineupGrades.get(lineup.id)}
+                    slates={allSlates}
                   />
                 ))}
               </div>
@@ -1856,9 +1942,11 @@ export default function SavedLineups() {
 function ReviewTabContent({
   reviewLineups,
   isLoading,
+  slates,
 }: {
   reviewLineups: any[];
   isLoading: boolean;
+  slates: Slate[] | undefined;
 }) {
   const [expandedReviewId, setExpandedReviewId] = useState<number | null>(null);
   const { toast } = useToast();
@@ -1972,6 +2060,12 @@ function ReviewTabContent({
                       </span>
                     )}
                   </div>
+                  <SavedSlateIdentity
+                    lineup={lineup}
+                    slates={slates}
+                    testId={`review-slate-identity-${lineup.id}`}
+                    className="block mt-1 text-[10px] font-bold text-slate-500 truncate max-w-[34rem]"
+                  />
                 </div>
               </div>
 
@@ -2154,6 +2248,7 @@ function LineupCard({
   isSelected,
   onToggleSelect,
   grade,
+  slates,
 }: {
   lineup: any;
   isExpanded: boolean;
@@ -2170,6 +2265,7 @@ function LineupCard({
   isSelected: boolean;
   onToggleSelect: () => void;
   grade?: LineupGrade;
+  slates: Slate[] | undefined;
 }) {
   const { data: lineupDetail, isLoading: detailLoading } = useQuery<LineupWithPlayers>({
     queryKey: ["/api/lineups", lineup.id],
@@ -2185,15 +2281,16 @@ function LineupCard({
   const isYahoo = platform === "yahoo";
   const platformLabel = getPlatformLabel(platform);
   const pc = getPlatformColors(platform);
+  const cardSlate = slateForId(slates, lineup.slateId) || lineup.slate;
 
   return (
     <Card className={`bg-slate-800/20 border-slate-700/40 transition-all hover:border-slate-600/50 ${isSelected ? "ring-2 ring-emerald-500/50 border-emerald-500/30" : ""}`} data-testid={`lineup-card-${lineup.id}`}>
       <div
-        className="flex justify-between items-center p-5 cursor-pointer select-none"
+        className="flex w-full min-w-0 justify-between items-center p-5 cursor-pointer select-none overflow-hidden"
         onClick={onToggleExpand}
         data-testid={`lineup-header-${lineup.id}`}
       >
-        <div className="flex items-center gap-4">
+        <div className="flex min-w-0 flex-1 items-center gap-4">
           <button
             onClick={e => { e.stopPropagation(); onToggleSelect(); }}
             className="flex-shrink-0"
@@ -2208,7 +2305,7 @@ function LineupCard({
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${pc.bg} border ${pc.border}`}>
             <Trophy className={`w-5 h-5 ${pc.text}`} />
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2 mb-0.5">
               <h3 className="text-base font-black text-white">{lineup.name || "Optimized Lineup"}</h3>
             </div>
@@ -2230,10 +2327,16 @@ function LineupCard({
                 {new Date(lineup.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
               </span>
             </div>
+            <SavedSlateIdentity
+              lineup={lineup}
+              slates={slates}
+              testId={`lineup-slate-identity-${lineup.id}`}
+               className="block mt-1 max-w-full text-[10px] font-bold text-slate-500 truncate"
+            />
           </div>
         </div>
 
-        <div className="flex items-center gap-5">
+        <div className="flex shrink-0 items-center gap-5">
           <div className="hidden sm:flex items-center gap-4">
             <div className="text-right">
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Proj</p>
@@ -2306,7 +2409,9 @@ function LineupCard({
               }}
               disabled={!isExpanded || !lineupDetail || isExporting}
               className={`h-8 w-8 ${isPaid || isShowdownLineup(lineupDetail || lineup) ? "text-emerald-400 hover:bg-emerald-500/10" : "text-slate-500 opacity-50"}`}
-              title={isPaid || isShowdownLineup(lineupDetail || lineup) ? `Export ${getPlatformLabel(lineup.platform)} CSV` : "Upgrade to export"}
+              title={isPaid || isShowdownLineup(lineupDetail || lineup)
+                ? `Export ${getPlatformLabel(lineup.platform)} CSV for ${formatDraftGroupIdentity(cardSlate)}`
+                : "Upgrade to export"}
               data-testid={`export-btn-${lineup.id}`}
             >
               {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : isPaid || isShowdownLineup(lineupDetail || lineup) ? <Download className="w-4 h-4" /> : <Lock className="w-4 h-4" />}

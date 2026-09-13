@@ -1,4 +1,5 @@
 import type { Player, PlayerHistory, WinningLineup } from "@shared/schema";
+import { sanitizeGameInfo } from "@shared/game-info";
 import { storage } from "./storage";
 
 interface WinningPlayerData {
@@ -537,7 +538,7 @@ export function computeCorrelationBonus(
 
     const gameTeams = new Map<string, string[]>();
     for (const p of lineup) {
-      const game = p.gameInfo || "";
+      const game = sanitizeGameInfo(p.gameInfo);
       const teams = gameTeams.get(game) || [];
       if (!teams.includes(p.team)) teams.push(p.team);
       gameTeams.set(game, teams);
@@ -570,7 +571,7 @@ export function computeCorrelationBonus(
   if (sport === "NBA") {
     const gameGroups = new Map<string, Player[]>();
     for (const p of lineup) {
-      const game = p.gameInfo || p.opponent || "";
+      const game = sanitizeGameInfo(p.gameInfo) || p.opponent || "";
       const group = gameGroups.get(game) || [];
       group.push(p);
       gameGroups.set(game, group);

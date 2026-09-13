@@ -14,6 +14,8 @@
  *   2. Shifts team-level baselines for teams with above/below average implied totals
  */
 
+import { parseGameInfo } from "@shared/game-info";
+
 const ODDS_API_KEY = process.env.ODDS_API_KEY || "";
 const ODDS_BASE    = "https://api.the-odds-api.com/v4/sports";
 
@@ -250,11 +252,10 @@ async function fetchESPNOdds(sport: string): Promise<VegasGameOdds[]> {
 }
 
 function extractGameKey(gameInfo: string): { home: string; away: string; key: string } | null {
-  const m = gameInfo?.match(/^([A-Z0-9]+)\s*@\s*([A-Z0-9]+)/i)
-          ?? gameInfo?.match(/^([A-Z0-9]+)\s*vs\.?\s*([A-Z0-9]+)/i);
-  if (!m) return null;
-  const away = m[1].toUpperCase();
-  const home = m[2].toUpperCase();
+  const parsed = parseGameInfo(gameInfo);
+  if (!parsed.away || !parsed.home) return null;
+  const away = parsed.away.toUpperCase();
+  const home = parsed.home.toUpperCase();
   return { away, home, key: [away, home].sort().join("-") };
 }
 

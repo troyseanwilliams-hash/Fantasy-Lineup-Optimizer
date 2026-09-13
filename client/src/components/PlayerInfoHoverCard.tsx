@@ -1,5 +1,6 @@
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 import { Badge } from "@/components/ui/badge";
+import { sanitizeGameInfo } from "@/lib/game-info";
 import {
   DollarSign, Target, TrendingUp, TrendingDown, Activity,
   Flame, Snowflake, Shield, AlertTriangle, Zap, Trophy, BarChart3
@@ -110,7 +111,7 @@ export function PlayerInfoHoverCard({
             </div>
           </div>
           {player.gameInfo && (
-            <div className="text-[10px] text-slate-500 mt-1">{player.gameInfo}</div>
+            <div className="text-[10px] text-slate-500 mt-1">{sanitizeGameInfo(player.gameInfo)}</div>
           )}
         </div>
 

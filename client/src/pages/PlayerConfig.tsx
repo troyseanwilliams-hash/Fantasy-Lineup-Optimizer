@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import type { Slate, Player, PlayerOverride } from "@shared/schema";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
+import { sanitizeGameInfo } from "@/lib/game-info";
 import { usePageMeta } from "@/hooks/use-page-meta";
 
 const SPORT_COLORS: Record<string, { accent: string; bg: string; border: string; tab: string }> = {
@@ -585,7 +586,7 @@ export default function PlayerConfig() {
                                     </Badge>
                                   )}
                                 </div>
-                                <span className="text-slate-500 text-xs">{player.team} {player.opponent ? `vs ${player.opponent}` : ""} · {player.gameInfo}</span>
+                                <span className="text-slate-500 text-xs">{player.team} {player.opponent ? `vs ${player.opponent}` : ""} · {sanitizeGameInfo(player.gameInfo)}</span>
                               </div>
                             </td>
                             <td className="px-3 py-2.5">

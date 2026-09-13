@@ -1,4 +1,5 @@
 import { type Player } from "@shared/schema";
+import { sanitizeGameInfo } from "@/lib/game-info";
 import { Lock, Unlock, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -46,7 +47,7 @@ export function PlayerTable({
               >
                 <td className="px-6 py-4">
                   <div className="font-bold text-white group-hover:text-[#10B981] transition-colors">{player.name}</div>
-                  <div className="text-[11px] text-slate-400 font-bold uppercase">{player.gameInfo}</div>
+                  <div className="text-[11px] text-slate-400 font-bold uppercase">{sanitizeGameInfo(player.gameInfo)}</div>
                 </td>
                 <td className="px-6 py-4 text-center">
                   <Badge variant="outline" className="border-slate-700 text-slate-400 font-bold bg-slate-900/50">

@@ -44,6 +44,7 @@ const RETIRED_PLAYER_DETAIL = "No longer listed in the current contest player po
 export interface IStorage extends IAuthStorage {
   getSlates(): Promise<Slate[]>;
   getSlate(id: number): Promise<Slate | undefined>;
+  getSlateByDraftGroup(sport: string, platform: string, draftGroupId: number): Promise<Slate | undefined>;
   createSlate(slate: InsertSlate): Promise<Slate>;
   clearAllSlatesAndPlayers(): Promise<void>;
   deleteSlateAndPlayers(slateId: number): Promise<void>;
@@ -158,6 +159,19 @@ export class DatabaseStorage implements IStorage {
     return slate;
   }
 
+  async getSlateByDraftGroup(
+    sport: string,
+    platform: string,
+    draftGroupId: number,
+  ): Promise<Slate | undefined> {
+    const [slate] = await db.select().from(slates).where(and(
+      eq(slates.sport, sport),
+      eq(slates.platform, platform),
+      eq(slates.draftGroupId, draftGroupId),
+    )).orderBy(desc(slates.isActive), desc(slates.id)).limit(1);
+    return slate;
+  }
+
   async createSlate(insertSlate: InsertSlate): Promise<Slate> {
     const [slate] = await db.insert(slates).values(insertSlate).returning();
     return slate;
@@ -172,8 +186,11 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSlateAndPlayers(slateId: number): Promise<void> {
     const slateLineups = await db.select().from(lineups).where(eq(lineups.slateId, slateId));
+    const slatePlayers = await db.select().from(players).where(eq(players.slateId, slateId));
+    const referencedPlayerIds = new Set(
+      slateLineups.flatMap(lineup => lineup.playerIds),
+    );
     if (slateLineups.length > 0) {
-      const slatePlayers = await db.select().from(players).where(eq(players.slateId, slateId));
       for (const lineup of slateLineups) {
         if (!lineup.playerSnapshot || (Array.isArray(lineup.playerSnapshot) && (lineup.playerSnapshot as any[]).length === 0)) {
           const rosterPlayers = slatePlayers.filter(p => lineup.playerIds.includes(p.id));
@@ -196,14 +213,17 @@ export class DatabaseStorage implements IStorage {
       const lineupIds = slateLineups.map(l => l.id);
       await db.update(alerts).set({ lineupId: null }).where(inArray(alerts.lineupId, lineupIds));
     }
-    const slatePlayers = await db.select({ id: players.id }).from(players).where(eq(players.slateId, slateId));
-    if (slatePlayers.length > 0) {
-      const playerIds = slatePlayers.map(p => p.id);
-      await db.update(props).set({ playerId: null }).where(inArray(props.playerId, playerIds));
-      await db.update(alerts).set({ playerId: null }).where(inArray(alerts.playerId, playerIds));
+    const removablePlayers = slatePlayers.filter(player => !referencedPlayerIds.has(player.id));
+    if (removablePlayers.length > 0) {
+      const removablePlayerIds = removablePlayers.map(player => player.id);
+      await db.update(props).set({ playerId: null }).where(inArray(props.playerId, removablePlayerIds));
+      await db.update(alerts).set({ playerId: null }).where(inArray(alerts.playerId, removablePlayerIds));
+      await db.delete(playerOverrides).where(inArray(playerOverrides.playerId, removablePlayerIds));
+      await db.delete(players).where(inArray(players.id, removablePlayerIds));
     }
-    await db.delete(playerOverrides).where(eq(playerOverrides.slateId, slateId));
-    await db.delete(players).where(eq(players.slateId, slateId));
+    if (slateLineups.length === 0) {
+      await db.delete(playerOverrides).where(eq(playerOverrides.slateId, slateId));
+    }
     const remainingLineups = await db.select({ id: lineups.id }).from(lineups).where(eq(lineups.slateId, slateId));
     if (remainingLineups.length === 0) {
       await db.delete(slates).where(eq(slates.id, slateId));
@@ -353,11 +373,23 @@ export class DatabaseStorage implements IStorage {
     await db.update(slates).set({ draftGroupId }).where(eq(slates.id, slateId));
   }
 
-  async updateSlateData(slateId: number, data: { name?: string; startTime?: Date; draftGroupId?: number | null }): Promise<void> {
+  async updateSlateData(slateId: number, data: {
+    name?: string;
+    startTime?: Date;
+    draftGroupId?: number | null;
+    label?: string | null;
+    gameType?: string | null;
+    gameCount?: number;
+    contestCount?: number;
+  }): Promise<void> {
     const update: any = {};
     if (data.name !== undefined) update.name = data.name;
     if (data.startTime !== undefined) update.startTime = data.startTime;
     if (data.draftGroupId !== undefined) update.draftGroupId = data.draftGroupId;
+    if (data.label !== undefined) update.label = data.label;
+    if (data.gameType !== undefined) update.gameType = data.gameType;
+    if (data.gameCount !== undefined) update.gameCount = data.gameCount;
+    if (data.contestCount !== undefined) update.contestCount = data.contestCount;
     await db.update(slates).set(update).where(eq(slates.id, slateId));
   }
 

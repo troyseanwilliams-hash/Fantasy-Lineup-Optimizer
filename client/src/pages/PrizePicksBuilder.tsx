@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { usePageMeta } from "@/hooks/use-page-meta";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
+import { sanitizeGameInfo } from "@/lib/game-info";
 
 const PP_SPORTS = ACTIVE_SPORTS;
 
@@ -1162,7 +1163,7 @@ export default function PrizePicksBuilder() {
                               </>
                             )}
                             <span className="text-slate-600">·</span>
-                            <span className="text-[10px] text-slate-500">{proj.gameInfo}</span>
+                            <span className="text-[10px] text-slate-500">{sanitizeGameInfo(proj.gameInfo)}</span>
                           </div>
                         </div>
                         <div className="text-center shrink-0 mr-2">
@@ -1264,7 +1265,7 @@ export default function PrizePicksBuilder() {
                                 </>
                               )}
                               <span className="text-slate-600">·</span>
-                              <span className="text-[10px] text-slate-500 truncate">{proj.gameInfo}</span>
+                              <span className="text-[10px] text-slate-500 truncate">{sanitizeGameInfo(proj.gameInfo)}</span>
                             </div>
                           </div>
                         </div>

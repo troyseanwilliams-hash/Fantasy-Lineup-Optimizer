@@ -5,6 +5,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { buildUrl } from "@shared/routes";
 import type { Player, Slate, ProOptimizeResponse } from "@shared/schema";
 import { getPlatformConfig, assignPlayersToSlots, getSlotDisplayName, positionFitsSlot, PLATFORM_COLORS, type Platform, type Sport } from "@shared/platform-config";
+import { parseGameInfo, sanitizeGameInfo } from "@/lib/game-info";
 import { PlatformSelector } from "@/components/PlatformSelector";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +31,12 @@ import { InfoTip, LabelTip } from "@/components/InfoTip";
 import { usePageMeta } from "@/hooks/use-page-meta";
 import { useResolvedSlate } from "@/hooks/use-resolved-slate";
 import { useSessionPlayerQuery } from "@/hooks/use-session-player-query";
+import {
+  formatDraftGroupIdentity,
+  formatSlateIdentity,
+  formatSlateOptionLabel,
+  optimizerSlatePath,
+} from "@/lib/slate-identity";
 import {
   csvEscape,
   exportFilename,
@@ -169,7 +176,13 @@ export default function ProOptimizer() {
 
   const sportSlates = useMemo(() => {
     if (!slates) return [];
-    return slates.filter(s => s.sport === sport && s.platform === platform);
+    return slates
+      .filter(s => s.sport === sport && s.platform === platform)
+      .sort((a, b) => {
+        if (a.isMain && !b.isMain) return -1;
+        if (!a.isMain && b.isMain) return 1;
+        return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+      });
   }, [slates, sport, platform]);
 
   const playerUrl = buildUrl("/api/slates/:id/players", { id: slateId });
@@ -225,7 +238,7 @@ export default function ProOptimizer() {
       return { ...p, odds: americanOdds > 0 ? `+${americanOdds}` : `${americanOdds}`, impliedProb: (impliedProb * 100).toFixed(0) };
     });
     const valuePicks = [...players].map(p => ({ ...p, value: Number(p.projectedPoints) / (p.salary / 1000) })).sort((a, b) => b.value - a.value).slice(0, 4);
-    const tournamentParts = (players.find(p => p.gameInfo)?.gameInfo || "Tournament").split(" - ");
+    const tournamentParts = sanitizeGameInfo(players.find(p => p.gameInfo)?.gameInfo || "Tournament").split(" - ");
     return { favorites, valuePicks, tournamentName: tournamentParts[0] || "Tournament", courseName: tournamentParts[1] || "", fieldSize: players.length, avgSalary: Math.round(players.reduce((s, p) => s + p.salary, 0) / players.length) };
   }, [isGolf, players]);
 
@@ -381,9 +394,11 @@ export default function ProOptimizer() {
     const gameMap = new Map<string, { away: string; home: string; time: string }>();
     players.forEach(p => {
       if (p.gameInfo) {
-        const parts = p.gameInfo.split(" ");
-        const time = parts[parts.length - 1] || "";
-        const teams = p.gameInfo.replace(time, "").trim();
+        const parsedGame = parseGameInfo(p.gameInfo);
+        const time = parsedGame.time || "";
+        const teams = parsedGame.away && parsedGame.home
+          ? `${parsedGame.away} @ ${parsedGame.home}`
+          : parsedGame.display.replace(time, "").trim();
         let away: string, home: string;
         if (teams.includes("@")) {
           [away, home] = teams.split(" @ ").map(s => s.trim());
@@ -569,11 +584,10 @@ export default function ProOptimizer() {
     if (!players || players.length === 0) return [];
     const gameMap = new Map<string, { label: string; playerCount: number; avgProj: number }>();
     for (const p of players) {
-      const gi = p.gameInfo || "";
-      const match = gi.match(/^([A-Z0-9]+)\s*[@vs.]+\s*([A-Z0-9]+)/i);
-      if (!match) continue;
-      const away = match[1].toUpperCase();
-      const home = match[2].toUpperCase();
+      const parsedGame = parseGameInfo(p.gameInfo);
+      if (!parsedGame.away || !parsedGame.home) continue;
+      const away = parsedGame.away.toUpperCase();
+      const home = parsedGame.home.toUpperCase();
       const key = [away, home].sort().join("-");
       const label = `${away}@${home}`;
       const entry = gameMap.get(key) || { label, playerCount: 0, avgProj: 0 };
@@ -933,7 +947,7 @@ export default function ProOptimizer() {
   };
 
   const handleSlateChange = (newSlateId: string) => {
-    setLocation(`/optimizer-pro/${newSlateId}`);
+    setLocation(optimizerSlatePath("pro", newSlateId));
     handleReset();
   };
 
@@ -988,7 +1002,7 @@ export default function ProOptimizer() {
       const match = slates.find(s => s.sport === sport && s.platform === newPlatform && s.isMain)
         || slates.find(s => s.sport === sport && s.platform === newPlatform);
       if (match && match.id !== slateId) {
-        setLocation(`/optimizer-pro/${match.id}`);
+        setLocation(optimizerSlatePath("pro", match.id));
       }
     }
   };
@@ -1064,8 +1078,12 @@ export default function ProOptimizer() {
             />
 
             {slate && (
-              <span className="text-xs font-black text-amber-400/70 flex-shrink-0" data-testid="pro-slate-date">
-                {new Date(slate.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+              <span
+                className="text-xs font-black text-amber-400/70 flex-shrink-0 max-w-[min(42vw,28rem)] truncate"
+                title={formatSlateIdentity(slate)}
+                data-testid="pro-slate-date"
+              >
+                {formatSlateIdentity(slate)}
               </span>
             )}
 
@@ -1086,21 +1104,24 @@ export default function ProOptimizer() {
               data-testid="pro-slate-selector"
             >
               {sportSlates.map(s => {
-                const locked = new Date(s.startTime) <= new Date();
                 const userTier = subData?.tier || "free";
                 const isGated = !s.isMain && userTier !== "pro" && !userIsAdmin;
-                const platform = s.platform === "fanduel" ? "FD" : "DK";
-                const time = new Date(s.startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" });
-                const date = new Date(s.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-                const gc = (s as any).gameCount ?? 0;
-                const games = gc > 0 ? ` (${gc}G)` : "";
                 return (
                   <option key={s.id} value={s.id} disabled={isGated}>
-                    {s.isMain ? "★ " : ""}{platform} - {(s as any).label || s.name} — {date} {time}{games}{locked ? " 🔒" : ""}{isGated ? " (CHAMPION)" : ""}
+                    {formatSlateOptionLabel(s)}{isGated ? " · CHAMPION" : ""}
                   </option>
                 );
               })}
             </select>
+
+            {slate && (
+              <span
+                className="hidden lg:inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-slate-400 whitespace-nowrap"
+                data-testid="pro-selected-slate-identity"
+              >
+                Target: <span className="text-amber-300">{formatDraftGroupIdentity(slate)}</span>
+              </span>
+            )}
 
             {isPro && (
               <>
@@ -1611,11 +1632,17 @@ export default function ProOptimizer() {
                   size="sm"
                   className="font-black text-xs border-cyan-500/30 text-cyan-400 flex-1 md:flex-none"
                   data-testid="button-export-csv"
+                  title={slate ? `Export for ${formatDraftGroupIdentity(slate)}` : "Export CSV"}
                 >
                   <Download className="w-3.5 h-3.5 mr-1.5" />
                   <span className="hidden sm:inline">Export CSV</span>
                   <span className="sm:hidden">CSV</span>
                 </Button>
+                {slate && (
+                  <span className="basis-full text-[10px] text-slate-500 truncate" data-testid="pro-export-slate-identity">
+                    Export target: <span className="font-bold text-slate-300">{formatSlateIdentity(slate)}</span>
+                  </span>
+                )}
               </>
             )}
 
@@ -1960,7 +1987,7 @@ export default function ProOptimizer() {
                           )}
                         </div>
                         {player.gameInfo && (
-                        <div className="text-xs text-slate-400 font-medium">{player.gameInfo}</div>
+                        <div className="text-xs text-slate-400 font-medium">{sanitizeGameInfo(player.gameInfo)}</div>
                         )}
                       </td>
                       <td className="px-3 py-2.5 text-xs font-bold text-slate-400 uppercase" data-testid={`text-team-${player.id}`}>{player.team}</td>

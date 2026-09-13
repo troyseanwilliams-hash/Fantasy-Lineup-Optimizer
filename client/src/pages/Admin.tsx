@@ -13,6 +13,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import { AdminFunnelPanel } from "@/components/AdminFunnelPanel";
 import { AdminSupportPanel } from "@/components/AdminSupportPanel";
+import { formatDraftGroupOptionLabel } from "@/lib/slate-identity";
 
 const EXAMPLE_JSON = `[
   {
@@ -43,7 +44,10 @@ interface DKSlateOption {
   startTime: string;
   label: string;
   gameTypeId: number;
+  isMain: boolean;
+  contestCount: number;
   alreadyImported: boolean;
+  slateId: number | null;
 }
 
 export default function Admin() {
@@ -245,7 +249,7 @@ export default function Admin() {
                         disabled={s.alreadyImported}
                       >
                         <span className="flex items-center gap-2">
-                          {s.label}
+                          {formatDraftGroupOptionLabel({ ...s, isImported: s.alreadyImported })}
                           {s.alreadyImported && (
                             <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded">
                               Already Added
@@ -265,7 +269,9 @@ export default function Admin() {
                   {availableSlates?.find(s => String(s.draftGroupId) === selectedDraftGroup)?.label}
                 </div>
                 <div className="text-xs text-slate-500 mt-1">
-                  DraftGroup ID: {selectedDraftGroup}
+                  DraftKings draftGroupId: {selectedDraftGroup}
+                  {" · "}
+                  {availableSlates?.find(s => String(s.draftGroupId) === selectedDraftGroup)?.isMain ? "Main" : "Alternative"}
                 </div>
               </div>
             )}

@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
+import { parseGameInfo, sanitizeGameInfo } from "@/lib/game-info";
 import { TutorialOverlay, useTutorial } from "@/components/TutorialOverlay";
 
 const SPORT_LOGO_PATH: Record<string, string> = {
@@ -606,19 +607,19 @@ function MatchupsSection({ matchups, sport }: { matchups: MatchupData[]; sport: 
               )}
               <div className="flex items-center gap-2 mb-3">
                 {(() => {
-                  const parts = m.gameInfo.match(/^(\w+)\s*[@vs]+\s*(\w+)/i);
-                  if (parts) {
+                  const parsed = parseGameInfo(m.gameInfo);
+                  if (parsed.away && parsed.home) {
                     return (
                       <div className="flex items-center gap-2">
-                        <TeamLogo team={parts[1]} sport={sport} size={26} />
+                        <TeamLogo team={parsed.away} sport={sport} size={26} />
                         <span className="text-xs font-black text-slate-500">@</span>
-                        <TeamLogo team={parts[2]} sport={sport} size={26} />
+                        <TeamLogo team={parsed.home} sport={sport} size={26} />
                       </div>
                     );
                   }
                   return null;
                 })()}
-                <p className="text-sm font-black text-white flex-1 truncate">{m.gameInfo}</p>
+                <p className="text-sm font-black text-white flex-1 truncate">{sanitizeGameInfo(m.gameInfo)}</p>
               </div>
 
               <div className="mb-3">

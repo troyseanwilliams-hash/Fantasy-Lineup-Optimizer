@@ -1,8 +1,11 @@
 import type { Player } from "@shared/schema";
+import { parseGameInfo } from "@shared/game-info";
 
 export function stackGameKey(gameInfo: string | null | undefined): string {
-  const teams = gameInfo?.match(/^([A-Z0-9]+)\s+(?:@|vs\.?)\s+([A-Z0-9]+)/i);
-  return teams ? [teams[1].toUpperCase(), teams[2].toUpperCase()].sort().join("-") : "";
+  const parsed = parseGameInfo(gameInfo);
+  return parsed.away && parsed.home
+    ? [parsed.away, parsed.home].map(team => team.toUpperCase()).sort().join("-")
+    : "";
 }
 
 /** Require one selected game, never all selected games in the same roster. */

@@ -8,6 +8,7 @@ import { Link, useSearch } from "wouter";
 import { Lock, Crown, Zap, ArrowUpRight, ArrowDownRight, ExternalLink, Trophy, Activity, Target, Dribbble, Clock, Star, Flame, Flag, TrendingUp, Shield, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
+import { parseGameInfo, sanitizeGameInfo } from "@/lib/game-info";
 import { AFFILIATE_LINKS, AFFILIATE_PROMOS } from "@shared/affiliate-config";
 import { usePageMeta } from "@/hooks/use-page-meta";
 
@@ -280,16 +281,18 @@ function PropCard({ prop, index }: { prop: PropBet; index: number }) {
           <div>
             <span className="text-[11px] font-bold text-slate-400">{prop.team} vs {prop.opponent || "TBD"}</span>
             {prop.gameInfo && (() => {
-              const dotMatch = prop.gameInfo.match(/·\s*(.+)$/);
-              const legacyMatch = !dotMatch && prop.gameInfo.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)\s*ET)/i);
-              const gameTime = dotMatch ? dotMatch[1].trim() : legacyMatch ? legacyMatch[1].trim() : null;
+              const displayGameInfo = sanitizeGameInfo(prop.gameInfo);
+              const parsedGame = parseGameInfo(displayGameInfo);
+              const dotMatch = displayGameInfo.match(/·\s*(.+)$/);
+              const legacyMatch = !dotMatch && displayGameInfo.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)\s*ET)/i);
+              const gameTime = dotMatch ? dotMatch[1].trim() : legacyMatch ? legacyMatch[1].trim() : parsedGame.time;
               return gameTime ? (
                 <div className="flex items-center gap-1 mt-0.5" data-testid={`prop-gametime-${index}`}>
                   <Clock className="w-3 h-3 text-emerald-400/70" />
                   <span className="text-[11px] font-bold text-emerald-400/90">{gameTime}</span>
                 </div>
               ) : (
-                <p className="text-[11px] text-slate-500 mt-0.5">{prop.gameInfo}</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">{displayGameInfo}</p>
               );
             })()}
           </div>
@@ -729,7 +732,7 @@ export default function PropBets() {
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-700/30">
-                    <span className="text-[10px] text-slate-500">{proj.gameInfo}</span>
+                    <span className="text-[10px] text-slate-500">{sanitizeGameInfo(proj.gameInfo)}</span>
                     {proj.oddsType === "demon" && (
                       <Badge className="bg-red-500/10 text-red-400 border-red-500/20 text-[9px] font-bold px-1.5 py-0">
                         <Flame className="w-2.5 h-2.5 mr-0.5 inline" /> Demon

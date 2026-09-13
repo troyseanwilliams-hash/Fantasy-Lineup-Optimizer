@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { getShowdownConfig, getEffectiveSalary, getShowdownProjectedPoints, type Platform } from "@shared/platform-config";
 import type { Player } from "@shared/schema";
+import { sanitizeGameInfo } from "@shared/game-info";
 import { getCachedSignals } from "./ai-scout";
 import { runSimulations, detectStack } from "./simulation-engine";
 import { applyOutperformerMode } from "./boost-engine";
@@ -96,7 +97,7 @@ showdownRouter.get("/api/showdown/players/:slateId", async (req, res) => {
 
     const gameMap: Record<string, Player[]> = {};
     for (const p of players) {
-      const game = p.gameInfo || p.opponent || "Unknown";
+      const game = sanitizeGameInfo(p.gameInfo) || p.opponent || "Unknown";
       if (!gameMap[game]) gameMap[game] = [];
       gameMap[game].push(p);
     }
@@ -198,7 +199,7 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
     if (input.playerMaxSalary !== undefined) pool = pool.filter(p => p.salary <= input.playerMaxSalary!);
 
     if (input.gameFilter) {
-      pool = pool.filter(p => p.gameInfo === input.gameFilter || p.opponent === input.gameFilter);
+      pool = pool.filter(p => sanitizeGameInfo(p.gameInfo) === input.gameFilter || p.opponent === input.gameFilter);
     }
 
     if (pool.length < config.rosterSize) {
@@ -530,7 +531,7 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
     if (input.playerMaxSalary !== undefined) pool = pool.filter(p => p.salary <= input.playerMaxSalary!);
 
     if (input.gameFilter) {
-      pool = pool.filter(p => p.gameInfo === input.gameFilter || p.opponent === input.gameFilter);
+      pool = pool.filter(p => sanitizeGameInfo(p.gameInfo) === input.gameFilter || p.opponent === input.gameFilter);
     }
 
     if (pool.length < config.rosterSize) {

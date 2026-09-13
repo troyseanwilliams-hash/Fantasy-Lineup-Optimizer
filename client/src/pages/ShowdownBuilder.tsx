@@ -16,6 +16,7 @@ import {
   Activity, Clock, RotateCcw, Flame, Percent, ArrowUpDown, CheckCheck,
 } from "lucide-react";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
+import { sanitizeGameInfo } from "@/lib/game-info";
 import { InfoTip, LabelTip } from "@/components/InfoTip";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -343,12 +344,19 @@ export default function ShowdownBuilder() {
   });
 
   const players = playerData?.players || [];
-  const games = playerData?.games || {};
+  const games = useMemo(() => {
+    const sanitized: Record<string, Player[]> = {};
+    for (const [gameInfo, gamePlayers] of Object.entries(playerData?.games || {})) {
+      const displayGameInfo = sanitizeGameInfo(gameInfo);
+      sanitized[displayGameInfo] = [...(sanitized[displayGameInfo] || []), ...gamePlayers];
+    }
+    return sanitized;
+  }, [playerData?.games]);
   const gameKeys = Object.keys(games);
 
   // ── Derived player metadata ────────────────────────────────────────────────
   const salaryBounds = useMemo(() => {
-    const pool = gameFilter ? players.filter(p => p.gameInfo === gameFilter) : players;
+    const pool = gameFilter ? players.filter(p => sanitizeGameInfo(p.gameInfo) === gameFilter) : players;
     if (pool.length === 0) return { min: 3000, max: 11000, step: 100 };
     const sals = pool.map(p => p.salary).filter(s => !isNaN(s));
     return { min: Math.min(...sals), max: Math.max(...sals), step: 100 };
@@ -391,7 +399,7 @@ export default function ShowdownBuilder() {
   });
 
   const captainLeaders = useMemo(() => {
-    const pool = gameFilter ? players.filter(p => p.gameInfo === gameFilter) : players;
+    const pool = gameFilter ? players.filter(p => sanitizeGameInfo(p.gameInfo) === gameFilter) : players;
     return pool
       .map(player => {
         const projection = toNum(player.projectedPoints);
@@ -413,7 +421,7 @@ export default function ShowdownBuilder() {
   // ── Filtered + enriched player pool ───────────────────────────────────────
   const filteredPlayers = useMemo(() => {
     let pool = players;
-    if (gameFilter) pool = pool.filter(p => p.gameInfo === gameFilter);
+    if (gameFilter) pool = pool.filter(p => sanitizeGameInfo(p.gameInfo) === gameFilter);
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
       pool = pool.filter(p => p.name.toLowerCase().includes(q) || p.team.toLowerCase().includes(q));
@@ -901,7 +909,7 @@ export default function ShowdownBuilder() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Games</SelectItem>
-                {gameKeys.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                {gameKeys.map(g => <SelectItem key={g} value={g}>{sanitizeGameInfo(g)}</SelectItem>)}
               </SelectContent>
             </Select>
           )}

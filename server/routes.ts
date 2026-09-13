@@ -8,6 +8,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { getPlatformConfig, ACTIVE_SPORTS, assignPlayersToSlots, type Platform } from "@shared/platform-config";
+import { parseGameInfo, sanitizeGameInfo } from "@shared/game-info";
 import { computeBoostScores, computeCorrelationBonus, applyCeilingMode, applyLeverageMode, applyActualAdjustedProjections, applyWinningLineupAdjustment, applyOutperformerMode } from "./boost-engine";
 import { getHistoricalProfile, applyHistoricalAdjustments } from "./historical-adjustments";
 import { applyMarketProjectionBlend } from "./market-projections";
@@ -20,8 +21,8 @@ function isLoggedIn(req: Request): boolean {
   return !!getSessionUserId(req);
 }
 
-import { type OptimizationConstraints, type ProOptimizationConstraints, type Player, type Slate, type InsertProp, type InsertAlert, proOptimizationConstraintSchema, insertPrizePicksEntrySchema } from "@shared/schema";
-import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus, fetchLivePlayerStatuses, fetchAvailableDKSlates, fetchAvailableDKShowdowns, fetchDKSlateByDraftGroup, fetchDraftables, isPlayerConfirmedStarter, parseEasternTime, getEasternToday } from "./balldontlie";
+import { type OptimizationConstraints, type ProOptimizationConstraints, type Player, type Slate, type Lineup, type InsertProp, type InsertAlert, proOptimizationConstraintSchema, insertPrizePicksEntrySchema } from "@shared/schema";
+import { fetchAllSportsLiveData, fetchPlayerStatusUpdates, mapDKStatus, fetchLivePlayerStatuses, fetchAvailableDKSlates, fetchAvailableDKShowdowns, fetchDKSlateByDraftGroup, fetchDraftables, isPlayerConfirmedStarter, parseEasternTime, getEasternToday, resolveDKContestDraftGroups, isClassicDKDraftGroup, type DKContestIdentityResult } from "./balldontlie";
 import { fetchAllPropsForSport, type ParsedProp } from "./odds-api";
 import { getLiveScores, getAllLiveScores, fetchESPNStarters } from "./espn-scores";
 import { fetchPrizePicksProjections, getSupportedPPSports, buildAIEntries, analyzeManualPicks, generateProjectionsFromPlayers, getLineMovements } from "./prizepicks";
@@ -36,7 +37,7 @@ import { buildVegasContext } from "./vegas-client";
 import { buildDvPContext, applyDvPToProjections, buildOpponentMap } from "./dvp-client";
 import { fetchStartingLineups, getStartingLineupsData, clearLineupsCache } from "./lineups-ingest";
 import { projectionAccuracyRouter } from "./projection-accuracy-route";
-import { deactivateExpiredSlates } from "./slate-lifecycle";
+import { deactivateExpiredSlates, getLatestGameStart } from "./slate-lifecycle";
 import { solveWithBudget, validatedIntegralResult, remainingSolverTime, yieldToEventLoop, type SolverBudget } from "./solver-guard";
 import { createLineupEnrichmentLoader } from "./lineups-enrichment";
 import { NFL_PRACTICE_SQUAD_DETAIL, protectNFLPracticeSquadMarker } from "./nfl-roster-eligibility";
@@ -50,6 +51,14 @@ import {
   resolvePlayersForExport,
   type ExportDraftable,
 } from "./export-player-resolver";
+import { reconcileClassicMainIdentity, shouldCloneRegeneratedLineup } from "./lineup-regeneration";
+import { selectLiveDraftGroup, selectNewestLocalSlate } from "./draft-group-selection";
+import {
+  describeDKImportSlateResolution,
+  normalizeDKContestId,
+  resolveDKImportSlate,
+  type DKImportContestLookup,
+} from "./dk-import-resolution";
 
 
 async function loadOverridesWithCrossRef(
@@ -94,6 +103,39 @@ async function loadOverridesWithCrossRef(
     }
   }
   return { overrides, overrideMap, excluded, locked, exposureMap };
+}
+
+async function cloneRegeneratedLineup(
+  source: Lineup,
+  targetSlateId: number,
+  payload: {
+    playerIds: number[];
+    totalSalary: number;
+    totalProjectedPoints: string;
+    playerSnapshot?: any;
+    simData?: any;
+  },
+): Promise<Lineup> {
+  const insert: any = {
+    userId: source.userId,
+    slateId: targetSlateId,
+    sport: source.sport,
+    platform: source.platform || "draftkings",
+    totalSalary: payload.totalSalary,
+    totalProjectedPoints: payload.totalProjectedPoints,
+    playerIds: payload.playerIds,
+    name: source.name,
+    status: "active",
+    playerSnapshot: payload.playerSnapshot,
+    // A regenerated row is not the submitted DraftKings entry itself.
+    // Contest identifiers therefore stay attached only to the source row.
+    dkEntryId: null,
+    dkContestName: null,
+    dkContestId: null,
+    dkEntryFee: null,
+  };
+  if (payload.simData !== undefined) insert.simData = payload.simData;
+  return storage.createLineup(insert);
 }
 
 function starRatingMinProjection(starRating: number): number {
@@ -223,12 +265,13 @@ export async function registerRoutes(
         const gameSet = new Set<string>();
         for (const p of players) {
           if (p.gameInfo) {
-            const vsMatch = p.gameInfo.match(/^(\w{2,5})\s+vs\s+(\w{2,5})\s/i);
+            const displayGameInfo = sanitizeGameInfo(p.gameInfo);
+            const vsMatch = displayGameInfo.match(/^(\w{2,5})\s+vs\s+(\w{2,5})\s/i);
             if (vsMatch) {
               gameSet.add(`${vsMatch[1]}v${vsMatch[2]}`);
               continue;
             }
-            const atMatch = p.gameInfo.match(/^(\w{2,5})\s*@\s*(\w{2,5})\s/);
+            const atMatch = displayGameInfo.match(/^(\w{2,5})\s*@\s*(\w{2,5})\s/);
             if (atMatch) {
               gameSet.add(`${atMatch[1]}@${atMatch[2]}`);
             }
@@ -249,6 +292,67 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Slates error:", err);
       res.status(500).json({ message: "Failed to fetch slates" });
+    }
+  });
+
+  // DraftKings publishes several independent groups for the same kickoff.
+  // This endpoint gives the optimizer/UI the live featured target and keeps
+  // every alternate group addressable by its own draftGroupId.  A caller may
+  // pass ?draftGroupId=... to target an explicitly selected alternative.
+  app.get("/api/draftkings/slates/:sport", async (req, res) => {
+    try {
+      const sport = req.params.sport.toUpperCase();
+      const available = await fetchAvailableDKSlates(sport);
+      const existingSlates = await storage.getSlates();
+      const requestedDraftGroupId = req.query.draftGroupId == null
+        ? null
+        : Number(req.query.draftGroupId);
+      if (requestedDraftGroupId !== null &&
+          (!Number.isSafeInteger(requestedDraftGroupId) || requestedDraftGroupId <= 0)) {
+        return res.status(400).json({ message: "draftGroupId must be a positive integer" });
+      }
+
+      const selected = selectLiveDraftGroup(available, sport, requestedDraftGroupId);
+      if (!selected) {
+        return res.status(404).json({
+          message: requestedDraftGroupId === null
+            ? `No live DraftKings ${sport} classic slates found`
+            : `DraftGroup ${requestedDraftGroupId} is not a live ${sport} classic slate`,
+        });
+      }
+
+      const withLocalSlate = (metadata: typeof selected) => {
+        const local = selectNewestLocalSlate(existingSlates
+          .filter(s =>
+            s.sport === sport &&
+            s.platform === "draftkings" &&
+            s.draftGroupId === metadata.draftGroupId,
+          ));
+        return { ...metadata, slateId: local?.id ?? null, isImported: Boolean(local) };
+      };
+      const target = withLocalSlate(selected);
+      const slates = available.map(withLocalSlate);
+      res.json({
+        sport,
+        platform: "draftkings",
+        target,
+        targetDraftGroupId: selected.draftGroupId,
+        targetContest: selected.contestId == null ? null : {
+          id: selected.contestId,
+          name: selected.contestName,
+          path: selected.contestPath,
+          url: selected.contestUrl,
+          entryFee: selected.contestEntryFee,
+          prizePool: selected.contestPrizePool,
+        },
+        alternatives: slates.filter(s => s.draftGroupId !== selected.draftGroupId),
+        slates,
+        apiPath: `/api/draftkings/slates/${encodeURIComponent(sport)}`,
+        targetPath: `/api/draftkings/slates/${encodeURIComponent(sport)}?draftGroupId=${selected.draftGroupId}`,
+      });
+    } catch (err: any) {
+      console.error(`[DK] Error fetching ${req.params.sport} slate metadata:`, err);
+      res.status(500).json({ message: err.message || "Failed to fetch DraftKings slate metadata" });
     }
   });
 
@@ -999,7 +1103,7 @@ export async function registerRoutes(
         fppg: p.fppg,
         projectedPoints: p.projectedPoints,
         opponent: p.opponent,
-        gameInfo: p.gameInfo,
+         gameInfo: p.gameInfo,
         draftKingsPlayerId: p.draftKingsPlayerId,
         boostScore: p.boostScore,
         boostReason: p.boostReason,
@@ -1341,6 +1445,27 @@ export async function registerRoutes(
     const minSalary = typeof req.body.minSalary === "number" ? req.body.minSalary : undefined;
     const maxSalary = typeof req.body.maxSalary === "number" ? req.body.maxSalary : undefined;
     const overrideSlateId = typeof req.body.slateId === "number" ? req.body.slateId : null;
+    const preserveSourceSlateId = req.body.preserveSourceSlateId === true;
+    const requestedDraftGroupId = req.body.draftGroupId == null ? null : Number(req.body.draftGroupId);
+    if (requestedDraftGroupId !== null &&
+        (!Number.isSafeInteger(requestedDraftGroupId) || requestedDraftGroupId <= 0)) {
+      return res.status(400).json({ message: "draftGroupId must be a positive integer" });
+    }
+    let requestedTargetSlate: Slate | undefined;
+    if (overrideSlateId !== null) {
+      requestedTargetSlate = await storage.getSlate(overrideSlateId);
+      if (!requestedTargetSlate) {
+        return res.status(400).json({ message: "Target slate not found" });
+      }
+      if (requestedDraftGroupId !== null &&
+          requestedTargetSlate.draftGroupId !== requestedDraftGroupId) {
+        return res.status(400).json({
+          message: `Submitted draftGroupId ${requestedDraftGroupId} does not match target slate ${overrideSlateId} (DG ${requestedTargetSlate.draftGroupId ?? "unknown"})`,
+        });
+      }
+    } else if (requestedDraftGroupId !== null) {
+      return res.status(400).json({ message: "draftGroupId requires a target slateId" });
+    }
     const origSlatePerGroup = new Map<number, number>();
 
     for (const id of ids) {
@@ -1572,11 +1697,24 @@ export async function registerRoutes(
           totalProjectedPoints: origTotalPts.toFixed(1),
           playerSnapshot,
         };
-        if (overrideSlateId) updatePayload.slateId = overrideSlateId;
-
-        await storage.updateLineup(Number(id), updatePayload);
-
-        results.push({ id, status: "updated" });
+        const targetSlateId = effectiveSlateId;
+        if (shouldCloneRegeneratedLineup(
+          lineup.slateId,
+          targetSlateId,
+          preserveSourceSlateId,
+        )) {
+          const cloned = await cloneRegeneratedLineup(lineup, targetSlateId, updatePayload);
+          results.push({
+            id: Number(id),
+            sourceLineupId: Number(id),
+            newLineupId: cloned.id,
+            status: "cloned",
+          } as any);
+        } else {
+          if (overrideSlateId) updatePayload.slateId = overrideSlateId;
+          await storage.updateLineup(Number(id), updatePayload);
+          results.push({ id: Number(id), status: "updated" });
+        }
         updated = true;
       }
 
@@ -1586,9 +1724,16 @@ export async function registerRoutes(
     }
 
     const updatedCount = results.filter(r => r.status === "updated").length;
+    const clonedCount = results.filter(r => r.status === "cloned").length;
+    const newLineupIds = results
+      .map((result: any) => result.newLineupId)
+      .filter((id: any): id is number => Number.isSafeInteger(id));
     res.json({
       results,
       updated: updatedCount,
+      cloned: clonedCount,
+      created: clonedCount,
+      newLineupIds,
       total: ids.length,
       partial: bulkTimedOut,
       message: bulkTimedOut
@@ -1705,10 +1850,30 @@ export async function registerRoutes(
   app.post("/api/lineups/sim-regenerate", async (req, res) => {
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const userId = getSessionUserId(req)!;
-    const { ids, sortBy, useBoosts, ceilingMode, leverageMode, outperformerMode, contestType: rawContestType, globalMaxExposure, globalMinExposure, minExposureLimits, projFloor, minSalary, maxSalary, slateId: bodySlateId } = req.body;
+    const { ids, sortBy, useBoosts, ceilingMode, leverageMode, outperformerMode, contestType: rawContestType, globalMaxExposure, globalMinExposure, minExposureLimits, projFloor, minSalary, maxSalary, slateId: bodySlateId, draftGroupId: bodyDraftGroupId } = req.body;
     const simContestType = rawContestType === "gpp" ? "gpp" : "cash";
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "No lineup IDs provided" });
     const overrideSlateId = typeof bodySlateId === "number" ? bodySlateId : null;
+    const preserveSourceSlateId = req.body.preserveSourceSlateId === true;
+    const requestedDraftGroupId = bodyDraftGroupId == null ? null : Number(bodyDraftGroupId);
+    if (requestedDraftGroupId !== null &&
+        (!Number.isSafeInteger(requestedDraftGroupId) || requestedDraftGroupId <= 0)) {
+      return res.status(400).json({ message: "draftGroupId must be a positive integer" });
+    }
+    if (overrideSlateId !== null) {
+      const requestedTargetSlate = await storage.getSlate(overrideSlateId);
+      if (!requestedTargetSlate) {
+        return res.status(400).json({ message: "Target slate not found" });
+      }
+      if (requestedDraftGroupId !== null &&
+          requestedTargetSlate.draftGroupId !== requestedDraftGroupId) {
+        return res.status(400).json({
+          message: `Submitted draftGroupId ${requestedDraftGroupId} does not match target slate ${overrideSlateId} (DG ${requestedTargetSlate.draftGroupId ?? "unknown"})`,
+        });
+      }
+    } else if (requestedDraftGroupId !== null) {
+      return res.status(400).json({ message: "draftGroupId requires a target slateId" });
+    }
 
     const validSortKeys = ["p90", "p75", "composite", "median", "avg"];
     const sortKey = validSortKeys.includes(sortBy) ? sortBy : "composite";
@@ -2242,10 +2407,24 @@ export async function registerRoutes(
             totalProjectedPoints: totalPts.toFixed(1),
             playerSnapshot, simData,
           };
-          if (overrideSlateId) simUpdatePayload.slateId = overrideSlateId;
-          await db.update(lineupsTable).set(simUpdatePayload).where(eq(lineupsTable.id, lineupId));
-
-          results.push({ id: lineupId, status: "updated" });
+          const sourceLineup = lineupOwnership.get(lineupId)!;
+          if (shouldCloneRegeneratedLineup(
+            sourceLineup.slateId,
+            slateId,
+            preserveSourceSlateId,
+          )) {
+            const cloned = await cloneRegeneratedLineup(sourceLineup, slateId, simUpdatePayload);
+            results.push({
+              id: lineupId,
+              sourceLineupId: lineupId,
+              newLineupId: cloned.id,
+              status: "cloned",
+            } as any);
+          } else {
+            if (overrideSlateId) simUpdatePayload.slateId = overrideSlateId;
+            await db.update(lineupsTable).set(simUpdatePayload).where(eq(lineupsTable.id, lineupId));
+            results.push({ id: lineupId, status: "updated" });
+          }
         }
 
         for (let i = selectedCandidates.length; i < lineupIds.length; i++) {
@@ -2254,11 +2433,18 @@ export async function registerRoutes(
       }
 
       const updatedCount = results.filter(r => r.status === "updated").length;
+      const clonedCount = results.filter(r => r.status === "cloned").length;
+      const newLineupIds = results
+        .map((result: any) => result.newLineupId)
+        .filter((id: any): id is number => Number.isSafeInteger(id));
       const totalElapsed = Date.now() - startTime;
       console.log(`[SimRegen] Completed: ${updatedCount}/${ids.length} lineups regenerated by ${sortKey}, ${totalElapsed}ms`);
       res.json({
         results,
         updated: updatedCount,
+        cloned: clonedCount,
+        created: clonedCount,
+        newLineupIds,
         total: ids.length,
         simsRun: totalSimsRun || tierSims,
         sortBy: sortKey,
@@ -2286,105 +2472,245 @@ export async function registerRoutes(
     }
 
     const { entries, sport } = req.body;
-    let { slateId } = req.body;
     if (!Array.isArray(entries) || entries.length === 0) {
       return res.status(400).json({ message: "No entries provided." });
     }
     if (!sport) {
       return res.status(400).json({ message: "Sport is required." });
     }
+    const normalizedSport = String(sport).trim().toUpperCase();
+    const config = getPlatformConfig(normalizedSport, "draftkings" as Platform);
+    if (!config) {
+      return res.status(400).json({ message: `Unsupported DraftKings sport: ${normalizedSport}.` });
+    }
 
-    if (!slateId) {
-      const allSlates = await storage.getSlates();
-      const dkSlate = allSlates.find(s => s.sport === sport && s.platform === "draftkings" && s.isMain)
-        || allSlates.find(s => s.sport === sport && s.platform === "draftkings");
-      if (dkSlate) {
-        slateId = dkSlate.id;
-        console.log(`[DK Import] Auto-detected DK ${sport} slate ${slateId} (${dkSlate.name})`);
+    // Contest identity is authoritative for imports.  A caller-provided
+    // slateId is intentionally ignored: choosing the first local slate (or
+    // trusting a client-selected slate) can silently assign a mixed CSV to
+    // the wrong player pool.
+    let localSlates = await storage.getSlates();
+    const contestIds = entries
+      .map(entry => normalizeDKContestId(entry?.contestId))
+      .filter((id): id is number => id !== null);
+    let liveContestResults: Map<number, DKContestIdentityResult>;
+    try {
+      liveContestResults = await resolveDKContestDraftGroups(normalizedSport, contestIds);
+    } catch (error) {
+      console.error("[DK Import] Contest identity lookup failed:", error);
+      liveContestResults = new Map(
+        contestIds.map(contestId => [contestId, { status: "unavailable" as const }]),
+      );
+    }
+
+    const contestLookups = new Map<number, DKImportContestLookup>();
+    for (const contestId of contestIds) {
+      const result = liveContestResults.get(contestId);
+      if (!result || result.status !== "resolved") {
+        contestLookups.set(contestId, result
+          ? { status: result.status }
+          : { status: "unavailable" });
       } else {
-        return res.status(400).json({ message: `No DraftKings ${sport} slate found. Try again after DK data refreshes.` });
+        contestLookups.set(contestId, {
+          status: "resolved",
+          draftGroupId: result.identity.draftGroupId,
+        });
       }
     }
 
-    const slate = await storage.getSlate(slateId);
-    if (!slate) return res.status(400).json({ message: "Slate not found." });
-    if (slate.sport !== sport) {
-      return res.status(400).json({ message: `Slate sport (${slate.sport}) does not match provided sport (${sport}).` });
-    }
-    if (slate.platform !== "draftkings") {
-      return res.status(400).json({ message: "Only DraftKings slates are supported for import." });
-    }
+    type SlatePlayers = {
+      players: Player[];
+      byDraftKingsId: Map<number, Player | null>;
+    };
+    const playersBySlate = new Map<number, SlatePlayers>();
+    const slateByDraftGroup = new Map<number, Slate>();
 
-    let allPlayers = await storage.getPlayersBySlate(slateId);
-    let dkIdMap = new Map<number, typeof allPlayers[0]>();
-    let nameMap = new Map<string, typeof allPlayers[0]>();
-    for (const p of allPlayers) {
-      if (p.draftKingsPlayerId) dkIdMap.set(p.draftKingsPlayerId, p);
-      if (p.name) nameMap.set(p.name.toLowerCase().trim(), p);
-    }
+    const loadSlatePlayers = async (slate: Slate): Promise<SlatePlayers> => {
+      const cached = playersBySlate.get(slate.id);
+      if (cached) return cached;
 
-    const firstEntry = entries[0];
-    const firstDkIds: number[] = firstEntry?.dkPlayerIds || [];
-    const localMatchCount = firstDkIds.filter(id => dkIdMap.has(id)).length;
+      const slatePlayers = await storage.getPlayersBySlate(slate.id);
+      // A duplicate provider ID in one local slate is ambiguous.  Retaining
+      // null in the map makes every entry using it fail instead of selecting
+      // whichever row happened to be returned last.
+      const byDraftKingsId = new Map<number, Player | null>();
+      for (const player of slatePlayers) {
+        if (!player.draftKingsPlayerId) continue;
+        if (byDraftKingsId.has(player.draftKingsPlayerId)) {
+          byDraftKingsId.set(player.draftKingsPlayerId, null);
+        } else {
+          byDraftKingsId.set(player.draftKingsPlayerId, player);
+        }
+      }
+      const loaded = { players: slatePlayers, byDraftKingsId };
+      playersBySlate.set(slate.id, loaded);
+      return loaded;
+    };
 
-    if (localMatchCount < firstDkIds.length / 2) {
-      console.log(`[DK Import] Local slate mismatch (${localMatchCount}/${firstDkIds.length} matched). Searching for correct draft group...`);
+    const ensureSlateForContest = async (
+      contestId: number,
+      draftGroupId: number,
+    ): Promise<{ slate?: Slate; players?: SlatePlayers; error?: string }> => {
+      const liveContest = liveContestResults.get(contestId);
+      if (!liveContest || liveContest.status !== "resolved") {
+        return { error: "DraftKings contest identity is unavailable; refusing to import this entry." };
+      }
+      if (liveContest.identity.draftGroupId !== draftGroupId) {
+        return { error: "DraftKings contest identity changed during import; refusing to import this entry." };
+      }
+      if (!isClassicDKDraftGroup(normalizedSport, liveContest.identity.draftGroup)) {
+        return { error: "Contest does not identify a supported DraftKings classic slate." };
+      }
+
+      const fetchExactSlateData = async (): Promise<Awaited<ReturnType<typeof fetchDKSlateByDraftGroup>>> => {
+        try {
+          return await fetchDKSlateByDraftGroup(normalizedSport, draftGroupId, {
+            startTime: liveContest.identity.draftGroup.StartDateEst,
+          });
+        } catch (error) {
+          console.error(`[DK Import] Error loading DraftGroup ${draftGroupId}:`, error);
+          return null;
+        }
+      };
+
+      const prepareExistingSlate = async (
+        existingSlate: Slate,
+      ): Promise<{ slate?: Slate; players?: SlatePlayers; error?: string }> => {
+        if (existingSlate.gameType?.toLowerCase() === "showdown") {
+          return { error: "Contest resolves to a DraftKings Showdown slate, which classic import does not support." };
+        }
+        const existingPlayers = await loadSlatePlayers(existingSlate);
+        const hasProviderIds = existingPlayers.players.some(player =>
+          Number.isSafeInteger(player.draftKingsPlayerId) && Number(player.draftKingsPlayerId) > 0,
+        );
+        if (existingPlayers.players.length > 0 && hasProviderIds) {
+          slateByDraftGroup.set(draftGroupId, existingSlate);
+          return { slate: existingSlate, players: existingPlayers };
+        }
+
+        // A slate row can survive a failed startup/import while its player
+        // pool is empty.  Repair only that exact live draft group; never
+        // populate it from a different group or from player-name overlap.
+        const slateData = await fetchExactSlateData();
+        if (
+          !slateData ||
+          slateData.sport !== normalizedSport ||
+          slateData.draftGroupId !== draftGroupId ||
+          slateData.dkPlayers.length === 0
+        ) {
+          return { error: "DraftKings player pool for this contest is unavailable; refusing to import this entry." };
+        }
+        let repairedPlayers: Player[];
+        try {
+          repairedPlayers = await storage.bulkCreatePlayers(
+            slateData.dkPlayers.map(player => ({ ...player, slateId: existingSlate.id })),
+          );
+        } catch (error: any) {
+          return {
+            error: error?.message || "Could not repair the empty DraftKings player pool for this entry.",
+          };
+        }
+        if (repairedPlayers.length === 0) {
+          return { error: "DraftKings player pool for this contest is empty; refusing to import this entry." };
+        }
+        playersBySlate.delete(existingSlate.id);
+        const loadedRepairedPlayers = await loadSlatePlayers(existingSlate);
+        slateByDraftGroup.set(draftGroupId, existingSlate);
+        return { slate: existingSlate, players: loadedRepairedPlayers };
+      };
+
+      const cachedSlate = slateByDraftGroup.get(draftGroupId);
+      if (cachedSlate) return prepareExistingSlate(cachedSlate);
+
+      const resolution = resolveDKImportSlate(
+        contestId,
+        contestLookups,
+        localSlates,
+        normalizedSport,
+      );
+      if (resolution.status === "ambiguous-local-slate") {
+        return { error: describeDKImportSlateResolution(resolution) };
+      }
+      if (resolution.status === "resolved") {
+        return prepareExistingSlate(resolution.slate);
+      }
+      if (resolution.status !== "missing-local-slate") {
+        return { error: describeDKImportSlateResolution(resolution) };
+      }
+
+      // The initial all-slates read can race a startup sync.  Recheck the
+      // exact provider identity through storage immediately before creating
+      // anything so a just-created slate is reused rather than duplicated.
       try {
-        const availableSlates = await fetchAvailableDKSlates(sport);
-        let foundDraftGroup: number | null = null;
-
-        for (const avSlate of availableSlates) {
-          try {
-            const draftables = await fetchDraftables(avSlate.draftGroupId);
-            const draftableIds = new Set(draftables.map(d => d.draftableId));
-            const matchCount = firstDkIds.filter(id => draftableIds.has(id)).length;
-            if (matchCount >= firstDkIds.length / 2) {
-              foundDraftGroup = avSlate.draftGroupId;
-              console.log(`[DK Import] Found matching draft group ${avSlate.draftGroupId} (${matchCount}/${firstDkIds.length} players match)`);
-
-              const slateData = await fetchDKSlateByDraftGroup(sport, avSlate.draftGroupId);
-              if (slateData && slateData.dkPlayers.length > 0) {
-                const newSlate = await storage.createSlate({
-                  sport,
-                  platform: "draftkings",
-                  name: `${sport} ${avSlate.label || `DG ${avSlate.draftGroupId}`}`,
-                  startTime: avSlate.startTime ? parseEasternTime(avSlate.startTime) : new Date(),
-                  isMain: false,
-                  draftGroupId: avSlate.draftGroupId,
-                });
-                const createdPlayers = await storage.bulkCreatePlayers(
-                  slateData.dkPlayers.map((p: any) => ({ ...p, slateId: newSlate.id })) as any
-                );
-                console.log(`[DK Import] Created slate ${newSlate.id} with ${createdPlayers.length} players for DG ${avSlate.draftGroupId}`);
-
-                allPlayers = createdPlayers;
-                dkIdMap = new Map();
-                nameMap = new Map();
-                for (const p of allPlayers) {
-                  if (p.draftKingsPlayerId) dkIdMap.set(p.draftKingsPlayerId, p);
-                  if (p.name) nameMap.set(p.name.toLowerCase().trim(), p);
-                }
-                req.body.slateId = newSlate.id;
-              }
-              break;
-            }
-          } catch (err) {
-            console.error(`[DK Import] Error checking DG ${avSlate.draftGroupId}:`, err);
-          }
+        const justCreatedSlate = await storage.getSlateByDraftGroup(
+          normalizedSport,
+          "draftkings",
+          draftGroupId,
+        );
+        if (justCreatedSlate) {
+          localSlates = localSlates.some(slate => slate.id === justCreatedSlate.id)
+            ? localSlates
+            : [...localSlates, justCreatedSlate];
+          return prepareExistingSlate(justCreatedSlate);
         }
-        if (!foundDraftGroup) {
-          console.log(`[DK Import] Could not find matching draft group among ${availableSlates.length} available slates`);
-        }
-      } catch (err) {
-        console.error("[DK Import] Error searching for draft group:", err);
+      } catch (error) {
+        console.error(`[DK Import] Error rechecking DraftGroup ${draftGroupId} before create:`, error);
+        return { error: "Could not verify the local DraftKings slate identity; refusing to import this entry." };
       }
-    }
 
-    const importSlateId = req.body.slateId;
+      const slateData = await fetchExactSlateData();
+      if (
+        !slateData ||
+        slateData.sport !== normalizedSport ||
+        slateData.draftGroupId !== draftGroupId ||
+        slateData.dkPlayers.length === 0
+      ) {
+        return { error: "DraftKings player pool for this contest is unavailable; refusing to import this entry." };
+      }
 
-    const config = getPlatformConfig(sport, "draftkings" as Platform);
+      const newSlate = await storage.createSlate({
+        sport: normalizedSport,
+        platform: "draftkings",
+        name: `${normalizedSport} ${liveContest.identity.draftGroup.DraftGroupTag || "DraftKings"} (${liveContest.identity.draftGroup.GameCount} games)`,
+        startTime: parseEasternTime(liveContest.identity.draftGroup.StartDateEst),
+        isMain: false,
+        draftGroupId,
+        gameType: liveContest.identity.draftGroup.GameType || "Classic",
+        label: liveContest.identity.draftGroup.ContestStartTimeSuffix || null,
+        gameCount: liveContest.identity.draftGroup.GameCount,
+        contestCount: 1,
+      });
+      let createdPlayers: Player[];
+      try {
+        createdPlayers = await storage.bulkCreatePlayers(
+          slateData.dkPlayers.map(player => ({ ...player, slateId: newSlate.id })),
+        );
+      } catch (error) {
+        try {
+          await storage.deleteSlateAndPlayers(newSlate.id);
+        } catch (cleanupError) {
+          console.error(`[DK Import] Failed to clean up empty slate ${newSlate.id}:`, cleanupError);
+        }
+        throw error;
+      }
+      if (createdPlayers.length === 0) {
+        // No lineup references the new slate yet, so this cleanup preserves
+        // the fail-closed behavior without leaving an unusable identity.
+        await storage.deleteSlateAndPlayers(newSlate.id);
+        return { error: "DraftKings player pool for this contest is empty; refusing to import this entry." };
+      }
+
+      localSlates = [...localSlates, newSlate];
+      slateByDraftGroup.set(draftGroupId, newSlate);
+      const loadedPlayers = await loadSlatePlayers(newSlate);
+      console.log(`[DK Import] Created slate ${newSlate.id} with ${createdPlayers.length} players for DG ${draftGroupId}`);
+      return {
+        slate: newSlate,
+        players: loadedPlayers,
+      };
+    };
+
     const maxPerSport = isAdmin ? 500 : 300;
-    const currentCount = await storage.getLineupCountBySport(userId, sport);
+    const currentCount = await storage.getLineupCountBySport(userId, normalizedSport);
     const availableSlots = maxPerSport - currentCount;
     if (availableSlots <= 0) {
       return res.status(403).json({ message: `You've reached the maximum of ${maxPerSport} saved teams per sport.` });
@@ -2395,23 +2721,84 @@ export async function registerRoutes(
 
     for (const entry of entries) {
       if (imported >= availableSlots) {
-        results.push({ entryId: entry.entryId, status: "skipped", error: "Lineup limit reached." });
+        results.push({ entryId: String(entry.entryId ?? ""), status: "skipped", error: "Lineup limit reached." });
         continue;
       }
 
-      const rawDkPlayerIds: number[] = entry.dkPlayerIds || [];
+      const rawDkPlayerIds: number[] = Array.isArray(entry.dkPlayerIds) ? entry.dkPlayerIds : [];
       const entryPlayerNames: string[] = entry.playerNames || [];
-      const matchedPlayers: typeof allPlayers = [];
+      const entryId = String(entry.entryId ?? "");
+      const contestId = normalizeDKContestId(entry.contestId);
+      const contestResolution = resolveDKImportSlate(
+        entry.contestId,
+        contestLookups,
+        localSlates,
+        normalizedSport,
+      );
+      // A live contest can legitimately have no local slate yet; ensureSlate
+      // imports that exact group below.  Reject every other non-resolved
+      // identity before touching the player pool.
+      if (
+        contestResolution.status !== "resolved" &&
+        contestResolution.status !== "missing-local-slate"
+      ) {
+        results.push({
+          entryId,
+          status: "failed",
+          error: describeDKImportSlateResolution(contestResolution),
+        });
+        continue;
+      }
+      if (contestId === null) {
+        results.push({
+          entryId,
+          status: "failed",
+          error: "Contest ID is invalid; the entry's slate could not be identified.",
+        });
+        continue;
+      }
+
+      const liveContest = liveContestResults.get(contestId);
+      if (!liveContest || liveContest.status !== "resolved") {
+        results.push({
+          entryId,
+          status: "failed",
+          error: "DraftKings contest identity is unavailable; refusing to import this entry.",
+        });
+        continue;
+      }
+      let slateResult: Awaited<ReturnType<typeof ensureSlateForContest>>;
+      try {
+        slateResult = await ensureSlateForContest(contestId, liveContest.identity.draftGroupId);
+      } catch (error: any) {
+        console.error(`[DK Import] Could not prepare slate for contest ${contestId}:`, error);
+        results.push({
+          entryId,
+          status: "failed",
+          error: error?.message || "Could not prepare the DraftKings slate for this entry.",
+        });
+        continue;
+      }
+      if (!slateResult.slate || !slateResult.players) {
+        results.push({
+          entryId,
+          status: "failed",
+          error: slateResult.error || "Could not resolve the DraftKings slate for this entry.",
+        });
+        continue;
+      }
+
+      const matchedPlayers: Player[] = [];
       const missingNames: string[] = [];
       const seenPlayerIds = new Set<number>();
+      const duplicateProviderIds = new Set<number>();
 
       for (let i = 0; i < rawDkPlayerIds.length; i++) {
         const dkId = rawDkPlayerIds[i];
-        let p = dkIdMap.get(dkId);
-        if (!p && entryPlayerNames[i]) {
-          p = nameMap.get(entryPlayerNames[i].toLowerCase().trim());
-        }
-        if (p && !seenPlayerIds.has(p.id)) {
+        const p = Number.isSafeInteger(dkId) ? slateResult.players.byDraftKingsId.get(dkId) : undefined;
+        if (p === null) {
+          duplicateProviderIds.add(dkId);
+        } else if (p && !seenPlayerIds.has(p.id)) {
           seenPlayerIds.add(p.id);
           matchedPlayers.push(p);
         } else if (!p) {
@@ -2419,25 +2806,28 @@ export async function registerRoutes(
         }
       }
 
-      if (matchedPlayers.length !== config.rosterSize) {
+      if (matchedPlayers.length !== config.rosterSize || duplicateProviderIds.size > 0) {
+        const duplicateDetail = duplicateProviderIds.size > 0
+          ? ` Ambiguous DraftKings player IDs: ${Array.from(duplicateProviderIds).join(", ")}.`
+          : "";
         results.push({
-          entryId: entry.entryId,
+          entryId,
           status: "failed",
-          error: `Matched ${matchedPlayers.length}/${config.rosterSize} players. Could not find: ${missingNames.join(", ")}`,
+          error: `Matched ${matchedPlayers.length}/${config.rosterSize} players. Could not find: ${missingNames.join(", ") || "one or more players"}.${duplicateDetail}`,
         });
         continue;
       }
 
       const totalSalary = matchedPlayers.reduce((s, p) => s + p.salary, 0);
       if (totalSalary > config.salaryCap) {
-        results.push({ entryId: entry.entryId, status: "failed", error: `Salary $${totalSalary.toLocaleString()} exceeds cap.` });
+        results.push({ entryId, status: "failed", error: `Salary $${totalSalary.toLocaleString()} exceeds cap.` });
         continue;
       }
 
-      const slotResult = assignPlayersToSlots(matchedPlayers, config.slots, sport);
+      const slotResult = assignPlayersToSlots(matchedPlayers, config.slots, normalizedSport);
       const unfilledSlots = config.slots.filter(s => !slotResult[s]);
       if (unfilledSlots.length > 0) {
-        results.push({ entryId: entry.entryId, status: "failed", error: `Cannot fill slots: ${unfilledSlots.join(", ")}` });
+        results.push({ entryId, status: "failed", error: `Cannot fill slots: ${unfilledSlots.join(", ")}` });
         continue;
       }
 
@@ -2450,28 +2840,28 @@ export async function registerRoutes(
       }));
 
       const totalProjectedPoints = matchedPlayers.reduce((s, p) => s + Number(p.projectedPoints || 0), 0).toFixed(1);
-      const contestLabel = entry.contestName ? entry.contestName.substring(0, 50) : null;
+      const contestLabel = (entry.contestName || liveContest.identity.contestName || "").substring(0, 50) || null;
 
       try {
         const lineup = await storage.createLineup({
           userId,
-          slateId: importSlateId,
-          sport,
+          slateId: slateResult.slate.id,
+          sport: normalizedSport,
           platform: "draftkings",
           totalSalary,
           totalProjectedPoints,
           playerIds: matchedPlayers.map(p => p.id),
           name: contestLabel ? `DK: ${contestLabel}` : `DK Import #${entry.entryId}`,
-          playerSnapshot,
-          dkEntryId: entry.entryId || null,
+          playerSnapshot: playerSnapshot as any,
+          dkEntryId: entryId || null,
           dkContestName: entry.contestName || null,
-          dkContestId: entry.contestId || null,
+          dkContestId: contestId ? String(contestId) : null,
           dkEntryFee: entry.entryFee || null,
         });
-        results.push({ entryId: entry.entryId, status: "imported", lineupId: lineup.id });
+        results.push({ entryId, status: "imported", lineupId: lineup.id });
         imported++;
       } catch (err: any) {
-        results.push({ entryId: entry.entryId, status: "failed", error: err.message || "Database error" });
+        results.push({ entryId, status: "failed", error: err.message || "Database error" });
       }
     }
 
@@ -2972,6 +3362,11 @@ export async function registerRoutes(
       const result = available.map(s => ({
         ...s,
         alreadyImported: existingDraftGroupIds.has(s.draftGroupId),
+        slateId: existingSlates.find(existing =>
+          existing.sport === sport &&
+          existing.platform === "draftkings" &&
+          existing.draftGroupId === s.draftGroupId,
+        )?.id ?? null,
       }));
       res.json(result);
     } catch (err: any) {
@@ -3009,42 +3404,59 @@ export async function registerRoutes(
     const dbUser = await storage.getUser(userId);
     if (!dbUser?.isAdmin) return res.status(403).json({ message: "Admin access required" });
     try {
-      const { sport, draftGroupId, name } = req.body;
-      if (!sport || !draftGroupId) {
+       const requestedSport = String(req.body?.sport || "").toUpperCase();
+       const draftGroupId = Number(req.body?.draftGroupId);
+       const name = req.body?.name;
+       if (!requestedSport || !Number.isSafeInteger(draftGroupId) || draftGroupId <= 0) {
         return res.status(400).json({ message: "sport and draftGroupId are required" });
       }
 
       const existingSlates = await storage.getSlates();
-      const alreadyExists = existingSlates.find(s => s.draftGroupId === draftGroupId && s.sport === sport);
+       const alreadyExists = existingSlates.find(s =>
+         s.draftGroupId === draftGroupId && s.sport === requestedSport && s.platform === "draftkings");
       if (alreadyExists) {
         return res.status(409).json({ message: "This slate has already been imported", slateId: alreadyExists.id });
       }
 
-      const slateData = await fetchDKSlateByDraftGroup(sport, draftGroupId);
-      if (!slateData || slateData.dkPlayers.length === 0) {
-        return res.status(404).json({ message: "No player data found for this DraftKings slate" });
-      }
+        let liveMetadata: Awaited<ReturnType<typeof fetchAvailableDKSlates>>[number] | undefined;
+       try {
+         liveMetadata = (await fetchAvailableDKSlates(requestedSport))
+           .find(metadata => metadata.draftGroupId === Number(draftGroupId));
+       } catch {
+         // Player data is still authoritative for an explicitly requested
+         // group; metadata enrichment is best effort for this admin path.
+       }
+        const slateData = await fetchDKSlateByDraftGroup(requestedSport, draftGroupId, {
+          startTime: liveMetadata?.startTime,
+        });
+       if (!slateData || slateData.dkPlayers.length === 0) {
+         return res.status(404).json({ message: "No player data found for this DraftKings slate" });
+       }
 
-      const slateName = name || `${sport} Slate ${draftGroupId}`;
+       const slateName = name || liveMetadata?.label || `${requestedSport} Slate ${draftGroupId}`;
       const newSlate = await storage.createSlate({
-        sport,
+         sport: requestedSport,
         platform: "draftkings",
         name: slateName,
         startTime: slateData.slateDate,
         isMain: false,
         draftGroupId: draftGroupId,
+         gameType: "Classic",
+         label: liveMetadata?.label,
+         gameCount: liveMetadata?.gameCount ?? slateData.games.length,
+         contestCount: liveMetadata?.contestCount ?? 0,
       });
 
       const createdPlayers = await storage.bulkCreatePlayers(
-        slateData.dkPlayers.map((p: any) => ({ ...p, slateId: newSlate.id })) as any
+         slateData.dkPlayers.map((p: any) => ({ ...p, slateId: newSlate.id })) as any
       );
 
-      const today = getEasternToday();
+       const today = getEasternToday();
       try {
         const historyRecords = createdPlayers.map(p => ({
           playerName: p.name,
           team: p.team,
-          sport,
+           sport: requestedSport,
           position: p.position,
           salary: p.salary,
           projectedPoints: p.projectedPoints,
@@ -3054,13 +3466,20 @@ export async function registerRoutes(
         }));
         await storage.bulkInsertPlayerHistory(historyRecords);
       } catch (err) {
-        console.error(`[History] Failed to save ${sport} snapshots for new slate:`, err);
+         console.error(`[History] Failed to save ${requestedSport} snapshots for new slate:`, err);
       }
 
-      console.log(`[Admin] Added ${sport} slate "${slateName}" (DG ${draftGroupId}) with ${createdPlayers.length} players`);
+       console.log(`[Admin] Added ${requestedSport} slate "${slateName}" (DG ${draftGroupId}) with ${createdPlayers.length} players`);
       res.json({
         slate: newSlate,
         playerCount: createdPlayers.length,
+         draftGroup: liveMetadata ?? {
+           draftGroupId: Number(draftGroupId),
+           contestId: slateData.contestId,
+           contestName: slateData.contestName,
+           contestPath: slateData.contestPath,
+           contestUrl: slateData.contestUrl,
+         },
         message: `Imported ${createdPlayers.length} players for ${slateName}`,
       });
     } catch (err: any) {
@@ -3347,7 +3766,7 @@ export async function registerRoutes(
           projectedPoints: p.projectedPoints,
           fppg: p.fppg,
           opponent: p.opponent,
-          gameInfo: p.gameInfo,
+         gameInfo: sanitizeGameInfo(p.gameInfo),
         }));
 
       const withValue = activePlayers
@@ -3367,7 +3786,7 @@ export async function registerRoutes(
         projectedPoints: p.projectedPoints,
         fppg: p.fppg,
         opponent: p.opponent,
-        gameInfo: p.gameInfo,
+        gameInfo: sanitizeGameInfo(p.gameInfo),
         valueScore: p.valueScore.toFixed(2),
         direction: "up" as const,
       }));
@@ -3384,7 +3803,7 @@ export async function registerRoutes(
         projectedPoints: p.projectedPoints,
         fppg: p.fppg,
         opponent: p.opponent,
-        gameInfo: p.gameInfo,
+        gameInfo: sanitizeGameInfo(p.gameInfo),
         valueScore: p.valueScore.toFixed(2),
         direction: "down" as const,
       }));
@@ -3393,7 +3812,7 @@ export async function registerRoutes(
 
       const gameMap = new Map<string, typeof allPlayers>();
       for (const p of allPlayers) {
-        const key = p.gameInfo || "unknown";
+         const key = sanitizeGameInfo(p.gameInfo) || "unknown";
         if (!gameMap.has(key)) gameMap.set(key, []);
         gameMap.get(key)!.push(p);
       }
@@ -3497,7 +3916,7 @@ export async function registerRoutes(
           })
           .sort((a, b) => b.boostedPoints - a.boostedPoints);
 
-        const games = new Set(players.map(p => p.gameInfo).filter(Boolean));
+        const games = new Set(players.map(p => sanitizeGameInfo(p.gameInfo)).filter(Boolean));
 
         sportData[sport] = {
           playerCount: players.length,
@@ -3510,7 +3929,7 @@ export async function registerRoutes(
             projectedPoints: p.projectedPoints || "0",
             boostedPoints: p.boostedPoints.toFixed(1),
             opponent: p.opponent || "",
-            gameInfo: p.gameInfo || "",
+            gameInfo: sanitizeGameInfo(p.gameInfo),
             boostScore: p.boostScore || "0",
             injuryStatus: p.injuryStatus || null,
             valueScore: p.valueScore.toFixed(2),
@@ -3592,12 +4011,12 @@ export async function registerRoutes(
 
       for (const p of players) {
         if (!p.gameInfo) continue;
-        const [pair, timePart] = p.gameInfo.split(" @ ");
-        const teams = (pair || "").split(/\s+vs\s+/i).map(t => t.trim()).filter(Boolean);
+        const parsedGame = parseGameInfo(p.gameInfo);
+        const teams = [parsedGame.away, parsedGame.home].filter((team): team is string => Boolean(team));
         if (teams.length < 2) continue;
         const key = matchKey(teams[0], teams[1]);
         if (!matchMap.has(key)) {
-          const time = (timePart || "").trim();
+          const time = parsedGame.time || "";
           matchMap.set(key, {
             key,
             teams: [teams[0].toUpperCase(), teams[1].toUpperCase()],
@@ -3828,7 +4247,7 @@ export async function registerRoutes(
   ]);
   const isWorldCupProjection = (p: any) => {
     const team = String(p.team || "").toLowerCase().trim();
-    const info = String(p.gameInfo || "").toLowerCase();
+    const info = sanitizeGameInfo(p.gameInfo).toLowerCase();
     return WC_NATIONS.has(team) || /world cup|fifa|\bwc\b/.test(info);
   };
   // Fetch SOCCER projections (live feed → DB fallback) filtered to World Cup fixtures.
@@ -4208,7 +4627,7 @@ export async function registerRoutes(
       }
 
       const rand = seededRandom(slateId * 73 + 42);
-      const tournamentParts = (players[0]?.gameInfo || "Tournament").split(" - ");
+      const tournamentParts = sanitizeGameInfo(players[0]?.gameInfo || "Tournament").split(" - ");
       const tournamentName = tournamentParts[0] || "Tournament";
       const courseName = tournamentParts[1] || "";
 
@@ -5904,7 +6323,7 @@ async function generateFallbackPropsFromDK(sports: string[], date: string): Prom
 
       let opponentFromGameInfo: string | null = null;
       if (player.gameInfo) {
-        const gi = player.gameInfo.replace(/\s*@\s*\d.*/, "").replace(/\s*\d+:\d+.*/, "");
+        const gi = sanitizeGameInfo(player.gameInfo).replace(/\s*@\s*\d.*/, "").replace(/\s*\d+:\d+.*/, "");
         const parts = gi.split(/\s+(?:vs|@)\s+/).map(t => t.trim()).filter(Boolean);
         opponentFromGameInfo = parts.find(t => t !== player.team) || null;
       }
@@ -6137,7 +6556,7 @@ async function getInactivePlayerIds(players: Player[], sport: string): Promise<{
 }
 
 function normalizeGameKey(gameInfo: string | null | undefined): string {
-  return (gameInfo || "")
+  return sanitizeGameInfo(gameInfo)
     .replace(/[·|-]?\s*\d{1,2}:\d{2}\s*(AM|PM)\s*ET.*$/i, "")
     .trim()
     .toUpperCase();
@@ -6493,7 +6912,15 @@ export async function seedDatabase(forceRefresh = false) {
     if (live && live.dkPlayers.length > 0) {
       return {
         sport,
-        dkSlate: { name: sport === "SOCCER" ? "Soccer Main Slate" : `${sport} Main Slate`, startTime: live.slateDate, isMain: true },
+        dkSlate: {
+          name: live.label || (sport === "SOCCER" ? "Soccer Main Slate" : `${sport} Main Slate`),
+          label: live.label,
+          startTime: live.slateDate,
+          isMain: true,
+          gameType: live.gameType || "Classic",
+          gameCount: live.gameCount || live.games.length,
+          contestCount: live.contestId ? 1 : 0,
+        },
         dkPlayers: live.dkPlayers,
         draftGroupId: live.draftGroupId,
       };
@@ -6528,42 +6955,85 @@ export async function seedDatabase(forceRefresh = false) {
   }
 
   for (const seed of sportSeeds) {
-    const existingSlate = existingSlates.find(
+    let existingSlate = existingSlates.find(
       s =>
         s.sport === seed.sport &&
         s.platform === "draftkings" &&
         s.isMain &&
         s.gameType?.toLowerCase() !== "showdown"
     );
+    const targetSlate = existingSlates.find(
+      s =>
+        s.sport === seed.sport &&
+        s.platform === "draftkings" &&
+        s.draftGroupId === seed.draftGroupId &&
+        s.isActive !== false &&
+        s.gameType?.toLowerCase() !== "showdown"
+    ) || existingSlates.find(
+      s =>
+        s.sport === seed.sport &&
+        s.platform === "draftkings" &&
+        s.draftGroupId === seed.draftGroupId &&
+        s.gameType?.toLowerCase() !== "showdown"
+    );
+
+    const mainTransition = reconcileClassicMainIdentity(
+      [existingSlate, targetSlate]
+        .filter((slate, index, all): slate is NonNullable<typeof slate> =>
+          Boolean(slate) && all.findIndex(candidate => candidate?.id === slate?.id) === index,
+        )
+        .map(slate => ({
+          id: slate.id,
+          draftGroupId: slate.draftGroupId,
+          isMain: slate.isMain,
+        })),
+      seed.draftGroupId,
+    );
+
+    // DraftKings can publish a new featured group on the same ET calendar day
+    // as an existing extended/alternate group.  Main status is an identity
+    // decision, not a date rollover decision: promote the exact target group
+    // when it is already imported, or demote the wrong main and create the
+    // featured group below.  Never delete the old rows here; saved lineups
+    // retain their original slate and player IDs.
+    if (mainTransition.promoteSlateId !== null && targetSlate) {
+      if (mainTransition.demoteSlateId !== null) {
+        await db.update(slates)
+          .set({ isMain: false })
+          .where(eq(slates.id, mainTransition.demoteSlateId));
+        if (existingSlate?.id === mainTransition.demoteSlateId) existingSlate.isMain = false;
+        console.log(`[DK] Demoted wrong ${seed.sport} main slate ${mainTransition.demoteSlateId}`);
+      }
+      await db.update(slates)
+        .set({ isMain: true, isActive: true })
+        .where(eq(slates.id, mainTransition.promoteSlateId));
+      targetSlate.isMain = true;
+      targetSlate.isActive = true;
+      existingSlate = targetSlate;
+      console.log(`[DK] Promoted ${seed.sport} featured slate ${targetSlate.id} (DG ${seed.draftGroupId})`);
+    } else if (mainTransition.createTarget && mainTransition.demoteSlateId !== null) {
+      await db.update(slates)
+        .set({ isMain: false })
+        .where(eq(slates.id, mainTransition.demoteSlateId));
+      if (existingSlate?.id === mainTransition.demoteSlateId) existingSlate.isMain = false;
+      console.log(`[DK] Demoted wrong ${seed.sport} main slate ${mainTransition.demoteSlateId}; creating DG ${seed.draftGroupId}`);
+      existingSlate = undefined;
+    }
 
     const now = new Date();
     let isStale = false;
     let existingPlayerCount = 0;
+    const draftGroupChanged = existingSlate && seed.draftGroupId && existingSlate.draftGroupId !== seed.draftGroupId;
     if (existingSlate) {
       const slatePlayers = await storage.getPlayersBySlate(existingSlate.id);
       existingPlayerCount = slatePlayers.length;
-      let latestGameStart = new Date(existingSlate.startTime);
-
-      const slateStartET = new Intl.DateTimeFormat("en-US", {
-        timeZone: "America/New_York",
-        year: "numeric", month: "2-digit", day: "2-digit",
-      }).format(new Date(existingSlate.startTime));
-      const [sMonth, sDay, sYear] = slateStartET.split("/");
-      const slateDateStr = `${sYear}-${sMonth}-${sDay}`;
-
-      for (const p of slatePlayers) {
-        if (p.gameInfo) {
-          const timeMatch = p.gameInfo.match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s*ET/i);
-          if (timeMatch) {
-            const [, hourStr, minStr, ampm] = timeMatch;
-            let hour = parseInt(hourStr);
-            if (ampm.toUpperCase() === "PM" && hour !== 12) hour += 12;
-            if (ampm.toUpperCase() === "AM" && hour === 12) hour = 0;
-            const gameET = parseEasternTime(`${slateDateStr}T${String(hour).padStart(2, "0")}:${minStr}:00`);
-            if (gameET > latestGameStart) latestGameStart = gameET;
-          }
-        }
-      }
+      // New DraftKings rows carry the exact competition timestamp. Prefer
+      // them so an older row without a persisted cross-day date cannot expire
+      // a Sun-Mon slate on Sunday night.
+      const lifecyclePlayers = !draftGroupChanged && seed.dkPlayers.length > 0
+        ? seed.dkPlayers
+        : slatePlayers;
+      const latestGameStart = getLatestGameStart(existingSlate, lifecyclePlayers as any);
 
       const STALE_BUFFER_MS = 3 * 3600000;
       isStale = (latestGameStart.getTime() + STALE_BUFFER_MS) < now.getTime();
@@ -6571,14 +7041,6 @@ export async function seedDatabase(forceRefresh = false) {
         console.log(`[DK] ${seed.sport} slate still active — last game at ${latestGameStart.toISOString()}, not stale until ${new Date(latestGameStart.getTime() + STALE_BUFFER_MS).toISOString()}`);
       }
     }
-    const draftGroupChanged = existingSlate && seed.draftGroupId && existingSlate.draftGroupId !== seed.draftGroupId;
-    const easternCalendarDay = (date: Date) => date.toLocaleDateString("en-CA", {
-      timeZone: "America/New_York",
-    });
-    const selectedSlateChangedDay = existingSlate
-      ? easternCalendarDay(new Date(existingSlate.startTime)) !== easternCalendarDay(new Date(seed.dkSlate.startTime))
-      : false;
-
     if (draftGroupChanged && !isStale) {
       console.log(`[DK] ${seed.sport} draft group changed (${existingSlate!.draftGroupId} → ${seed.draftGroupId}) but current slate still active — skipping replacement`);
     }
@@ -6590,8 +7052,7 @@ export async function seedDatabase(forceRefresh = false) {
     }
 
     const shouldReplace =
-      isStale ||
-      (draftGroupChanged && seed.sport === "NFL" && selectedSlateChangedDay);
+      isStale;
 
     if (shouldReplace) {
       await storage.deleteSlateAndPlayers(existingSlate!.id);
@@ -6602,8 +7063,12 @@ export async function seedDatabase(forceRefresh = false) {
       if ((forceRefresh || seed.sport === "NFL") && !draftGroupChanged) {
         await storage.updateSlateData(existingSlate.id, {
           name: seed.dkSlate.name!,
+          label: seed.dkSlate.label,
           startTime: seed.dkSlate.startTime!,
           draftGroupId: seed.draftGroupId || null,
+          gameType: seed.dkSlate.gameType || "Classic",
+          gameCount: seed.dkSlate.gameCount || 0,
+          contestCount: seed.dkSlate.contestCount || 0,
         });
         const refreshed = await storage.refreshPlayersByDraftKingsId(
           existingSlate.id,
@@ -6664,9 +7129,13 @@ export async function seedDatabase(forceRefresh = false) {
         sport: seed.sport,
         platform: "draftkings",
         name: seed.dkSlate.name!,
+        label: seed.dkSlate.label,
         startTime: seed.dkSlate.startTime!,
         isMain: true,
         draftGroupId: seed.draftGroupId || null,
+        gameType: seed.dkSlate.gameType || "Classic",
+        gameCount: seed.dkSlate.gameCount || 0,
+        contestCount: seed.dkSlate.contestCount || 0,
       });
       const createdPlayers = await storage.bulkCreatePlayers(
         seed.dkPlayers.map((p: any) => ({ ...p, slateId: dkSlate.id })) as any
@@ -6732,7 +7201,10 @@ export async function seedDatabase(forceRefresh = false) {
     const todayShowdowns = await fetchAvailableDKShowdowns("NFL");
     const showdown = todayShowdowns[0];
     if (showdown) {
-      const showdownData = await fetchDKSlateByDraftGroup("NFL", showdown.draftGroupId, { showdown: true });
+          const showdownData = await fetchDKSlateByDraftGroup("NFL", showdown.draftGroupId, {
+            showdown: true,
+            startTime: showdown.startTime,
+          });
       if (showdownData && showdownData.dkPlayers.length > 0) {
         const currentShowdowns = (await storage.getSlates()).filter(
           s => s.sport === "NFL" && s.platform === "draftkings" && s.gameType === "Showdown",
@@ -6787,7 +7259,6 @@ export async function seedDatabase(forceRefresh = false) {
   }
 
   const refreshedSlates = await storage.getSlates();
-  const graceCutoffAlt = new Date(Date.now() - 3 * 60 * 60 * 1000);
   for (const sport of ACTIVE_SPORTS) {
     try {
       const availableSlates = await fetchAvailableDKSlates(sport);
@@ -6814,7 +7285,9 @@ export async function seedDatabase(forceRefresh = false) {
         if (isMain) continue;
 
         try {
-          const slateData = await fetchDKSlateByDraftGroup(sport, avSlate.draftGroupId);
+          const slateData = await fetchDKSlateByDraftGroup(sport, avSlate.draftGroupId, {
+            startTime: avSlate.startTime,
+          });
           if (!slateData || slateData.dkPlayers.length === 0) {
             console.log(`[DK] No draftables for ${sport} alt slate DG ${avSlate.draftGroupId}`);
             continue;
@@ -6824,18 +7297,27 @@ export async function seedDatabase(forceRefresh = false) {
           let slateId: number;
 
           if (existingEntry) {
-            if (slateData.slateDate) {
-              await db.update(slates).set({ startTime: new Date(slateData.slateDate) }).where(eq(slates.id, existingEntry.id));
-            }
+            await storage.updateSlateData(existingEntry.id, {
+              name: avSlate.label,
+              label: avSlate.label,
+              startTime: slateData.slateDate ? new Date(slateData.slateDate) : undefined,
+              gameType: "Classic",
+              gameCount: avSlate.gameCount,
+              contestCount: avSlate.contestCount,
+            });
             slateId = existingEntry.id;
           } else {
             const newSlate = await storage.createSlate({
               sport,
               platform: "draftkings",
               name: avSlate.label,
+              label: avSlate.label,
               startTime: slateData.slateDate || new Date().toISOString(),
               isMain: false,
               draftGroupId: avSlate.draftGroupId,
+              gameType: "Classic",
+              gameCount: avSlate.gameCount,
+              contestCount: avSlate.contestCount,
             });
             slateId = newSlate.id;
           }
@@ -6871,12 +7353,16 @@ export async function seedDatabase(forceRefresh = false) {
     }
   }
 
-  const staleNonMain = refreshedSlates.filter(
-    s => s.platform === "draftkings" && !s.isMain && s.isActive !== false
-      && new Date(s.startTime).getTime() + 3 * 3600000 < Date.now()
+  const lifecycleSlates = await storage.getSlates();
+  const staleNonMain = lifecycleSlates.filter(
+    s => s.platform === "draftkings" && !s.isMain && s.isActive !== false,
   );
   for (const stale of staleNonMain) {
+    const stalePlayers = await storage.getPlayersBySlate(stale.id);
+    const latestGameStart = getLatestGameStart(stale, stalePlayers);
+    if (latestGameStart.getTime() + 3 * 3600000 >= Date.now()) continue;
     await db.update(slates).set({ isActive: false }).where(eq(slates.id, stale.id));
+    console.log(`[DK] Deactivated expired alternate slate ${stale.id} after latest game ${latestGameStart.toISOString()}`);
   }
 
   const today = getEasternToday();

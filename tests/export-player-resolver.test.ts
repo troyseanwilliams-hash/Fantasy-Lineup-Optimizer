@@ -223,6 +223,115 @@ test("fails clearly when the current group has no matching row", () => {
   );
 });
 
+test("keeps a saved NFL extended-slate lineup on its original group after featured-main ingestion", () => {
+  const oldExtendedSlate = slate({
+    id: 70,
+    sport: "NFL",
+    name: "NFL Sunday-Monday Extended",
+    label: "Sunday-Monday Extended",
+    startTime: new Date("2026-09-13T17:00:00.000Z"),
+    draftGroupId: 9101,
+    gameCount: 14,
+  });
+  const featuredMainSlate = slate({
+    id: 71,
+    sport: "NFL",
+    name: "NFL Featured Main",
+    label: "Featured Main",
+    startTime: new Date("2026-09-13T17:00:00.000Z"),
+    draftGroupId: 9202,
+    gameCount: 12,
+  });
+  const savedPlayer = player({
+    id: 7001,
+    slateId: oldExtendedSlate.id,
+    name: "Monday Night Receiver",
+    team: "SEA",
+    position: "WR",
+    salary: 5500,
+    // Older saved rows can contain the stable athlete ID instead of the
+    // contest-specific draftable ID.
+    draftKingsPlayerId: 99101,
+  });
+  const oldDraftableId = 9101001;
+  const featuredDraftableId = 9202001;
+
+  const result = resolvePlayersForExport({
+    slate: oldExtendedSlate,
+    players: [savedPlayer],
+    playerIds: [savedPlayer.id],
+    draftables: [
+      draftable({
+        draftGroupId: featuredMainSlate.draftGroupId,
+        draftableId: featuredDraftableId,
+        playerId: savedPlayer.draftKingsPlayerId,
+        displayName: savedPlayer.name,
+        teamAbbreviation: savedPlayer.team,
+        position: savedPlayer.position,
+        salary: 5000,
+      }),
+      draftable({
+        draftGroupId: oldExtendedSlate.draftGroupId,
+        draftableId: oldDraftableId,
+        playerId: savedPlayer.draftKingsPlayerId,
+        displayName: savedPlayer.name,
+        teamAbbreviation: savedPlayer.team,
+        position: savedPlayer.position,
+        salary: savedPlayer.salary,
+      }),
+    ],
+  });
+
+  assert.equal(result[0].id, savedPlayer.id);
+  assert.equal(result[0].slateId, oldExtendedSlate.id);
+  assert.equal(result[0].draftKingsPlayerId, oldDraftableId);
+  assert.notEqual(result[0].draftKingsPlayerId, featuredDraftableId);
+  // Resolving an export must not rewrite the saved player object in place.
+  assert.equal(savedPlayer.draftKingsPlayerId, 99101);
+});
+
+test("does not resolve a saved old-slate player from the newly ingested featured group", () => {
+  const oldExtendedSlate = slate({
+    id: 72,
+    sport: "NFL",
+    name: "NFL Sunday-Monday Extended",
+    label: "Sunday-Monday Extended",
+    startTime: new Date("2026-09-13T17:00:00.000Z"),
+    draftGroupId: 9303,
+    gameCount: 14,
+  });
+  const savedPlayer = player({
+    id: 7201,
+    slateId: oldExtendedSlate.id,
+    name: "Monday Night Receiver",
+    team: "SEA",
+    position: "WR",
+    salary: 5500,
+    draftKingsPlayerId: 99102,
+  });
+
+  assert.throws(
+    () => resolvePlayersForExport({
+      slate: oldExtendedSlate,
+      players: [savedPlayer],
+      playerIds: [savedPlayer.id],
+      draftables: [
+        draftable({
+          draftGroupId: 9404,
+          draftableId: 9404001,
+          playerId: savedPlayer.draftKingsPlayerId,
+          displayName: savedPlayer.name,
+          teamAbbreviation: savedPlayer.team,
+          position: savedPlayer.position,
+        }),
+      ],
+    }),
+    (error: unknown) =>
+      error instanceof ExportResolutionError &&
+      /missing from the current contest/.test(error.message),
+  );
+});
+
 test("validates FanDuel IDs while allowing Yahoo's stored names", () => {
   assert.throws(
     () => resolvePlayersForExport({

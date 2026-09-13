@@ -5,6 +5,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { buildUrl } from "@shared/routes";
 import type { Player, Slate, OptimizeResponse } from "@shared/schema";
 import { getPlatformConfig, assignPlayersToSlots, getSlotDisplayName, positionFitsSlot, PLATFORM_COLORS, type Platform, type Sport } from "@shared/platform-config";
+import { parseGameInfo, sanitizeGameInfo } from "@/lib/game-info";
 import { PlatformSelector } from "@/components/PlatformSelector";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +29,12 @@ import { usePageMeta } from "@/hooks/use-page-meta";
 import { useResolvedSlate } from "@/hooks/use-resolved-slate";
 import { useSessionPlayerQuery } from "@/hooks/use-session-player-query";
 import {
+  formatDraftGroupIdentity,
+  formatSlateIdentity,
+  formatSlateOptionLabel,
+  optimizerSlatePath,
+} from "@/lib/slate-identity";
+import {
   csvEscape,
   exportFilename,
   formatResolvedPlayer,
@@ -47,18 +54,6 @@ function formatSalary(salary: number, plat: Platform): string {
 function formatCap(cap: number, plat: Platform): string {
   if (plat === "yahoo") return `$${cap}`;
   return `$${cap.toLocaleString()}`;
-}
-
-function getSlateLabel(s: Slate): string {
-  const label = (s as any).label as string | undefined;
-  const locked = new Date(s.startTime) <= new Date();
-  const platform = s.platform === "fanduel" ? "FD" : "DK";
-  const time = new Date(s.startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" });
-  const date = new Date(s.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  const gc = (s as any).gameCount ?? 0;
-  const games = gc > 0 ? ` (${gc}G)` : "";
-  const name = label || s.name;
-  return `${platform} - ${name} — ${date} ${time}${games}${locked ? " 🔒" : ""}`;
 }
 
 const INJURY_COLORS: Record<string, string> = {
@@ -244,15 +239,17 @@ export default function Optimizer() {
   const games = useMemo(() => {
     if (!players) return [];
     if (isGolf) {
-      const tournamentName = players.find(p => p.gameInfo)?.gameInfo || "Tournament";
+      const tournamentName = sanitizeGameInfo(players.find(p => p.gameInfo)?.gameInfo) || "Tournament";
       return [{ away: tournamentName, home: "", time: `${players.length} Golfers` }];
     }
     const gameMap = new Map<string, { away: string; home: string; time: string }>();
     players.forEach(p => {
       if (p.gameInfo) {
-        const parts = p.gameInfo.split(" ");
-        const time = parts[parts.length - 1] || "";
-        const teams = p.gameInfo.replace(time, "").trim();
+        const parsedGame = parseGameInfo(p.gameInfo);
+        const time = parsedGame.time || "";
+        const teams = parsedGame.away && parsedGame.home
+          ? `${parsedGame.away} @ ${parsedGame.home}`
+          : parsedGame.display.replace(time, "").trim();
         let away: string, home: string;
         if (teams.includes("@")) {
           [away, home] = teams.split(" @ ").map(s => s.trim());
@@ -293,7 +290,7 @@ export default function Optimizer() {
       .sort((a, b) => b.value - a.value)
       .slice(0, 4);
 
-    const tournamentParts = (players[0]?.gameInfo || "Tournament").split(" - ");
+    const tournamentParts = sanitizeGameInfo(players[0]?.gameInfo || "Tournament").split(" - ");
     const tournamentName = tournamentParts[0] || "Tournament";
     const courseName = tournamentParts[1] || "";
 
@@ -512,7 +509,7 @@ export default function Optimizer() {
 
   const handleSlateChange = (newSlateId: string) => {
     handleReset();
-    setLocation(`/optimizer/${newSlateId}`);
+    setLocation(optimizerSlatePath("standard", newSlateId));
   };
 
   const togglePlayerFocus = useCallback(() => {
@@ -575,7 +572,7 @@ export default function Optimizer() {
       const match = slates.find(s => s.sport === sport && s.platform === newPlatform && s.isMain)
         || slates.find(s => s.sport === sport && s.platform === newPlatform);
       if (match && match.id !== slateId) {
-        setLocation(`/optimizer/${match.id}`);
+        setLocation(optimizerSlatePath("standard", match.id));
       }
     }
   };
@@ -718,17 +715,14 @@ export default function Optimizer() {
               tier={userIsAdmin ? "admin" : (subData?.tier || "free")}
             />
             {slate && (
-              <div className="hidden sm:flex items-center gap-2" data-testid="slate-date">
-                <span className={`text-xs font-black ${pColors.text} opacity-70`}>
-                  {new Date(slate.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} — {new Date(slate.startTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" })}
+              <div className="hidden sm:flex items-center gap-2 min-w-0" data-testid="slate-date">
+                <span className={`text-xs font-black ${pColors.text} opacity-70 truncate`} title={formatSlateIdentity(slate)}>
+                  {formatSlateIdentity(slate)}
                 </span>
-                {(slate as any).gameCount > 0 && (
-                  <span className="text-[10px] font-bold text-slate-500">({(slate as any).gameCount}G)</span>
-                )}
               </div>
             )}
             <div className="ml-auto flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto mt-1.5 sm:mt-0">
-              <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-widest hidden sm:inline">Slate:</span>
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-widest hidden sm:inline">Target group:</span>
               <select
                 className="bg-slate-800 border border-slate-700 text-white text-xs sm:text-sm rounded-lg px-2 sm:px-3 py-1.5 font-bold flex-1 sm:flex-none truncate"
                 value={slateId}
@@ -749,13 +743,28 @@ export default function Optimizer() {
                   const isGated = !s.isMain && userTier !== "pro" && !userIsAdmin;
                   return (
                     <option key={s.id} value={s.id} disabled={isGated}>
-                      {s.isMain ? "★ " : ""}{getSlateLabel(s)}{isGated ? " (CHAMPION)" : ""}
+                      {formatSlateOptionLabel(s)}{isGated ? " · CHAMPION" : ""}
                     </option>
                   );
                 })}
               </select>
             </div>
           </div>
+
+          {slate && (
+            <div
+              className={`px-3 sm:px-4 py-1.5 border-b bg-slate-950/80 ${pColors.border} flex items-center gap-2 overflow-x-auto`}
+              data-testid="selected-slate-identity"
+            >
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 shrink-0">Selected target</span>
+              <span className={`text-[11px] font-black ${pColors.text} whitespace-nowrap`}>
+                {formatSlateIdentity(slate)}
+              </span>
+              <span className="text-[10px] text-slate-500 whitespace-nowrap">
+                Exports and new lineups use this exact group.
+              </span>
+            </div>
+          )}
 
           {slate && (slate as any).games?.length > 0 && !isGolf && (
             <div className={`px-3 sm:px-4 py-1.5 border-b bg-slate-950/80 ${pColors.border} flex items-center gap-2 overflow-x-auto`} data-testid="slate-games-strip">
@@ -1138,7 +1147,7 @@ export default function Optimizer() {
                         )}
                         {isInLineup && <span className={`ml-2 text-[11px] font-black ${platform === "fanduel" ? "text-blue-500" : "text-emerald-500"}`}>IN LINEUP</span>}
                       </div>
-                      <div className="text-xs text-slate-400 font-medium">{player.gameInfo}</div>
+                      <div className="text-xs text-slate-400 font-medium">{sanitizeGameInfo(player.gameInfo)}</div>
                     </td>
                     <td className="px-3 py-2.5 text-xs font-bold text-slate-400 uppercase">{player.team}</td>
                     <td className="px-3 py-2 text-xs text-slate-400 uppercase hidden lg:table-cell">{player.opponent}</td>
@@ -1709,11 +1718,16 @@ export default function Optimizer() {
                         variant="outline"
                         className="h-9 sm:h-10 border-slate-700 text-slate-400 hover:text-white"
                         data-testid="export-csv-btn"
-                        title="Export CSV"
+                        title={slate ? `Export for ${formatDraftGroupIdentity(slate)}` : "Export CSV"}
                       >
                         <Download className="w-4 h-4" />
                       </Button>
                     </div>
+                    {slate && (
+                      <div className="text-[10px] text-slate-500 truncate" data-testid="export-slate-identity">
+                        Export target: <span className="font-bold text-slate-300">{formatSlateIdentity(slate)}</span>
+                      </div>
+                    )}
                   </>
                 );
               })()}

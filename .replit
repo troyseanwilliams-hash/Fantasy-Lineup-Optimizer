@@ -10,6 +10,10 @@ packages = ["got", "glib", "nss", "nspr", "atk", "at-spi2-atk", "cups", "dbus", 
 localPort = 5000
 externalPort = 80
 
+[[ports]]
+localPort = 5001
+externalPort = 3000
+
 [env]
 PORT = "5000"
 

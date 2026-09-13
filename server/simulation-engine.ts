@@ -1,4 +1,5 @@
 import type { Player } from "@shared/schema";
+import { parseGameInfo } from "@shared/game-info";
 import type { VegasContext } from "./vegas-client";
 import { getEmpiricalCV } from "./variance-profiles";
 
@@ -104,13 +105,10 @@ function clampFactor(factor: number, min = 0.15, max = 2.5): number {
 }
 
 function extractTeams(gameInfo: string): { away: string; home: string; key: string } | null {
-  if (!gameInfo) return null;
-  const atMatch  = gameInfo.match(/^([A-Z0-9]+)\s*@\s*([A-Z0-9]+)/i);
-  const vsMatch  = gameInfo.match(/^([A-Z0-9]+)\s*vs\.?\s*([A-Z0-9]+)/i);
-  const match = atMatch || vsMatch;
-  if (!match) return null;
-  const away = match[1].toUpperCase().trim();
-  const home = match[2].toUpperCase().trim();
+  const parsed = parseGameInfo(gameInfo);
+  if (!parsed.away || !parsed.home) return null;
+  const away = parsed.away.toUpperCase().trim();
+  const home = parsed.home.toUpperCase().trim();
   const key  = [away, home].sort().join("-");
   return { away, home, key };
 }

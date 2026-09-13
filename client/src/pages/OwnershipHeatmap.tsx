@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Slate } from "@shared/schema";
 import { ACTIVE_SPORTS, getPlatformConfig } from "@shared/platform-config";
+import { sanitizeGameInfo } from "@/lib/game-info";
 import { InfoTip, LabelTip } from "@/components/InfoTip";
 import { usePageMeta } from "@/hooks/use-page-meta";
 
@@ -283,7 +284,7 @@ function HoverCardPortal({ player, anchorRect, sport, onClose }: HoverCardPortal
           {/* Game info */}
           {player.gameInfo && (
             <div className="pt-1 border-t border-slate-800/50">
-              <p className="text-[10px] text-slate-500 font-bold">{player.gameInfo}</p>
+              <p className="text-[10px] text-slate-500 font-bold">{sanitizeGameInfo(player.gameInfo)}</p>
             </div>
           )}
         </div>

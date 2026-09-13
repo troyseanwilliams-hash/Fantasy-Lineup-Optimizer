@@ -18,6 +18,8 @@
  * Cache: team IDs cached 7 days; defensive stats cached 6 hours.
  */
 
+import { parseGameInfo } from "@shared/game-info";
+
 const HEADERS = {
   "User-Agent": "Mozilla/5.0 (compatible; EliteLineupBot/1.0; +https://elitelineup.com)",
   Accept: "application/json",
@@ -290,11 +292,10 @@ export function buildOpponentMap(
   const map = new Map<string, string>();
   for (const p of players) {
     if (!p.gameInfo) continue;
-    const m = p.gameInfo.match(/^([A-Z0-9]+)\s*@\s*([A-Z0-9]+)/i)
-            ?? p.gameInfo.match(/^([A-Z0-9]+)\s*vs\.?\s*([A-Z0-9]+)/i);
-    if (!m) continue;
-    const away = m[1].toUpperCase();
-    const home = m[2].toUpperCase();
+    const parsed = parseGameInfo(p.gameInfo);
+    if (!parsed.away || !parsed.home) continue;
+    const away = parsed.away.toUpperCase();
+    const home = parsed.home.toUpperCase();
     map.set(away, home);
     map.set(home, away);
   }

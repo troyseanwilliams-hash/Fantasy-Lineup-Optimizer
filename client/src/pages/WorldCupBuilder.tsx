@@ -15,6 +15,7 @@ import {
   Save, Clock, Globe, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { usePageMeta } from "@/hooks/use-page-meta";
+import { sanitizeGameInfo } from "@/lib/game-info";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface WCProjection {
@@ -245,7 +246,7 @@ export default function WorldCupBuilder() {
   const matches = useMemo(() => {
     const byMatch = new Map<string, { key: string; startTime: string; teams: Map<string, WCProjection[]> }>();
     for (const p of projections) {
-      const key = (p.gameInfo && p.gameInfo.trim()) || "Other fixtures";
+      const key = sanitizeGameInfo(p.gameInfo) || "Other fixtures";
       let m = byMatch.get(key);
       if (!m) { m = { key, startTime: p.startTime, teams: new Map() }; byMatch.set(key, m); }
       if (p.startTime && (!m.startTime || new Date(p.startTime) < new Date(m.startTime))) m.startTime = p.startTime;
