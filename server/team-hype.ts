@@ -3,9 +3,22 @@
 // track) and AIBeatSync (to make the video). Lyrics are generated here via
 // Anthropic (fetch-based, no SDK) with a template fallback so it always works.
 
-import { Router } from "express";
+import { Router, type Request } from "express";
+import { storage } from "./storage";
 
 export const teamHypeRouter = Router();
+
+// Admin-only for now.
+async function isAdminRequest(req: Request): Promise<boolean> {
+  const userId = (req.session as unknown as { userId?: string })?.userId;
+  if (!userId) return false;
+  try {
+    const dbUser = await storage.getUser(userId);
+    return dbUser?.isAdmin === true;
+  } catch {
+    return false;
+  }
+}
 
 interface HypeRequest {
   team: string;
@@ -79,6 +92,11 @@ ${T}... 'til the final horn`;
 }
 
 teamHypeRouter.post("/api/team-hype", async (req, res) => {
+  // Admin-only for now.
+  if (!(await isAdminRequest(req))) {
+    res.status(403).json({ error: "Team Hype is available to admins only for now." });
+    return;
+  }
   const { team, sport, city } = (req.body ?? {}) as HypeRequest;
   if (!team || team.trim().length < 2) {
     res.status(400).json({ error: "Pick a team first." });
