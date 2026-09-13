@@ -100,6 +100,52 @@ function PlayerStarRating({ stars }: { stars: number }) {
   );
 }
 
+const NFL_FLEX_POSITIONS = ["RB", "WR", "TE"] as const;
+type NflFlexPosition = typeof NFL_FLEX_POSITIONS[number];
+
+function FlexPositionControls({
+  allowedPositions,
+  onToggle,
+  testId = "nfl-flex-controls",
+}: {
+  allowedPositions: NflFlexPosition[];
+  onToggle: (position: NflFlexPosition) => void;
+  testId?: string;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-700/50 bg-slate-800/60 px-2 sm:px-3 py-2" data-testid={testId}>
+      <div className="flex items-center gap-2">
+        <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wide text-amber-400 whitespace-nowrap">
+          FLEX Positions
+        </span>
+        <div className="flex items-center gap-2 sm:gap-3">
+          {NFL_FLEX_POSITIONS.map(position => {
+            const checked = allowedPositions.includes(position);
+            const isLastSelected = checked && allowedPositions.length === 1;
+            return (
+              <label key={position} className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-black ${isLastSelected ? "text-slate-500" : "text-slate-300"}`}>
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={isLastSelected}
+                  onChange={() => onToggle(position)}
+                  aria-label={`Allow ${position} in FLEX`}
+                  data-testid={`${testId}-${position}`}
+                  className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950 accent-amber-500 disabled:cursor-not-allowed"
+                />
+                {position}
+              </label>
+            );
+          })}
+        </div>
+      </div>
+      <p className="mt-1 text-[9px] leading-tight text-slate-500">
+        Restricts which positions can fill FLEX only; required RB, WR, and TE slots are unchanged.
+      </p>
+    </div>
+  );
+}
+
 export default function ProOptimizer() {
   usePageMeta({ title: "Pro Optimizer - Monte Carlo Simulation", description: "Advanced DFS lineup optimization powered by Monte Carlo simulations.", path: "/optimizer-pro" });
   const [, params] = useRoute("/optimizer-pro/:id");
@@ -130,6 +176,7 @@ export default function ProOptimizer() {
   const [exposureLimits, setExposureLimits] = useState<Record<string, number>>({});
   const [globalMaxExposure, setGlobalMaxExposure] = useState<number | null>(null);
   const [minProjection, setMinProjection] = useState<number | null>(null);
+  const [flexAllowedPositions, setFlexAllowedPositions] = useState<NflFlexPosition[]>([...NFL_FLEX_POSITIONS]);
   const [leverageMode, setLeverageMode] = useState(false);
   const [outperformerMode, setOutperformerMode] = useState(false);
   const [projectionMode, setProjectionMode] = useState<"balanced" | "ceiling">("balanced");
@@ -168,6 +215,7 @@ export default function ProOptimizer() {
   const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"], refetchInterval: 300000 });
   const slate = useResolvedSlate(slateId, slates, "/optimizer-pro");
   const sport = (slate?.sport || "NBA") as Sport;
+  const isNflClassic = sport === "NFL" && (slate?.gameType || "Classic").toLowerCase() === "classic";
 
   const config = useMemo(() => {
     try { return getPlatformConfig(sport, platform); }
@@ -610,6 +658,15 @@ export default function ProOptimizer() {
     });
   }, [swappingTarget, players, generatedLineups, config, sport, excludedIds]);
 
+  const toggleFlexPosition = useCallback((position: NflFlexPosition) => {
+    setFlexAllowedPositions(prev => {
+      if (prev.includes(position)) {
+        return prev.length > 1 ? prev.filter(current => current !== position) : prev;
+      }
+      return [...prev, position];
+    });
+  }, []);
+
   const availableGames = useMemo(() => {
     if (!players || players.length === 0) return [];
     const gameMap = new Map<string, { label: string; playerCount: number; avgProj: number }>();
@@ -709,6 +766,7 @@ export default function ProOptimizer() {
         ceilingMode: projectionMode === "ceiling",
         leverageMode,
         outperformerMode,
+        ...(isNflClassic ? { flexAllowedPositions } : {}),
       });
     } else {
       optimizeMutation.mutate({
@@ -728,6 +786,7 @@ export default function ProOptimizer() {
         projectionMode,
         minStarRating,
         outperformerMode,
+        ...(isNflClassic ? { flexAllowedPositions } : {}),
       });
     }
   };
@@ -979,6 +1038,7 @@ export default function ProOptimizer() {
     setExposureLimits({});
     setGlobalMaxExposure(null);
     setMinProjection(null);
+    setFlexAllowedPositions([...NFL_FLEX_POSITIONS]);
     setSavedIndices(new Set());
     setSalaryRange(null);
     setLineupSwaps({});
@@ -1223,6 +1283,12 @@ export default function ProOptimizer() {
                   <button onClick={() => setMinProjection(null)} className="text-slate-500 hover:text-white cursor-pointer" data-testid="button-reset-min-projection"><X className="w-3 h-3" /></button>
                 )}
               </div>
+              {isNflClassic && (
+                <FlexPositionControls
+                  allowedPositions={flexAllowedPositions}
+                  onToggle={toggleFlexPosition}
+                />
+              )}
               {isPro && (simMode ? numSims : lineupCount) > 1 && (
                 <>
                   <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
@@ -1390,6 +1456,16 @@ export default function ProOptimizer() {
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {isNflClassic && (
+            <div className="flex md:hidden mt-1.5">
+              <FlexPositionControls
+                allowedPositions={flexAllowedPositions}
+                onToggle={toggleFlexPosition}
+                testId="nfl-flex-controls-mobile"
+              />
             </div>
           )}
 

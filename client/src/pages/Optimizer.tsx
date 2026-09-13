@@ -71,6 +71,52 @@ const INJURY_COLORS: Record<string, string> = {
   "Day-to-Day": "bg-blue-500/20 text-blue-400 border-blue-500/30",
 };
 
+const NFL_FLEX_POSITIONS = ["RB", "WR", "TE"] as const;
+type NflFlexPosition = typeof NFL_FLEX_POSITIONS[number];
+
+function FlexPositionControls({
+  allowedPositions,
+  onToggle,
+  testId = "nfl-flex-controls",
+}: {
+  allowedPositions: NflFlexPosition[];
+  onToggle: (position: NflFlexPosition) => void;
+  testId?: string;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-700/50 bg-slate-800/60 px-2 sm:px-3 py-2" data-testid={testId}>
+      <div className="flex items-center gap-2">
+        <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wide text-emerald-400 whitespace-nowrap">
+          FLEX Positions
+        </span>
+        <div className="flex items-center gap-2 sm:gap-3">
+          {NFL_FLEX_POSITIONS.map(position => {
+            const checked = allowedPositions.includes(position);
+            const isLastSelected = checked && allowedPositions.length === 1;
+            return (
+              <label key={position} className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-black ${isLastSelected ? "text-slate-500" : "text-slate-300"}`}>
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={isLastSelected}
+                  onChange={() => onToggle(position)}
+                  aria-label={`Allow ${position} in FLEX`}
+                  data-testid={`${testId}-${position}`}
+                  className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950 accent-emerald-500 disabled:cursor-not-allowed"
+                />
+                {position}
+              </label>
+            );
+          })}
+        </div>
+      </div>
+      <p className="mt-1 text-[9px] leading-tight text-slate-500">
+        Restricts which positions can fill FLEX only; required RB, WR, and TE slots are unchanged.
+      </p>
+    </div>
+  );
+}
+
 export default function Optimizer() {
   usePageMeta({ title: "Lineup Optimizer", description: "Build optimized DFS lineups with the EliteLineup AI optimizer.", path: "/optimizer" });
   const [, params] = useRoute("/optimizer/:id");
@@ -99,6 +145,7 @@ export default function Optimizer() {
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
   const [minProjection, setMinProjection] = useState<number | null>(null);
   const [projectedPointsFloor, setProjectedPointsFloor] = useState<number | null>(null);
+  const [flexAllowedPositions, setFlexAllowedPositions] = useState<NflFlexPosition[]>([...NFL_FLEX_POSITIONS]);
   const [contestType, setContestType] = useState<"cash" | "gpp">("cash");
   const [outperformerMode, setOutperformerMode] = useState(false);
   const [mobileView, setMobileView] = useState<"players" | "lineup">("players");
@@ -121,6 +168,7 @@ export default function Optimizer() {
   const { data: slates } = useQuery<Slate[]>({ queryKey: ["/api/slates"], refetchInterval: 300000 });
   const slate = useResolvedSlate(slateId, slates, "/optimizer");
   const sport = (slate?.sport || "NBA") as Sport;
+  const isNflClassic = sport === "NFL" && (slate?.gameType || "Classic").toLowerCase() === "classic";
 
   const { data: accuracyData } = useQuery<{ players: Array<{ playerName: string; hitRate: number; avgDelta: number; slatesAnalyzed: number }> }>({
     queryKey: ["/api/projection-accuracy", sport],
@@ -217,6 +265,7 @@ export default function Optimizer() {
     setMinProjection(null);
     setProjectedPointsFloor(null);
     setContestType("cash");
+    setFlexAllowedPositions([...NFL_FLEX_POSITIONS]);
   }, [slateId]);
 
   const saveLineupMutation = useMutation({
@@ -397,6 +446,15 @@ export default function Optimizer() {
     return players.filter(p => lockedIds.includes(p.id)).reduce((s, p) => s + p.salary, 0);
   }, [players, lockedIds]);
 
+  const toggleFlexPosition = useCallback((position: NflFlexPosition) => {
+    setFlexAllowedPositions(prev => {
+      if (prev.includes(position)) {
+        return prev.length > 1 ? prev.filter(current => current !== position) : prev;
+      }
+      return [...prev, position];
+    });
+  }, []);
+
   const handleOptimize = () => {
     setActiveSwapSlot(null);
     setActiveSwapSlot(null);
@@ -423,6 +481,7 @@ export default function Optimizer() {
       projectedPointsFloor: projectedPointsFloor ?? undefined,
       contestType,
       outperformerMode,
+      ...(isNflClassic ? { flexAllowedPositions } : {}),
     });
   };
 
@@ -451,6 +510,7 @@ export default function Optimizer() {
     setSalaryRange(null);
     setMinProjection(null);
     setProjectedPointsFloor(null);
+    setFlexAllowedPositions([...NFL_FLEX_POSITIONS]);
     setContestType("cash");
     optimizeMutation.reset();
     setLineupName("");
@@ -725,6 +785,13 @@ export default function Optimizer() {
         <p className="px-1 text-[9px] leading-tight text-slate-500">
           Below-cutoff players are excluded using base/custom projection plus manual +pts boosts; automatic and simulation adjustments do not affect eligibility.
         </p>
+        {isNflClassic && (
+          <FlexPositionControls
+            allowedPositions={flexAllowedPositions}
+            onToggle={toggleFlexPosition}
+            testId="nfl-flex-controls-mobile"
+          />
+        )}
       </div>}
 
       {/* LEFT: Player Pool */}
@@ -1563,6 +1630,15 @@ export default function Optimizer() {
               <button onClick={() => setProjectedPointsFloor(null)} className="text-slate-500 hover:text-white flex-shrink-0 cursor-pointer" data-testid="button-reset-floor"><X className="w-3 h-3" /></button>
             )}
           </div>
+
+          {isNflClassic && (
+            <div className="mt-1.5">
+              <FlexPositionControls
+                allowedPositions={flexAllowedPositions}
+                onToggle={toggleFlexPosition}
+              />
+            </div>
+          )}
 
           <div className="flex items-center gap-1.5 mt-1.5" data-testid="contest-type-toggle">
             <Button

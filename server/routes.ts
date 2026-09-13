@@ -5160,6 +5160,7 @@ export async function registerRoutes(
     platform:             z.enum(["draftkings", "fanduel", "yahoo"]).default("draftkings"),
     lockedPlayerIds:      z.array(z.number()).default([]),
     excludedPlayerIds:    z.array(z.number()).default([]),
+    flexAllowedPositions: z.array(z.enum(["RB", "WR", "TE"])).min(1).optional(),
     playerProjections:    z.record(z.string(), z.number()).optional(),
     minProjection:        z.number().finite().min(0).optional(),
     playerMinSalary:      z.number().optional(),
@@ -5454,6 +5455,7 @@ export async function registerRoutes(
         slateId: input.slateId,
         lockedPlayerIds: input.lockedPlayerIds,
         excludedPlayerIds: input.excludedPlayerIds,
+        flexAllowedPositions: input.flexAllowedPositions,
         lineupCount: 1,
         maxSalary: config.salaryCap,
         stackGameKeys,
@@ -6725,6 +6727,16 @@ export function solveLineup(
 ) {
   const config = getPlatformConfig(sport, platform);
   const contestType = (constraints as any).contestType || "cash";
+  const isNFLClassic =
+    sport.toUpperCase() === "NFL" &&
+    config.rosterSize === 9 &&
+    config.slots.includes("FLEX");
+  const flexAllowedPositions = isNFLClassic && constraints.flexAllowedPositions?.length
+    ? constraints.flexAllowedPositions
+    : undefined;
+  const disallowedFlexPositions = flexAllowedPositions
+    ? (["RB", "WR", "TE"] as const).filter(position => !flexAllowedPositions.includes(position))
+    : [];
   const practiceSquadPlayers = pool.filter(
     p => p.injuryDetail === NFL_PRACTICE_SQUAD_DETAIL,
   );
@@ -6788,6 +6800,40 @@ export function solveLineup(
       totalProjectedPoints: 0,
     };
   }
+
+  // The model represents FLEX through aggregate position counts rather than
+  // explicit slot variables.  Restricting FLEX therefore means capping each
+  // disallowed position at its required base-slot count: required RB/WR/TE
+  // players remain eligible, while no additional player of that position can
+  // occupy FLEX.  Do not filter these players from the pool because their
+  // base slots are still required.
+  const flexPositionMaxConstraints = disallowedFlexPositions.map(position => {
+    const positionConstraint = config.positionConstraints[position];
+    const baseSlots = positionConstraint?.equal ?? positionConstraint?.min ?? 0;
+    const lockedCount = availablePool.filter(
+      p => constraints.lockedPlayerIds.includes(p.id) &&
+        p.position.toUpperCase().split("/").some(candidate => candidate.trim() === position),
+    ).length;
+    return {
+      position,
+      baseSlots,
+      lockedCount,
+      constraintName: `nfl_flex_max_${position}`,
+    };
+  });
+  const infeasibleFlexRestriction = flexPositionMaxConstraints.find(
+    restriction => restriction.lockedCount > restriction.baseSlots,
+  );
+  if (infeasibleFlexRestriction) {
+    const { position, lockedCount, baseSlots } = infeasibleFlexRestriction;
+    return {
+      error: `FLEX restriction allows at most ${baseSlots} ${position} base slot${baseSlots === 1 ? "" : "s"}, but ${lockedCount} locked ${position} players were requested.`,
+      lineup: [],
+      totalSalary: 0,
+      totalProjectedPoints: 0,
+    };
+  }
+
   const availableGameCount = new Set(
     availablePool.map(p => normalizeGameKey(p.gameInfo)).filter(Boolean),
   ).size;
@@ -6820,6 +6866,9 @@ export function solveLineup(
       model.constraints[key] = constraint;
     }
   }
+  for (const { constraintName, baseSlots } of flexPositionMaxConstraints) {
+    model.constraints[constraintName] = { max: baseSlots };
+  }
 
   const gameMap = new Map<string, string[]>();
 
@@ -6851,6 +6900,9 @@ export function solveLineup(
       rosterSize: 1,
       ...buildPositionVariables(p.position, sport),
     };
+    for (const { position, constraintName } of flexPositionMaxConstraints) {
+      if (variable[position]) variable[constraintName] = 1;
+    }
 
     model.variables[variableName] = variable;
     model.ints[variableName] = 1;

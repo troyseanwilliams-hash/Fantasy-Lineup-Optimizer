@@ -441,6 +441,10 @@ export const optimizationConstraintSchema = z.object({
   platform: z.enum(["draftkings", "fanduel", "yahoo"]).optional(),
   lockedPlayerIds: z.array(z.number()).default([]),
   excludedPlayerIds: z.array(z.number()).default([]),
+  // NFL classic FLEX can optionally be limited to one or more eligible
+  // positions.  An omitted value preserves the historical all-positions
+  // behavior; an empty list is not a meaningful restriction.
+  flexAllowedPositions: z.array(z.enum(["RB", "WR", "TE"])).min(1).optional(),
   totalMinSalary: z.number().optional(),
   totalMaxSalary: z.number().optional(),
   playerMinSalary: z.number().optional(),
