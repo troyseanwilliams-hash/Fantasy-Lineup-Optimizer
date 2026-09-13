@@ -116,6 +116,7 @@ export default function ProOptimizer() {
   const [lockedIds, setLockedIds] = useState<number[]>([]);
   const [excludedIds, setExcludedIds] = useState<number[]>([]);
   const [customProjections, setCustomProjections] = useState<Record<string, number>>({});
+  const [boosts, setBoosts] = useState<Record<number, number>>({});
   const [sortKey, setSortKey] = useState<SortKey>("projectedPoints");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [lineupCount, setLineupCount] = useState(5);
@@ -127,9 +128,8 @@ export default function ProOptimizer() {
   const setUseBoosts = (val: boolean) => setUseBoostsUserOverride(val);
   const [fadedIds, setFadedIds] = useState<number[]>([]);
   const [exposureLimits, setExposureLimits] = useState<Record<string, number>>({});
-  const [minExposureLimits, setMinExposureLimits] = useState<Record<string, number>>({});
   const [globalMaxExposure, setGlobalMaxExposure] = useState<number | null>(null);
-  const [globalMinExposure, setGlobalMinExposure] = useState<number | null>(null);
+  const [minProjection, setMinProjection] = useState<number | null>(null);
   const [leverageMode, setLeverageMode] = useState(false);
   const [outperformerMode, setOutperformerMode] = useState(false);
   const [projectionMode, setProjectionMode] = useState<"balanced" | "ceiling">("balanced");
@@ -352,6 +352,30 @@ export default function ProOptimizer() {
     else { setSortKey(key); setSortDir("desc"); }
   }, [sortKey]);
 
+  // This is the explicit projection map sent to the optimizer before any
+  // server-only automatic, Scout, or simulation adjustments are applied.
+  const buildPlayerProjections = useCallback((): Record<string, number> => {
+    const projections: Record<string, number> = { ...customProjections };
+    if (players) {
+      for (const p of players) {
+        const manualBoost = boosts[p.id] || 0;
+        if (manualBoost !== 0) {
+          const base = customProjections[p.id.toString()] ?? Number(p.projectedPoints);
+          projections[p.id.toString()] = Math.round((base + manualBoost) * 10) / 10;
+        }
+      }
+    }
+    return projections;
+  }, [players, customProjections, boosts]);
+
+  const cutoffProjectionById = useMemo(() => {
+    const explicitProjections = buildPlayerProjections();
+    return Object.fromEntries((players ?? []).map(p => [
+      p.id.toString(),
+      explicitProjections[p.id.toString()] ?? Number(p.projectedPoints),
+    ]));
+  }, [players, buildPlayerProjections]);
+
   const filteredPlayers = useMemo(() => {
     if (!players) return [];
     return players
@@ -364,13 +388,19 @@ export default function ProOptimizer() {
       .map(p => {
         const boost = p.boostScore ? Number(p.boostScore) : 0;
         const baseProj = Number(p.projectedPoints);
+        const customProj = customProjections[p.id.toString()] ?? baseProj;
+        const manualBoost = boosts[p.id] || 0;
         const boostAdjPct = Math.max(-0.08, Math.min(0.08, boost * 0.008));
-        const boostedProj = useBoosts && boost !== 0
-          ? Math.round(baseProj * (1 + boostAdjPct) * 10) / 10
-          : baseProj;
+        const manualProj = Math.round((customProj + manualBoost) * 10) / 10;
+        const automaticProj = useBoosts && boost !== 0
+          ? Math.round(manualProj * (1 + boostAdjPct) * 10) / 10
+          : manualProj;
+        const boostedProj = automaticProj;
         const isFaded = fadedIds.includes(p.id);
         const own = (p as any).ownershipProjection ?? 0;
-        return { ...p, baseProj, boostedProj, boost, isFaded, ownershipProjection: own as number };
+        const cutoffProjection = cutoffProjectionById[p.id.toString()] ?? baseProj;
+        const belowMinProjection = minProjection !== null && minProjection > 0 && cutoffProjection < minProjection;
+        return { ...p, baseProj, customProj, manualProj, boostedProj, cutoffProjection, belowMinProjection, manualBoost, boost, isFaded, ownershipProjection: own as number };
       })
       .sort((a, b) => {
         let aVal: any, bVal: any;
@@ -387,7 +417,7 @@ export default function ProOptimizer() {
         if (typeof aVal === "string") return sortDir === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
         return sortDir === "asc" ? aVal - bVal : bVal - aVal;
       });
-  }, [players, search, posFilter, excludedIds, sortKey, sortDir, useBoosts, fadedIds]);
+  }, [players, search, posFilter, excludedIds, customProjections, boosts, cutoffProjectionById, minProjection, sortKey, sortDir, useBoosts, fadedIds]);
 
   const games = useMemo(() => {
     if (!players) return [];
@@ -615,8 +645,6 @@ export default function ProOptimizer() {
         const pct = (count / generatedLineups.length) * 100;
         const playerLimit = exposureLimits[id];
         const effectiveLimit = playerLimit ?? (globalMaxExposure ?? undefined);
-        const playerMinLimit = minExposureLimits[id];
-        const effectiveMinLimit = playerMinLimit ?? (globalMinExposure ?? undefined);
         return {
           playerId: Number(id),
           playerName: player?.name || `Player #${id}`,
@@ -627,21 +655,14 @@ export default function ProOptimizer() {
           pct,
           limit: effectiveLimit,
           overLimit: effectiveLimit !== undefined && pct > effectiveLimit,
-          minLimit: effectiveMinLimit,
-          underLimit: effectiveMinLimit !== undefined && pct < effectiveMinLimit,
           isPlayerSpecific: playerLimit !== undefined,
-          isMinPlayerSpecific: playerMinLimit !== undefined,
         };
       })
       .sort((a, b) => b.pct - a.pct);
-  }, [generatedLineups, players, exposureLimits, globalMaxExposure, minExposureLimits, globalMinExposure]);
+  }, [generatedLineups, players, exposureLimits, globalMaxExposure]);
 
   const handleOptimize = () => {
-    if (globalMinExposure && globalMaxExposure && globalMinExposure > globalMaxExposure) {
-      toast({ title: "Invalid Exposure", description: "Min exposure cannot exceed max exposure.", variant: "destructive" });
-      return;
-    }
-    const projections: Record<string, number> = { ...customProjections };
+    const projections = buildPlayerProjections();
     if (isPro && fadedIds.length > 0 && players) {
       for (const p of players) {
         if (fadedIds.includes(p.id)) {
@@ -681,8 +702,7 @@ export default function ProOptimizer() {
         numSims,
         stackGameKeys,
         globalMaxExposure: globalMaxExposure ?? undefined,
-        globalMinExposure: globalMinExposure ?? undefined,
-        minExposureLimits: Object.keys(minExposureLimits).length > 0 ? minExposureLimits : undefined,
+        minProjection: minProjection ?? undefined,
         minStarRating,
         sortMetric: simSortMetric,
         useBoosts,
@@ -703,8 +723,7 @@ export default function ProOptimizer() {
         useBoosts,
         exposureLimits: activeExposureLimits,
         globalMaxExposure: globalMaxExposure ?? undefined,
-        minExposureLimits: Object.keys(minExposureLimits).length > 0 ? minExposureLimits : undefined,
-        globalMinExposure: globalMinExposure ?? undefined,
+        minProjection: minProjection ?? undefined,
         leverageMode,
         projectionMode,
         minStarRating,
@@ -956,10 +975,10 @@ export default function ProOptimizer() {
     setExcludedIds([]);
     setFadedIds([]);
     setCustomProjections({});
+    setBoosts({});
     setExposureLimits({});
-    setMinExposureLimits({});
     setGlobalMaxExposure(null);
-    setGlobalMinExposure(null);
+    setMinProjection(null);
     setSavedIndices(new Set());
     setSalaryRange(null);
     setLineupSwaps({});
@@ -1176,23 +1195,36 @@ export default function ProOptimizer() {
           {/* Row 2 (Desktop): Max Exposure + Salary Range */}
           {(isPro && (simMode ? numSims : lineupCount) > 1 || (players && players.length > 0)) && (
             <div className="hidden md:flex items-center gap-3 overflow-x-auto scrollbar-hide">
+              <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
+                <LabelTip text="Exclude players whose base projection is below this cutoff. Custom projections and manual +pts boosts are included; automatic, Scout, and simulation adjustments do not affect eligibility."><label htmlFor="input-min-projection" className="text-[10px] font-black text-emerald-400 uppercase whitespace-nowrap">Min Projection</label></LabelTip>
+                <input
+                  id="input-min-projection"
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  placeholder="Off"
+                  value={minProjection ?? ""}
+                  onChange={e => {
+                    const value = e.target.value;
+                    if (value === "") {
+                      setMinProjection(null);
+                      return;
+                    }
+                    const parsed = Number(value);
+                    if (Number.isFinite(parsed) && parsed >= 0) setMinProjection(parsed);
+                  }}
+                  className={`w-20 bg-transparent border-0 text-right font-mono font-black text-xs focus:outline-none tabular-nums ${minProjection !== null ? "text-emerald-400" : "text-slate-500"}`}
+                  data-testid="input-min-projection"
+                />
+                <span className={`text-xs font-black min-w-[42px] text-center ${minProjection !== null ? "text-emerald-400" : "text-slate-500"}`}>
+                  {minProjection !== null ? `${minProjection}+` : "pts min"}
+                </span>
+                {minProjection !== null && (
+                  <button onClick={() => setMinProjection(null)} className="text-slate-500 hover:text-white cursor-pointer" data-testid="button-reset-min-projection"><X className="w-3 h-3" /></button>
+                )}
+              </div>
               {isPro && (simMode ? numSims : lineupCount) > 1 && (
                 <>
-                  <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
-                    <LabelTip text="Minimum % any player must appear across all generated lineups. Guarantees exposure for key players."><span className="text-[10px] font-black text-emerald-400 uppercase whitespace-nowrap">Min Exp</span></LabelTip>
-                    <Slider
-                      value={[globalMinExposure ?? 0]}
-                      onValueChange={(v) => setGlobalMinExposure(v[0] === 0 ? null : v[0])}
-                      min={0}
-                      max={100}
-                      step={5}
-                      className="w-24"
-                      data-testid="slider-global-min-exposure"
-                    />
-                    <span className={`text-xs font-black min-w-[28px] text-center ${globalMinExposure ? "text-emerald-400" : "text-slate-500"}`} data-testid="text-global-min-exposure">
-                      {globalMinExposure ? `${globalMinExposure}%` : "Off"}
-                    </span>
-                  </div>
                   <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
                     <LabelTip text="Maximum % any single player can appear across all generated lineups. Lower values increase lineup diversity."><span className="text-[10px] font-black text-cyan-400 uppercase whitespace-nowrap">Max Exp</span></LabelTip>
                     <Slider
@@ -1255,6 +1287,11 @@ export default function ProOptimizer() {
               </div>
             </div>
           )}
+          {players && players.length > 0 && (
+            <p className="hidden md:block px-1 pt-1 text-[9px] leading-tight text-slate-500">
+              Below-cutoff players are excluded using base/custom projection plus manual +pts boosts; automatic, Scout, and simulation adjustments do not affect eligibility.
+            </p>
+          )}
 
           {/* Row 2 (Mobile only): Toggles + settings */}
           {isPro && (
@@ -1298,23 +1335,8 @@ export default function ProOptimizer() {
                 />
                 <span className="text-xs font-black text-amber-400 min-w-[18px] text-center">{lineupCount}</span>
               </div>}
-              {(simMode ? numSims : lineupCount) > 1 && (
+              {isPro && (simMode ? numSims : lineupCount) > 1 && (
                 <>
-                  <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
-                    <span className="text-[10px] font-black text-emerald-400 uppercase whitespace-nowrap">Min Exp</span>
-                    <Slider
-                      value={[globalMinExposure ?? 0]}
-                      onValueChange={(v) => setGlobalMinExposure(v[0] === 0 ? null : v[0])}
-                      min={0}
-                      max={100}
-                      step={5}
-                      className="w-20"
-                      data-testid="slider-global-min-exposure-mobile"
-                    />
-                    <span className={`text-xs font-black min-w-[28px] text-center ${globalMinExposure ? "text-emerald-400" : "text-slate-500"}`}>
-                      {globalMinExposure ? `${globalMinExposure}%` : "Off"}
-                    </span>
-                  </div>
                   <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
                     <span className="text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Max Exp</span>
                     <Slider
@@ -1370,6 +1392,41 @@ export default function ProOptimizer() {
               </div>
             </div>
           )}
+
+          <div className="flex md:hidden flex-col gap-1 mt-1.5" data-testid="min-projection-section-mobile">
+            <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1.5 border border-slate-700/50">
+              <Target className={`w-3.5 h-3.5 flex-shrink-0 ${minProjection !== null ? "text-emerald-400" : "text-slate-500"}`} />
+              <label htmlFor="input-min-projection-mobile" className="text-[10px] font-black text-emerald-400 uppercase whitespace-nowrap">Min Projection</label>
+              <input
+                id="input-min-projection-mobile"
+                type="number"
+                min={0}
+                step="0.1"
+                placeholder="Off"
+                value={minProjection ?? ""}
+                onChange={e => {
+                  const value = e.target.value;
+                  if (value === "") {
+                    setMinProjection(null);
+                    return;
+                  }
+                  const parsed = Number(value);
+                  if (Number.isFinite(parsed) && parsed >= 0) setMinProjection(parsed);
+                }}
+                className={`flex-1 min-w-0 bg-transparent border-0 text-right font-mono font-black text-xs focus:outline-none tabular-nums ${minProjection !== null ? "text-emerald-400" : "text-slate-500"}`}
+                data-testid="input-min-projection-mobile"
+              />
+              <span className={`text-[10px] font-black whitespace-nowrap ${minProjection !== null ? "text-emerald-400" : "text-slate-500"}`}>
+                {minProjection !== null ? `${minProjection}+` : "pts min"}
+              </span>
+              {minProjection !== null && (
+                <button onClick={() => setMinProjection(null)} className="text-slate-500 hover:text-white cursor-pointer" data-testid="button-reset-min-projection-mobile"><X className="w-3 h-3" /></button>
+              )}
+            </div>
+            <p className="px-1 text-[9px] leading-tight text-slate-500">
+              Below-cutoff players are excluded using base/custom projection plus manual +pts boosts; automatic, Scout, and simulation adjustments do not affect eligibility.
+            </p>
+          </div>
 
           {/* Row 3 (Mobile only for non-Pro): Qty slider */}
           {!isPro && (
@@ -1866,7 +1923,7 @@ export default function ProOptimizer() {
 
           {/* Player Table - Desktop */}
           <div className={`hidden overflow-auto md:block ${playerFocus ? "min-h-0 flex-1" : "h-[60dvh] shrink-0"}`} data-testid="pro-player-pool-scroll">
-            <table className="w-full text-left border-collapse min-w-[760px]">
+            <table className="w-full text-left border-collapse min-w-[900px]">
               <thead className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800">
                 <tr className="text-slate-400">
                   <th className="px-3 py-3 w-10 text-center text-[11px] font-black uppercase">Lock</th>
@@ -1877,7 +1934,9 @@ export default function ProOptimizer() {
                   <SortHeader label="Salary" field="salary" />
                   <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-cyan-400 hidden lg:table-cell">Avg</th>
                   <SortHeader label="Base Proj" field="projectedPoints" />
+                  <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-emerald-400 text-center">My Proj</th>
                   <SortHeader label="Boosted Proj" field="boostedProj" />
+                  <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-amber-400 text-center">Boost +pts</th>
                   {hasPaidAccess ? (
                     <SortHeader label="Proj. Own%" field="ownershipProjection" />
                   ) : (
@@ -1901,18 +1960,14 @@ export default function ProOptimizer() {
                     </th>
                   )}
                   {isPro ? (
-                    <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400 text-center" colSpan={2}>
-                      <div className="flex items-center justify-center gap-2">
-                        <span className="text-emerald-400">Min%</span>
-                        <span className="text-slate-600">/</span>
-                        <span className="text-cyan-400">Max%</span>
-                      </div>
+                    <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-cyan-400 text-center">
+                      Max%
                     </th>
                   ) : (
-                    <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-center" colSpan={2}>
+                    <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-center">
                       <div className="flex items-center justify-center gap-1 text-amber-500/70">
                         <Lock className="w-3 h-3" />
-                        <span>Exp%</span>
+                        <span>Max%</span>
                         <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[8px] px-1 py-0 font-black">PRO</Badge>
                       </div>
                     </th>
@@ -1989,6 +2044,15 @@ export default function ProOptimizer() {
                         {player.gameInfo && (
                         <div className="text-xs text-slate-400 font-medium">{sanitizeGameInfo(player.gameInfo)}</div>
                         )}
+                        {player.belowMinProjection && (
+                          <div
+                            className="text-[10px] font-bold text-red-400/80"
+                            data-testid={`below-min-projection-${player.id}`}
+                            title={`Eligibility projection ${player.cutoffProjection.toFixed(1)} pts from base/custom projection plus manual +pts; automatic, Scout, and simulation adjustments are excluded.`}
+                          >
+                            Below {minProjection!.toFixed(1)}-pt cutoff · eligibility {player.cutoffProjection.toFixed(1)} pts
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-2.5 text-xs font-bold text-slate-400 uppercase" data-testid={`text-team-${player.id}`}>{player.team}</td>
                       <td className="px-3 py-2.5 font-mono text-[15px] font-bold text-white" data-testid={`text-salary-${player.id}`}>{platform === "yahoo" ? `$${player.salary}` : `$${player.salary.toLocaleString()}`}</td>
@@ -2005,6 +2069,30 @@ export default function ProOptimizer() {
                       <td className="px-3 py-2.5 font-mono text-[15px] text-slate-400" data-testid={`text-base-proj-${player.id}`}>
                         {player.baseProj.toFixed(1)}
                       </td>
+                      <td className="px-3 py-2 text-center">
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.1"
+                          value={player.customProj}
+                          onChange={e => {
+                            const value = e.target.value;
+                            setCustomProjections(prev => {
+                              const next = { ...prev };
+                              if (value === "") {
+                                delete next[player.id.toString()];
+                              } else {
+                                const parsed = Number(value);
+                                if (Number.isFinite(parsed) && parsed >= 0) next[player.id.toString()] = parsed;
+                              }
+                              return next;
+                            });
+                          }}
+                          aria-label={`Custom projection for ${player.name}`}
+                          className="w-16 h-7 bg-slate-950 border-emerald-500/30 text-right font-mono font-bold text-xs px-1 text-emerald-400"
+                          data-testid={`proj-${player.id}`}
+                        />
+                      </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1" data-testid={`text-boosted-proj-${player.id}`}>
                           <span className={`font-mono text-[15px] font-bold ${player.boost > 0 ? "text-emerald-400" : player.boost < 0 ? "text-red-400" : "text-slate-400"}`}>
@@ -2017,6 +2105,31 @@ export default function ProOptimizer() {
                             </span>
                           )}
                         </div>
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.1"
+                          value={boosts[player.id] ?? ""}
+                          placeholder="0"
+                          aria-label={`Manual boost for ${player.name}, points`}
+                          onChange={e => {
+                            const value = e.target.value;
+                            setBoosts(prev => {
+                              const updated = { ...prev };
+                              if (value === "") {
+                                delete updated[player.id];
+                              } else {
+                                const parsed = Number(value);
+                                if (Number.isFinite(parsed) && parsed >= 0) updated[player.id] = parsed;
+                              }
+                              return updated;
+                            });
+                          }}
+                          className="w-16 h-7 bg-slate-950 border-amber-500/30 text-right font-mono font-bold text-xs px-1 text-amber-400 placeholder:text-slate-600"
+                          data-testid={`input-boost-${player.id}`}
+                        />
                       </td>
                       {hasPaidAccess ? (
                         <td className="px-3 py-2">
@@ -2073,29 +2186,6 @@ export default function ProOptimizer() {
                               type="number"
                               min={0}
                               max={100}
-                              placeholder="Min"
-                              value={minExposureLimits[player.id.toString()] ?? ""}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setMinExposureLimits(prev => {
-                                  const next = { ...prev };
-                                  if (val === "" || val === undefined) {
-                                    delete next[player.id.toString()];
-                                  } else {
-                                    next[player.id.toString()] = Math.min(100, Math.max(0, Number(val)));
-                                  }
-                                  return next;
-                                });
-                              }}
-                              className="w-14 h-7 text-center text-[11px] font-bold bg-slate-800 border-emerald-700/50 px-1 text-emerald-400 placeholder:text-slate-600"
-                              data-testid={`input-min-exposure-${player.id}`}
-                            />
-                          </td>
-                          <td className="px-1 py-2 text-center">
-                            <Input
-                              type="number"
-                              min={0}
-                              max={100}
                               placeholder="Max"
                               value={exposureLimits[player.id.toString()] ?? ""}
                               onChange={(e) => {
@@ -2116,7 +2206,7 @@ export default function ProOptimizer() {
                           </td>
                         </>
                       ) : (
-                        <td className="px-3 py-2 text-center" colSpan={2}>
+                        <td className="px-3 py-2 text-center">
                           <div className="p-1.5 text-slate-700 cursor-not-allowed" title="Upgrade to Champion for exposure limits">
                             <Lock className="w-3.5 h-3.5" />
                           </div>
@@ -2189,12 +2279,75 @@ export default function ProOptimizer() {
                         {(player as any).recentActualAvg != null && (
                           <span className="text-[10px] font-mono font-bold text-cyan-400">{(player as any).recentActualAvg}<span className="text-slate-500">/{(player as any).gamesTracked}g</span></span>
                         )}
-                        {player.effectiveProj && Number(player.effectiveProj) !== Number(player.projectedPoints) && (
-                          <span className="text-xs font-mono font-bold text-emerald-400">{Number(player.effectiveProj).toFixed(1)}</span>
+                        {player.boostedProj !== Number(player.projectedPoints) && (
+                          <span
+                            className="text-xs font-mono font-bold text-emerald-400"
+                            title="Custom/manual projection with the local automatic boost only; server-only Scout and simulation adjustments are not included."
+                          >
+                            {player.boostedProj.toFixed(1)}
+                          </span>
                         )}
                         {hasPaidAccess && ownershipPct != null && (
                           <span className="text-xs font-mono text-cyan-400">{ownershipPct.toFixed(1)}%</span>
                         )}
+                      </div>
+                      {player.belowMinProjection && (
+                        <div
+                          className="mt-1 text-[10px] font-bold text-red-400/80"
+                          data-testid={`mobile-below-min-projection-${player.id}`}
+                          title={`Eligibility projection ${player.cutoffProjection.toFixed(1)} pts from base/custom projection plus manual +pts; automatic, Scout, and simulation adjustments are excluded.`}
+                        >
+                          Below {minProjection!.toFixed(1)}-pt cutoff · eligibility {player.cutoffProjection.toFixed(1)} pts
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 mt-2" onClick={e => e.stopPropagation()}>
+                        <label className="text-[9px] font-black uppercase tracking-wide text-emerald-400 whitespace-nowrap" htmlFor={`mobile-proj-${player.id}`}>My Proj</label>
+                        <input
+                          id={`mobile-proj-${player.id}`}
+                          type="number"
+                          min={0}
+                          step="0.1"
+                          value={player.customProj}
+                          onChange={e => {
+                            const value = e.target.value;
+                            setCustomProjections(prev => {
+                              const next = { ...prev };
+                              if (value === "") {
+                                delete next[player.id.toString()];
+                              } else {
+                                const parsed = Number(value);
+                                if (Number.isFinite(parsed) && parsed >= 0) next[player.id.toString()] = parsed;
+                              }
+                              return next;
+                            });
+                          }}
+                          className="w-20 h-7 rounded border border-emerald-500/30 bg-slate-950 px-1 text-right font-mono text-xs font-bold text-emerald-400"
+                          data-testid={`mobile-proj-${player.id}`}
+                        />
+                        <label className="text-[9px] font-black uppercase tracking-wide text-amber-400 whitespace-nowrap" htmlFor={`mobile-boost-${player.id}`}>Boost +pts</label>
+                        <input
+                          id={`mobile-boost-${player.id}`}
+                          type="number"
+                          min={0}
+                          step="0.1"
+                          placeholder="0"
+                          value={boosts[player.id] ?? ""}
+                          onChange={e => {
+                            const value = e.target.value;
+                            setBoosts(prev => {
+                              const updated = { ...prev };
+                              if (value === "") {
+                                delete updated[player.id];
+                              } else {
+                                const parsed = Number(value);
+                                if (Number.isFinite(parsed) && parsed >= 0) updated[player.id] = parsed;
+                              }
+                              return updated;
+                            });
+                          }}
+                          className="w-20 h-7 rounded border border-amber-500/30 bg-slate-950 px-1 text-right font-mono text-xs font-bold text-amber-400 placeholder:text-slate-600"
+                          data-testid={`input-boost-mobile-${player.id}`}
+                        />
                       </div>
                     </div>
                     <div className="flex items-center gap-0.5 shrink-0">
@@ -2886,11 +3039,6 @@ export default function ProOptimizer() {
                 <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-3">
                   <Target className="w-4 h-4 text-cyan-400" />
                   Player Exposure ({generatedLineups.length} lineups)
-                  {globalMinExposure && (
-                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[9px] font-black ml-1" data-testid="badge-global-min-exposure">
-                      Min {globalMinExposure}%
-                    </Badge>
-                  )}
                   {globalMaxExposure && (
                     <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30 text-[9px] font-black ml-1" data-testid="badge-global-exposure">
                       Max {globalMaxExposure}%
@@ -2921,18 +3069,13 @@ export default function ProOptimizer() {
                         <span className="text-[11px] font-mono text-slate-400">{ep.count}/{ep.total}</span>
                         <div className="w-12 h-1.5 bg-slate-700 rounded-full overflow-hidden">
                           <div
-                            className={`h-full rounded-full ${ep.overLimit ? "bg-red-400" : ep.underLimit ? "bg-amber-400" : "bg-cyan-400"}`}
+                            className={`h-full rounded-full ${ep.overLimit ? "bg-red-400" : "bg-cyan-400"}`}
                             style={{ width: `${Math.min(ep.pct, 100)}%` }}
                           />
                         </div>
-                        <span className={`text-[11px] font-black min-w-[36px] text-right ${ep.overLimit ? "text-red-400" : ep.underLimit ? "text-amber-400" : "text-cyan-400"}`} data-testid={`text-exposure-pct-${ep.playerId}`}>
+                        <span className={`text-[11px] font-black min-w-[36px] text-right ${ep.overLimit ? "text-red-400" : "text-cyan-400"}`} data-testid={`text-exposure-pct-${ep.playerId}`}>
                           {ep.pct.toFixed(0)}%
                         </span>
-                        {ep.minLimit !== undefined && (
-                          <span className={`text-[10px] font-bold ${ep.underLimit ? "text-amber-400" : "text-slate-500"}`} data-testid={`text-exposure-min-${ep.playerId}`}>
-                            {ep.minLimit}%{ep.isMinPlayerSpecific ? "" : " g"}↑
-                          </span>
-                        )}
                         {ep.limit !== undefined && (
                           <span className={`text-[10px] font-bold ${ep.overLimit ? "text-red-400" : "text-slate-500"}`} data-testid={`text-exposure-limit-${ep.playerId}`}>
                             {ep.limit}%{ep.isPlayerSpecific ? "" : " g"}↓

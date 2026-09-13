@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { solveLineup } from "../server/routes";
 import { solveWithBudget, validatedIntegralResult } from "../server/solver-guard";
-import type { OptimizationConstraints, Player } from "../shared/schema";
+import {
+  optimizationConstraintSchema,
+  proOptimizationConstraintSchema,
+  type OptimizationConstraints,
+  type Player,
+} from "../shared/schema";
 
 test("solver guard passes javascript-lp-solver timeout options", () => {
   const model: any = {
@@ -104,4 +109,119 @@ test("mandatory NFL QB stacks remain enforced with bounded solves", () => {
     "locked HOU quarterback must have a same-team WR/TE",
   );
   assert.ok(result.totalSalary <= 50_000);
+});
+
+function minProjectionNFLPool(): Player[] {
+  return [
+    nflPlayer(1, "QB", "HOU", 30, 7_000),
+    nflPlayer(2, "QB", "BUF", 10, 7_000),
+    nflPlayer(3, "WR", "HOU", 24),
+    nflPlayer(4, "WR", "BUF", 18),
+    nflPlayer(5, "WR", "BUF", 17),
+    nflPlayer(6, "WR", "HOU", 16),
+    nflPlayer(7, "RB", "HOU", 15),
+    nflPlayer(8, "RB", "BUF", 14),
+    nflPlayer(9, "TE", "HOU", 13),
+    nflPlayer(10, "TE", "BUF", 8),
+    nflPlayer(11, "DST", "HOU", 8),
+    nflPlayer(12, "DST", "BUF", 7),
+    nflPlayer(13, "WR", "BUF", 7),
+    nflPlayer(14, "DST", "BUF", 7),
+  ];
+}
+
+test("optimization schemas accept finite nonnegative minProjection and reject invalid values", () => {
+  const standard = optimizationConstraintSchema.parse({ slateId: 1, minProjection: 0 });
+  const pro = proOptimizationConstraintSchema.parse({ slateId: 1, minProjection: 8 });
+  assert.equal(standard.minProjection, 0);
+  assert.equal(pro.minProjection, 8);
+  assert.throws(
+    () => optimizationConstraintSchema.parse({ slateId: 1, minProjection: -1 }),
+    /Number must be greater than or equal to 0/,
+  );
+  assert.throws(
+    () => optimizationConstraintSchema.parse({ slateId: 1, minProjection: Infinity }),
+    /Number must be finite/,
+  );
+});
+
+test("solveLineup enforces inclusive minProjection on low WR and DST players", () => {
+  const result = solveLineup(
+    minProjectionNFLPool(),
+    {
+      slateId: 1,
+      lockedPlayerIds: [1],
+      excludedPlayerIds: [],
+      minProjection: 8,
+    } as OptimizationConstraints,
+    "NFL",
+    "draftkings",
+    undefined,
+    { timeoutMs: 500 },
+  );
+
+  assert.ok(!result.error, result.error);
+  assert.equal(result.lineup.length, 9);
+  assert.ok(result.lineup.some(p => p.id === 11), "projection exactly at the cutoff remains eligible");
+  assert.ok(!result.lineup.some(p => p.id === 12 || p.id === 13 || p.id === 14), "below-cutoff WR/DST players are excluded");
+});
+
+test("solveLineup rejects a locked player below minProjection with an actionable error", () => {
+  const result = solveLineup(
+    minProjectionNFLPool(),
+    {
+      slateId: 1,
+      lockedPlayerIds: [13],
+      excludedPlayerIds: [],
+      minProjection: 8,
+    } as OptimizationConstraints,
+    "NFL",
+    "draftkings",
+    undefined,
+    { timeoutMs: 500 },
+  );
+
+  assert.match(result.error || "", /Locked player Fixture 13.*below the minProjection cutoff of 8/);
+  assert.match(result.error || "", /Remove the lock or lower minProjection/);
+});
+
+test("solveLineup honors a manual projection boost before applying minProjection", () => {
+  const pool = minProjectionNFLPool().map(player =>
+    player.id === 13 ? { ...player, projectedPoints: "100", fppg: "100" } : player,
+  );
+  const result = solveLineup(
+    pool,
+    {
+      slateId: 1,
+      lockedPlayerIds: [1],
+      excludedPlayerIds: [],
+      minProjection: 8,
+    } as OptimizationConstraints,
+    "NFL",
+    "draftkings",
+    undefined,
+    { timeoutMs: 500 },
+  );
+
+  assert.ok(!result.error, result.error);
+  assert.ok(result.lineup.some(p => p.id === 13), "a manually boosted player above the cutoff can be selected");
+});
+
+test("solveLineup reports the required-position cutoff when no NFL DST remains", () => {
+  const result = solveLineup(
+    minProjectionNFLPool(),
+    {
+      slateId: 1,
+      lockedPlayerIds: [1],
+      excludedPlayerIds: [],
+      minProjection: 10,
+    } as OptimizationConstraints,
+    "NFL",
+    "draftkings",
+    undefined,
+    { timeoutMs: 500 },
+  );
+
+  assert.match(result.error || "", /No DST\/DEF players meet the minProjection cutoff of 10/);
+  assert.match(result.error || "", /Lower minProjection/);
 });

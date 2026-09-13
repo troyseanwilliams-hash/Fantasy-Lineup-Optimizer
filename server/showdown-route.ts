@@ -15,6 +15,12 @@ import { NFL_PRACTICE_SQUAD_DETAIL } from "./nfl-roster-eligibility";
 import {
   isGolfMissedCutMarkerForDraftGroup,
 } from "./golf-missed-cut";
+import {
+  applyExplicitProjections,
+  filterByMinProjection,
+  findLockedMinProjectionViolation,
+  minProjectionLockMessage,
+} from "./min-projection";
 
 function getSessionUserId(req: Request): string | null {
   return (req.session as any)?.userId || null;
@@ -140,6 +146,7 @@ const showdownOptimizeSchema = z.object({
   useBoosts: z.boolean().default(false),
   globalMaxExposure: z.number().min(1).max(100).optional(),
   playerProjections: z.record(z.string(), z.number()).optional(),
+  minProjection: z.number().finite().min(0).optional(),
   playerMinSalary: z.number().optional(),
   playerMaxSalary: z.number().optional(),
   perPlayerMaxExposure: z.record(z.string(), z.number()).optional(),
@@ -188,6 +195,31 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
       });
     }
 
+    const showdownMinProjectionInput = applyExplicitProjections(
+      allPlayers,
+      input.playerProjections,
+    );
+    const showdownLockedIds = [
+      ...(input.lockedCaptainId !== undefined ? [input.lockedCaptainId] : []),
+      ...input.lockedFlexIds,
+    ];
+    const showdownMinProjectionViolation = findLockedMinProjectionViolation(
+      showdownMinProjectionInput,
+      input.minProjection,
+      showdownLockedIds,
+    );
+    if (showdownMinProjectionViolation) {
+      const role = input.lockedCaptainId === showdownMinProjectionViolation.player.id
+        ? "captain"
+        : "player";
+      return res.status(400).json({
+        message: minProjectionLockMessage(showdownMinProjectionViolation, role),
+      });
+    }
+    const showdownMinProjectionEligibleIds = input.minProjection !== undefined && input.minProjection > 0
+      ? new Set(filterByMinProjection(showdownMinProjectionInput, input.minProjection).map(p => p.id))
+      : undefined;
+
     // Hard excludes: OUT/Questionable + user-excluded
     let pool = allPlayers.filter(p => !input.excludedPlayerIds.includes(p.id));
     pool = pool.filter(p => !isPlayerOut(p.injuryStatus) &&
@@ -201,8 +233,7 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
     if (input.gameFilter) {
       pool = pool.filter(p => sanitizeGameInfo(p.gameInfo) === input.gameFilter || p.opponent === input.gameFilter);
     }
-
-    if (pool.length < config.rosterSize) {
+    if (pool.length < config.rosterSize && !(input.minProjection !== undefined && input.minProjection > 0)) {
       return res.status(400).json({ message: "Not enough eligible players for a showdown lineup." });
     }
 
@@ -217,8 +248,10 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
     const scoutMap = new Map<string, number>();
     for (const sig of scoutSignals) {
       const key = sig.player_name.toLowerCase();
-      if (!scoutMap.has(key) || Math.abs(sig.boost_weight) > Math.abs(scoutMap.get(key)!)) {
-        scoutMap.set(key, sig.boost_weight);
+      const boostValue = sig.signal_type === "out" ? 0 : Number(sig.boost_value);
+      if (!Number.isFinite(boostValue)) continue;
+      if (!scoutMap.has(key) || Math.abs(boostValue) > Math.abs(scoutMap.get(key)!)) {
+        scoutMap.set(key, boostValue);
       }
     }
 
@@ -232,7 +265,7 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
     function getEffectiveProjection(p: Player): number {
       const hasCustom = projOverrides[p.id] !== undefined;
       let base = projOverrides[p.id] ?? Number(p.projectedPoints) ?? 0;
-      if (!hasCustom) {
+      if (input.useBoosts && !hasCustom) {
         const scoutWeight = scoutMap.get(p.name.toLowerCase());
         if (scoutWeight !== undefined) {
           const pct = Math.max(-0.15, Math.min(0.15, scoutWeight * 0.015));
@@ -251,6 +284,21 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
       // Faded players
       if (fadedSet.has(p.id)) proj *= FADE_MULTIPLIER;
       return Math.max(0, proj);
+    }
+
+    // Eligibility is decided from raw flex projections plus explicit request
+    // projections; apply those IDs after Showdown's server-only adjustments.
+    // Do not use captainProj here: the CPT multiplier is only applied after
+    // this eligibility decision.
+    if (showdownMinProjectionEligibleIds) {
+      pool = pool.filter(p => showdownMinProjectionEligibleIds.has(p.id));
+    }
+    if (pool.length < config.rosterSize) {
+      return res.status(400).json({
+        message: input.minProjection !== undefined && input.minProjection > 0
+          ? `Not enough eligible players meet the minProjection cutoff of ${input.minProjection}. Lower minProjection or relax other constraints.`
+          : "Not enough eligible players for a showdown lineup.",
+      });
     }
 
     const flexCount = config.rosterSize - 1;
@@ -459,6 +507,7 @@ const showdownSimSchema = z.object({
   useBoosts: z.boolean().default(false),
   globalMaxExposure: z.number().min(1).max(100).optional(),
   playerProjections: z.record(z.string(), z.number()).optional(),
+  minProjection: z.number().finite().min(0).optional(),
   playerMinSalary: z.number().optional(),
   playerMaxSalary: z.number().optional(),
   perPlayerMaxExposure: z.record(z.string(), z.number()).optional(),
@@ -522,6 +571,31 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
       });
     }
 
+    const showdownSimMinProjectionInput = applyExplicitProjections(
+      allPlayers,
+      input.playerProjections,
+    );
+    const showdownSimLockedIds = [
+      ...(input.lockedCaptainId !== undefined ? [input.lockedCaptainId] : []),
+      ...input.lockedFlexIds,
+    ];
+    const showdownSimMinProjectionViolation = findLockedMinProjectionViolation(
+      showdownSimMinProjectionInput,
+      input.minProjection,
+      showdownSimLockedIds,
+    );
+    if (showdownSimMinProjectionViolation) {
+      const role = input.lockedCaptainId === showdownSimMinProjectionViolation.player.id
+        ? "captain"
+        : "player";
+      return res.status(400).json({
+        message: minProjectionLockMessage(showdownSimMinProjectionViolation, role),
+      });
+    }
+    const showdownSimMinProjectionEligibleIds = input.minProjection !== undefined && input.minProjection > 0
+      ? new Set(filterByMinProjection(showdownSimMinProjectionInput, input.minProjection).map(p => p.id))
+      : undefined;
+
     let pool = allPlayers.filter(p => !input.excludedPlayerIds.includes(p.id));
     pool = pool.filter(p => !isPlayerOut(p.injuryStatus) &&
       p.injuryStatus?.toUpperCase().trim() !== "QUESTIONABLE" &&
@@ -533,8 +607,7 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
     if (input.gameFilter) {
       pool = pool.filter(p => sanitizeGameInfo(p.gameInfo) === input.gameFilter || p.opponent === input.gameFilter);
     }
-
-    if (pool.length < config.rosterSize) {
+    if (pool.length < config.rosterSize && !(input.minProjection !== undefined && input.minProjection > 0)) {
       return res.status(400).json({ message: "Not enough eligible players for a showdown lineup." });
     }
 
@@ -549,8 +622,10 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
     const scoutMap = new Map<string, number>();
     for (const sig of scoutSignals) {
       const key = sig.player_name.toLowerCase();
-      if (!scoutMap.has(key) || Math.abs(sig.boost_weight) > Math.abs(scoutMap.get(key)!)) {
-        scoutMap.set(key, sig.boost_weight);
+      const boostValue = sig.signal_type === "out" ? 0 : Number(sig.boost_value);
+      if (!Number.isFinite(boostValue)) continue;
+      if (!scoutMap.has(key) || Math.abs(boostValue) > Math.abs(scoutMap.get(key)!)) {
+        scoutMap.set(key, boostValue);
       }
     }
 
@@ -564,7 +639,7 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
     for (const p of pool) {
       if (projOverrides[p.id] !== undefined) continue;
       let base = Number(p.projectedPoints) ?? 0;
-      const scoutWeight = scoutMap.get(p.name.toLowerCase());
+      const scoutWeight = input.useBoosts ? scoutMap.get(p.name.toLowerCase()) : undefined;
       if (scoutWeight !== undefined) {
         const pct = Math.max(-0.15, Math.min(0.15, scoutWeight * 0.015));
         base = Math.round(base * (1 + pct) * 10) / 10;
@@ -578,6 +653,19 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
       }
       if (fadedSet.has(p.id)) base *= FADE_MULTIPLIER;
       projOverrides[p.id] = Math.max(0, base);
+    }
+
+    // Eligibility is decided from raw projections plus explicit request
+    // projections before runSimulations samples variance or applies CPT.
+    if (showdownSimMinProjectionEligibleIds) {
+      pool = pool.filter(p => showdownSimMinProjectionEligibleIds.has(p.id));
+    }
+    if (pool.length < config.rosterSize) {
+      return res.status(400).json({
+        message: input.minProjection !== undefined && input.minProjection > 0
+          ? `Not enough eligible players meet the minProjection cutoff of ${input.minProjection}. Lower minProjection or relax other constraints.`
+          : "Not enough eligible players for a showdown lineup.",
+      });
     }
 
     const startTime = Date.now();

@@ -79,6 +79,7 @@ interface ShowdownConfig {
 // Per-player settings (mirroring ProOptimizer pattern)
 interface PlayerSettings {
   customProjection?: number;
+  manualBoost?: number;       // additive point adjustment, independent of AI Scout
   customOwnership?: number;   // override the scout/default ownership %
   maxExposure?: number;       // 0–100, per-player cap across lineups
   fade: boolean;              // soft-exclude (low weight, not hard exclude)
@@ -157,15 +158,6 @@ export default function ShowdownBuilder() {
   const [playerSettings, setPlayerSettings] = useState<Record<string, PlayerSettings>>({});
   const [expandedSettingsId, setExpandedSettingsId] = useState<number | null>(null);
 
-  // Derived shortcut: customProjections map (for backward-compat w/ optimizer payload)
-  const customProjections = useMemo(() => {
-    const out: Record<string, number> = {};
-    for (const [id, s] of Object.entries(playerSettings)) {
-      if (s.customProjection !== undefined) out[id] = s.customProjection;
-    }
-    return out;
-  }, [playerSettings]);
-
   function updatePlayerSetting(playerId: number, patch: Partial<PlayerSettings>) {
     setPlayerSettings(prev => {
       const cur = prev[String(playerId)] ?? { fade: false };
@@ -189,6 +181,7 @@ export default function ShowdownBuilder() {
   const [leverageMode, setLeverageMode] = useState(false);
   const [outperformerMode, setOutperformerMode] = useState(false);
   const [useBoosts, setUseBoosts] = useState(false);
+  const [minProjection, setMinProjection] = useState(0);
   const [globalMaxExposure, setGlobalMaxExposure] = useState<number | null>(null);
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
   const [showConfig, setShowConfig] = useState(false);
@@ -274,6 +267,7 @@ export default function ShowdownBuilder() {
     setSalaryRange(null);
     setPlayerSettings({});
     setExpandedSettingsId(null);
+    setMinProjection(0);
     setGeneratedLineups([]);
     setShowdownConfig(null);
     setSavedLineupIndices(new Set());
@@ -313,7 +307,7 @@ export default function ShowdownBuilder() {
 
   useEffect(() => {
     if (!slates || slates.length === 0) {
-      if (selectedSlateId !== null) setSelectedSlateId(null);
+      if (selectedSlateId !== null) resetForSlate(null);
       return;
     }
 
@@ -354,6 +348,34 @@ export default function ShowdownBuilder() {
   }, [playerData?.games]);
   const gameKeys = Object.keys(games);
 
+  // Build the one projection override map sent to the optimizer. Manual boosts
+  // are additive to either a custom projection or the player's base projection.
+  // When Scout is enabled, fold its adjustment into this same map so the
+  // server does not apply it a second time.
+  const customProjections = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const p of players) {
+      const settings = playerSettings[String(p.id)];
+      const customProjection = settings?.customProjection;
+      const manualBoost = settings?.manualBoost ?? 0;
+      const scoutBoost = useBoosts && customProjection === undefined
+        ? (boostByName[p.name.toLowerCase()] || 0)
+        : 0;
+      if (customProjection !== undefined || manualBoost !== 0 || scoutBoost !== 0) {
+        out[String(p.id)] = (customProjection ?? toNum(p.projectedPoints)) + manualBoost + scoutBoost;
+      }
+    }
+    return out;
+  }, [players, playerSettings, useBoosts, boostByName]);
+
+  const effectiveProjectionById = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const p of players) {
+      out[String(p.id)] = customProjections[String(p.id)] ?? toNum(p.projectedPoints);
+    }
+    return out;
+  }, [players, customProjections]);
+
   // ── Derived player metadata ────────────────────────────────────────────────
   const salaryBounds = useMemo(() => {
     const pool = gameFilter ? players.filter(p => sanitizeGameInfo(p.gameInfo) === gameFilter) : players;
@@ -382,7 +404,14 @@ export default function ShowdownBuilder() {
   const { data: captainAdvice, isLoading: captainAdviceLoading } = useQuery<{
     lineups?: Array<{ captain?: ShowdownPlayer; totalProjectedPoints?: number }>;
   }>({
-    queryKey: ["/api/showdown/captain-advice", selectedSlateId, gameFilter],
+    queryKey: [
+      "/api/showdown/captain-advice",
+      selectedSlateId,
+      gameFilter,
+      customProjections,
+      minProjection,
+      useBoosts,
+    ],
     queryFn: async () => {
       const res = await apiRequest("POST", "/api/showdown/optimize", {
         slateId: selectedSlateId,
@@ -391,6 +420,9 @@ export default function ShowdownBuilder() {
         lineupCount: 10,
         projectionMode: "balanced",
         gameFilter: gameFilter || undefined,
+        useBoosts,
+        minProjection,
+        playerProjections: Object.keys(customProjections).length > 0 ? customProjections : undefined,
       });
       return res.json();
     },
@@ -399,10 +431,19 @@ export default function ShowdownBuilder() {
   });
 
   const captainLeaders = useMemo(() => {
-    const pool = gameFilter ? players.filter(p => sanitizeGameInfo(p.gameInfo) === gameFilter) : players;
+    const lockedIds = new Set([
+      ...(captainId !== null ? [captainId] : []),
+      ...lockedFlexIds,
+    ]);
+    const pool = (gameFilter ? players.filter(p => sanitizeGameInfo(p.gameInfo) === gameFilter) : players)
+      .filter(player => {
+        if (minProjection <= 0 || lockedIds.has(player.id)) return true;
+        const projection = effectiveProjectionById[String(player.id)] ?? toNum(player.projectedPoints);
+        return projection >= minProjection;
+      });
     return pool
       .map(player => {
-        const projection = toNum(player.projectedPoints);
+        const projection = effectiveProjectionById[String(player.id)] ?? toNum(player.projectedPoints);
         const captainSalary = Math.round(player.salary * salaryMultiplier);
         return {
           player,
@@ -412,7 +453,7 @@ export default function ShowdownBuilder() {
         };
       })
       .sort((a, b) => b.captainProjection - a.captainProjection);
-  }, [players, gameFilter, captainMultiplier, salaryMultiplier]);
+  }, [players, gameFilter, captainId, lockedFlexIds, minProjection, captainMultiplier, salaryMultiplier, effectiveProjectionById]);
 
   const projectionLeader = captainLeaders[0];
   const ceilingAlternative = captainLeaders[1];
@@ -435,15 +476,14 @@ export default function ShowdownBuilder() {
         const pset = playerSettings[String(p.id)];
         const nameKey = p.name.toLowerCase();
         const scoutBoost = useBoosts ? (boostByName[nameKey] || 0) : 0;
-        const baseProj = toNum(p.projectedPoints);
-        const customProj = pset?.customProjection;
-        // custom proj wins → base+scout if boosts on → base
-        const effProj = customProj !== undefined ? customProj : (baseProj + scoutBoost);
+        const manualBoost = pset?.manualBoost ?? 0;
+        const effProj = effectiveProjectionById[String(p.id)] ?? toNum(p.projectedPoints);
         const value = effProj / Math.max(p.salary / 1000, 0.1);
         return {
           ...p,
           _effProj: effProj,
           _scoutBoost: scoutBoost,
+          _manualBoost: manualBoost,
           _signals: signalByName[nameKey] || [],
           _value: value,
           _fade: pset?.fade ?? false,
@@ -458,7 +498,18 @@ export default function ShowdownBuilder() {
         if (sortKey === "boost")   return sortDir === "asc" ? a._scoutBoost - b._scoutBoost : b._scoutBoost - a._scoutBoost;
         return sortDir === "asc" ? a._effProj - b._effProj : b._effProj - a._effProj;
       });
-  }, [players, gameFilter, searchTerm, posFilter, teamFilter, salaryRange, playerSettings, useBoosts, boostByName, signalByName, sortKey, sortDir]);
+  }, [players, gameFilter, searchTerm, posFilter, teamFilter, salaryRange, playerSettings, useBoosts, boostByName, signalByName, effectiveProjectionById, sortKey, sortDir]);
+
+  const lockedBelowCutoff = useMemo(() => {
+    if (minProjection <= 0) return [];
+    const lockedIds = new Set([
+      ...(captainId !== null ? [captainId] : []),
+      ...lockedFlexIds,
+    ]);
+    return players
+      .filter(player => lockedIds.has(player.id))
+      .filter(player => (effectiveProjectionById[String(player.id)] ?? toNum(player.projectedPoints)) < minProjection);
+  }, [players, captainId, lockedFlexIds, minProjection, effectiveProjectionById]);
 
   // ── Optimize ───────────────────────────────────────────────────────────────
   const optimizeMut = useMutation({
@@ -486,15 +537,6 @@ export default function ShowdownBuilder() {
   });
 
   function buildShowdownPayload() {
-    const mergedProjections: Record<string, number> = { ...customProjections };
-    if (useBoosts) {
-      for (const p of players) {
-        const pid = String(p.id);
-        if (pid in mergedProjections) continue;
-        const boost = boostByName[p.name.toLowerCase()] || 0;
-        if (boost !== 0) mergedProjections[pid] = toNum(p.projectedPoints) + boost;
-      }
-    }
     const perPlayerMaxExposure: Record<string, number> = {};
     for (const [pid, pset] of Object.entries(playerSettings)) {
       if (pset.maxExposure !== undefined) perPlayerMaxExposure[pid] = pset.maxExposure;
@@ -518,8 +560,9 @@ export default function ShowdownBuilder() {
       leverageMode,
       outperformerMode,
       useBoosts,
+      minProjection,
       globalMaxExposure: globalMaxExposure ?? undefined,
-      playerProjections: Object.keys(mergedProjections).length > 0 ? mergedProjections : undefined,
+      playerProjections: Object.keys(customProjections).length > 0 ? customProjections : undefined,
       playerMinSalary: salaryRange?.[0] ?? undefined,
       playerMaxSalary: salaryRange?.[1] ?? undefined,
       perPlayerMaxExposure: Object.keys(perPlayerMaxExposure).length > 0 ? perPlayerMaxExposure : undefined,
@@ -790,7 +833,7 @@ export default function ShowdownBuilder() {
     setCaptainId(null); setLockedFlexIds([]); setExcludedIds([]);
     setPlayerSettings({}); setSalaryRange(null);
     setProjectionMode("balanced"); setLeverageMode(false);
-    setUseBoosts(false); setGlobalMaxExposure(null);
+    setUseBoosts(false); setMinProjection(0); setGlobalMaxExposure(null);
     setExpandedSettingsId(null);
   }
 
@@ -813,7 +856,7 @@ export default function ShowdownBuilder() {
   const activeLineup = generatedLineups[activeLineupIdx];
 
   const anyActiveConfig = projectionMode !== "balanced" || leverageMode || outperformerMode || useBoosts
-    || !!globalMaxExposure || !!salaryRange || customizedCount > 0;
+    || minProjection > 0 || !!globalMaxExposure || !!salaryRange || customizedCount > 0;
 
   // ── Unauthenticated guard ──────────────────────────────────────────────────
   if (!user) {
@@ -914,6 +957,29 @@ export default function ShowdownBuilder() {
             </Select>
           )}
 
+          <div className="flex min-w-[170px] flex-col justify-center rounded-lg border border-slate-700 bg-slate-900/50 px-2.5 py-1.5">
+            <label htmlFor="input-min-projection" className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              Min Projection
+            </label>
+            <div className="flex items-center gap-1">
+              <Input
+                id="input-min-projection"
+                type="number"
+                min="0"
+                step="0.1"
+                value={minProjection}
+                onChange={e => {
+                  const value = e.target.value === "" ? 0 : parseFloat(e.target.value);
+                  if (Number.isFinite(value)) setMinProjection(Math.max(0, value));
+                }}
+                className="h-7 w-20 border-slate-600 bg-slate-800 px-2 text-right text-xs text-white"
+                data-testid="input-min-projection"
+              />
+              <span className="text-[10px] text-slate-500">pts</span>
+              <span className="text-[10px] font-bold text-slate-500">(0 = Off)</span>
+            </div>
+          </div>
+
           <Select value={lineupCount.toString()} onValueChange={v => setLineupCount(Number(v))}>
             <SelectTrigger className="bg-slate-800 border-slate-600 text-white w-28" data-testid="select-lineup-count">
               <SelectValue />
@@ -925,6 +991,29 @@ export default function ShowdownBuilder() {
             </SelectContent>
           </Select>
         </div>
+
+        {minProjection > 0 && (
+          <div
+            className="mb-4 flex items-start gap-2 rounded-lg border border-cyan-500/25 bg-cyan-500/5 px-3 py-2 text-[11px] text-cyan-200"
+            data-testid="projection-cutoff-guidance"
+          >
+            <Target className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400" />
+            <div>
+              <p className="font-bold">
+                Players below {minProjection.toFixed(1)} pts are excluded using their base/FLEX projection after custom projections, active Scout adjustments, and manual boosts.
+                The {captainLabel} multiplier is not counted.
+              </p>
+              <p className="mt-0.5 text-cyan-300/70">
+                Locked {captainLabel}/{flexLabel} players remain required even when below this cutoff; clear a lock if you want that player excluded.
+                {lockedBelowCutoff.length > 0 && (
+                  <span className="font-bold text-amber-300">
+                    {" "}Below cutoff lock{lockedBelowCutoff.length > 1 ? "s" : ""}: {lockedBelowCutoff.map(player => player.name).join(", ")}.
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+        )}
 
         {selectedSlateId && players.length > 0 && projectionLeader && (
           <Card className="bg-slate-900 border-amber-500/30 mb-4" data-testid="best-captain-section">
@@ -1318,6 +1407,7 @@ export default function ShowdownBuilder() {
                               if (!p) return null;
                               const chips = [];
                               if (pset.customProjection !== undefined) chips.push(`proj: ${pset.customProjection}`);
+                              if (pset.manualBoost !== undefined) chips.push(`boost: +${pset.manualBoost}`);
                               if (pset.customOwnership !== undefined) chips.push(`own: ${pset.customOwnership}%`);
                               if (pset.maxExposure !== undefined) chips.push(`max: ${pset.maxExposure}%`);
                               if (pset.fade) chips.push("faded");
@@ -1349,6 +1439,7 @@ export default function ShowdownBuilder() {
                   {projectionMode === "ceiling" && <span className="text-[10px] font-black bg-purple-500/15 border border-purple-500/25 text-purple-300 px-2 py-1 rounded-lg">🚀 Ceiling</span>}
                   {leverageMode && <span className="text-[10px] font-black bg-amber-500/15 border border-amber-500/25 text-amber-300 px-2 py-1 rounded-lg flex items-center gap-1"><Target className="w-3 h-3" />Leverage</span>}
                   {useBoosts && <span className="text-[10px] font-black bg-emerald-500/15 border border-emerald-500/25 text-emerald-300 px-2 py-1 rounded-lg flex items-center gap-1"><Zap className="w-3 h-3" />Scout Active</span>}
+                  {minProjection > 0 && <span className="text-[10px] font-black bg-cyan-500/15 border border-cyan-500/25 text-cyan-300 px-2 py-1 rounded-lg flex items-center gap-1"><Target className="w-3 h-3" />Min {minProjection.toFixed(1)} pts</span>}
                   {globalMaxExposure && <span className="text-[10px] font-black bg-cyan-500/15 border border-cyan-500/25 text-cyan-300 px-2 py-1 rounded-lg flex items-center gap-1"><Shuffle className="w-3 h-3" />Max {globalMaxExposure}%</span>}
                   {salaryRange && <span className="text-[10px] font-black bg-slate-700/60 border border-slate-600/40 text-slate-300 px-2 py-1 rounded-lg flex items-center gap-1"><DollarSign className="w-3 h-3" />${(salaryRange[0]/1000).toFixed(1)}K–${(salaryRange[1]/1000).toFixed(1)}K</span>}
                   {customizedCount > 0 && <span className="text-[10px] font-black bg-purple-500/15 border border-purple-500/25 text-purple-300 px-2 py-1 rounded-lg flex items-center gap-1"><Settings2 className="w-3 h-3" />{customizedCount} customized</span>}
@@ -1416,6 +1507,7 @@ export default function ShowdownBuilder() {
                           <th onClick={() => { setSortKey("proj"); setSortDir(d => d === "asc" ? "desc" : "asc"); }} className="text-right px-1 py-2 cursor-pointer hover:text-white select-none">
                             Proj {sortKey === "proj" ? (sortDir === "asc" ? "↑" : "↓") : ""}
                           </th>
+                          <th className="text-right px-1 py-2 text-purple-400" title="Manual additive projection boost">Boost</th>
                           <th className="text-right px-1 py-2 text-amber-400">{captainLabel}</th>
                           {scoutSignals.length > 0 && (
                             <th onClick={() => { setSortKey("boost"); setSortDir(d => d === "asc" ? "desc" : "asc"); }} className="text-center px-1 py-2 cursor-pointer hover:text-white select-none text-emerald-400">
@@ -1438,6 +1530,7 @@ export default function ShowdownBuilder() {
                           const pset = playerSettings[String(player.id)];
                           const hasCustomSettings = !!pset && (
                             pset.customProjection !== undefined ||
+                            pset.manualBoost !== undefined ||
                             pset.customOwnership !== undefined ||
                             pset.maxExposure !== undefined ||
                             pset.fade
@@ -1507,6 +1600,28 @@ export default function ShowdownBuilder() {
                                   />
                                 </td>
 
+                                {/* Manual additive boost */}
+                                <td className="px-1 py-1.5 text-right">
+                                  <div className="flex items-center justify-end gap-0.5">
+                                    <span className="text-purple-400 text-[10px]">+</span>
+                                    <input
+                                      type="number"
+                                      step="0.1"
+                                      min="0"
+                                      value={pset?.manualBoost ?? ""}
+                                      onChange={e => {
+                                        const val = parseFloat(e.target.value);
+                                        if (e.target.value === "") updatePlayerSetting(player.id, { manualBoost: undefined });
+                                        else if (Number.isFinite(val)) updatePlayerSetting(player.id, { manualBoost: Math.max(0, val) });
+                                      }}
+                                      placeholder="0"
+                                      className={`w-12 text-right bg-transparent border-0 focus:outline-none focus:bg-slate-700/60 focus:rounded px-0.5 text-xs tabular-nums ${pset?.manualBoost !== undefined ? "text-purple-400 font-bold" : "text-slate-500"}`}
+                                      title="Add points to this player's base or custom projection"
+                                      data-testid={`input-boost-${player.id}`}
+                                    />
+                                  </div>
+                                </td>
+
                                 {/* CPT projected */}
                                 <td className="px-1 py-1.5 text-amber-400 text-right font-bold">{cptProj.toFixed(1)}</td>
 
@@ -1574,7 +1689,7 @@ export default function ShowdownBuilder() {
                               {/* ── Per-player settings expansion ── */}
                               {isExpanded && (
                                 <tr key={`settings-${player.id}`} className="bg-slate-800/80 border-t border-slate-700/50">
-                                  <td colSpan={scoutSignals.length > 0 ? 11 : 10} className="px-3 py-3">
+                                  <td colSpan={scoutSignals.length > 0 ? 12 : 11} className="px-3 py-3">
                                     <div className="space-y-3">
                                       <div className="flex items-center justify-between mb-1">
                                         <span className="text-[11px] font-black text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
@@ -1592,7 +1707,7 @@ export default function ShowdownBuilder() {
                                         )}
                                       </div>
 
-                                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
 
                                         {/* Custom projection override */}
                                         <div className="bg-slate-900/60 rounded-lg px-3 py-2">
@@ -1619,6 +1734,33 @@ export default function ShowdownBuilder() {
                                               </span>
                                             )}
                                           </div>
+                                        </div>
+
+                                        {/* Manual additive boost */}
+                                        <div className="bg-slate-900/60 rounded-lg px-3 py-2">
+                                          <label htmlFor={`input-boost-expanded-${player.id}`} className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">
+                                            Manual Boost
+                                          </label>
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-xs font-bold text-purple-400">+</span>
+                                            <input
+                                              id={`input-boost-expanded-${player.id}`}
+                                              type="number"
+                                              step="0.1"
+                                              min="0"
+                                              placeholder="0"
+                                              value={pset?.manualBoost ?? ""}
+                                              onChange={e => {
+                                                const val = parseFloat(e.target.value);
+                                                if (e.target.value === "") updatePlayerSetting(player.id, { manualBoost: undefined });
+                                                else if (Number.isFinite(val)) updatePlayerSetting(player.id, { manualBoost: Math.max(0, val) });
+                                              }}
+                                              className="w-20 bg-slate-800 border border-slate-700 text-white rounded px-2 py-1 text-xs focus:border-purple-500 focus:outline-none"
+                                              data-testid={`input-boost-expanded-${player.id}`}
+                                            />
+                                            <span className="text-[10px] text-slate-500">pts</span>
+                                          </div>
+                                          <p className="mt-1 text-[9px] text-slate-600">Added to base or custom projection; independent of AI Scout.</p>
                                         </div>
 
                                         {/* Custom ownership override */}

@@ -97,6 +97,7 @@ export default function Optimizer() {
   const [activeSwapSlot, setActiveSwapSlot] = useState<string | null>(null);
   const [manualReplacements, setManualReplacements] = useState<Record<string, Player>>({});
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
+  const [minProjection, setMinProjection] = useState<number | null>(null);
   const [projectedPointsFloor, setProjectedPointsFloor] = useState<number | null>(null);
   const [contestType, setContestType] = useState<"cash" | "gpp">("cash");
   const [outperformerMode, setOutperformerMode] = useState(false);
@@ -211,6 +212,9 @@ export default function Optimizer() {
     setActiveSwapSlot(null);
     setManualReplacements({});
     setSalaryRange(null);
+    setCustomProjections({});
+    setBoosts({});
+    setMinProjection(null);
     setProjectedPointsFloor(null);
     setContestType("cash");
   }, [slateId]);
@@ -316,8 +320,8 @@ export default function Optimizer() {
         value: Number(p.projectedPoints) / (p.salary / 1000),
         effectiveProj: (() => {
           const base = customProjections[p.id] ?? Number(p.projectedPoints);
-          const boostPct = boosts[p.id] || 0;
-          return boostPct > 0 ? Math.round((base * (1 + boostPct / 100)) * 10) / 10 : base;
+          const manualBoost = boosts[p.id] || 0;
+          return Math.round((base + manualBoost) * 10) / 10;
         })(),
       }))
       .sort((a, b) => {
@@ -373,8 +377,8 @@ export default function Optimizer() {
   // totalProj: display value including user boosts (shown in UI and used for grade)
   const totalProj = activeLineupPlayers.reduce((s, p) => {
     const base = customProjections[p.id] ?? Number(p.projectedPoints);
-    const boostPct = boosts[p.id] || 0;
-    return s + (boostPct > 0 ? Math.round((base + boostPct) * 10) / 10 : base);
+    const manualBoost = boosts[p.id] || 0;
+    return s + Math.round((base + manualBoost) * 10) / 10;
   }, 0);
 
   // totalProjUnboosted: clean projection total saved to DB (no user boost inflation)
@@ -399,12 +403,11 @@ export default function Optimizer() {
     const mergedProjections: Record<string, number> = { ...customProjections };
     if (players) {
       for (const p of players) {
-        const boostPct = boosts[p.id] || 0;
-        if (boostPct > 0) {
+        const manualBoost = boosts[p.id] || 0;
+        if (manualBoost !== 0) {
           // Apply boost additively (same model as display: baseProj + boost points)
-          // boostPct here is a raw points delta entered by the user, not a percentage.
           const base = customProjections[p.id] ?? Number(p.projectedPoints);
-          mergedProjections[p.id] = Math.round((base + boostPct) * 10) / 10;
+          mergedProjections[p.id] = Math.round((base + manualBoost) * 10) / 10;
         }
       }
     }
@@ -416,6 +419,7 @@ export default function Optimizer() {
       playerMinSalary: salaryRange && salaryRange[0] > salaryBounds.min ? salaryRange[0] : undefined,
       playerMaxSalary: salaryRange && salaryRange[1] < salaryBounds.max ? salaryRange[1] : undefined,
       playerProjections: Object.keys(mergedProjections).length > 0 ? mergedProjections : undefined,
+      minProjection: minProjection ?? undefined,
       projectedPointsFloor: projectedPointsFloor ?? undefined,
       contestType,
       outperformerMode,
@@ -445,6 +449,7 @@ export default function Optimizer() {
     setActiveSwapSlot(null);
     setManualReplacements({});
     setSalaryRange(null);
+    setMinProjection(null);
     setProjectedPointsFloor(null);
     setContestType("cash");
     optimizeMutation.reset();
@@ -685,6 +690,41 @@ export default function Optimizer() {
             <span className={`absolute top-1 right-2 w-2 h-2 rounded-full animate-pulse ${pColors.bg}`} />
           )}
         </button>
+      </div>}
+
+      {!playerFocus && <div className="flex md:hidden flex-col gap-1 px-3 py-2 border-b border-slate-800 bg-slate-900/60" data-testid="min-projection-section-mobile">
+        <div className="flex items-center gap-1.5 bg-slate-800/60 rounded-lg px-2 py-1.5 border border-slate-700/50">
+          <Target className={`w-3.5 h-3.5 flex-shrink-0 ${minProjection !== null ? pColors.text : "text-slate-500"}`} />
+          <label htmlFor="input-min-projection-mobile" className="text-[9px] font-black text-slate-400 uppercase whitespace-nowrap">Min Projection</label>
+          <input
+            id="input-min-projection-mobile"
+            type="number"
+            min={0}
+            step="0.1"
+            placeholder="Off"
+            value={minProjection ?? ""}
+            onChange={e => {
+              const value = e.target.value;
+              if (value === "") {
+                setMinProjection(null);
+                return;
+              }
+              const parsed = Number(value);
+              if (Number.isFinite(parsed) && parsed >= 0) setMinProjection(parsed);
+            }}
+            className={`flex-1 min-w-0 bg-transparent border-0 text-right font-mono font-black text-xs focus:outline-none tabular-nums ${minProjection !== null ? pColors.text : "text-slate-500"}`}
+            data-testid="input-min-projection-mobile"
+          />
+          <span className={`text-[9px] font-black whitespace-nowrap ${minProjection !== null ? pColors.text : "text-slate-500"}`}>
+            {minProjection !== null ? `${minProjection}+` : "pts min"}
+          </span>
+          {minProjection !== null && (
+            <button onClick={() => setMinProjection(null)} className="text-slate-500 hover:text-white flex-shrink-0 cursor-pointer" data-testid="button-reset-min-projection-mobile"><X className="w-3 h-3" /></button>
+          )}
+        </div>
+        <p className="px-1 text-[9px] leading-tight text-slate-500">
+          Below-cutoff players are excluded using base/custom projection plus manual +pts boosts; automatic and simulation adjustments do not affect eligibility.
+        </p>
       </div>}
 
       {/* LEFT: Player Pool */}
@@ -1051,7 +1091,7 @@ export default function Optimizer() {
                 <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-amber-400 text-center">
                   <div className="flex items-center justify-center gap-1">
                     <Rocket className="w-3 h-3" />
-                    Boost
+                    Boost +pts
                   </div>
                 </th>
                 <SortHeader label="Value" field="value" />
@@ -1176,14 +1216,23 @@ export default function Optimizer() {
                           type="number"
                           step="0.1"
                           className={`w-16 h-7 bg-slate-950 border-slate-800 text-right font-mono font-bold text-xs px-1 ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}
-                          defaultValue={player.projectedPoints?.toString()}
+                          value={customProjections[player.id] ?? Number(player.projectedPoints)}
                           onChange={e => {
-                            const v = parseFloat(e.target.value);
-                            if (!isNaN(v)) setCustomProjections(prev => ({ ...prev, [player.id]: v }));
+                            const value = e.target.value;
+                            setCustomProjections(prev => {
+                              const next = { ...prev };
+                              if (value === "") {
+                                delete next[player.id];
+                              } else {
+                                const v = parseFloat(value);
+                                if (!Number.isNaN(v) && v >= 0) next[player.id] = v;
+                              }
+                              return next;
+                            });
                           }}
                           data-testid={`proj-${player.id}`}
                         />
-                        {(boosts[player.id] || 0) > 0 && (
+                        {(boosts[player.id] || 0) !== 0 && (
                           <span className="text-[10px] font-bold text-amber-400 font-mono" data-testid={`boosted-proj-${player.id}`}>
                             {player.effectiveProj.toFixed(1)}
                           </span>
@@ -1191,34 +1240,29 @@ export default function Optimizer() {
                       </div>
                     </td>
                     <td className="px-3 py-2 text-center">
-                      {(() => {
-                        const boostLevels = [0, 5, 10, 15, 20];
-                        const currentBoost = boosts[player.id] || 0;
-                        const nextBoost = boostLevels[(boostLevels.indexOf(currentBoost) + 1) % boostLevels.length];
-                        return (
-                          <button
-                            onClick={() => setBoosts(prev => {
-                              const updated = { ...prev };
-                              if (nextBoost === 0) { delete updated[player.id]; } else { updated[player.id] = nextBoost; }
-                              return updated;
-                            })}
-                            data-testid={`boost-${player.id}`}
-                            className={`relative p-1.5 rounded-md transition-all ${
-                              currentBoost > 0
-                                ? "bg-amber-500/20 text-amber-400 shadow-md shadow-amber-500/10 ring-1 ring-amber-500/30"
-                                : "text-slate-500 hover:text-amber-400 hover:bg-amber-500/10"
-                            }`}
-                            title={currentBoost > 0 ? `Boosted +${currentBoost}% — click to ${nextBoost > 0 ? `change to +${nextBoost}%` : "remove"}` : "Boost player projection"}
-                          >
-                            <Rocket className={`w-3.5 h-3.5 ${currentBoost > 0 ? "fill-amber-400" : ""}`} />
-                            {currentBoost > 0 && (
-                              <span className="absolute -top-1.5 -right-2 text-[9px] font-black text-amber-300 bg-amber-950 rounded px-0.5">
-                                +{currentBoost}%
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })()}
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.1"
+                        value={boosts[player.id] ?? ""}
+                        placeholder="0"
+                        aria-label={`Manual boost for ${player.name}, points`}
+                        onChange={e => {
+                          const value = e.target.value;
+                          setBoosts(prev => {
+                            const updated = { ...prev };
+                            if (value === "") {
+                              delete updated[player.id];
+                            } else {
+                              const parsed = Number(value);
+                              if (Number.isFinite(parsed) && parsed >= 0) updated[player.id] = parsed;
+                            }
+                            return updated;
+                          });
+                        }}
+                        className="w-16 h-7 bg-slate-950 border-amber-500/30 text-right font-mono font-bold text-xs px-1 text-amber-400 placeholder:text-slate-600"
+                        data-testid={`input-boost-${player.id}`}
+                      />
                     </td>
                     <td className="px-3 py-2 font-mono text-xs font-bold text-blue-400">
                       {player.value.toFixed(1)}x
@@ -1251,9 +1295,6 @@ export default function Optimizer() {
             const isInLineup = activeLineupPlayers.some(p => p.id === player.id);
             const isEligibleReplacement = activeSwapSlot ? replacementEligiblePlayers.some(p => p.id === player.id) : false;
             const isIneligible = activeSwapSlot && !isEligibleReplacement && !isInLineup;
-            const currentBoost = boosts[player.id] || 0;
-            const boostLevels = [0, 5, 10, 15, 20];
-            const nextBoost = boostLevels[(boostLevels.indexOf(currentBoost) + 1) % boostLevels.length];
             return (
               <div
                 key={player.id}
@@ -1294,24 +1335,6 @@ export default function Optimizer() {
                       <>
                         <button
                           onClick={() => {
-                            const updated = { ...boosts };
-                            if (nextBoost === 0) { delete updated[player.id]; } else { updated[player.id] = nextBoost; }
-                            setBoosts(updated);
-                          }}
-                          data-testid={`mobile-boost-${player.id}`}
-                          className={`relative p-1 rounded-md transition-all ${
-                            currentBoost > 0
-                              ? "bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/30"
-                              : "text-slate-600 active:text-amber-400"
-                          }`}
-                        >
-                          <Rocket className={`w-3.5 h-3.5 ${currentBoost > 0 ? "fill-amber-400" : ""}`} />
-                          {currentBoost > 0 && (
-                            <span className="absolute -top-1 -right-1.5 text-[7px] font-black text-amber-300 bg-amber-950 rounded px-0.5">+{currentBoost}%</span>
-                          )}
-                        </button>
-                        <button
-                          onClick={() => {
                             setLockedIds(prev => prev.includes(player.id) ? prev.filter(i => i !== player.id) : [...prev, player.id]);
                             setExcludedIds(prev => prev.filter(i => i !== player.id));
                           }}
@@ -1340,12 +1363,61 @@ export default function Optimizer() {
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-[11px] font-bold text-slate-500 uppercase">{player.team}</span>
                   <span className="text-xs font-mono font-bold text-white">{platform === "yahoo" ? `$${player.salary}` : `$${player.salary.toLocaleString()}`}</span>
-                  <span className={`text-xs font-mono font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>{Number(player.projectedPoints).toFixed(1)}</span>
+                  <span className={`text-xs font-mono font-black ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}>{player.effectiveProj.toFixed(1)} pts</span>
                   <span className="text-[10px] font-mono text-slate-500">{player.fppg}</span>
                   {(player as any).recentActualAvg != null && (
                     <span className="text-[10px] font-mono font-bold text-cyan-400" data-testid={`mobile-actual-avg-${player.id}`}>{(player as any).recentActualAvg}<span className="text-slate-500">/{(player as any).gamesTracked}g</span></span>
                   )}
                   <span className="text-[10px] font-mono font-bold text-blue-400 ml-auto">{player.value.toFixed(1)}x</span>
+                </div>
+                <div className="flex items-center gap-2 mt-2 border-t border-slate-800/70 pt-2" onClick={e => e.stopPropagation()}>
+                  <label className="text-[9px] font-black uppercase tracking-wide text-slate-500 whitespace-nowrap" htmlFor={`mobile-proj-${player.id}`}>My Proj</label>
+                  <input
+                    id={`mobile-proj-${player.id}`}
+                    type="number"
+                    min={0}
+                    step="0.1"
+                    value={customProjections[player.id] ?? Number(player.projectedPoints)}
+                    onChange={e => {
+                      const value = e.target.value;
+                      setCustomProjections(prev => {
+                        const next = { ...prev };
+                        if (value === "") {
+                          delete next[player.id];
+                        } else {
+                          const parsed = Number(value);
+                          if (Number.isFinite(parsed) && parsed >= 0) next[player.id] = parsed;
+                        }
+                        return next;
+                      });
+                    }}
+                    className={`w-20 h-7 rounded border border-slate-800 bg-slate-950 px-1 text-right font-mono text-xs font-bold ${platform === "fanduel" ? "text-blue-400" : "text-emerald-400"}`}
+                    data-testid={`mobile-proj-${player.id}`}
+                  />
+                  <label className="text-[9px] font-black uppercase tracking-wide text-amber-400 whitespace-nowrap" htmlFor={`mobile-boost-${player.id}`}>Boost +pts</label>
+                  <input
+                    id={`mobile-boost-${player.id}`}
+                    type="number"
+                    min={0}
+                    step="0.1"
+                    placeholder="0"
+                    value={boosts[player.id] ?? ""}
+                    onChange={e => {
+                      const value = e.target.value;
+                      setBoosts(prev => {
+                        const updated = { ...prev };
+                        if (value === "") {
+                          delete updated[player.id];
+                        } else {
+                          const parsed = Number(value);
+                          if (Number.isFinite(parsed) && parsed >= 0) updated[player.id] = parsed;
+                        }
+                        return updated;
+                      });
+                    }}
+                    className="w-20 h-7 rounded border border-amber-500/30 bg-slate-950 px-1 text-right font-mono text-xs font-bold text-amber-400 placeholder:text-slate-600"
+                    data-testid={`input-boost-mobile-${player.id}`}
+                  />
                 </div>
               </div>
             );
@@ -1434,6 +1506,40 @@ export default function Optimizer() {
             </div>
           )}
 
+          <div className="hidden md:flex flex-col gap-1.5 mt-1.5" data-testid="min-projection-section">
+            <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-800/60 rounded-lg px-2 sm:px-3 py-1.5 border border-slate-700/50">
+              <Target className={`w-3 h-3 sm:w-3.5 sm:h-3.5 flex-shrink-0 ${minProjection !== null ? pColors.text : "text-slate-500"}`} />
+               <LabelTip text="Exclude players whose base projection is below this cutoff. Custom projections and manual +pts boosts are included; automatic and simulation adjustments do not affect eligibility."><label htmlFor="input-min-projection" className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Min Projection</label></LabelTip>
+              <input
+                id="input-min-projection"
+                type="number"
+                min={0}
+                step="0.1"
+                placeholder="Off"
+                value={minProjection ?? ""}
+                onChange={e => {
+                  const value = e.target.value;
+                  if (value === "") {
+                    setMinProjection(null);
+                    return;
+                  }
+                  const parsed = Number(value);
+                  if (Number.isFinite(parsed) && parsed >= 0) setMinProjection(parsed);
+                }}
+                className={`w-20 bg-transparent border-0 text-right font-mono font-black text-xs focus:outline-none tabular-nums ${minProjection !== null ? pColors.text : "text-slate-500"}`}
+                data-testid="input-min-projection"
+              />
+              <span className={`text-[9px] sm:text-[10px] font-black whitespace-nowrap ${minProjection !== null ? pColors.text : "text-slate-500"}`}>
+                {minProjection !== null ? `${minProjection}+ pts` : "pts min"}
+              </span>
+              {minProjection !== null && (
+                <button onClick={() => setMinProjection(null)} className="text-slate-500 hover:text-white flex-shrink-0 cursor-pointer" data-testid="button-reset-min-projection"><X className="w-3 h-3" /></button>
+              )}
+            </div>
+            <p className="px-1 text-[9px] leading-tight text-slate-500">
+               Below-cutoff players are excluded using base/custom projection plus manual +pts boosts; automatic and simulation adjustments do not affect eligibility.
+            </p>
+          </div>
           <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-800/60 rounded-lg px-2 sm:px-3 py-1.5 border border-slate-700/50 mt-1.5" data-testid="floor-section">
             <TrendingUp className={`w-3 h-3 sm:w-3.5 sm:h-3.5 flex-shrink-0 ${projectedPointsFloor ? "text-emerald-400" : "text-slate-500"}`} />
             <LabelTip text="Minimum total projected points a lineup must have. Lineups below this threshold are excluded."><span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase whitespace-nowrap">Floor</span></LabelTip>

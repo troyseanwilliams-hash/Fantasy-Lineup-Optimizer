@@ -446,6 +446,7 @@ export const optimizationConstraintSchema = z.object({
   playerMinSalary: z.number().optional(),
   playerMaxSalary: z.number().optional(),
   playerProjections: z.record(z.string(), z.number()).optional(),
+  minProjection: z.number().finite().min(0).optional(),
   projectedPointsFloor: z.number().min(0).optional(),
   contestType: z.enum(["cash", "gpp"]).default("cash"),
   outperformerMode: z.boolean().default(false),

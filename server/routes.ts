@@ -51,6 +51,13 @@ import {
   resolvePlayersForExport,
   type ExportDraftable,
 } from "./export-player-resolver";
+import {
+  applyExplicitProjections,
+  filterByMinProjection,
+  findLockedMinProjectionViolation,
+  minProjectionLockMessage,
+  minProjectionRequiredPositionMessage,
+} from "./min-projection";
 import { reconcileClassicMainIdentity, shouldCloneRegeneratedLineup } from "./lineup-regeneration";
 import { selectLiveDraftGroup, selectNewestLocalSlate } from "./draft-group-selection";
 import {
@@ -159,7 +166,7 @@ function isPlayerUnavailable(injuryStatus: string | null): boolean {
   return isPlayerOut(injuryStatus) || s === "QUESTIONABLE" || s === "GTD";
 }
 
-type ScoutSignalMap = Map<string, { signal_type: string; boost_weight: number }>;
+type ScoutSignalMap = Map<string, { signal_type: string; boost_value: number }>;
 
 function buildScoutMap(sport: string): ScoutSignalMap {
   const signals = getCachedSignals(sport);
@@ -167,8 +174,10 @@ function buildScoutMap(sport: string): ScoutSignalMap {
   for (const sig of signals) {
     const key = sig.player_name.toLowerCase();
     const existing = map.get(key);
-    if (!existing || Math.abs(sig.boost_weight) > Math.abs(existing.boost_weight)) {
-      map.set(key, { signal_type: sig.signal_type, boost_weight: sig.boost_weight });
+    const boostValue = sig.signal_type === "out" ? 0 : Number(sig.boost_value);
+    if (!Number.isFinite(boostValue)) continue;
+    if (!existing || Math.abs(boostValue) > Math.abs(existing.boost_value)) {
+      map.set(key, { signal_type: sig.signal_type, boost_value: boostValue });
     }
   }
   return map;
@@ -179,7 +188,7 @@ function applyScoutToProjection(pts: number, playerName: string, scoutMap: Scout
   const sig = scoutMap.get(playerName.toLowerCase());
   if (!sig) return pts;
   if (sig.signal_type === "out") return 0;
-  const pct = sig.boost_weight * 0.015;
+  const pct = sig.boost_value * 0.015;
   const clamped = Math.max(-0.15, Math.min(0.15, pct));
   return Math.round(pts * (1 + clamped) * 10) / 10;
 }
@@ -870,6 +879,24 @@ export async function registerRoutes(
       const filteredInactive = inactiveExcluded.filter(id => !mergedLocked.includes(id));
       const mergedExclusions = [...new Set([...constraints.excludedPlayerIds, ...autoExcluded, ...filteredInactive, ...overrideExcluded])];
 
+      const standardMinProjectionInput = applyExplicitProjections(
+        allPlayers,
+        constraints.playerProjections,
+      );
+      const standardMinProjectionViolation = findLockedMinProjectionViolation(
+        standardMinProjectionInput,
+        constraints.minProjection,
+        mergedLocked,
+      );
+      if (standardMinProjectionViolation) {
+        return res.status(400).json({
+          message: minProjectionLockMessage(standardMinProjectionViolation),
+        });
+      }
+      const standardMinProjectionEligibleIds = constraints.minProjection !== undefined && constraints.minProjection > 0
+        ? new Set(filterByMinProjection(standardMinProjectionInput, constraints.minProjection).map(p => p.id))
+        : undefined;
+
       const scoutMap = buildScoutMap(slate.sport);
       const useBoosts = constraints.useBoosts !== false;
 
@@ -906,6 +933,13 @@ export async function registerRoutes(
       // confirmed missed-cut marker (the marker is a hard derived status).
       pool = pool.map(p => protectGolfMissedCutMarker(p, slate.draftGroupId));
 
+      // Eligibility is decided from raw projections plus explicit request
+      // projections. Apply those IDs to the fully adjusted pool only after
+      // all server-only score transforms have completed.
+      if (standardMinProjectionEligibleIds) {
+        pool = pool.filter(p => standardMinProjectionEligibleIds.has(p.id));
+      }
+
       const salaryFilteredPool = (constraints.playerMinSalary || constraints.playerMaxSalary)
         ? pool.filter(p => {
             if (mergedLocked.includes(p.id)) return true;
@@ -914,6 +948,15 @@ export async function registerRoutes(
             return true;
           })
         : pool;
+
+      const standardRequiredPositionMessage = minProjectionRequiredPositionMessage(
+        salaryFilteredPool.filter(p => !mergedExclusions.includes(p.id)),
+        constraints.minProjection,
+        getPlatformConfig(slate.sport, platform).positionConstraints,
+      );
+      if (standardRequiredPositionMessage) {
+        return res.status(400).json({ message: standardRequiredPositionMessage });
+      }
 
       const contestType = constraints.contestType || "cash";
       let ownershipByPlayerId: Map<number, number> | undefined;
@@ -928,7 +971,13 @@ export async function registerRoutes(
       await yieldToEventLoop();
       const result = solveLineup(
         salaryFilteredPool,
-        { ...constraints, lockedPlayerIds: mergedLocked, excludedPlayerIds: mergedExclusions, contestType },
+        {
+          ...constraints,
+          minProjection: undefined,
+          lockedPlayerIds: mergedLocked,
+          excludedPlayerIds: mergedExclusions,
+          contestType,
+        },
         slate.sport,
         platform,
         ownershipByPlayerId,
@@ -4786,6 +4835,24 @@ export async function registerRoutes(
       constraints.lockedPlayerIds = [...new Set([...constraints.lockedPlayerIds, ...proOverrideLocked])];
       constraints.excludedPlayerIds = [...new Set([...constraints.excludedPlayerIds, ...proOverrideExcluded])];
 
+      const proMinProjectionInput = applyExplicitProjections(
+        allPlayers,
+        constraints.playerProjections,
+      );
+      const proMinProjectionViolation = findLockedMinProjectionViolation(
+        proMinProjectionInput,
+        constraints.minProjection,
+        constraints.lockedPlayerIds,
+      );
+      if (proMinProjectionViolation) {
+        return res.status(400).json({
+          message: minProjectionLockMessage(proMinProjectionViolation),
+        });
+      }
+      const proMinProjectionEligibleIds = constraints.minProjection !== undefined && constraints.minProjection > 0
+        ? new Set(filterByMinProjection(proMinProjectionInput, constraints.minProjection).map(p => p.id))
+        : undefined;
+
       for (const o of proUserOverrides) {
         const pid = o.playerId.toString();
         if (o.maxExposure != null && !constraints.exposureLimits?.[pid]) {
@@ -4860,6 +4927,7 @@ export async function registerRoutes(
       }
 
       pool = pool.map(p => protectGolfMissedCutMarker(p, slate.draftGroupId));
+
       console.log(`[ProOptimizer] Starting for ${slate.sport}, ${allPlayers.length} players (${allPlayers.filter(p => isPlayerOut(p.injuryStatus) || p.injuryStatus === "Questionable" || p.injuryStatus === "GTD").length} OUT/Q excluded), ${constraints.lineupCount} lineups requested`);
       const proStartTime = Date.now();
 
@@ -4894,6 +4962,20 @@ export async function registerRoutes(
           if (constraints.playerMaxSalary && p.salary > constraints.playerMaxSalary) return false;
           return true;
         });
+      }
+
+      // Eligibility comes from raw projections plus explicit request
+      // projections; apply the resulting IDs after Pro's score adjustments.
+      if (proMinProjectionEligibleIds) {
+        pool = pool.filter(p => proMinProjectionEligibleIds.has(p.id));
+      }
+      const proRequiredPositionMessage = minProjectionRequiredPositionMessage(
+        pool.filter(p => !baseExcluded.includes(p.id)),
+        constraints.minProjection,
+        getPlatformConfig(slate.sport, platform).positionConstraints,
+      );
+      if (proRequiredPositionMessage) {
+        return res.status(400).json({ message: proRequiredPositionMessage });
       }
 
       const MAX_POOL_SIZE = 150;
@@ -4987,7 +5069,14 @@ export async function registerRoutes(
         }
 
         const combinedLocks = [...new Set([...constraints.lockedPlayerIds, ...minExposureLocks])];
-        const modConstraints = { ...constraints, excludedPlayerIds: iterationExcluded, lockedPlayerIds: combinedLocks };
+        // minProjection was applied to the deterministic pool above. Do not
+        // re-apply it to this iteration's random perturbation.
+        const modConstraints = {
+          ...constraints,
+          minProjection: undefined,
+          excludedPlayerIds: iterationExcluded,
+          lockedPlayerIds: combinedLocks,
+        };
         await yieldToEventLoop();
         const solveStart = Date.now();
         const result = solveLineup(
@@ -5072,6 +5161,7 @@ export async function registerRoutes(
     lockedPlayerIds:      z.array(z.number()).default([]),
     excludedPlayerIds:    z.array(z.number()).default([]),
     playerProjections:    z.record(z.string(), z.number()).optional(),
+    minProjection:        z.number().finite().min(0).optional(),
     playerMinSalary:      z.number().optional(),
     playerMaxSalary:      z.number().optional(),
     lineupCount:          z.number().min(1).max(2000).default(20),
@@ -5165,6 +5255,24 @@ export async function registerRoutes(
           simOverrideExposure[o.playerId.toString()] = { min: o.minExposure ?? undefined, max: o.maxExposure ?? undefined };
         }
       }
+
+      const simMinProjectionInput = applyExplicitProjections(
+        allPlayers,
+        input.playerProjections,
+      );
+      const simMinProjectionViolation = findLockedMinProjectionViolation(
+        simMinProjectionInput,
+        input.minProjection,
+        input.lockedPlayerIds,
+      );
+      if (simMinProjectionViolation) {
+        return res.status(400).json({
+          message: minProjectionLockMessage(simMinProjectionViolation),
+        });
+      }
+      const simMinProjectionEligibleIds = input.minProjection !== undefined && input.minProjection > 0
+        ? new Set(filterByMinProjection(simMinProjectionInput, input.minProjection).map(p => p.id))
+        : undefined;
 
       let pool = allPlayers.map(p => {
         const override = simUserOverrideMap.get(p.id);
@@ -5262,6 +5370,19 @@ export async function registerRoutes(
         if (projOverrides[p.id] === undefined) {
           projOverrides[p.id] = Number(p.projectedPoints) ?? 0;
         }
+      }
+      // Eligibility comes from raw projections plus explicit request
+      // projections; apply those IDs after all deterministic Sim adjustments.
+      if (simMinProjectionEligibleIds) {
+        pool = pool.filter(p => simMinProjectionEligibleIds.has(p.id));
+      }
+      const simRequiredPositionMessage = minProjectionRequiredPositionMessage(
+        pool,
+        input.minProjection,
+        config.positionConstraints,
+      );
+      if (simRequiredPositionMessage) {
+        return res.status(400).json({ message: simRequiredPositionMessage });
       }
 
       const stackGameKeys = [...new Set(input.stackGameKeys ??
@@ -6631,14 +6752,42 @@ export function solveLineup(
     };
   }
 
+  const lockedMinProjectionViolation = findLockedMinProjectionViolation(
+    pool,
+    constraints.minProjection,
+    constraints.lockedPlayerIds,
+  );
+  if (lockedMinProjectionViolation) {
+    return {
+      error: minProjectionLockMessage(lockedMinProjectionViolation),
+      lineup: [],
+      totalSalary: 0,
+      totalProjectedPoints: 0,
+    };
+  }
+
   // This is a hard exclusion independent of user exclusions, custom
   // projections, or lock state.  An unlocked marker is simply omitted;
   // a locked marker above is an explicit infeasibility error.
-  const availablePool = pool.filter(
+  const cutoffPool = filterByMinProjection(pool, constraints.minProjection);
+  const availablePool = cutoffPool.filter(
     p => !constraints.excludedPlayerIds.includes(p.id) &&
       p.injuryDetail !== NFL_PRACTICE_SQUAD_DETAIL &&
       !isGolfMissedCutMarker(p.injuryDetail),
   );
+  const requiredPositionMessage = minProjectionRequiredPositionMessage(
+    availablePool,
+    constraints.minProjection,
+    config.positionConstraints,
+  );
+  if (requiredPositionMessage) {
+    return {
+      error: requiredPositionMessage,
+      lineup: [],
+      totalSalary: 0,
+      totalProjectedPoints: 0,
+    };
+  }
   const availableGameCount = new Set(
     availablePool.map(p => normalizeGameKey(p.gameInfo)).filter(Boolean),
   ).size;
