@@ -7694,24 +7694,50 @@ export async function seedDatabase(forceRefresh = false) {
   }
 
   // Showdown contests are separate DraftKings draft groups from classic slates.
-  // Keep today's NFL single-game slate available to the Showdown Builder without
-  // replacing the upcoming Sunday main slate used by the regular optimizer.
+  // Keep every one of today's NFL single-game slates available to the Showdown
+  // Builder without replacing the upcoming Sunday main slate used by the
+  // regular optimizer.
   try {
     const todayShowdowns = await fetchAvailableDKShowdowns("NFL");
-    const showdown = todayShowdowns[0];
-    if (showdown) {
-          const showdownData = await fetchDKSlateByDraftGroup("NFL", showdown.draftGroupId, {
-            showdown: true,
-            startTime: showdown.startTime,
-          });
+    const currentShowdowns = (await storage.getSlates()).filter(
+      s => s.sport === "NFL" && s.platform === "draftkings" && s.gameType === "Showdown",
+    );
+
+    for (const showdown of todayShowdowns) {
+      const showdownData = await fetchDKSlateByDraftGroup("NFL", showdown.draftGroupId, {
+        showdown: true,
+        startTime: showdown.startTime,
+      });
       if (showdownData && showdownData.dkPlayers.length > 0) {
-        const currentShowdowns = (await storage.getSlates()).filter(
-          s => s.sport === "NFL" && s.platform === "draftkings" && s.gameType === "Showdown",
-        );
         const existing = currentShowdowns.find(s => s.draftGroupId === showdown.draftGroupId);
-        if (existing?.isMain) {
-          await db.update(slates).set({ isMain: false }).where(eq(slates.id, existing.id));
+        const gameLabel = showdownData.games[0]
+          ? `${showdownData.games[0].away}@${showdownData.games[0].home}`
+          : "Single Game";
+        const startLabel = parseEasternTime(showdown.startTime).toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          timeZone: "America/New_York",
+          timeZoneName: "short",
+        });
+        const variantLabel = showdown.contestStartTimeSuffix?.trim();
+        const showdownLabel = `NFL Showdown — ${gameLabel} · ${startLabel}${variantLabel ? ` ${variantLabel}` : ""}`;
+
+        if (existing) {
+          await db.update(slates)
+            .set({
+              name: showdownLabel,
+              label: showdownLabel,
+              startTime: showdownData.slateDate,
+              isMain: false,
+              isActive: true,
+              gameCount: showdownData.games.length,
+              contestCount: showdown.contestCount,
+            })
+            .where(eq(slates.id, existing.id));
           existing.isMain = false;
+          existing.isActive = true;
+          existing.name = showdownLabel;
+          existing.label = showdownLabel;
         }
         const existingPlayers = existing ? await storage.getPlayersBySlate(existing.id) : [];
         const needsProjectionRefresh = existingPlayers.some(player =>
@@ -7721,15 +7747,12 @@ export async function seedDatabase(forceRefresh = false) {
         if (!existing || existingPlayers.length === 0 || needsProjectionRefresh) {
           let showdownSlate = existing;
 
-          const gameLabel = showdownData.games[0]
-            ? `${showdownData.games[0].away}@${showdownData.games[0].home}`
-            : "Single Game";
           if (!showdownSlate) {
             showdownSlate = await storage.createSlate({
               sport: "NFL",
               platform: "draftkings",
-              name: `NFL Showdown — ${gameLabel}`,
-              label: `NFL Showdown — ${gameLabel}`,
+              name: showdownLabel,
+              label: showdownLabel,
               startTime: showdownData.slateDate,
               isMain: false,
               draftGroupId: showdown.draftGroupId,
@@ -7754,7 +7777,7 @@ export async function seedDatabase(forceRefresh = false) {
       }
     }
   } catch (err) {
-    console.error("[DK] Failed to seed today's NFL Showdown slate:", err);
+    console.error("[DK] Failed to seed today's NFL Showdown slates:", err);
   }
 
   const refreshedSlates = await storage.getSlates();
