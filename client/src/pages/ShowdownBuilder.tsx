@@ -169,6 +169,44 @@ export default function ShowdownBuilder() {
     });
   }
 
+  function updateExposureSetting(
+    playerId: number,
+    role: "captain" | "flex",
+    bound: "min" | "max",
+    rawValue: string,
+  ) {
+    const minKey = role === "captain" ? "captainMinExposure" : "flexMinExposure";
+    const maxKey = role === "captain" ? "captainMaxExposure" : "flexMaxExposure";
+    const value = rawValue === "" ? undefined : Number.parseInt(rawValue, 10);
+    if (value === undefined || Number.isNaN(value)) {
+      updatePlayerSetting(playerId, { [bound === "min" ? minKey : maxKey]: undefined });
+      return;
+    }
+
+    const nextValue = Math.max(0, Math.min(100, value));
+    const current = playerSettings[String(playerId)] ?? { fade: false };
+    const patch: Partial<PlayerSettings> = {
+      [bound === "min" ? minKey : maxKey]: nextValue,
+    };
+    const currentMin = bound === "min" ? nextValue : (current[minKey] ?? 0);
+    const currentMax = bound === "max" ? nextValue : (current[maxKey] ?? 0);
+
+    // Minimums ceil to an appearance count and maximums floor. Keep the pair
+    // feasible for the selected output count while preserving 0 = unrestricted.
+    if (currentMin > 0 && currentMax > 0 && lineupCount > 1) {
+      const requiredMinCount = Math.ceil((currentMin / 100) * lineupCount);
+      const allowedMaxCount = Math.floor((currentMax / 100) * lineupCount);
+      if (requiredMinCount > allowedMaxCount) {
+        if (bound === "min") {
+          patch[maxKey] = Math.min(100, Math.ceil((requiredMinCount * 100) / lineupCount));
+        } else {
+          patch[minKey] = Math.floor((allowedMaxCount * 100) / lineupCount);
+        }
+      }
+    }
+    updatePlayerSetting(playerId, patch);
+  }
+
   function resetPlayerSetting(playerId: number) {
     setPlayerSettings(prev => {
       const n = { ...prev };
@@ -1869,9 +1907,7 @@ export default function ShowdownBuilder() {
                                                 placeholder="0"
                                                 value={pset?.captainMinExposure ?? ""}
                                                 onChange={e => {
-                                                  const val = parseInt(e.target.value);
-                                                  if (!isNaN(val)) updatePlayerSetting(player.id, { captainMinExposure: Math.max(0, Math.min(100, val)) });
-                                                  else updatePlayerSetting(player.id, { captainMinExposure: undefined });
+                                                  updateExposureSetting(player.id, "captain", "min", e.target.value);
                                                 }}
                                                 className="w-16 bg-slate-800 border border-slate-700 text-white rounded px-2 py-1 text-xs focus:border-amber-500 focus:outline-none"
                                                 data-testid={`captain-min-exposure-${player.id}`}
@@ -1889,9 +1925,7 @@ export default function ShowdownBuilder() {
                                                 placeholder="0"
                                                 value={pset?.captainMaxExposure ?? ""}
                                                 onChange={e => {
-                                                  const val = parseInt(e.target.value);
-                                                  if (!isNaN(val)) updatePlayerSetting(player.id, { captainMaxExposure: Math.max(0, Math.min(100, val)) });
-                                                  else updatePlayerSetting(player.id, { captainMaxExposure: undefined });
+                                                  updateExposureSetting(player.id, "captain", "max", e.target.value);
                                                 }}
                                                 className="w-16 bg-slate-800 border border-slate-700 text-white rounded px-2 py-1 text-xs focus:border-amber-500 focus:outline-none"
                                                 data-testid={`captain-max-exposure-${player.id}`}
@@ -1920,9 +1954,7 @@ export default function ShowdownBuilder() {
                                                 placeholder="0"
                                                 value={pset?.flexMinExposure ?? ""}
                                                 onChange={e => {
-                                                  const val = parseInt(e.target.value);
-                                                  if (!isNaN(val)) updatePlayerSetting(player.id, { flexMinExposure: Math.max(0, Math.min(100, val)) });
-                                                  else updatePlayerSetting(player.id, { flexMinExposure: undefined });
+                                                  updateExposureSetting(player.id, "flex", "min", e.target.value);
                                                 }}
                                                 className="w-16 bg-slate-800 border border-slate-700 text-white rounded px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
                                                 data-testid={`flex-min-exposure-${player.id}`}
@@ -1940,9 +1972,7 @@ export default function ShowdownBuilder() {
                                                 placeholder="0"
                                                 value={pset?.flexMaxExposure ?? ""}
                                                 onChange={e => {
-                                                  const val = parseInt(e.target.value);
-                                                  if (!isNaN(val)) updatePlayerSetting(player.id, { flexMaxExposure: Math.max(0, Math.min(100, val)) });
-                                                  else updatePlayerSetting(player.id, { flexMaxExposure: undefined });
+                                                  updateExposureSetting(player.id, "flex", "max", e.target.value);
                                                 }}
                                                 className="w-16 bg-slate-800 border border-slate-700 text-white rounded px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
                                                 data-testid={`flex-max-exposure-${player.id}`}
