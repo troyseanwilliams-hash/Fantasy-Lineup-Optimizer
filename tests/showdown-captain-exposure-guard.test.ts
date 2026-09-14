@@ -16,7 +16,13 @@ test("Showdown role exposure controls omit zero and send min/max maps", () => {
   assert.match(source, /data-testid={`captain-max-exposure-\$\{player\.id\}`}/);
   assert.match(source, /data-testid={`flex-min-exposure-\$\{player\.id\}`}/);
   assert.match(source, /data-testid={`flex-max-exposure-\$\{player\.id\}`}/);
-  assert.match(source, /lineupCount: Math\.min\(lineupCount, maxLineups\),\s+numSims,/);
+  assert.match(source, /lineupCount: Math\.min\(lineupCount, maxSimLineups\),\s+numSims,/);
+  assert.match(source, /const maxSimLineups = userIsAdmin \|\| tier === "pro" \? 1000 : tier === "star" \? 400 : 1/);
+  assert.match(source, /\[1, 3, 5, 10, 20, 50, 100, 200, 400, 500, 1000\]/);
+  assert.match(source, />Output lineups</);
+  assert.match(source, />Minimum simulation runs</);
+  assert.match(source, /\{n\} runs/);
+  assert.match(source, /Large portfolios may run extra simulations to find enough distinct lineups/);
   assert.match(source, /const roleExposureEnabled = lineupCount > 1/);
   assert.doesNotMatch(source, /disabled=\{lineupCount <= 1\}/);
   assert.match(source, /data-testid={`custom-ownership-\$\{player\.id\}`}/);

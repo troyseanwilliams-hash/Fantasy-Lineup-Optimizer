@@ -1082,9 +1082,13 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
     const solverDeadline = startTime + MAX_RUNTIME_MS - RESPONSE_RESERVE_MS;
     let simTimedOut = false;
 
-    console.log(`[ShowdownSim] Starting ${input.numSims} sims for ${input.sport} slate ${input.slateId}, pool: ${pool.length} players, requesting ${input.lineupCount} lineups`);
+    const simulationRunCount = Math.max(
+      input.numSims,
+      Math.min(2000, input.lineupCount * 4),
+    );
+    console.log(`[ShowdownSim] Starting ${simulationRunCount} sims for ${input.sport} slate ${input.slateId}, pool: ${pool.length} players, requesting ${input.lineupCount} lineups`);
 
-    const sims = runSimulations(pool, input.sport, input.numSims, projOverrides);
+    const sims = runSimulations(pool, input.sport, simulationRunCount, projOverrides);
     const candidateGenerationCount = (required: number) =>
       required + Math.min(required * 2, Math.max(0, input.numSims - input.lineupCount));
     const requiredCaptainSchedule = pool.flatMap(player =>
@@ -1405,6 +1409,11 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
 
     const elapsedMs = Date.now() - startTime;
     const partial = simTimedOut || Date.now() >= solverDeadline;
+    if (!partial && selected.length !== input.lineupCount) {
+      return res.status(400).json({
+        message: `Only ${selected.length} distinct simulated lineups could be built. Relax locks, exposure limits, or the minimum projection and try again.`,
+      });
+    }
     console.log(`[ShowdownSim] Completed: ${sims.length} sims, ${lineupMap.size} unique lineups, selected ${selected.length}, ${elapsedMs}ms`);
 
     res.json({

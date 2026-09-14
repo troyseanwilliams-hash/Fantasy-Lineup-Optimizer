@@ -253,14 +253,26 @@ export default function ShowdownBuilder() {
   }, []);
 
   // ── Subscription ───────────────────────────────────────────────────────────
-  const { data: subscription } = useQuery<{ tier: string }>({
+  const { data: subscription, isLoading: subscriptionLoading } = useQuery<{ tier: string }>({
     queryKey: ["/api/subscription"],
     enabled: !!user,
   });
   const userIsAdmin = (user as any)?.isAdmin === true;
   const tier = subscription?.tier || "free";
-  const maxLineups = userIsAdmin ? 20 : tier === "pro" ? 20 : tier === "star" ? 5 : 1;
+  const maxNormalLineups = userIsAdmin ? 20 : tier === "pro" ? 20 : tier === "star" ? 5 : 1;
+  const maxSimLineups = userIsAdmin || tier === "pro" ? 1000 : tier === "star" ? 400 : 1;
+  const activeMaxLineups = simMode ? maxSimLineups : maxNormalLineups;
+  const lineupCountOptions = (simMode
+    ? [1, 3, 5, 10, 20, 50, 100, 200, 400, 500, 1000]
+    : [1, 3, 5, 10, 20]
+  ).filter(count => count <= activeMaxLineups);
   const isPaidUser = userIsAdmin || tier === "pro" || tier === "star";
+
+  useEffect(() => {
+    if (!subscriptionLoading && lineupCount > activeMaxLineups) {
+      setLineupCount(activeMaxLineups);
+    }
+  }, [subscriptionLoading, lineupCount, activeMaxLineups]);
 
   // ── Scout signals ──────────────────────────────────────────────────────────
   const { data: scoutData, isLoading: scoutLoading } = useQuery<{
@@ -562,7 +574,7 @@ export default function ShowdownBuilder() {
     mutationFn: async () => {
       const payload = {
         ...buildShowdownPayload(),
-        lineupCount: Math.min(lineupCount, maxLineups),
+        lineupCount: Math.min(lineupCount, maxNormalLineups),
       };
       const res = await apiRequest("POST", "/api/showdown/optimize", payload);
       return res.json();
@@ -636,7 +648,7 @@ export default function ShowdownBuilder() {
     mutationFn: async () => {
       const payload = {
         ...buildShowdownPayload(),
-        lineupCount: Math.min(lineupCount, maxLineups),
+        lineupCount: Math.min(lineupCount, maxSimLineups),
         numSims,
       };
       const res = await apiRequest("POST", "/api/showdown/optimize/sim", payload);
@@ -1041,16 +1053,23 @@ export default function ShowdownBuilder() {
             </div>
           </div>
 
-          <Select value={lineupCount.toString()} onValueChange={v => setLineupCount(Number(v))}>
-            <SelectTrigger className="bg-slate-800 border-slate-600 text-white w-28" data-testid="select-lineup-count">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {[1, 3, 5, 10, 20].map(n => (
-                <SelectItem key={n} value={n.toString()}>{n} lineup{n > 1 ? "s" : ""}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex min-w-[138px] flex-col gap-1">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Output lineups</span>
+            <Select
+              value={Math.min(lineupCount, activeMaxLineups).toString()}
+              onValueChange={v => setLineupCount(Number(v))}
+              disabled={subscriptionLoading}
+            >
+              <SelectTrigger className="bg-slate-800 border-slate-600 text-white w-32" data-testid="select-lineup-count">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {lineupCountOptions.map(n => (
+                  <SelectItem key={n} value={n.toString()}>{n} lineup{n > 1 ? "s" : ""}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {minProjection > 0 && (
@@ -1174,19 +1193,19 @@ export default function ShowdownBuilder() {
                 {simMode ? (
                   <Button
                     onClick={() => simMutation.mutate()}
-                    disabled={simMutation.isPending}
+                    disabled={simMutation.isPending || subscriptionLoading}
                     className="bg-violet-600 hover:bg-violet-700 font-bold flex-1 sm:flex-none"
                     data-testid="btn-sim-showdown"
                   >
                     {simMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Activity className="w-4 h-4 mr-2" />}
                     {simMutation.isPending
                       ? `Simulating ${numSims}x...`
-                      : `Simulate ${numSims}x · Generate ${Math.min(lineupCount, maxLineups)}`}
+                      : `${numSims}+ simulation runs · Generate ${Math.min(lineupCount, maxSimLineups)} lineups`}
                   </Button>
                 ) : (
                   <Button
                     onClick={() => optimizeMut.mutate()}
-                    disabled={optimizeMut.isPending}
+                    disabled={optimizeMut.isPending || subscriptionLoading}
                     className="bg-amber-600 hover:bg-amber-700 font-bold flex-1 sm:flex-none"
                     data-testid="btn-optimize-showdown-top"
                   >
@@ -1246,7 +1265,7 @@ export default function ShowdownBuilder() {
                     {simMode && (
                       <div className="mt-3 pt-3 border-t border-violet-500/20 space-y-3">
                         <div className="flex items-center gap-2">
-                          <LabelTip text="More simulations = more accurate results but longer processing time. 200 is a good balance."><span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Simulations</span></LabelTip>
+                          <LabelTip text="This is the minimum number of simulation runs, not the number of output lineups. Choose output lineups separately above. Large portfolios may run extra simulations to find enough distinct lineups."><span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Minimum simulation runs</span></LabelTip>
                           <div className="flex gap-1">
                             {[50, 100, 200, 500].map(n => (
                               <button
@@ -1260,7 +1279,7 @@ export default function ShowdownBuilder() {
                                     : "bg-slate-800/60 text-slate-400 border-slate-700/40 hover:text-white"
                                 } ${!userIsAdmin && tier !== "pro" && n > 200 ? "opacity-40 cursor-not-allowed" : ""}`}
                               >
-                                {n}
+                                {n} runs
                               </button>
                             ))}
                           </div>
