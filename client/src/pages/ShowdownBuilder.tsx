@@ -82,6 +82,10 @@ interface PlayerSettings {
   manualBoost?: number;       // additive point adjustment, independent of AI Scout
   customOwnership?: number;   // override the scout/default ownership %
   maxExposure?: number;       // 0–100, per-player cap across lineups
+  captainMinExposure?: number; // 0 means unrestricted
+  captainMaxExposure?: number; // 0 means unrestricted
+  flexMinExposure?: number;    // 0 means unrestricted
+  flexMaxExposure?: number;    // 0 means unrestricted
   fade: boolean;              // soft-exclude (low weight, not hard exclude)
 }
 
@@ -489,6 +493,10 @@ export default function ShowdownBuilder() {
           _fade: pset?.fade ?? false,
           _customOwnership: pset?.customOwnership,
           _maxExposure: pset?.maxExposure,
+          _captainMinExposure: pset?.captainMinExposure,
+          _captainMaxExposure: pset?.captainMaxExposure,
+          _flexMinExposure: pset?.flexMinExposure,
+          _flexMaxExposure: pset?.flexMaxExposure,
         };
       })
       .sort((a, b) => {
@@ -538,8 +546,16 @@ export default function ShowdownBuilder() {
 
   function buildShowdownPayload() {
     const perPlayerMaxExposure: Record<string, number> = {};
+    const perPlayerCaptainMinExposure: Record<string, number> = {};
+    const perPlayerCaptainMaxExposure: Record<string, number> = {};
+    const perPlayerFlexMinExposure: Record<string, number> = {};
+    const perPlayerFlexMaxExposure: Record<string, number> = {};
     for (const [pid, pset] of Object.entries(playerSettings)) {
       if (pset.maxExposure !== undefined) perPlayerMaxExposure[pid] = pset.maxExposure;
+      if ((pset.captainMinExposure ?? 0) > 0) perPlayerCaptainMinExposure[pid] = pset.captainMinExposure!;
+      if ((pset.captainMaxExposure ?? 0) > 0) perPlayerCaptainMaxExposure[pid] = pset.captainMaxExposure!;
+      if ((pset.flexMinExposure ?? 0) > 0) perPlayerFlexMinExposure[pid] = pset.flexMinExposure!;
+      if ((pset.flexMaxExposure ?? 0) > 0) perPlayerFlexMaxExposure[pid] = pset.flexMaxExposure!;
     }
     const ownershipOverrides: Record<string, number> = {};
     for (const [pid, pset] of Object.entries(playerSettings)) {
@@ -562,6 +578,10 @@ export default function ShowdownBuilder() {
       useBoosts,
       minProjection,
       globalMaxExposure: globalMaxExposure ?? undefined,
+      perPlayerCaptainMinExposure: Object.keys(perPlayerCaptainMinExposure).length > 0 ? perPlayerCaptainMinExposure : undefined,
+      perPlayerCaptainMaxExposure: Object.keys(perPlayerCaptainMaxExposure).length > 0 ? perPlayerCaptainMaxExposure : undefined,
+      perPlayerFlexMinExposure: Object.keys(perPlayerFlexMinExposure).length > 0 ? perPlayerFlexMinExposure : undefined,
+      perPlayerFlexMaxExposure: Object.keys(perPlayerFlexMaxExposure).length > 0 ? perPlayerFlexMaxExposure : undefined,
       playerProjections: Object.keys(customProjections).length > 0 ? customProjections : undefined,
       playerMinSalary: salaryRange?.[0] ?? undefined,
       playerMaxSalary: salaryRange?.[1] ?? undefined,
@@ -575,7 +595,7 @@ export default function ShowdownBuilder() {
     mutationFn: async () => {
       const payload = {
         ...buildShowdownPayload(),
-        lineupCount: numSims,
+        lineupCount: Math.min(lineupCount, maxLineups),
         numSims,
       };
       const res = await apiRequest("POST", "/api/showdown/optimize/sim", payload);
@@ -1118,7 +1138,9 @@ export default function ShowdownBuilder() {
                     data-testid="btn-sim-showdown"
                   >
                     {simMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Activity className="w-4 h-4 mr-2" />}
-                    {simMutation.isPending ? `Simulating ${numSims}x...` : `Sim ${numSims} Lineups`}
+                    {simMutation.isPending
+                      ? `Simulating ${numSims}x...`
+                      : `Simulate ${numSims}x · Generate ${Math.min(lineupCount, maxLineups)}`}
                   </Button>
                 ) : (
                   <Button
@@ -1410,6 +1432,10 @@ export default function ShowdownBuilder() {
                               if (pset.manualBoost !== undefined) chips.push(`boost: +${pset.manualBoost}`);
                               if (pset.customOwnership !== undefined) chips.push(`own: ${pset.customOwnership}%`);
                               if (pset.maxExposure !== undefined) chips.push(`max: ${pset.maxExposure}%`);
+                              if ((pset.captainMinExposure ?? 0) > 0) chips.push(`${captainLabel} min: ${pset.captainMinExposure}%`);
+                              if ((pset.captainMaxExposure ?? 0) > 0) chips.push(`${captainLabel} max: ${pset.captainMaxExposure}%`);
+                              if ((pset.flexMinExposure ?? 0) > 0) chips.push(`${flexLabel} min: ${pset.flexMinExposure}%`);
+                              if ((pset.flexMaxExposure ?? 0) > 0) chips.push(`${flexLabel} max: ${pset.flexMaxExposure}%`);
                               if (pset.fade) chips.push("faded");
                               return (
                                 <div key={pid} className="flex items-center justify-between text-[10px]">
@@ -1533,6 +1559,10 @@ export default function ShowdownBuilder() {
                             pset.manualBoost !== undefined ||
                             pset.customOwnership !== undefined ||
                             pset.maxExposure !== undefined ||
+                            (pset.captainMinExposure ?? 0) > 0 ||
+                            (pset.captainMaxExposure ?? 0) > 0 ||
+                            (pset.flexMinExposure ?? 0) > 0 ||
+                            (pset.flexMaxExposure ?? 0) > 0 ||
                             pset.fade
                           );
                           const cptSal  = Math.round(player.salary * salaryMultiplier);
@@ -1817,6 +1847,104 @@ export default function ShowdownBuilder() {
                                             <span className="text-[10px] text-slate-500">%</span>
                                           </div>
                                         </div>
+
+                                        {/* Captain exposure */}
+                                        <div className="bg-slate-900/60 rounded-lg px-3 py-2">
+                                          <label className="text-[10px] font-black text-amber-400 uppercase tracking-wider block mb-1.5">
+                                            Captain Exposure
+                                            {lineupCount <= 1 && <span className="text-slate-600 ml-1">(multi-lineup)</span>}
+                                          </label>
+                                          <div className="flex items-center gap-3">
+                                            <div className="flex items-center gap-1">
+                                              <span className="text-[10px] text-slate-500">Min</span>
+                                              <input
+                                                type="number"
+                                                step="5"
+                                                min="0"
+                                                max="100"
+                                                placeholder="0"
+                                                value={pset?.captainMinExposure ?? ""}
+                                                onChange={e => {
+                                                  const val = parseInt(e.target.value);
+                                                  if (!isNaN(val)) updatePlayerSetting(player.id, { captainMinExposure: Math.max(0, Math.min(100, val)) });
+                                                  else updatePlayerSetting(player.id, { captainMinExposure: undefined });
+                                                }}
+                                                className="w-16 bg-slate-800 border border-slate-700 text-white rounded px-2 py-1 text-xs focus:border-amber-500 focus:outline-none"
+                                                data-testid={`captain-min-exposure-${player.id}`}
+                                              />
+                                              <span className="text-[10px] text-slate-500">%</span>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                              <span className="text-[10px] text-slate-500">Max</span>
+                                              <input
+                                                type="number"
+                                                step="5"
+                                                min="0"
+                                                max="100"
+                                                placeholder="0"
+                                                value={pset?.captainMaxExposure ?? ""}
+                                                onChange={e => {
+                                                  const val = parseInt(e.target.value);
+                                                  if (!isNaN(val)) updatePlayerSetting(player.id, { captainMaxExposure: Math.max(0, Math.min(100, val)) });
+                                                  else updatePlayerSetting(player.id, { captainMaxExposure: undefined });
+                                                }}
+                                                className="w-16 bg-slate-800 border border-slate-700 text-white rounded px-2 py-1 text-xs focus:border-amber-500 focus:outline-none"
+                                                data-testid={`captain-max-exposure-${player.id}`}
+                                              />
+                                              <span className="text-[10px] text-slate-500">%</span>
+                                            </div>
+                                            <span className="text-[10px] text-slate-600">0 = ignore</span>
+                                          </div>
+                                        </div>
+
+                                        {/* FLEX exposure */}
+                                        <div className="bg-slate-900/60 rounded-lg px-3 py-2">
+                                          <label className="text-[10px] font-black text-blue-400 uppercase tracking-wider block mb-1.5">
+                                            {flexLabel} Exposure
+                                            {lineupCount <= 1 && <span className="text-slate-600 ml-1">(multi-lineup)</span>}
+                                          </label>
+                                          <div className="flex items-center gap-3">
+                                            <div className="flex items-center gap-1">
+                                              <span className="text-[10px] text-slate-500">Min</span>
+                                              <input
+                                                type="number"
+                                                step="5"
+                                                min="0"
+                                                max="100"
+                                                placeholder="0"
+                                                value={pset?.flexMinExposure ?? ""}
+                                                onChange={e => {
+                                                  const val = parseInt(e.target.value);
+                                                  if (!isNaN(val)) updatePlayerSetting(player.id, { flexMinExposure: Math.max(0, Math.min(100, val)) });
+                                                  else updatePlayerSetting(player.id, { flexMinExposure: undefined });
+                                                }}
+                                                className="w-16 bg-slate-800 border border-slate-700 text-white rounded px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
+                                                data-testid={`flex-min-exposure-${player.id}`}
+                                              />
+                                              <span className="text-[10px] text-slate-500">%</span>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                              <span className="text-[10px] text-slate-500">Max</span>
+                                              <input
+                                                type="number"
+                                                step="5"
+                                                min="0"
+                                                max="100"
+                                                placeholder="0"
+                                                value={pset?.flexMaxExposure ?? ""}
+                                                onChange={e => {
+                                                  const val = parseInt(e.target.value);
+                                                  if (!isNaN(val)) updatePlayerSetting(player.id, { flexMaxExposure: Math.max(0, Math.min(100, val)) });
+                                                  else updatePlayerSetting(player.id, { flexMaxExposure: undefined });
+                                                }}
+                                                className="w-16 bg-slate-800 border border-slate-700 text-white rounded px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
+                                                data-testid={`flex-max-exposure-${player.id}`}
+                                              />
+                                              <span className="text-[10px] text-slate-500">%</span>
+                                            </div>
+                                            <span className="text-[10px] text-slate-600">0 = ignore</span>
+                                          </div>
+                                        </div>
                                       </div>
 
                                       {/* Fade toggle */}
@@ -1937,12 +2065,13 @@ export default function ShowdownBuilder() {
                     <CardContent className="space-y-1.5 max-h-[600px] overflow-y-auto">
                       {/* Exposure bar */}
                       {generatedLineups.length > 1 && (() => {
-                        const apps: Record<number, { name: string; count: number }> = {};
+                        const apps: Record<number, { name: string; count: number; captainCount: number }> = {};
                         for (const lu of generatedLineups) {
                           for (const p of [lu.captain, ...lu.flexPlayers]) {
-                            if (!apps[p.id]) apps[p.id] = { name: p.name, count: 0 };
+                            if (!apps[p.id]) apps[p.id] = { name: p.name, count: 0, captainCount: 0 };
                             apps[p.id].count++;
                           }
+                          apps[lu.captain.id].captainCount++;
                         }
                         return (
                           <div className="bg-slate-800/40 rounded-lg p-2.5 mb-2" data-testid="exposure-panel">
@@ -1953,6 +2082,16 @@ export default function ShowdownBuilder() {
                                 const over = globalMaxExposure !== null && pct > globalMaxExposure;
                                 const perCap = playerSettings[id]?.maxExposure;
                                 const overPer = perCap !== undefined && pct > perCap;
+                                const captainPct = Math.round((d.captainCount / generatedLineups.length) * 100);
+                                const captainMin = playerSettings[id]?.captainMinExposure ?? 0;
+                                const captainMax = playerSettings[id]?.captainMaxExposure ?? 0;
+                                const captainOutside = (captainMin > 0 && captainPct < captainMin) ||
+                                  (captainMax > 0 && captainPct > captainMax);
+                                const flexPct = Math.round(((d.count - d.captainCount) / generatedLineups.length) * 100);
+                                const flexMin = playerSettings[id]?.flexMinExposure ?? 0;
+                                const flexMax = playerSettings[id]?.flexMaxExposure ?? 0;
+                                const flexOutside = (flexMin > 0 && flexPct < flexMin) ||
+                                  (flexMax > 0 && flexPct > flexMax);
                                 return (
                                   <div key={id} className="flex items-center gap-2">
                                     <span className="text-[10px] text-white font-bold flex-1 truncate">{d.name}</span>
@@ -1961,6 +2100,12 @@ export default function ShowdownBuilder() {
                                       <div className={`h-full rounded-full ${over || overPer ? "bg-red-400" : "bg-cyan-500"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
                                     </div>
                                     <span className={`text-[10px] font-black w-8 text-right ${over || overPer ? "text-red-400" : "text-cyan-400"}`}>{pct}%</span>
+                                    <span className={`text-[10px] font-black w-14 text-right ${captainOutside ? "text-red-400" : "text-amber-400"}`}>
+                                      {captainLabel} {captainPct}%
+                                    </span>
+                                    <span className={`text-[10px] font-black w-16 text-right ${flexOutside ? "text-red-400" : "text-blue-400"}`}>
+                                      {flexLabel} {flexPct}%
+                                    </span>
                                   </div>
                                 );
                               })}

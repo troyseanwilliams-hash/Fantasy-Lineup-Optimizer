@@ -143,6 +143,86 @@ test("Showdown QB captain cannot bypass missing catchers", () => {
   const exclusions = pool.filter(p => p.team === "BUF" && ["WR", "TE"].includes(p.position)).map(p => p.id);
   assert.equal(showdownModel(1, [], exclusions).result.feasible, false);
 });
+test("Showdown never selects two QBs from the same team", () => {
+  const captain = { id: 100, team: "HOU", position: "WR" } as Player;
+  const players = [
+    { id: 101, team: "BUF", position: "QB" },
+    { id: 102, team: "BUF", position: "QB" },
+    { id: 103, team: "BUF", position: "WR" },
+    { id: 104, team: "BUF", position: "TE" },
+    { id: 105, team: "HOU", position: "RB" },
+    { id: 106, team: "HOU", position: "WR" },
+  ] as Player[];
+  const model: any = {
+    optimize: "points", opType: "max", constraints: { size: { equal: 5 } },
+    variables: {}, ints: {},
+  };
+  for (const player of players) {
+    model.variables[`p${player.id}`] = {
+      points: player.position === "QB" ? 100 : 1,
+      size: 1,
+      [`bound${player.id}`]: 1,
+    };
+    model.constraints[`bound${player.id}`] = { max: 1 };
+    model.ints[`p${player.id}`] = 1;
+  }
+  addNFLQuarterbackStacks(model, players, "NFL", captain);
+  const result = solver.Solve(model) as any;
+  assert.ok(result.feasible);
+  assert.equal(
+    players.filter(player => player.position === "QB" && result[`p${player.id}`] > 0.5).length,
+    1,
+  );
+});
+test("a QB captain excludes another QB from the same team", () => {
+  const sameTeamQuarterback = { id: 100, team: "BUF", position: "QB" } as Player;
+  const flexPool = [
+    { id: 101, team: "BUF", position: "QB" },
+    { id: 102, team: "BUF", position: "WR" },
+  ] as Player[];
+  const model: any = {
+    optimize: "points",
+    opType: "max",
+    constraints: { size: { equal: 1 } },
+    variables: {
+      p101: { points: 100, size: 1, bound101: 1 },
+      p102: { points: 1, size: 1, bound102: 1 },
+    },
+    ints: { p101: 1, p102: 1 },
+  };
+  model.constraints.bound101 = { max: 1 };
+  model.constraints.bound102 = { max: 1 };
+  addNFLQuarterbackStacks(model, flexPool, "NFL", sameTeamQuarterback);
+  const result = solver.Solve(model) as any;
+  assert.ok(result.feasible);
+  assert.ok(!(result.p101 > 0.5));
+  assert.ok(result.p102 > 0.5);
+});
+test("distinct team names that sanitize alike keep separate QB caps", () => {
+  const players = [
+    { id: 201, team: "LA-R", position: "QB" },
+    { id: 202, team: "LA R", position: "QB" },
+    { id: 203, team: "LA-R", position: "WR" },
+    { id: 204, team: "LA R", position: "WR" },
+  ] as Player[];
+  const model: any = {
+    optimize: "points",
+    opType: "max",
+    constraints: { size: { equal: 4 } },
+    variables: {},
+    ints: {},
+  };
+  for (const player of players) {
+    model.variables[`p${player.id}`] = { points: 1, size: 1, [`bound${player.id}`]: 1 };
+    model.constraints[`bound${player.id}`] = { max: 1 };
+    model.ints[`p${player.id}`] = 1;
+  }
+  addNFLQuarterbackStacks(model, players, "NFL");
+  const result = solver.Solve(model) as any;
+  assert.ok(result.feasible);
+  assert.ok(result.p201 > 0.5);
+  assert.ok(result.p202 > 0.5);
+});
 test("other sports do not receive NFL stacking constraints", () => {
   const model = { constraints: {}, variables: {} };
   addNFLQuarterbackStacks(model, pool, "NBA");

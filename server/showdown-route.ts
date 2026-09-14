@@ -66,6 +66,191 @@ function isPlayerOut(injuryStatus: string | null): boolean {
   return YAHOO_OUT_STATUSES.has(status) || status === "DOUBTFUL";
 }
 
+type ExposureMap = Record<string, number> | undefined;
+
+export function captainMinExposureCount(percent: number | undefined, lineupCount: number): number {
+  if (!percent || percent <= 0 || lineupCount <= 0) return 0;
+  return Math.min(lineupCount, Math.ceil((percent / 100) * lineupCount));
+}
+
+export function captainMaxExposureCount(percent: number | undefined, lineupCount: number): number {
+  if (!percent || percent <= 0 || lineupCount <= 0) return lineupCount;
+  return Math.max(0, Math.min(lineupCount, Math.floor((percent / 100) * lineupCount)));
+}
+
+function overallMaxExposureCount(percent: number | undefined, lineupCount: number): number {
+  if (percent === undefined || lineupCount <= 0) return lineupCount;
+  if (percent <= 0) return 0;
+  return Math.max(0, Math.min(lineupCount, Math.floor((percent / 100) * lineupCount)));
+}
+
+function positiveCaptainExposure(map: ExposureMap, playerId: number): number | undefined {
+  const value = map?.[String(playerId)];
+  return value !== undefined && value > 0 ? value : undefined;
+}
+
+function validateCaptainExposureInputs(
+  playerIds: Set<number>,
+  lineupCount: number,
+  minimums: ExposureMap,
+  maximums: ExposureMap,
+  globalMaxExposure?: number,
+  perPlayerMaxExposure?: ExposureMap,
+  lockedCaptainId?: number,
+): string | null {
+  const configuredIds = new Set([
+    ...Object.keys(minimums || {}),
+    ...Object.keys(maximums || {}),
+  ].map(Number));
+  for (const playerId of configuredIds) {
+    if (!Number.isInteger(playerId) || !playerIds.has(playerId)) {
+      return "Captain exposure settings contain a player who is not eligible for this slate.";
+    }
+    const min = positiveCaptainExposure(minimums, playerId);
+    const max = positiveCaptainExposure(maximums, playerId);
+    const minCount = captainMinExposureCount(min, lineupCount);
+    const maxCount = captainMaxExposureCount(max, lineupCount);
+    if (minCount > maxCount) {
+      return "A player's minimum captain exposure cannot exceed their maximum captain exposure.";
+    }
+    const overallCapacities = [
+      globalMaxExposure === undefined ? lineupCount : overallMaxExposureCount(globalMaxExposure, lineupCount),
+      perPlayerMaxExposure?.[String(playerId)] === undefined
+        ? lineupCount
+        : overallMaxExposureCount(perPlayerMaxExposure[String(playerId)], lineupCount),
+    ];
+    if (minCount > Math.min(...overallCapacities)) {
+      return "A player's minimum captain exposure exceeds their overall maximum exposure.";
+    }
+    if (lockedCaptainId !== undefined && playerId !== lockedCaptainId && min !== undefined) {
+      return "A locked captain conflicts with another player's minimum captain exposure.";
+    }
+  }
+  const required = Array.from(configuredIds).reduce(
+    (sum, playerId) => sum + captainMinExposureCount(positiveCaptainExposure(minimums, playerId), lineupCount),
+    0,
+  );
+  if (required > lineupCount) {
+    return "Combined minimum captain exposures exceed the requested lineup count.";
+  }
+  const totalCaptainCapacity = Array.from(playerIds).reduce(
+    (sum, playerId) => sum + captainMaxExposureCount(
+      positiveCaptainExposure(maximums, playerId),
+      lineupCount,
+    ),
+    0,
+  );
+  if (totalCaptainCapacity < lineupCount) {
+    return "Combined maximum captain exposures cannot fill the requested lineup count.";
+  }
+  if (lockedCaptainId !== undefined) {
+    const lockedMax = positiveCaptainExposure(maximums, lockedCaptainId);
+    if (lockedMax !== undefined && captainMaxExposureCount(lockedMax, lineupCount) < lineupCount) {
+      return "The locked captain conflicts with that player's maximum captain exposure.";
+    }
+    const lockedOverallCapacity = Math.min(
+      globalMaxExposure === undefined ? lineupCount : overallMaxExposureCount(globalMaxExposure, lineupCount),
+      perPlayerMaxExposure?.[String(lockedCaptainId)] === undefined
+        ? lineupCount
+        : overallMaxExposureCount(perPlayerMaxExposure[String(lockedCaptainId)], lineupCount),
+    );
+    if (lockedOverallCapacity < lineupCount) {
+      return "The locked captain conflicts with the overall player exposure limit.";
+    }
+  }
+  return null;
+}
+
+function validateFlexExposureInputs(
+  playerIds: Set<number>,
+  lineupCount: number,
+  flexCount: number,
+  minimums: ExposureMap,
+  maximums: ExposureMap,
+  captainMinimums: ExposureMap,
+  globalMaxExposure: number | undefined,
+  perPlayerMaxExposure: ExposureMap,
+  lockedCaptainId: number | undefined,
+  lockedFlexIds: number[],
+): string | null {
+  if (lockedCaptainId !== undefined && lockedFlexIds.includes(lockedCaptainId)) {
+    return "The same player cannot be locked as both captain and FLEX.";
+  }
+  if (new Set(lockedFlexIds).size !== lockedFlexIds.length || lockedFlexIds.length > flexCount) {
+    return "Locked FLEX players exceed the available FLEX slots.";
+  }
+  const configuredIds = new Set([
+    ...Object.keys(minimums || {}),
+    ...Object.keys(maximums || {}),
+  ].map(Number));
+  for (const playerId of configuredIds) {
+    if (!Number.isInteger(playerId) || !playerIds.has(playerId)) {
+      return "FLEX exposure settings contain a player who is not eligible for this slate.";
+    }
+    const minCount = captainMinExposureCount(positiveCaptainExposure(minimums, playerId), lineupCount);
+    const maxCount = captainMaxExposureCount(positiveCaptainExposure(maximums, playerId), lineupCount);
+    if (minCount > maxCount) {
+      return "A player's minimum FLEX exposure cannot exceed their maximum FLEX exposure.";
+    }
+    const overallCapacity = Math.min(
+      globalMaxExposure === undefined ? lineupCount : overallMaxExposureCount(globalMaxExposure, lineupCount),
+      perPlayerMaxExposure?.[String(playerId)] === undefined
+        ? lineupCount
+        : overallMaxExposureCount(perPlayerMaxExposure[String(playerId)], lineupCount),
+    );
+    const captainMinimum = captainMinExposureCount(
+      positiveCaptainExposure(captainMinimums, playerId),
+      lineupCount,
+    );
+    if (minCount + captainMinimum > overallCapacity) {
+      return "A player's minimum captain and FLEX exposures exceed their overall maximum exposure.";
+    }
+    if (lockedCaptainId === playerId && minCount > 0) {
+      return "The locked captain conflicts with that player's minimum FLEX exposure.";
+    }
+  }
+  const lockedFlexSet = new Set(lockedFlexIds);
+  for (const playerId of lockedFlexSet) {
+    if (positiveCaptainExposure(captainMinimums, playerId) !== undefined) {
+      return "A locked FLEX player conflicts with that player's minimum captain exposure.";
+    }
+    const max = positiveCaptainExposure(maximums, playerId);
+    if (max !== undefined && captainMaxExposureCount(max, lineupCount) < lineupCount) {
+      return "A locked FLEX player conflicts with that player's maximum FLEX exposure.";
+    }
+    const overallCapacity = Math.min(
+      globalMaxExposure === undefined ? lineupCount : overallMaxExposureCount(globalMaxExposure, lineupCount),
+      perPlayerMaxExposure?.[String(playerId)] === undefined
+        ? lineupCount
+        : overallMaxExposureCount(perPlayerMaxExposure[String(playerId)], lineupCount),
+    );
+    if (overallCapacity < lineupCount) {
+      return "A locked FLEX player conflicts with the overall player exposure limit.";
+    }
+  }
+  const requiredFlexSlots = Array.from(configuredIds).reduce(
+    (sum, playerId) => sum + captainMinExposureCount(
+      positiveCaptainExposure(minimums, playerId),
+      lineupCount,
+    ),
+    0,
+  );
+  if (requiredFlexSlots > flexCount * lineupCount) {
+    return "Combined minimum FLEX exposures exceed the available FLEX slots.";
+  }
+  const totalFlexCapacity = Array.from(playerIds).reduce((sum, playerId) => {
+    if (lockedCaptainId === playerId) return sum;
+    return sum + captainMaxExposureCount(
+      positiveCaptainExposure(maximums, playerId),
+      lineupCount,
+    );
+  }, 0);
+  if (totalFlexCapacity < flexCount * lineupCount) {
+    return "Combined maximum FLEX exposures cannot fill the requested lineup count.";
+  }
+  return null;
+}
+
 showdownRouter.get("/api/showdown/slates", async (req, res) => {
   try {
     const sport            = (req.query.sport as string || "NBA").toUpperCase();
@@ -178,6 +363,10 @@ const showdownOptimizeSchema = z.object({
   playerMinSalary: z.number().optional(),
   playerMaxSalary: z.number().optional(),
   perPlayerMaxExposure: z.record(z.string(), z.number()).optional(),
+  perPlayerCaptainMinExposure: z.record(z.string(), z.number().min(0).max(100)).optional(),
+  perPlayerCaptainMaxExposure: z.record(z.string(), z.number().min(0).max(100)).optional(),
+  perPlayerFlexMinExposure: z.record(z.string(), z.number().min(0).max(100)).optional(),
+  perPlayerFlexMaxExposure: z.record(z.string(), z.number().min(0).max(100)).optional(),
   ownershipOverrides: z.record(z.string(), z.number()).optional(),
   fadedPlayerIds: z.array(z.number()).default([]),
 });
@@ -193,6 +382,8 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
     if (slate.isActive === false) {
       return res.status(410).json({ message: "This slate has ended. Please select a current slate." });
     }
+    input.sport = slate.sport;
+    input.platform = slate.platform as typeof input.platform;
 
     const config = getShowdownConfig(input.sport, input.platform as Platform);
     if (!config) return res.status(400).json({ message: `Showdown not supported for ${input.sport} on ${input.platform}` });
@@ -330,25 +521,97 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
     }
 
     const flexCount = config.rosterSize - 1;
+    const captainExposureError = validateCaptainExposureInputs(
+      new Set(pool.map(player => player.id)),
+      input.lineupCount,
+      input.perPlayerCaptainMinExposure,
+      input.perPlayerCaptainMaxExposure,
+      input.globalMaxExposure,
+      input.perPlayerMaxExposure,
+      input.lockedCaptainId,
+    );
+    if (captainExposureError) {
+      return res.status(400).json({ message: captainExposureError });
+    }
+    const flexExposureError = validateFlexExposureInputs(
+      new Set(pool.map(player => player.id)),
+      input.lineupCount,
+      flexCount,
+      input.perPlayerFlexMinExposure,
+      input.perPlayerFlexMaxExposure,
+      input.perPlayerCaptainMinExposure,
+      input.globalMaxExposure,
+      input.perPlayerMaxExposure,
+      input.lockedCaptainId,
+      input.lockedFlexIds,
+    );
+    if (flexExposureError) {
+      return res.status(400).json({ message: flexExposureError });
+    }
+    const requiredFlexByLineup = Array.from(
+      { length: input.lineupCount },
+      () => [...input.lockedFlexIds],
+    );
+    for (const [playerIdRaw, percent] of Object.entries(input.perPlayerFlexMinExposure || {})) {
+      if (percent <= 0) continue;
+      const playerId = Number(playerIdRaw);
+      if (input.lockedFlexIds.includes(playerId)) continue;
+      const required = captainMinExposureCount(percent, input.lineupCount);
+      const alreadyRequired = requiredFlexByLineup.filter(ids => ids.includes(playerId)).length;
+      for (let index = alreadyRequired; index < required; index++) {
+        const target = requiredFlexByLineup
+          .map((ids, lineupIndex) => ({ ids, lineupIndex }))
+          .filter(entry => entry.ids.length < flexCount && !entry.ids.includes(playerId))
+          .sort((a, b) => a.ids.length - b.ids.length || a.lineupIndex - b.lineupIndex)[0];
+        if (!target) {
+          return res.status(400).json({
+            message: "Could not schedule all minimum FLEX exposures across the requested lineups.",
+          });
+        }
+        target.ids.push(playerId);
+      }
+    }
+
     const lineups: any[] = [];
     const usedKeys = new Set<string>();
 
     // Tracker for per-player exposure across generated lineups
     const playerAppearances: Record<number, number> = {};
+    const captainAppearances: Record<number, number> = {};
+    const flexAppearances: Record<number, number> = {};
 
-    function isPlayerCapped(playerId: number, tentativeTotal: number): boolean {
+    function canUseCaptain(playerId: number): boolean {
+      const max = positiveCaptainExposure(input.perPlayerCaptainMaxExposure, playerId);
+      if (
+        max !== undefined &&
+        (captainAppearances[playerId] || 0) >= captainMaxExposureCount(max, input.lineupCount)
+      ) return false;
+      return !isPlayerCapped(playerId);
+    }
+
+    function isPlayerCapped(playerId: number): boolean {
       // Global cap
       if (input.globalMaxExposure !== undefined) {
-        const pct = ((playerAppearances[playerId] || 0) + 1) / tentativeTotal * 100;
-        if (pct > input.globalMaxExposure) return true;
+        if (
+          (playerAppearances[playerId] || 0) + 1 >
+          overallMaxExposureCount(input.globalMaxExposure, input.lineupCount)
+        ) return true;
       }
       // Per-player cap
       const perCap = input.perPlayerMaxExposure?.[String(playerId)];
       if (perCap !== undefined) {
-        const pct = ((playerAppearances[playerId] || 0) + 1) / tentativeTotal * 100;
-        if (pct > perCap) return true;
+        if (
+          (playerAppearances[playerId] || 0) + 1 >
+          overallMaxExposureCount(perCap, input.lineupCount)
+        ) return true;
       }
       return false;
+    }
+
+    function isFlexCapped(playerId: number): boolean {
+      const max = positiveCaptainExposure(input.perPlayerFlexMaxExposure, playerId);
+      return max !== undefined &&
+        (flexAppearances[playerId] || 0) >= captainMaxExposureCount(max, input.lineupCount);
     }
 
     const solveShowdown = async (
@@ -359,6 +622,7 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
     ): Promise<any | null> => {
       const captain = pool.find(p => p.id === captainId);
       if (!captain) return null;
+      if (lockedFlexIds.includes(captainId)) return null;
 
       const captainSalary = getEffectiveSalary(captain.salary, true, config);
       const captainProj   = getShowdownProjectedPoints(getEffectiveProjection(captain), true, config);
@@ -367,8 +631,9 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
       // Flex pool: exclude captain, hard-excluded, and exposure-capped players
       const flexPool = pool.filter(p => {
         if (p.id === captainId) return false;
-        if (input.globalMaxExposure !== undefined && isPlayerCapped(p.id, targetLineupIndex)) return false;
-        if (input.perPlayerMaxExposure?.[String(p.id)] !== undefined && isPlayerCapped(p.id, targetLineupIndex)) return false;
+        if (!lockedFlexIds.includes(p.id) && isFlexCapped(p.id)) return false;
+        if (input.globalMaxExposure !== undefined && isPlayerCapped(p.id)) return false;
+        if (input.perPlayerMaxExposure?.[String(p.id)] !== undefined && isPlayerCapped(p.id)) return false;
         return true;
       });
 
@@ -382,6 +647,13 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
         variables: {},
         ints: {},
       };
+      const excludedFlexSets = Array.from(excludeFromResult)
+        .map(key => key.split("-").map(Number))
+        .filter(ids => ids[0] === captainId)
+        .map(ids => new Set(ids.slice(1)));
+      excludedFlexSets.forEach((_, index) => {
+        model.constraints[`exclude_lineup_${index}`] = { max: flexCount - 1 };
+      });
 
       flexPool.forEach(p => {
         const vName = `p${p.id}`;
@@ -391,6 +663,9 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
           rosterSize: 1,
           [`bound_${vName}`]: 1,
         };
+        excludedFlexSets.forEach((ids, index) => {
+          if (ids.has(p.id)) model.variables[vName][`exclude_lineup_${index}`] = 1;
+        });
         model.ints[vName] = 1;
         model.constraints[`bound_${vName}`] = { max: 1 };
 
@@ -441,8 +716,10 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
 
     function recordAppearances(lineup: any) {
       playerAppearances[lineup.captain.id] = (playerAppearances[lineup.captain.id] || 0) + 1;
+      captainAppearances[lineup.captain.id] = (captainAppearances[lineup.captain.id] || 0) + 1;
       for (const p of lineup.flexPlayers) {
         playerAppearances[p.id] = (playerAppearances[p.id] || 0) + 1;
+        flexAppearances[p.id] = (flexAppearances[p.id] || 0) + 1;
       }
     }
 
@@ -452,7 +729,12 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
           solverTimedOut = true;
           break;
         }
-        const result = await solveShowdown(input.lockedCaptainId, input.lockedFlexIds, usedKeys, i + 1);
+        const result = await solveShowdown(
+          input.lockedCaptainId,
+          requiredFlexByLineup[lineups.length],
+          usedKeys,
+          i + 1,
+        );
         if (result) {
           lineups.push(result);
           usedKeys.add(result.key);
@@ -463,17 +745,48 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
         }
       }
     } else {
-      const candidates = [...pool]
+      const rankedCandidates = [...pool]
         .sort((a, b) => getEffectiveProjection(b) - getEffectiveProjection(a))
         .slice(0, Math.min(pool.length, 30));
+      const requiredCandidateIds = new Set(
+        Object.entries(input.perPlayerCaptainMinExposure || {})
+          .filter(([, percent]) => percent > 0)
+          .map(([playerId]) => Number(playerId)),
+      );
+      const candidates = [
+        ...rankedCandidates,
+        ...pool.filter(player =>
+          requiredCandidateIds.has(player.id) &&
+          !rankedCandidates.some(candidate => candidate.id === player.id),
+        ),
+      ];
 
-      for (const candidate of candidates) {
+      const requiredCaptainIds = candidates.flatMap(candidate =>
+        Array(captainMinExposureCount(
+          positiveCaptainExposure(input.perPlayerCaptainMinExposure, candidate.id),
+          input.lineupCount,
+        )).fill(candidate.id),
+      );
+      const captainQueue = [
+        ...requiredCaptainIds,
+        ...Array.from({ length: input.lineupCount * Math.max(candidates.length, 1) }, (_, index) =>
+          candidates[index % candidates.length]?.id,
+        ).filter((id): id is number => id !== undefined),
+      ];
+
+      for (const candidateId of captainQueue) {
         if (lineups.length >= input.lineupCount) break;
         if (Date.now() >= solverDeadline) {
           solverTimedOut = true;
           break;
         }
-        const result = await solveShowdown(candidate.id, input.lockedFlexIds, usedKeys, lineups.length + 1);
+        if (!canUseCaptain(candidateId)) continue;
+        const result = await solveShowdown(
+          candidateId,
+          requiredFlexByLineup[lineups.length],
+          usedKeys,
+          lineups.length + 1,
+        );
         if (result) {
           lineups.push(result);
           usedKeys.add(result.key);
@@ -484,6 +797,38 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
 
       lineups.sort((a, b) => b.totalProjectedPoints - a.totalProjectedPoints);
       lineups.splice(input.lineupCount);
+    }
+
+    const unmetCaptainMinimum = Object.entries(input.perPlayerCaptainMinExposure || {}).find(([playerId, percent]) =>
+      percent > 0 &&
+      (captainAppearances[Number(playerId)] || 0) < captainMinExposureCount(percent, input.lineupCount),
+    );
+    if (unmetCaptainMinimum) {
+      return res.status(400).json({
+        message: "Could not satisfy all minimum captain exposures with the current player pool and constraints.",
+      });
+    }
+    const unmetFlexMinimum = Object.entries(input.perPlayerFlexMinExposure || {}).find(([playerId, percent]) =>
+      percent > 0 &&
+      (flexAppearances[Number(playerId)] || 0) < captainMinExposureCount(percent, input.lineupCount),
+    );
+    if (unmetFlexMinimum) {
+      return res.status(400).json({
+        message: "Could not satisfy all minimum FLEX exposures with the current player pool and constraints.",
+      });
+    }
+    const hasCaptainExposureSettings = Object.values(input.perPlayerCaptainMinExposure || {}).some(value => value > 0) ||
+      Object.values(input.perPlayerCaptainMaxExposure || {}).some(value => value > 0);
+    const hasFlexExposureSettings = Object.values(input.perPlayerFlexMinExposure || {}).some(value => value > 0) ||
+      Object.values(input.perPlayerFlexMaxExposure || {}).some(value => value > 0);
+    const hasAnyExposureSettings = hasCaptainExposureSettings ||
+      hasFlexExposureSettings ||
+      input.globalMaxExposure !== undefined ||
+      Object.keys(input.perPlayerMaxExposure || {}).length > 0;
+    if (hasAnyExposureSettings && lineups.length < input.lineupCount) {
+      return res.status(400).json({
+        message: "Captain or FLEX exposure limits could not produce the requested number of unique lineups.",
+      });
     }
 
     if (lineups.length === 0) {
@@ -539,6 +884,10 @@ const showdownSimSchema = z.object({
   playerMinSalary: z.number().optional(),
   playerMaxSalary: z.number().optional(),
   perPlayerMaxExposure: z.record(z.string(), z.number()).optional(),
+  perPlayerCaptainMinExposure: z.record(z.string(), z.number().min(0).max(100)).optional(),
+  perPlayerCaptainMaxExposure: z.record(z.string(), z.number().min(0).max(100)).optional(),
+  perPlayerFlexMinExposure: z.record(z.string(), z.number().min(0).max(100)).optional(),
+  perPlayerFlexMaxExposure: z.record(z.string(), z.number().min(0).max(100)).optional(),
   ownershipOverrides: z.record(z.string(), z.number()).optional(),
   fadedPlayerIds: z.array(z.number()).default([]),
 });
@@ -569,6 +918,8 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
     if (slate.isActive === false) {
       return res.status(410).json({ message: "This slate has ended. Please select a current slate." });
     }
+    input.sport = slate.sport;
+    input.platform = slate.platform as typeof input.platform;
 
     const config = getShowdownConfig(input.sport, input.platform as Platform);
     if (!config) return res.status(400).json({ message: `Showdown not supported for ${input.sport} on ${input.platform}` });
@@ -696,6 +1047,35 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
       });
     }
 
+    const flexCount = config.rosterSize - 1;
+    const captainExposureError = validateCaptainExposureInputs(
+      new Set(pool.map(player => player.id)),
+      input.lineupCount,
+      input.perPlayerCaptainMinExposure,
+      input.perPlayerCaptainMaxExposure,
+      input.globalMaxExposure,
+      input.perPlayerMaxExposure,
+      input.lockedCaptainId,
+    );
+    if (captainExposureError) {
+      return res.status(400).json({ message: captainExposureError });
+    }
+    const flexExposureError = validateFlexExposureInputs(
+      new Set(pool.map(player => player.id)),
+      input.lineupCount,
+      flexCount,
+      input.perPlayerFlexMinExposure,
+      input.perPlayerFlexMaxExposure,
+      input.perPlayerCaptainMinExposure,
+      input.globalMaxExposure,
+      input.perPlayerMaxExposure,
+      input.lockedCaptainId,
+      input.lockedFlexIds,
+    );
+    if (flexExposureError) {
+      return res.status(400).json({ message: flexExposureError });
+    }
+
     const startTime = Date.now();
     const MAX_RUNTIME_MS = 30_000;
     const RESPONSE_RESERVE_MS = 4_000;
@@ -705,8 +1085,45 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
     console.log(`[ShowdownSim] Starting ${input.numSims} sims for ${input.sport} slate ${input.slateId}, pool: ${pool.length} players, requesting ${input.lineupCount} lineups`);
 
     const sims = runSimulations(pool, input.sport, input.numSims, projOverrides);
-
-    const flexCount = config.rosterSize - 1;
+    const candidateGenerationCount = (required: number) =>
+      required + Math.min(required * 2, Math.max(0, input.numSims - input.lineupCount));
+    const requiredCaptainSchedule = pool.flatMap(player =>
+      Array(candidateGenerationCount(captainMinExposureCount(
+        positiveCaptainExposure(input.perPlayerCaptainMinExposure, player.id),
+        input.lineupCount,
+      ))).fill(player.id),
+    );
+    const requiredFlexSchedule = Array.from(
+      { length: sims.length },
+      () => [...input.lockedFlexIds],
+    );
+    for (const [playerIdRaw, percent] of Object.entries(input.perPlayerFlexMinExposure || {})) {
+      if (percent <= 0) continue;
+      const playerId = Number(playerIdRaw);
+      if (input.lockedFlexIds.includes(playerId)) continue;
+      const required = captainMinExposureCount(percent, input.lineupCount);
+      const generationRequired = candidateGenerationCount(required);
+      const alreadyRequired = requiredFlexSchedule
+        .slice(0, input.lineupCount)
+        .filter(ids => ids.includes(playerId)).length;
+      for (let index = alreadyRequired; index < generationRequired; index++) {
+        const target = requiredFlexSchedule
+          .map((ids, lineupIndex) => ({ ids, lineupIndex }))
+          .filter(entry =>
+            entry.ids.length < flexCount &&
+            !entry.ids.includes(playerId) &&
+            input.lockedCaptainId !== playerId &&
+            requiredCaptainSchedule[entry.lineupIndex] !== playerId
+          )
+          .sort((a, b) => a.ids.length - b.ids.length || a.lineupIndex - b.lineupIndex)[0];
+        if (!target) {
+          return res.status(400).json({
+            message: "Could not schedule all minimum FLEX exposures for simulation.",
+          });
+        }
+        target.ids.push(playerId);
+      }
+    }
 
     const lineupMap = new Map<string, {
       captain: any;
@@ -731,6 +1148,8 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
       let captainId: number;
       if (input.lockedCaptainId) {
         captainId = input.lockedCaptainId;
+      } else if (requiredCaptainSchedule[i] !== undefined) {
+        captainId = requiredCaptainSchedule[i];
       } else {
         const sorted = [...simPool].sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
         captainId = sorted[0].id;
@@ -738,6 +1157,7 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
 
       const captain = simPool.find(p => p.id === captainId);
       if (!captain) continue;
+      if (requiredFlexSchedule[i].includes(captainId)) continue;
 
       const captainSalary = getEffectiveSalary(captain.salary, true, config);
       const remainingSalary = config.salaryCap - captainSalary;
@@ -769,7 +1189,7 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
         model.ints[vName] = 1;
         model.constraints[`bound_${vName}`] = { max: 1 };
 
-        if (input.lockedFlexIds.includes(p.id)) {
+        if (requiredFlexSchedule[i].includes(p.id)) {
           model.constraints[`lock_${vName}`] = { equal: 1 };
           model.variables[vName][`lock_${vName}`] = 1;
         }
@@ -818,7 +1238,21 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
       }
     }
 
+    const hasCaptainExposureSettings = Object.values(input.perPlayerCaptainMinExposure || {}).some(value => value > 0) ||
+      Object.values(input.perPlayerCaptainMaxExposure || {}).some(value => value > 0);
+    const hasFlexExposureSettings = Object.values(input.perPlayerFlexMinExposure || {}).some(value => value > 0) ||
+      Object.values(input.perPlayerFlexMaxExposure || {}).some(value => value > 0);
+    const hasAnyExposureSettings = hasCaptainExposureSettings ||
+      hasFlexExposureSettings ||
+      input.globalMaxExposure !== undefined ||
+      Object.keys(input.perPlayerMaxExposure || {}).length > 0;
+
     if (lineupMap.size === 0) {
+      if (hasAnyExposureSettings) {
+        return res.status(400).json({
+          message: "Exposure limits could not produce any feasible simulated lineups.",
+        });
+      }
       const partial = simTimedOut || Date.now() >= solverDeadline;
       return res.status(200).json({
         lineups: [],
@@ -885,28 +1319,88 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
 
     uniqueLineups.sort((a, b) => b.compositeScore - a.compositeScore);
 
-    const playerAppearances: Record<number, number> = {};
-    const selected: typeof uniqueLineups = [];
-
-    for (const lu of uniqueLineups) {
-      if (selected.length >= input.lineupCount) break;
-
-      let violatesExposure = false;
-      if (input.globalMaxExposure !== undefined && selected.length > 0) {
-        const allIds = [lu.captain.id, ...lu.flexPlayers.map((p: any) => p.id)];
-        for (const pid of allIds) {
-          const appearances = (playerAppearances[pid] || 0) + 1;
-          const pct = (appearances / (selected.length + 1)) * 100;
-          if (pct > input.globalMaxExposure) { violatesExposure = true; break; }
+    let selected: typeof uniqueLineups;
+    if (hasAnyExposureSettings) {
+      const portfolioModel: any = {
+        optimize: "score",
+        opType: "max",
+        constraints: {
+          lineupCount: { equal: input.lineupCount },
+        },
+        variables: {},
+        ints: {},
+      };
+      const addRoleConstraints = (prefix: string, minimums: ExposureMap, maximums: ExposureMap) => {
+        for (const [playerId, percent] of Object.entries(minimums || {})) {
+          if (percent > 0) {
+            portfolioModel.constraints[`${prefix}_min_${playerId}`] = {
+              min: captainMinExposureCount(percent, input.lineupCount),
+            };
+          }
+        }
+        for (const [playerId, percent] of Object.entries(maximums || {})) {
+          if (percent > 0) {
+            portfolioModel.constraints[`${prefix}_max_${playerId}`] = {
+              max: captainMaxExposureCount(percent, input.lineupCount),
+            };
+          }
+        }
+      };
+      addRoleConstraints("captain", input.perPlayerCaptainMinExposure, input.perPlayerCaptainMaxExposure);
+      addRoleConstraints("flex", input.perPlayerFlexMinExposure, input.perPlayerFlexMaxExposure);
+      for (const player of pool) {
+        if (input.globalMaxExposure !== undefined) {
+          portfolioModel.constraints[`global_${player.id}`] = {
+            max: overallMaxExposureCount(input.globalMaxExposure, input.lineupCount),
+          };
+        }
+        const playerMax = input.perPlayerMaxExposure?.[String(player.id)];
+        if (playerMax !== undefined) {
+          portfolioModel.constraints[`overall_${player.id}`] = {
+            max: overallMaxExposureCount(playerMax, input.lineupCount),
+          };
         }
       }
-      if (violatesExposure) continue;
-
-      selected.push(lu);
-      const allIds = [lu.captain.id, ...lu.flexPlayers.map((p: any) => p.id)];
-      for (const pid of allIds) {
-        playerAppearances[pid] = (playerAppearances[pid] || 0) + 1;
+      uniqueLineups.forEach((lineup, index) => {
+        const variableName = `l${index}`;
+        const variable: Record<string, number> = {
+          score: lineup.compositeScore,
+          lineupCount: 1,
+          [`bound_${variableName}`]: 1,
+          [`captain_min_${lineup.captain.id}`]: 1,
+          [`captain_max_${lineup.captain.id}`]: 1,
+        };
+        for (const player of lineup.flexPlayers) {
+          variable[`flex_min_${player.id}`] = 1;
+          variable[`flex_max_${player.id}`] = 1;
+        }
+        for (const player of [lineup.captain, ...lineup.flexPlayers]) {
+          variable[`global_${player.id}`] = 1;
+          variable[`overall_${player.id}`] = 1;
+        }
+        portfolioModel.variables[variableName] = variable;
+        portfolioModel.ints[variableName] = 1;
+        portfolioModel.constraints[`bound_${variableName}`] = { max: 1 };
+      });
+      await yieldToEventLoop();
+      const portfolioSolve = solveWithBudget(portfolioModel, {
+        deadline: startTime + MAX_RUNTIME_MS,
+        timeoutMs: RESPONSE_RESERVE_MS,
+      });
+      const portfolioResult = validatedIntegralResult(portfolioSolve.result, portfolioModel);
+      if (!portfolioResult) {
+        return res.status(400).json({
+          message: "Captain, FLEX, or overall exposure limits could not produce a complete simulated lineup portfolio.",
+        });
       }
+      selected = uniqueLineups.filter((_, index) => portfolioResult[`l${index}`] > 0.5);
+      if (selected.length !== input.lineupCount) {
+        return res.status(400).json({
+          message: "Exposure limits could not produce the requested number of simulated lineups.",
+        });
+      }
+    } else {
+      selected = uniqueLineups.slice(0, input.lineupCount);
     }
 
     const elapsedMs = Date.now() - startTime;

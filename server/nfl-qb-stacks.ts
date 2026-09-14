@@ -6,7 +6,10 @@ const hasPosition = (player: StackPlayer, positions: string[]) =>
 const sameTeam = (a: StackPlayer, b: StackPlayer) =>
   a.team.trim().toUpperCase() === b.team.trim().toUpperCase();
 
-/** Every selected QB needs a same-team WR/TE, including a fixed Showdown captain. */
+/**
+ * Every selected QB needs a same-team WR/TE, including a fixed Showdown
+ * captain. A lineup may never contain two QBs from the same NFL team.
+ */
 export function addNFLQuarterbackStacks(
   model: any,
   pool: StackPlayer[],
@@ -17,6 +20,24 @@ export function addNFLQuarterbackStacks(
   const selectable = pool.filter(player => model.variables[`p${player.id}`]);
   const quarterbacks = [...selectable, ...(captain ? [captain] : [])]
     .filter(player => hasPosition(player, ["QB"]));
+  const quarterbackTeams = new Set(
+    quarterbacks.map(player => player.team.trim().toUpperCase()).filter(Boolean),
+  );
+  Array.from(quarterbackTeams).forEach((team, teamIndex) => {
+    const captainUsesTeamQuarterback = !!captain &&
+      hasPosition(captain, ["QB"]) &&
+      captain.team.trim().toUpperCase() === team;
+    const name = `nfl_qb_team_max_${teamIndex}`;
+    model.constraints[name] = { max: captainUsesTeamQuarterback ? 0 : 1 };
+    for (const quarterback of selectable) {
+      if (
+        hasPosition(quarterback, ["QB"]) &&
+        quarterback.team.trim().toUpperCase() === team
+      ) {
+        model.variables[`p${quarterback.id}`][name] = 1;
+      }
+    }
+  });
   for (const quarterback of quarterbacks) {
     const name = `nfl_qb_pair_${quarterback.id}`;
     const captainIsQuarterback = captain?.id === quarterback.id;
