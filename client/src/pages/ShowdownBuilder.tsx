@@ -1840,9 +1840,9 @@ export default function ShowdownBuilder() {
                                           <div className="flex items-center gap-2">
                                             <input
                                               type="number"
-                                              step="1"
-                                              min="1"
-                                              max="99"
+                                               step="0.1"
+                                               min="0"
+                                               max="100"
                                               placeholder={
                                                 (() => {
                                                   const own = toNum((player as any).ownershipProjection);
@@ -1852,8 +1852,8 @@ export default function ShowdownBuilder() {
                                               }
                                               value={pset?.customOwnership ?? ""}
                                               onChange={e => {
-                                                const val = parseInt(e.target.value);
-                                                if (!isNaN(val)) updatePlayerSetting(player.id, { customOwnership: Math.max(1, Math.min(99, val)) });
+                                                 const val = parseFloat(e.target.value);
+                                                 if (!isNaN(val)) updatePlayerSetting(player.id, { customOwnership: Math.max(0, Math.min(100, val)) });
                                                 else updatePlayerSetting(player.id, { customOwnership: undefined });
                                               }}
                                               className="w-16 bg-slate-800 border border-slate-700 text-white rounded px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
@@ -1903,7 +1903,6 @@ export default function ShowdownBuilder() {
                                                 step="5"
                                                 min="0"
                                                 max="100"
-                                                disabled={lineupCount <= 1}
                                                 placeholder="0"
                                                 value={pset?.captainMinExposure ?? ""}
                                                 onChange={e => {
@@ -1921,7 +1920,6 @@ export default function ShowdownBuilder() {
                                                 step="5"
                                                 min="0"
                                                 max="100"
-                                                disabled={lineupCount <= 1}
                                                 placeholder="0"
                                                 value={pset?.captainMaxExposure ?? ""}
                                                 onChange={e => {
@@ -1950,7 +1948,6 @@ export default function ShowdownBuilder() {
                                                 step="5"
                                                 min="0"
                                                 max="100"
-                                                disabled={lineupCount <= 1}
                                                 placeholder="0"
                                                 value={pset?.flexMinExposure ?? ""}
                                                 onChange={e => {
@@ -1968,7 +1965,6 @@ export default function ShowdownBuilder() {
                                                 step="5"
                                                 min="0"
                                                 max="100"
-                                                disabled={lineupCount <= 1}
                                                 placeholder="0"
                                                 value={pset?.flexMaxExposure ?? ""}
                                                 onChange={e => {
