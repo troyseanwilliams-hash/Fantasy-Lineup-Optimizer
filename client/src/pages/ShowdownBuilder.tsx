@@ -545,6 +545,9 @@ export default function ShowdownBuilder() {
   });
 
   function buildShowdownPayload() {
+    // Role exposure only has meaning across multiple generated lineups. Do not
+    // submit stale values if the user switches back to a single lineup.
+    const roleExposureEnabled = lineupCount > 1;
     const perPlayerMaxExposure: Record<string, number> = {};
     const perPlayerCaptainMinExposure: Record<string, number> = {};
     const perPlayerCaptainMaxExposure: Record<string, number> = {};
@@ -552,10 +555,10 @@ export default function ShowdownBuilder() {
     const perPlayerFlexMaxExposure: Record<string, number> = {};
     for (const [pid, pset] of Object.entries(playerSettings)) {
       if (pset.maxExposure !== undefined) perPlayerMaxExposure[pid] = pset.maxExposure;
-      if ((pset.captainMinExposure ?? 0) > 0) perPlayerCaptainMinExposure[pid] = pset.captainMinExposure!;
-      if ((pset.captainMaxExposure ?? 0) > 0) perPlayerCaptainMaxExposure[pid] = pset.captainMaxExposure!;
-      if ((pset.flexMinExposure ?? 0) > 0) perPlayerFlexMinExposure[pid] = pset.flexMinExposure!;
-      if ((pset.flexMaxExposure ?? 0) > 0) perPlayerFlexMaxExposure[pid] = pset.flexMaxExposure!;
+      if (roleExposureEnabled && (pset.captainMinExposure ?? 0) > 0) perPlayerCaptainMinExposure[pid] = pset.captainMinExposure!;
+      if (roleExposureEnabled && (pset.captainMaxExposure ?? 0) > 0) perPlayerCaptainMaxExposure[pid] = pset.captainMaxExposure!;
+      if (roleExposureEnabled && (pset.flexMinExposure ?? 0) > 0) perPlayerFlexMinExposure[pid] = pset.flexMinExposure!;
+      if (roleExposureEnabled && (pset.flexMaxExposure ?? 0) > 0) perPlayerFlexMaxExposure[pid] = pset.flexMaxExposure!;
     }
     const ownershipOverrides: Record<string, number> = {};
     for (const [pid, pset] of Object.entries(playerSettings)) {
@@ -1862,6 +1865,7 @@ export default function ShowdownBuilder() {
                                                 step="5"
                                                 min="0"
                                                 max="100"
+                                                disabled={lineupCount <= 1}
                                                 placeholder="0"
                                                 value={pset?.captainMinExposure ?? ""}
                                                 onChange={e => {
@@ -1881,6 +1885,7 @@ export default function ShowdownBuilder() {
                                                 step="5"
                                                 min="0"
                                                 max="100"
+                                                disabled={lineupCount <= 1}
                                                 placeholder="0"
                                                 value={pset?.captainMaxExposure ?? ""}
                                                 onChange={e => {
@@ -1911,6 +1916,7 @@ export default function ShowdownBuilder() {
                                                 step="5"
                                                 min="0"
                                                 max="100"
+                                                disabled={lineupCount <= 1}
                                                 placeholder="0"
                                                 value={pset?.flexMinExposure ?? ""}
                                                 onChange={e => {
@@ -1930,6 +1936,7 @@ export default function ShowdownBuilder() {
                                                 step="5"
                                                 min="0"
                                                 max="100"
+                                                disabled={lineupCount <= 1}
                                                 placeholder="0"
                                                 value={pset?.flexMaxExposure ?? ""}
                                                 onChange={e => {
