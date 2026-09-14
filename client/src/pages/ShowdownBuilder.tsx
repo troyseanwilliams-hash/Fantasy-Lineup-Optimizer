@@ -599,6 +599,9 @@ export default function ShowdownBuilder() {
     // Role exposure only has meaning across multiple generated lineups. Do not
     // submit stale values if the user switches back to a single lineup.
     const roleExposureEnabled = lineupCount > 1;
+    // A hard Captain lock means that player must captain every lineup, so it
+    // takes precedence over saved portfolio-level Captain exposure settings.
+    const captainExposureEnabled = roleExposureEnabled && captainId === null;
     const perPlayerMaxExposure: Record<string, number> = {};
     const perPlayerCaptainMinExposure: Record<string, number> = {};
     const perPlayerCaptainMaxExposure: Record<string, number> = {};
@@ -606,8 +609,8 @@ export default function ShowdownBuilder() {
     const perPlayerFlexMaxExposure: Record<string, number> = {};
     for (const [pid, pset] of Object.entries(playerSettings)) {
       if (pset.maxExposure !== undefined) perPlayerMaxExposure[pid] = pset.maxExposure;
-      if (roleExposureEnabled && (pset.captainMinExposure ?? 0) > 0) perPlayerCaptainMinExposure[pid] = pset.captainMinExposure!;
-      if (roleExposureEnabled && (pset.captainMaxExposure ?? 0) > 0) perPlayerCaptainMaxExposure[pid] = pset.captainMaxExposure!;
+      if (captainExposureEnabled && (pset.captainMinExposure ?? 0) > 0) perPlayerCaptainMinExposure[pid] = pset.captainMinExposure!;
+      if (captainExposureEnabled && (pset.captainMaxExposure ?? 0) > 0) perPlayerCaptainMaxExposure[pid] = pset.captainMaxExposure!;
       if (roleExposureEnabled && (pset.flexMinExposure ?? 0) > 0) perPlayerFlexMinExposure[pid] = pset.flexMinExposure!;
       if (roleExposureEnabled && (pset.flexMaxExposure ?? 0) > 0) perPlayerFlexMaxExposure[pid] = pset.flexMaxExposure!;
     }
@@ -1922,12 +1925,14 @@ export default function ShowdownBuilder() {
                                               max="100"
                                               placeholder="100"
                                               value={pset?.maxExposure ?? ""}
+                                               disabled={isCpt}
                                               onChange={e => {
                                                 const val = parseInt(e.target.value);
                                                 if (!isNaN(val)) updatePlayerSetting(player.id, { maxExposure: Math.max(0, Math.min(100, val)) });
                                                 else updatePlayerSetting(player.id, { maxExposure: undefined });
                                               }}
-                                              className="w-16 bg-slate-800 border border-slate-700 text-white rounded px-2 py-1 text-xs focus:border-cyan-500 focus:outline-none"
+                                               className="w-16 bg-slate-800 border border-slate-700 text-white rounded px-2 py-1 text-xs focus:border-cyan-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                                               title={isCpt ? "Ignored because this player is locked as Captain in every lineup" : undefined}
                                               data-testid={`max-exposure-${player.id}`}
                                             />
                                             <span className="text-[10px] text-slate-500">%</span>
@@ -1939,6 +1944,7 @@ export default function ShowdownBuilder() {
                                           <label className="text-[10px] font-black text-amber-400 uppercase tracking-wider block mb-1.5">
                                             Captain Exposure
                                             {lineupCount <= 1 && <span className="text-slate-600 ml-1">(multi-lineup)</span>}
+                                            {captainId !== null && <span className="text-slate-500 ml-1">(ignored while Captain is locked)</span>}
                                           </label>
                                           <div className="flex items-center gap-3">
                                             <div className="flex items-center gap-1">
@@ -1950,10 +1956,11 @@ export default function ShowdownBuilder() {
                                                 max="100"
                                                 placeholder="0"
                                                 value={pset?.captainMinExposure ?? ""}
+                                                 disabled={captainId !== null}
                                                 onChange={e => {
                                                   updateExposureSetting(player.id, "captain", "min", e.target.value);
                                                 }}
-                                                className="w-16 bg-slate-800 border border-slate-700 text-white rounded px-2 py-1 text-xs focus:border-amber-500 focus:outline-none"
+                                                 className="w-16 bg-slate-800 border border-slate-700 text-white rounded px-2 py-1 text-xs focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
                                                 data-testid={`captain-min-exposure-${player.id}`}
                                               />
                                               <span className="text-[10px] text-slate-500">%</span>
@@ -1967,10 +1974,11 @@ export default function ShowdownBuilder() {
                                                 max="100"
                                                 placeholder="0"
                                                 value={pset?.captainMaxExposure ?? ""}
+                                                 disabled={captainId !== null}
                                                 onChange={e => {
                                                   updateExposureSetting(player.id, "captain", "max", e.target.value);
                                                 }}
-                                                className="w-16 bg-slate-800 border border-slate-700 text-white rounded px-2 py-1 text-xs focus:border-amber-500 focus:outline-none"
+                                                 className="w-16 bg-slate-800 border border-slate-700 text-white rounded px-2 py-1 text-xs focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
                                                 data-testid={`captain-max-exposure-${player.id}`}
                                               />
                                               <span className="text-[10px] text-slate-500">%</span>

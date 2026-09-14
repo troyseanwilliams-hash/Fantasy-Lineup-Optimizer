@@ -68,6 +68,17 @@ function isPlayerOut(injuryStatus: string | null): boolean {
 
 type ExposureMap = Record<string, number> | undefined;
 
+function applyLockedCaptainPrecedence(input: {
+  lockedCaptainId?: number;
+  perPlayerCaptainMinExposure?: Record<string, number>;
+  perPlayerCaptainMaxExposure?: Record<string, number>;
+}) {
+  if (input.lockedCaptainId !== undefined) {
+    input.perPlayerCaptainMinExposure = undefined;
+    input.perPlayerCaptainMaxExposure = undefined;
+  }
+}
+
 export function captainMinExposureCount(percent: number | undefined, lineupCount: number): number {
   if (!percent || percent <= 0 || lineupCount <= 0) return 0;
   return Math.min(lineupCount, Math.ceil((percent / 100) * lineupCount));
@@ -142,21 +153,6 @@ function validateCaptainExposureInputs(
   );
   if (totalCaptainCapacity < lineupCount) {
     return "Combined maximum captain exposures cannot fill the requested lineup count.";
-  }
-  if (lockedCaptainId !== undefined) {
-    const lockedMax = positiveCaptainExposure(maximums, lockedCaptainId);
-    if (lockedMax !== undefined && captainMaxExposureCount(lockedMax, lineupCount) < lineupCount) {
-      return "The locked captain conflicts with that player's maximum captain exposure.";
-    }
-    const lockedOverallCapacity = Math.min(
-      globalMaxExposure === undefined ? lineupCount : overallMaxExposureCount(globalMaxExposure, lineupCount),
-      perPlayerMaxExposure?.[String(lockedCaptainId)] === undefined
-        ? lineupCount
-        : overallMaxExposureCount(perPlayerMaxExposure[String(lockedCaptainId)], lineupCount),
-    );
-    if (lockedOverallCapacity < lineupCount) {
-      return "The locked captain conflicts with the overall player exposure limit.";
-    }
   }
   return null;
 }
@@ -377,6 +373,7 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
   let solverTimedOut = false;
   try {
     const input = showdownOptimizeSchema.parse(req.body);
+    applyLockedCaptainPrecedence(input);
     const slate = await storage.getSlate(input.slateId);
     if (!slate) return res.status(404).json({ message: "Slate not found" });
     if (slate.isActive === false) {
@@ -590,6 +587,7 @@ showdownRouter.post("/api/showdown/optimize", async (req, res) => {
     }
 
     function isPlayerCapped(playerId: number): boolean {
+      if (input.lockedCaptainId === playerId) return false;
       // Global cap
       if (input.globalMaxExposure !== undefined) {
         if (
@@ -910,6 +908,7 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
     const maxLineups = isAdmin ? 2000 : tier === "pro" ? 1000 : 400;
 
     const input = showdownSimSchema.parse(req.body);
+    applyLockedCaptainPrecedence(input);
     input.numSims = Math.min(input.numSims, maxSims);
     input.lineupCount = Math.min(input.lineupCount, maxLineups);
 
@@ -1353,6 +1352,7 @@ showdownRouter.post("/api/showdown/optimize/sim", async (req, res) => {
       addRoleConstraints("captain", input.perPlayerCaptainMinExposure, input.perPlayerCaptainMaxExposure);
       addRoleConstraints("flex", input.perPlayerFlexMinExposure, input.perPlayerFlexMaxExposure);
       for (const player of pool) {
+        if (input.lockedCaptainId === player.id) continue;
         if (input.globalMaxExposure !== undefined) {
           portfolioModel.constraints[`global_${player.id}`] = {
             max: overallMaxExposureCount(input.globalMaxExposure, input.lineupCount),

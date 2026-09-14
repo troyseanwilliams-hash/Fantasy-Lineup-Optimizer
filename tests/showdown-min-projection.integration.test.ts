@@ -256,24 +256,34 @@ test("Showdown optimize and Sim enforce minProjection after playerProjections an
         lineupCount: 3,
         lockedCaptainId: 1,
         perPlayerCaptainMaxExposure: { "1": 99 },
+        perPlayerMaxExposure: { "1": 25 },
       },
     }, lockedMaxCapture.response);
-    assert.equal(lockedMaxCapture.state.status, 400);
-    assert.match(lockedMaxCapture.state.body.message, /locked captain conflicts/i);
+    assert.equal(lockedMaxCapture.state.status, 200, JSON.stringify(lockedMaxCapture.state.body));
+    assert.ok(lockedMaxCapture.state.body.lineups.every((lineup: any) => lineup.captain.id === 1));
 
-    const lockedOverallCapture = responseCapture();
-    await optimize({
+    const lockedCaptainOverridesOtherMinimumCapture = responseCapture();
+    await sim({
+      session: { userId: "showdown-test-user" },
       body: {
         slateId: slate.id,
         sport: "NFL",
         platform: "draftkings",
         lineupCount: 4,
+        numSims: 50,
         lockedCaptainId: 1,
-        globalMaxExposure: 75,
+        perPlayerCaptainMinExposure: { "7": 50 },
+        perPlayerCaptainMaxExposure: { "1": 25 },
       },
-    }, lockedOverallCapture.response);
-    assert.equal(lockedOverallCapture.state.status, 400);
-    assert.match(lockedOverallCapture.state.body.message, /locked captain conflicts with the overall/i);
+    }, lockedCaptainOverridesOtherMinimumCapture.response);
+    assert.equal(
+      lockedCaptainOverridesOtherMinimumCapture.state.status,
+      200,
+      JSON.stringify(lockedCaptainOverridesOtherMinimumCapture.state.body),
+    );
+    assert.ok(lockedCaptainOverridesOtherMinimumCapture.state.body.lineups.every(
+      (lineup: any) => lineup.captain.id === 1,
+    ));
 
     const stricterGlobalCapture = responseCapture();
     await optimize({

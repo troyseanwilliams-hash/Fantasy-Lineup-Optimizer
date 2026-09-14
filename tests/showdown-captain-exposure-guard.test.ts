@@ -28,6 +28,10 @@ test("Showdown role exposure controls omit zero and send min/max maps", () => {
   assert.match(source, /medianScore: toNum\(lu\.medianScore\)/);
   assert.match(source, /No valid simulated lineups returned/);
   assert.match(source, /const roleExposureEnabled = lineupCount > 1/);
+  assert.match(source, /const captainExposureEnabled = roleExposureEnabled && captainId === null/);
+  assert.match(source, /disabled=\{captainId !== null\}/);
+  assert.match(source, /ignored while Captain is locked/);
+  assert.match(source, /Ignored because this player is locked as Captain in every lineup/);
   assert.doesNotMatch(source, /disabled=\{lineupCount <= 1\}/);
   assert.match(source, /data-testid={`custom-ownership-\$\{player\.id\}`}/);
   assert.match(source, /step="0\.1"/);
