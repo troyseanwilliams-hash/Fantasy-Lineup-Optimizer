@@ -40,7 +40,8 @@ import {
 
 function toNum(v: string | number | null | undefined): number {
   if (v == null || v === "") return 0;
-  return typeof v === "number" ? v : parseFloat(v);
+  const parsed = typeof v === "number" ? v : parseFloat(v);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -655,31 +656,56 @@ export default function ShowdownBuilder() {
       return res.json();
     },
     onSuccess: (data) => {
-      const lineups: ShowdownLineup[] = (data.lineups || []).map((lu: any) => ({
-        captain: lu.captain,
-        flexPlayers: lu.flexPlayers,
-        totalSalary: lu.totalSalary,
-        totalProjectedPoints: lu.totalProjectedPoints,
-        key: lu.key,
+      const responseLineups = Array.isArray(data?.lineups) ? data.lineups : [];
+      const lineups: ShowdownLineup[] = responseLineups.flatMap((lu: any) => {
+        if (!lu?.captain || !Array.isArray(lu.flexPlayers)) return [];
+        const normalizePlayer = (player: any): ShowdownPlayer => ({
+          ...player,
+          salary: toNum(player?.salary),
+          projectedPoints: toNum(player?.projectedPoints).toString(),
+          effectiveSalary: toNum(player?.effectiveSalary ?? player?.salary),
+          effectiveProjection: toNum(player?.effectiveProjection ?? player?.projectedPoints),
+        });
+        return [{
+        captain: normalizePlayer(lu.captain),
+        flexPlayers: lu.flexPlayers.filter(Boolean).map(normalizePlayer),
+        totalSalary: toNum(lu.totalSalary),
+        totalProjectedPoints: toNum(lu.totalProjectedPoints),
+        key: String(lu.key || ""),
         simData: {
-          avgSimScore: lu.avgSimScore,
-          medianScore: lu.medianScore,
-          p75Score: lu.p75Score,
-          p90Score: lu.p90Score,
-          freqPct: lu.freqPct,
-          compositeScore: lu.compositeScore,
+          avgSimScore: toNum(lu.avgSimScore),
+          medianScore: toNum(lu.medianScore),
+          p75Score: toNum(lu.p75Score),
+          p90Score: toNum(lu.p90Score),
+          freqPct: toNum(lu.freqPct),
+          compositeScore: toNum(lu.compositeScore),
           stackedGame: lu.stackedGame,
-          stackCount: lu.stackCount,
-          stackTeams: lu.stackTeams,
+          stackCount: toNum(lu.stackCount),
+          stackTeams: Array.isArray(lu.stackTeams) ? lu.stackTeams : [],
         },
-      }));
+      }];
+      });
+      if (lineups.length === 0) {
+        setGeneratedLineups([]);
+        setSimSummary(null);
+        toast({
+          title: "No valid simulated lineups returned",
+          description: "The simulator response could not be displayed. Please relax the lineup settings and try again.",
+          variant: "destructive",
+        });
+        return;
+      }
       setGeneratedLineups(lineups);
       setShowdownConfig(data.config);
       setActiveLineupIdx(0);
       setSavedLineupIndices(new Set());
       setExpandedLineupIdx(null);
       setLineupSortKey("proj");
-      setSimSummary({ simsRun: data.simsRun, uniqueCount: data.uniqueCount, elapsedMs: data.elapsedMs });
+      setSimSummary({
+        simsRun: toNum(data?.simsRun),
+        uniqueCount: toNum(data?.uniqueCount),
+        elapsedMs: toNum(data?.elapsedMs),
+      });
       toast({ title: `${lineups.length} sim lineup${lineups.length > 1 ? "s" : ""} generated!` });
     },
     onError: (err: any) => {
