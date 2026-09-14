@@ -29,6 +29,34 @@ function isLoggedIn(req: Request): boolean {
   return !!getSessionUserId(req);
 }
 
+export function computeAuthoritativeShowdownTotals(
+  captain: Player,
+  flexPlayers: Player[],
+  config: ReturnType<typeof getShowdownConfig>,
+): { totalSalary: number; totalProjectedPoints: string } {
+  if (!config) throw new Error("Showdown configuration is required.");
+  const captainSalary = getEffectiveSalary(captain.salary, true, config);
+  const captainProjection = getShowdownProjectedPoints(Number(captain.projectedPoints || 0), true, config);
+  const totalSalary = captainSalary + flexPlayers.reduce((sum, player) => sum + player.salary, 0);
+  const totalProjectedPoints = Math.round((
+    captainProjection +
+    flexPlayers.reduce((sum, player) => sum + Number(player.projectedPoints || 0), 0)
+  ) * 100) / 100;
+  return { totalSalary, totalProjectedPoints: totalProjectedPoints.toFixed(2) };
+}
+
+export function isValidAuthoritativeShowdownTotals(
+  totals: { totalSalary: number; totalProjectedPoints: string },
+  salaryCap: number,
+): boolean {
+  const projection = Number(totals.totalProjectedPoints);
+  return Number.isFinite(totals.totalSalary) &&
+    totals.totalSalary >= 0 &&
+    totals.totalSalary <= salaryCap &&
+    Number.isFinite(projection) &&
+    projection >= 0;
+}
+
 export const showdownRouter = Router();
 
 const YAHOO_OUT_STATUSES = new Set(["INJ", "O", "OUT", "IR", "SUS", "NA"]);
@@ -922,12 +950,14 @@ showdownRouter.post("/api/showdown/save", async (req, res) => {
       platform,
       captainId,
       flexIds,
-      totalSalary,
-      totalProjectedPoints,
-      playerSnapshot,
     } = req.body;
     const slate = await storage.getSlate(Number(slateId));
-    if (!slate || slate.sport !== sport || slate.platform !== platform) {
+    if (
+      !slate ||
+      slate.sport !== sport ||
+      slate.platform !== platform ||
+      slate.gameType?.trim().toLowerCase() !== "showdown"
+    ) {
       return res.status(400).json({ message: "The selected Showdown slate is no longer available." });
     }
 
@@ -936,9 +966,15 @@ showdownRouter.post("/api/showdown/save", async (req, res) => {
 
     const slatePlayers = await storage.getPlayersBySlate(Number(slateId));
     const playerById = new Map(slatePlayers.map(player => [player.id, player]));
-    const captain = playerById.get(Number(captainId));
+    const normalizedCaptainId = Number(captainId);
+    const captain = Number.isInteger(normalizedCaptainId) ? playerById.get(normalizedCaptainId) : undefined;
     const flexPlayerIds = Array.isArray(flexIds) ? flexIds.map(Number) : [];
-    if (!captain || flexPlayerIds.length !== config.rosterSize - 1 || new Set(flexPlayerIds).size !== flexPlayerIds.length) {
+    if (
+      !captain ||
+      flexPlayerIds.length !== config.rosterSize - 1 ||
+      flexPlayerIds.some(id => !Number.isInteger(id) || id <= 0) ||
+      new Set(flexPlayerIds).size !== flexPlayerIds.length
+    ) {
       return res.status(400).json({ message: "Invalid Showdown roster. Select one captain and the required flex players." });
     }
     if (flexPlayerIds.some(id => id === captain.id || !playerById.has(id))) {
@@ -957,27 +993,32 @@ showdownRouter.post("/api/showdown/save", async (req, res) => {
       return res.status(400).json({ message: "Golfers who missed the cut cannot be saved in a Showdown lineup." });
     }
 
-    const submittedSnapshot = Array.isArray(playerSnapshot) ? playerSnapshot : [];
-    const submittedById = new Map(submittedSnapshot.map((player: any) => [Number(player.id), player]));
+    // The client snapshot is display metadata only.  Totals and effective CPT
+    // values must always be recomputed from the canonical slate player rows so
+    // a forged total/effectiveProjection cannot be persisted.
+    const flexPlayers = flexPlayerIds.map(id => playerById.get(id)!);
+    const authoritativeTotals = computeAuthoritativeShowdownTotals(captain, flexPlayers, config);
+    if (!isValidAuthoritativeShowdownTotals(authoritativeTotals, config.salaryCap)) {
+      return res.status(400).json({ message: "This Showdown lineup exceeds the salary cap or contains invalid projections." });
+    }
     const captainSalary = getEffectiveSalary(captain.salary, true, config);
-    const captainSubmitted = submittedById.get(captain.id);
+    const captainProjection = getShowdownProjectedPoints(Number(captain.projectedPoints || 0), true, config);
     const savedSnapshot = [
       {
         ...captain,
         slot: config.captainLabel,
         isCaptain: true,
         effectiveSalary: captainSalary,
-        effectiveProjection: Number(captainSubmitted?.effectiveProjection ?? Number(captain.projectedPoints || 0) * config.captainMultiplier),
+        effectiveProjection: captainProjection,
       },
       ...flexPlayerIds.map((id, index) => {
         const player = playerById.get(id)!;
-        const submitted = submittedById.get(id);
         return {
           ...player,
           slot: `${config.flexLabel}${index + 1}`,
           isCaptain: false,
           effectiveSalary: player.salary,
-          effectiveProjection: Number((submitted?.effectiveProjection ?? player.projectedPoints) || 0),
+          effectiveProjection: Number(player.projectedPoints || 0),
         };
       }),
     ];
@@ -1003,8 +1044,8 @@ showdownRouter.post("/api/showdown/save", async (req, res) => {
       sport,
       platform: (["draftkings","fanduel","yahoo"].includes(platform) ? platform : "draftkings") as string,
       playerIds: allPlayerIds,
-      totalSalary: String(totalSalary),
-      totalProjectedPoints: String(totalProjectedPoints),
+      totalSalary: authoritativeTotals.totalSalary,
+      totalProjectedPoints: authoritativeTotals.totalProjectedPoints,
       status: "active",
       playerSnapshot: savedSnapshot,
     });

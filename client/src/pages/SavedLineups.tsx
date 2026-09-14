@@ -13,7 +13,7 @@ import { AFFILIATE_LINKS } from "@shared/affiliate-config";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { getPlatformConfig, assignPlayersToSlots, getSlotDisplayName, positionFitsSlot } from "@shared/platform-config";
+import { getPlatformConfig, getShowdownConfig, assignPlayersToSlots, getSlotDisplayName, positionFitsSlot } from "@shared/platform-config";
 import type { Player, Slate } from "@shared/schema";
 import { PlayerInfoHoverCard } from "@/components/PlayerInfoHoverCard";
 import { InfoTip } from "@/components/InfoTip";
@@ -592,7 +592,19 @@ export default function SavedLineups() {
         ? lineup.playerSnapshot
         : [];
       if (snapshotPlayers.length > 0) {
-        map.set(lineup.id, gradeLineup(snapshotPlayers, lineup.sport, lineup.platform || "draftkings", lineup.totalSalary, lineup.totalProjectedPoints));
+        map.set(
+          lineup.id,
+          gradeLineup(
+            snapshotPlayers,
+            lineup.sport,
+            lineup.platform || "draftkings",
+            lineup.totalSalary,
+            lineup.totalProjectedPoints,
+            isShowdownLineup(lineup)
+              ? { contestFormat: "showdown" }
+              : undefined,
+          ),
+        );
       }
     });
     return map;
@@ -2527,7 +2539,29 @@ function ExpandedRoster({
   const isFD = platform === "fanduel";
   const isYahoo = platform === "yahoo";
   const pc = getPlatformColors(platform);
-  const maxProj = Math.max(...lineup.players.map((p: Player) => Number(p.projectedPoints) || 0), 1);
+  const showdownConfig = showdownDisplay ? getShowdownConfig(lineup.sport, platform as any) : null;
+  const playerEffectiveProjection = (player: any, slot?: string) =>
+    !showdownDisplay
+      ? Number(player?.projectedPoints ?? 0)
+      : (slot === "CPT" || slot === "MVP" || slot === "CAPTAIN" || player?.isCaptain === true)
+        ? Number(player.projectedPoints || 0) * (showdownConfig?.captainMultiplier ?? (platform === "fanduel" ? 2 : 1.5))
+        : Number(player?.projectedPoints ?? 0);
+  const playerEffectiveSalary = (player: any, slot?: string) =>
+    !showdownDisplay
+      ? Number(player?.salary ?? 0)
+      : (slot === "CPT" || slot === "MVP" || slot === "CAPTAIN" || player?.isCaptain === true)
+        ? Number(player.salary || 0) * (showdownConfig?.captainSalaryMultiplier ?? (platform === "draftkings" ? 1.5 : 1))
+        : Number(player?.salary ?? 0);
+  const displayTotalSalary = showdownDisplay
+    ? displaySlots.reduce((sum, slot) => sum + playerEffectiveSalary(slotAssignments[slot], slot), 0)
+    : lineup.totalSalary;
+  const displayTotalProjection = showdownDisplay
+    ? displaySlots.reduce((sum, slot) => sum + playerEffectiveProjection(slotAssignments[slot], slot), 0)
+    : Number(lineup.totalProjectedPoints);
+  const maxProj = Math.max(
+    ...displaySlots.map(slot => playerEffectiveProjection(slotAssignments[slot], slot)),
+    1,
+  );
 
   const eligibleReplacements = currentSwapSlot
     ? showdownDisplay ? [] : lineup.allPlayers.filter(p =>
@@ -2581,7 +2615,7 @@ function ExpandedRoster({
                   <td className="py-3 pr-4 text-xs text-slate-400">{player?.position || "—"}</td>
                   <td className="py-3 pr-4 text-xs text-slate-400">{player?.team || "—"}</td>
                   <td className="py-3 pr-4 text-right text-sm font-medium text-white">
-                    {player ? formatSalary(player.salary, platform) : "—"}
+                    {player ? formatSalary(playerEffectiveSalary(player, slot), platform) : "—"}
                   </td>
                   <td className="py-3 pr-4 text-right text-sm text-slate-400">
                     {player ? Number(player.fppg || player.projectedPoints).toFixed(1) : "—"}
@@ -2593,13 +2627,13 @@ function ExpandedRoster({
                           <div className="w-full bg-slate-700/40 rounded-full h-2 overflow-hidden">
                             <div
                               className={`h-full rounded-full transition-all ${pc.bar}`}
-                              style={{ width: `${Math.min((Number(player.projectedPoints) / maxProj) * 100, 100)}%` }}
+                              style={{ width: `${Math.min((playerEffectiveProjection(player, slot) / maxProj) * 100, 100)}%` }}
                               data-testid={`proj-bar-${lineup.id}-${slot}`}
                             />
                           </div>
                         </div>
                         <span className={`text-sm font-semibold tabular-nums ${pc.text}`}>
-                          {Number(player.projectedPoints).toFixed(1)}
+                          {playerEffectiveProjection(player, slot).toFixed(1)}
                         </span>
                       </div>
                     ) : (
@@ -2642,11 +2676,11 @@ function ExpandedRoster({
                 Total ({lineup.playerIds.length} players)
               </td>
               <td className="py-3 pr-4 text-right text-sm font-bold text-white">
-                {formatSalary(lineup.totalSalary, platform)}
+                {formatSalary(displayTotalSalary, platform)}
               </td>
               <td className="py-3 pr-4"></td>
               <td className="py-3 pr-4 text-right text-sm font-bold text-emerald-400" data-testid={`total-proj-${lineup.id}`}>
-                {Number(lineup.totalProjectedPoints).toFixed(1)}
+                {displayTotalProjection.toFixed(1)}
               </td>
               <td></td>
             </tr>
@@ -2655,7 +2689,7 @@ function ExpandedRoster({
                 <div className="flex items-center gap-2">
                   <DollarSign className="w-3 h-3 text-slate-400" />
                   <span className="text-xs text-slate-400">
-                    Remaining: {formatSalary(config.salaryCap - lineup.totalSalary, platform)} / {formatCap(config.salaryCap, platform)} cap
+                    Remaining: {formatSalary(config.salaryCap - displayTotalSalary, platform)} / {formatCap(config.salaryCap, platform)} cap
                   </span>
                 </div>
               </td>
