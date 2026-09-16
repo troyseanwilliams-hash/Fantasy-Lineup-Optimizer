@@ -7,6 +7,7 @@ import { eq, and, lt, sql, desc, gte, inArray } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
+import { registerYoutubeOAuthRoutes } from "./youtube-oauth";
 import { getPlatformConfig, ACTIVE_SPORTS, assignPlayersToSlots, type Platform } from "@shared/platform-config";
 import { parseGameInfo, sanitizeGameInfo } from "@shared/game-info";
 import { computeBoostScores, computeCorrelationBonus, applyCeilingMode, applyLeverageMode, applyActualAdjustedProjections, applyWinningLineupAdjustment, applyOutperformerMode } from "./boost-engine";
@@ -221,6 +222,7 @@ export async function registerRoutes(
 ): Promise<Server> {
   await setupAuth(app);
   registerAuthRoutes(app);
+  registerYoutubeOAuthRoutes(app);
 
   const SITE_URL = "https://fantasy-lineup-optimizer.replit.app";
   app.get("/robots.txt", (_req, res) => {

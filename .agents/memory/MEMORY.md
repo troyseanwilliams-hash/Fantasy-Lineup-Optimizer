@@ -12,3 +12,4 @@
 - [Projection cutoff semantics](projection-cutoff-semantics.md) — input eligibility stays separate from automatic scoring and simulation; manual boosts affect the cutoff.
 - [Stack alternatives](stack-alternative-semantics.md) — favorites are alternative requirements; unselected stacks must not impose dependent constraints.
 - [Sport-specific slate selection](draftkings-sport-selection.md) — NFL ranking changes need MLB Classic/Showdown regression coverage and live contest-type verification.
+- [YouTube OAuth tokens](youtube-oauth-tokens.md) — persist per-user YouTube grants encrypted at rest; OAuth tokens must remain server-side.
