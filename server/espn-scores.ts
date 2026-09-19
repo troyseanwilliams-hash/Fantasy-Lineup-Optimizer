@@ -3,7 +3,6 @@ const ESPN_SCOREBOARD_URLS: Record<string, string> = {
   MLB: "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard",
   NFL: "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard",
   GOLF: "https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard",
-  SOCCER: "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard",
 };
 
 export interface GameScore {

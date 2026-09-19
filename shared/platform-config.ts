@@ -13,6 +13,8 @@ export const ACTIVE_SPORTS: Sport[] = ["NFL", "MLB", "GOLF"];
 export const COMING_SOON_SPORTS: Sport[] = ["NBA"];
 /** Sports fully off-season — hidden from nav and disabled */
 export const OFF_SEASON_SPORTS: Sport[] = ["NHL", "SOCCER"];
+/** World Cup-specific promotions, pages, and API responses are currently disabled. */
+export const WORLD_CUP_ENABLED = false;
 
 export interface PlatformConfig {
   platform: Platform;

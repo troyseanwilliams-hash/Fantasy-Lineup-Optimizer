@@ -7,7 +7,7 @@ import { eq, and, lt, sql, desc, gte, inArray } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
-import { getPlatformConfig, ACTIVE_SPORTS, assignPlayersToSlots, type Platform } from "@shared/platform-config";
+import { getPlatformConfig, ACTIVE_SPORTS, WORLD_CUP_ENABLED, assignPlayersToSlots, type Platform } from "@shared/platform-config";
 import { parseGameInfo, sanitizeGameInfo } from "@shared/game-info";
 import { computeBoostScores, computeCorrelationBonus, applyCeilingMode, applyLeverageMode, applyActualAdjustedProjections, applyWinningLineupAdjustment, applyOutperformerMode } from "./boost-engine";
 import { getHistoricalProfile, applyHistoricalAdjustments } from "./historical-adjustments";
@@ -4146,6 +4146,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/worldcup", async (_req, res) => {
+    if (!WORLD_CUP_ENABLED) return res.status(404).json({ error: "World Cup features are disabled" });
     try {
       const today = getEasternToday();
       const allSlates = await storage.getSlates();
@@ -4305,7 +4306,6 @@ export async function registerRoutes(
     MLB: "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/news",
     NFL: "https://site.api.espn.com/apis/site/v2/sports/football/nfl/news",
     GOLF: "https://site.api.espn.com/apis/site/v2/sports/golf/pga/news",
-    SOCCER: "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/news",
   };
 
   const newsCache = new Map<string, { data: any; fetchedAt: number }>();
@@ -4464,6 +4464,7 @@ export async function registerRoutes(
 
   // World Cup auto-build: builds AI entries from World Cup–filtered SOCCER projections.
   app.get("/api/prizepicks/build/worldcup", async (req, res) => {
+    if (!WORLD_CUP_ENABLED) return res.status(404).json({ error: "World Cup features are disabled" });
     try {
       if (!isLoggedIn(req)) return res.sendStatus(401);
       const userId = getSessionUserId(req)!;
@@ -4608,6 +4609,7 @@ export async function registerRoutes(
   // Same live→DB fallback as /api/prizepicks/:sport, then filtered to World Cup.
   // Registered BEFORE /api/prizepicks/:sport so the literal path wins.
   app.get("/api/prizepicks/worldcup", async (_req, res) => {
+    if (!WORLD_CUP_ENABLED) return res.status(404).json({ error: "World Cup features are disabled" });
     try {
       const { projections: worldCup, soccerCount } = await getWorldCupProjections();
       const movements = getLineMovements("SOCCER");

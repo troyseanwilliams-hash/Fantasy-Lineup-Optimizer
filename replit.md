@@ -15,7 +15,7 @@ EliteLineup AI is a web application for Daily Fantasy Sports (DFS) players on Dr
 - `GET /api/admin/funnel?days=` + "User Funnel" panel in Admin: failed signups, signed-up-but-unpaid users, abandoned checkouts, raw event feed.
 
 ### Season state (July 2026)
-- ACTIVE: MLB, GOLF. OFF_SEASON: SOCCER (World Cup ended), NHL. COMING_SOON: NFL ("Kickoff Sept"), NBA. Flip NFL to ACTIVE when DK posts Week 1 slates. Draft SZN banner on Home funnels to /nfl-draft.
+- ACTIVE: MLB, NFL, GOLF. OFF_SEASON: SOCCER, NHL. COMING_SOON: NBA. Draft SZN banner on Home funnels to /nfl-draft.
 
 ## User Preferences
 
@@ -38,7 +38,7 @@ Preferred communication style: Simple, everyday language.
 - **Confirmed Starter Boost**: 5% projection boost for DraftKings confirmed starters.
 - **Data Source**: DraftKings public API is the primary system of record for player and slate data. All DK slates (main + alternates) are loaded daily for each active sport with full player pools and boost scoring. FanDuel and Yahoo load main slates only.
 - **Active Sports (Season-Aware)**: Sports nav is driven by three lists in `shared/platform-config.ts`. `ACTIVE_SPORTS` (SOCCER, MLB, GOLF) are in-season and fully available. `COMING_SOON_SPORTS` (NFL, NBA) are off-season but shown in nav with a "Fall 2026" badge; NFL links to a preview-mode `/nfl-mme` MME Optimizer page. `OFF_SEASON_SPORTS` (NHL) are hidden from nav and disabled in the frontend. Backend seeding/ingest still loads NFL/NHL data for continuity, but only `ACTIVE_SPORTS` surface as fully-available frontend selectors. Primary focus is Soccer and Baseball.
-- **Soccer = FIFA World Cup**: Soccer is configured for the FIFA World Cup. The Odds API key is `soccer_fifa_world_cup`, and ESPN news/scores use the `soccer/fifa.world` league slug. Player prop markets are `player_shots` and `player_shots_on_target`. DraftKings serves whatever soccer slate is live.
+- **Soccer is off-season**: Soccer is currently hidden from active product surfaces. World Cup-specific promotions, feeds, and builders are disabled.
 - **Timezone Handling**: DraftKings times are processed as Eastern Time, stored as UTC.
 - **Golf News Hub**: Combines ESPN news with PGA Tour scoreboard data.
 - **Boost Engine**: Data-driven scoring using player history, trends, salary movement, floor/ceiling projections, momentum, team environment, and sport-specific stacking. Boost multiplier: `boostScore * 0.008` capped at ±8%. Boosts are computed for all DK slates (main + alternates) and main slates on other platforms. Includes actual-performance anchor: when a player's recency-weighted actual average (0.85 decay, last 10 games) significantly trails their projection, positive boosts are dampened (<70% of proj → 30% of boost, <85% → 55%, <95% → 75%). Requires ≥3 actual data points to activate.

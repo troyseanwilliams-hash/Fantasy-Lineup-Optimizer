@@ -18,7 +18,6 @@ import Pricing from "@/pages/Pricing";
 import News from "@/pages/News";
 import ParlayBuilder from "@/pages/ParlayBuilder";
 import PrizePicksBuilder from "@/pages/PrizePicksBuilder";
-import WorldCupBuilder from "@/pages/WorldCupBuilder";
 import Onboarding from "@/pages/Onboarding";
 import Terms from "@/pages/Terms";
 import Privacy from "@/pages/Privacy";
@@ -86,8 +85,6 @@ function Router() {
           <Route path="/props" component={PropBets} />
           <Route path="/parlays" component={ParlayBuilder} />
           <Route path="/prizepicks" component={PrizePicksBuilder} />
-          <Route path="/world-cup-builder" component={WorldCupBuilder} />
-
           <Route path="/news/:sport" component={News} />
           <Route path="/pricing" component={Pricing} />
           <Route path="/terms" component={Terms} />

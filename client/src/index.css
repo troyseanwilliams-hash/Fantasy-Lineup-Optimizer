@@ -62,7 +62,6 @@
   .nav-link {
     @apply text-slate-400 hover:text-[#10B981] transition-colors duration-200 font-medium;
   }
-  /* World Cup hero gradient */
   .wc-gradient {
     background: linear-gradient(135deg, #064e3b 0%, #1e3a5f 50%, #0f172a 100%);
   }

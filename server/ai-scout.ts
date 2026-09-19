@@ -19,9 +19,6 @@ const NEWS_SOURCES: Record<string, Array<{ url: string; type: "injuries" | "news
   GOLF: [
     { url: "https://site.api.espn.com/apis/site/v2/sports/golf/pga/news?limit=30", type: "news" },
   ],
-  SOCCER: [
-    { url: "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/news?limit=30", type: "news" },
-  ],
 };
 
 export const BOOST_WEIGHTS: Record<string, number> = {

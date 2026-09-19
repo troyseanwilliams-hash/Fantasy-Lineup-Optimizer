@@ -1479,8 +1479,7 @@ export default function Home() {
                 return (
                   <Badge key={sport} className="bg-emerald-500/10 text-emerald-300 border-emerald-500/25 font-bold text-sm px-3 py-1.5 backdrop-blur-sm gap-1.5" data-testid={`unauth-sport-${sport.toLowerCase()}`}>
                     <Icon className="w-3.5 h-3.5" />
-                    {sport === "SOCCER" ? "World Cup" : sport}
-                    {sport === "SOCCER" && <Circle className="w-1.5 h-1.5 fill-current animate-pulse ml-0.5" />}
+                    {sport}
                   </Badge>
                 );
               })}

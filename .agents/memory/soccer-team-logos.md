@@ -15,7 +15,8 @@ alpha-2 (`FIFA_TO_ISO2` in `client/src/pages/Home.tsx`). flagcdn supports UK
 subdivisions (`gb-eng`, `gb-sct`, `gb-wls`). Unmapped codes fall back to a
 text badge showing the abbrev — never the NBA image.
 
-**Why:** Soccer is configured as FIFA World Cup; teams are countries, so flags
-are correct and reliable where club-logo paths are not.
+**Why:** National-team soccer teams are countries, so flags are correct and
+reliable where club-logo paths are not. This guidance applies if generic soccer
+or a national-team competition is re-enabled.
 **How to apply:** When adding any soccer logo, extend `FIFA_TO_ISO2` for new
 nations rather than relying on ESPN abbrev paths.

@@ -69,7 +69,7 @@ function fmtTime(iso: string): string {
 }
 
 const SPORT_META: Record<string, { label: string; emoji: string }> = {
-  SOCCER: { label: "World Cup", emoji: "⚽" },
+  SOCCER: { label: "Soccer", emoji: "⚽" },
   MLB:    { label: "MLB",        emoji: "⚾" },
   GOLF:   { label: "Golf",       emoji: "⛳" },
   NFL:    { label: "NFL",        emoji: "🏈" },
@@ -374,7 +374,7 @@ export default function LiveScoreTracker() {
 
   const { user } = useAuth();
 
-  // Default to SOCCER (World Cup) if active, else first active sport
+  // Default to the first active sport.
   const defaultSport = ACTIVE_SPORTS.includes("SOCCER") ? "SOCCER" : ACTIVE_SPORTS[0] ?? "MLB";
   const [selectedSport, setSelectedSport] = useState<string>(defaultSport);
 

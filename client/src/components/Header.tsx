@@ -89,23 +89,6 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 bg-[#0F172A] border-b border-[#1E293B]">
-      {/* World Cup announcement strip */}
-      <div className="bg-gradient-to-r from-emerald-950 via-teal-950 to-emerald-950 border-b border-emerald-800/40 py-1.5 px-4">
-        <div className="container mx-auto flex items-center justify-center gap-3 text-center">
-          <div className="flex items-center gap-1.5 shrink-0">
-            <Circle className="w-2.5 h-2.5 text-emerald-400 fill-current animate-pulse" />
-            <span className="text-[11px] font-black text-emerald-400 uppercase tracking-widest">LIVE NOW</span>
-          </div>
-          <span className="text-[11px] text-slate-300 font-bold">
-            🏆 FIFA World Cup 2026 — AI prop picks & DFS lineups for every match
-          </span>
-          <Link href="/">
-            <span className="hidden sm:inline text-[11px] font-black text-emerald-400 hover:text-emerald-300 transition-colors underline underline-offset-2 shrink-0 cursor-pointer">
-              View Picks →
-            </span>
-          </Link>
-        </div>
-      </div>
       <div className="container mx-auto px-4 h-20 lg:h-24 flex items-center justify-between">
         <div className="flex items-center space-x-10 min-w-0">
           <Link href="/">
@@ -316,12 +299,6 @@ export function Header() {
                   <DropdownMenuItem className="cursor-pointer" data-testid="nav-prizepicks">
                     <Zap className="w-4 h-4 mr-2 text-emerald-400" />
                     <span className="text-sm font-bold text-slate-300">PrizePicks</span>
-                  </DropdownMenuItem>
-                </Link>
-                <Link href="/world-cup-builder">
-                  <DropdownMenuItem className="cursor-pointer" data-testid="nav-world-cup-builder">
-                    <Trophy className="w-4 h-4 mr-2 text-emerald-400" />
-                    <span className="text-sm font-bold text-slate-300">World Cup Builder</span>
                   </DropdownMenuItem>
                 </Link>
                 <Link href="/showdown">

@@ -1,5 +1,6 @@
 - [Log inspection on restarts](log-inspection.md) — after restart_workflow, use refresh_all_logs for current logs; manual tail of newest /tmp/logs file can be stale.
-- [Soccer team logos](soccer-team-logos.md) — soccer/World Cup uses flagcdn country flags via FIFA→ISO2 map; ESPN club-logo paths 404 for national teams.
+- [Soccer team logos](soccer-team-logos.md) — if soccer returns, national-team logos should use flagcdn country flags via the FIFA→ISO2 map.
+- [World Cup scope](world-cup-scope.md) — World Cup promotions, builder, and FIFA-specific feeds are disabled; keep generic soccer off-season.
 - [tsc vs build gate](typecheck-build-gate.md) — project fails tsc --noEmit (pre-existing); esbuild/vite is the real gate, so diff errors vs HEAD, don't treat tsc as pass/fail.
 - [Stripe account mismatch](stripe-account-mismatch.md) — Stripe MCP and app STRIPE_SECRET_KEY point to DIFFERENT accounts; use the app key via a node script for real account writes, not the MCP.
 - [Slate expiration timing](slate-expiration-timing.md) — multi-game slates expire from the latest game start, not the slate’s first kickoff; otherwise active evening games disappear.
