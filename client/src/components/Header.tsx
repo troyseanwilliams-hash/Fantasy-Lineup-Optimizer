@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Users, Settings2, BarChart3, Award, Swords, Circle, Shield, GitBranch, Youtube } from "lucide-react";
+import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Users, Settings2, BarChart3, Award, Swords, Circle, Shield, GitBranch } from "lucide-react";
 import { ACTIVE_SPORTS, COMING_SOON_SPORTS } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 import { LogoBanner } from "@/components/Logo";
@@ -560,12 +560,6 @@ export function Header() {
                       <span className="text-sm font-bold text-slate-300">Plans & Billing</span>
                     </DropdownMenuItem>
                   </Link>
-                  <Link href="/youtube">
-                    <DropdownMenuItem className="cursor-pointer" data-testid="menu-youtube">
-                      <Youtube className="w-4 h-4 mr-2 text-red-400" />
-                      <span className="text-sm font-bold text-slate-300">YouTube Connection</span>
-                    </DropdownMenuItem>
-                  </Link>
                   <DropdownMenuSeparator className="bg-slate-800" />
                   <DropdownMenuItem 
                     className="cursor-pointer text-red-400 focus:text-red-400"
@@ -730,16 +724,6 @@ export function Header() {
                 <span>Player Config</span>
               </button>
             )}
-            <button
-              onClick={() => mobileNav("/youtube")}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                currentPath === "/youtube" ? "bg-red-500/10 text-red-400" : "text-white hover:bg-slate-800"
-              }`}
-              data-testid="mobile-nav-youtube"
-            >
-              <Youtube className="w-5 h-5 shrink-0 text-red-400" />
-              <span>YouTube Connection</span>
-            </button>
             {user?.isAdmin && (
               <button
                 onClick={() => mobileNav("/ownership")}

@@ -6,6 +6,7 @@
 - [Slate refresh lineup integrity](slate-refresh-lineup-integrity.md) — refresh active-slate players in place; preserve referenced retired rows as optimizer-ineligible so saved lineup IDs remain valid.
 - [NFL activity filtering](nfl-activity-filtering.md) — do not use ESPN recently-played coverage to exclude NFL optimizer players; required positions such as DST may be absent.
 - [NFL GPP portfolio strategy](nfl-gpp-portfolio-strategy.md) — treat 2022–2025 top-100 tendencies as portfolio targets, prioritizing QB stacks, low-owned WRs, and secondary correlation.
+- [YouTube integration scope](youtube-integration-scope.md) — YouTube OAuth belongs to a different site and must not be added to this project.
 - [DraftKings Showdown rows](draftkings-showdown-rows.md) — DraftKings sends separate captain and flex rows; store the lower flex-priced row and apply captain multipliers in the optimizer.
 - [DraftKings Classic rows](draftkings-classic-rows.md) — live NFL feeds can return equal-priced positional/FLEX entries; verified exact contest IDs disambiguate Classic exports.
 - [Playwright post-merge setup](playwright-post-merge.md) — validation workflows need Chromium provisioned by the post-merge hook before Playwright tests can launch.
@@ -13,4 +14,3 @@
 - [Projection cutoff semantics](projection-cutoff-semantics.md) — input eligibility stays separate from automatic scoring and simulation; manual boosts affect the cutoff.
 - [Stack alternatives](stack-alternative-semantics.md) — favorites are alternative requirements; unselected stacks must not impose dependent constraints.
 - [Sport-specific slate selection](draftkings-sport-selection.md) — NFL ranking changes need MLB Classic/Showdown regression coverage and live contest-type verification.
-- [YouTube OAuth tokens](youtube-oauth-tokens.md) — persist per-user YouTube grants encrypted at rest; OAuth tokens must remain server-side.
