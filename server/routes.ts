@@ -1084,7 +1084,10 @@ export async function registerRoutes(
       const salaryFilteredPool = (constraints.playerMinSalary || constraints.playerMaxSalary)
         ? pool.filter(p => {
             if (mergedLocked.includes(p.id)) return true;
-            if (constraints.playerMinSalary && p.salary < constraints.playerMinSalary) return false;
+            // The player minimum salary is intended to avoid cheap skill
+            // players.  NFL DST/DEF is intentionally exempt so a cheap
+            // defense remains available to complete the roster.
+            if (constraints.playerMinSalary && !isDefense(p.position) && p.salary < constraints.playerMinSalary) return false;
             if (constraints.playerMaxSalary && p.salary > constraints.playerMaxSalary) return false;
             return true;
           })
@@ -1830,7 +1833,7 @@ export async function registerRoutes(
         const salaryFilteredPool = (minSalary || maxSalary)
           ? perturbedPool.filter(p => {
               if (lockedSet.has(p.id)) return true;
-              if (minSalary && p.salary < minSalary) return false;
+              if (minSalary && !isDefense(p.position) && p.salary < minSalary) return false;
               if (maxSalary && p.salary > maxSalary) return false;
               return true;
             })
@@ -2218,7 +2221,7 @@ export async function registerRoutes(
         if (simMinSalary || simMaxSalary) {
           pool = pool.filter(p => {
             if (simRegenLocked.has(p.id)) return true;
-            if (simMinSalary && p.salary < simMinSalary) return false;
+            if (simMinSalary && !isDefense(p.position) && p.salary < simMinSalary) return false;
             if (simMaxSalary && p.salary > simMaxSalary) return false;
             return true;
           });
@@ -5538,7 +5541,9 @@ export async function registerRoutes(
         pool = pool.filter(p => lockedSet.has(p.id) || !simInactiveIds.includes(p.id));
       }
 
-      if (input.playerMinSalary) pool = pool.filter(p => p.salary >= input.playerMinSalary!);
+      if (input.playerMinSalary) {
+        pool = pool.filter(p => isDefense(p.position) || p.salary >= input.playerMinSalary!);
+      }
       if (input.playerMaxSalary) pool = pool.filter(p => p.salary <= input.playerMaxSalary!);
 
       if (input.minStarRating > 0) {
