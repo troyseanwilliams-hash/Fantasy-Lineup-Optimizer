@@ -5,6 +5,7 @@
 - [Slate expiration timing](slate-expiration-timing.md) — multi-game slates expire from the latest game start, not the slate’s first kickoff; otherwise active evening games disappear.
 - [Slate refresh lineup integrity](slate-refresh-lineup-integrity.md) — refresh active-slate players in place; preserve referenced retired rows as optimizer-ineligible so saved lineup IDs remain valid.
 - [NFL activity filtering](nfl-activity-filtering.md) — do not use ESPN recently-played coverage to exclude NFL optimizer players; required positions such as DST may be absent.
+- [NFL GPP portfolio strategy](nfl-gpp-portfolio-strategy.md) — treat 2022–2025 top-100 tendencies as portfolio targets, prioritizing QB stacks, low-owned WRs, and secondary correlation.
 - [DraftKings Showdown rows](draftkings-showdown-rows.md) — DraftKings sends separate captain and flex rows; store the lower flex-priced row and apply captain multipliers in the optimizer.
 - [DraftKings Classic rows](draftkings-classic-rows.md) — live NFL feeds can return equal-priced positional/FLEX entries; verified exact contest IDs disambiguate Classic exports.
 - [Playwright post-merge setup](playwright-post-merge.md) — validation workflows need Chromium provisioned by the post-merge hook before Playwright tests can launch.
