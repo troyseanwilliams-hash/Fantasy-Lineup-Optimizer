@@ -1,0 +1,162 @@
+QB PRICES:
+Average Price - $6,148
+40% Value Tier
+36% Mid Range Tier 
+15% Paid Up ($7,000+)
+9.4% Punted (Below $5,000)
+
+GAME ENVIRONMENT:
+Nearly 70% of Top 100 Lineups stacked a game with a total UNDER 48 Total Points
+22.5% Under 42 Points
+21.6% 42-45 Points
+25.5% 45-48 Points
+20.5% 48-51 Points
+9.9% 51+ Points
+
+TEAM IMPLIED TOTALS BY POSITION:
+QB, Under 20 Points - 11.1% 
+QB, 20-23 Points - 32.2%
+QB, 23-26 Points - 29.2%
+QB, 26+ Points - 27.4%
+RB, Under 20 Points - 30.8%
+RB, 20-23 Points - 57.3%
+RB, 23-26 Points - 58.6%
+RB, 26+ Points - 46.8%
+WR, Under 20 Points - 49.0%
+WR, 20-23 Points - 71.2%
+WR, 23-26 Points - 67.6%
+WR, 26+ Points - 46.8%
+TE, Under 20 Points - 27.2%
+TE, 20-23 Points - 34.3%
+TE, 23-26 Points - 30.5%
+TE, 26+ Points - 22.9%
+
+VENUE & ROLE MAP:
+QB Home Favorite - 42.9%
+QB Home Underdog - 16.9%
+QB Road Favorite - 22.4%
+QB Road Underdog - 17.8%
+RB Home Favorite - 71.6%
+RB Home Underdog - 28.4%
+RB Road Favorite - 49.5%
+RB Road Underdog - 41.1%
+WR Home Favorite - 72.0%
+WR Home Underdog - 51.1%
+WR Road Favorite - 53.3%
+WR Road Underdog - 60.4%
+TE At Home - 62.7%
+TE On The Road - 46.9%
+DST Home Favorite - 45.4%
+DST Any Underdog - 32.8%
+
+STACKING:
+Pass Catchers include WR1, WR2, WR3 (or deeper) and TE’s
+Naked (QB only/no teammates)
+QB + 1 Pass Catcher (single or skinny stack)
+QB + 2 Pass Catchers (double stack)
+QB + 3 or more Pass Catchers (triple stack)
+QB + RB
+Bring Back (Opponent Player)
+Secondary Stack (stacking players not involved in your QB’s game)
+
+QB STACKS:
+Naked QBs (Rushing QBs) - Justin Fields, Josh Allen, Pat Mahomes, Jalen Hurts, Anthony Richardson, Jayden Daniels, Jaxson Dart, Drake Maye, Bo Nix, Kyler Murray, Malik Willis and Lamar Jackson
+QB + 1 Pass Catcher (WR or TE) - All QBs can be single stacked
+QB + 2 Pass Catchers (WRs or TEs) [Non-Mobile QBs] - Joe Burrow, Caleb Williams, Jared Goff, Dak Prescott, Sam Darnold, Trevor Lawrence, Justin Herbert, Baker Mayfield, Jordan Love, Daniel Jones, Aaron Rodgers, Jacoby Brissett, Tyler Shough, Bryce Young, CJ Stroud, Kirk Cousins, Geno Smith, Cam Ward, Tua Tagovailoa and Deshaun Watson
+QB + 1 Pass Catching RB - Josh Allen + James Cook, Lamar Jackson + Derrick Henry, Jalen Hurts + Saquon Barkley, Malik Willis + De’Von Achane, Joe Burrow + Chase Brown, Jared Goff + Jahmyr Gibbs, Kirk Cousins/Fernando Mendoza + Ashton Jeanty, Geno Smith + Breece Hall and Tua Tagovailia + Bijan Robinson
+
+QB + 1 PASS CATCHER WINNING %:
+QB + WR1 - 55.2%
+QB + WR2 - 35.6%
+QB + WR3 (or later) - 12.6%
+QB + TE - 30.0%
+
+TOTAL SALARY OF QB + HIS PASS CATCHERS:
+$10,000 or less - 9%
+$10,000 - $12,000 - 18%
+$12,000 - $14,000 - 20%
+$14,000 - $16,000 - 19%
+$16,000 - $18,000 - 14%
+$18,000 or more - 20%
+
+STACKING TAKEAWAYS:
+QB + 1 Pass Catcher (49.1%)
+QB + 2 Pass Catchers (37.6%)
+QB + 3 Pass Catchers (3.1%)
+45% of Top 100 stacks skip the WR1
+Playing Naked QBs worked 10% of the time
+Stacking budget doesn’t matter
+
+BRING BACKS:
+A Bring Back is a player from your QB’s opposing team.
+48.9% of Top 100 Lineups had a bring back player. 51.1% didn’t.
+
+SECONDARY STACKS:
+A Secondary Stack is a skinny stack (2 players) from the same game that is NOT involved in the game that your QB is.
+RB + Opposing WR - 27.4%
+RB + WR Same Team - 21.1%
+WR + Opposing WR - 14.1%
+TE + Opposing WR - 11.4%
+RB + Opposing TE - 9.6%
+RB + TE Same Team - 7.6%
+TE + WR Same Team 
+RB + Opposing RB
+
+BRING BACKS & SECONDARY STACKING TAKEAWAYS:
+More than two-thirds of Top 100 Lineups had a Secondary Stack, usually from a non-QB game
+The best secondary stack - RB + Opposing Team WR
+
+CHALK PLAYERS:
+Chalk players are the players that are the most owned.
+The Top 100 Lineups played the Chalk Players more than the field.
+
+PLAYER PRICING:
+Top 100 Lineups used top 3 priced QBs in 15.6%, the field 19.9%
+Top 100 Lineups used top 3 priced RBs in 34.6%, the field 40.3%
+Top 100 Lineups used top 3 priced WRs in 39.3%, the field 39.1%
+Top 100 Lineups used top 3 priced TEs in 21.9%, the field 24.5%
+
+FLEX POSITION:
+WR (Value WR) - 43.3% (2022-2025)
+2025 - 31.6%
+RB (Workhorse) - 37.4% (2022-2025)
+2025 - 42.7%
+TE (Double TE) - 19.3% (2022-2025)
+2025 - 25.7%
+
+GAMES TOUCHED IN WINNING LINEUPS:
+3 - 2%
+4 - 11%
+5 - 33%
+6 - 36%
+7 - 16%
+8 - 3%
+
+VALUE PLAYERS:
+Every position, besides RB, returned close to 4x their salary per $1,000. Example: A player costs $5,000, that’s 5 x 4 = 20. That player should be able to score you 20 points. 
+
+OTHER KEY TAKEAWAYS:
+87% of top-100 lineups were QB+1 or QB+2; the WR1 was the partner in 55.2% of the lineups.
+Sub-$4,500 RBs appeared in fewer than 5% of Top 100 lineups; TE is where winners save salary instead
+Five or six games per lineup, two of them deliberate clusters (stacks and or a bring back); 4x per $1K is the value bar
+TOTAL OWNERSHIP RULE:
+100,000+ Entries - 121.9%
+10,000-100,000 Entries - 128.2%
+1,000 - 10,000 Entries - 149.6%
+Less than 1,000 Entries - 182.0%
+PLAYER OWENERSHIP RULE:
+ALL FIELD SIZES, 88.7% of Top 100 Lineups had at least 2 players under 10% Ownership (WR)
+FINAL GAMEPLAN:
+Stack your QB with 1 or 2 pass-catchers (WR1, WR2, WR3 & TE). 87% of the lineups stacked their QBs with 1 or 2 pass-catchers. 45% of the lineups skipped the WR1
+Ownership is King! 100,000+ Entries - 121.9%. 10,000-100,000 Entries - 128.2%. 1,000 - 10,000 Entries - 149.6%. Less than 1,000 Entries - 182.0%. Sign up to dfsarmy.com for ownership projections by clicking on the link in the description! 
+Have 2 sub-10% players in every build, mainly at the WR position
+Add a secondary stack if possible. RB + the Opposing Team’s WR or RB + WR Same Team
+Try to touch 5-6 games per lineup
+Bring back a player from the other team in 50% of your lineups
+The highest total game is usually the chalkiest game and will give you the least leverage if you go all in. Target games that are less than 48 total points scored
+Don’t punt the RB position. In other words, don’t play cheap RBs
+Punt one player at the WR position 
+Play TE’s that are playing at home
+DraftKings - Don’t be afraid to play TE’s in the Flex Position 
+Play home-favorite defenses
+Every player should be able to 4x their salary. For example: A player priced at $5K should produce at least 20 fantasy points

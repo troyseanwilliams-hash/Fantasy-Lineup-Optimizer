@@ -38,6 +38,7 @@ import NFLMMEOptimizer from "@/pages/NFLMMEOptimizer";
 import NFLDraft from "@/pages/NFLDraft";
 import Support from "@/pages/Support";
 import TopStacks from "@/pages/TopStacks";
+import MmaOptimizer from "@/pages/MmaOptimizer";
 
 import NotFound from "@/pages/not-found";
 import { Header } from "@/components/Header";
@@ -81,6 +82,7 @@ function Router() {
           <Route path="/optimizer/:id" component={Optimizer} />
           <Route path="/optimizer-pro/:id" component={ProOptimizer} />
            <Route path="/top-stacks" component={TopStacks} />
+          <Route path="/mma-optimizer" component={MmaOptimizer} />
           <Route path="/lineups" component={SavedLineups} />
           <Route path="/props" component={PropBets} />
           <Route path="/parlays" component={ParlayBuilder} />

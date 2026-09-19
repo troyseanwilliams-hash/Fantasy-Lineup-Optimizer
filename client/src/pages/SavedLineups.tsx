@@ -34,11 +34,52 @@ import {
   type SlateIdentitySource,
 } from "@/lib/slate-identity";
 import { summarizeRegeneration } from "@/lib/regeneration-result";
-import { sanitizeGameInfo } from "@/lib/game-info";
+import { parseGameInfo, sanitizeGameInfo } from "@/lib/game-info";
+import { useSessionPlayerQuery } from "@/hooks/use-session-player-query";
 import { buildShowdownCSV, getShowdownDisplayData, isShowdownLineup } from "@shared/showdown-lineups";
 
 type VaultSortKey = "newest" | "oldest" | "projection_high" | "projection_low" | "ownership_high" | "ownership_low" | "salary_high" | "salary_low" | "grade_high" | "grade_low" | "p75_high" | "p90_high" | "median_high" | "freq_high" | "composite_high";
 type VaultTab = "active" | "review";
+const NFL_FLEX_POSITIONS = ["RB", "WR", "TE"] as const;
+type NflFlexPosition = typeof NFL_FLEX_POSITIONS[number];
+const STACKABLE_SPORTS = new Set(["NFL", "MLB", "NBA", "NHL", "SOCCER"]);
+
+function ResimFlexPositionControls({
+  allowedPositions,
+  onToggle,
+}: {
+  allowedPositions: NflFlexPosition[];
+  onToggle: (position: NflFlexPosition) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-700/50 bg-slate-900/50 px-3 py-2" data-testid="resim-nfl-flex-controls">
+      <div className="flex items-center gap-3">
+        <span className="text-[10px] font-black uppercase tracking-wide text-amber-400">FLEX Positions</span>
+        {NFL_FLEX_POSITIONS.map(position => {
+          const checked = allowedPositions.includes(position);
+          const isLastSelected = checked && allowedPositions.length === 1;
+          return (
+            <label key={position} className={`inline-flex items-center gap-1 text-[11px] font-black ${isLastSelected ? "text-slate-500" : "text-slate-300"}`}>
+              <input
+                type="checkbox"
+                checked={checked}
+                disabled={isLastSelected}
+                onChange={() => onToggle(position)}
+                aria-label={`Allow ${position} in FLEX`}
+                data-testid={`resim-flex-${position}`}
+                className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950 accent-amber-500 disabled:cursor-not-allowed"
+              />
+              {position}
+            </label>
+          );
+        })}
+      </div>
+      <p className="mt-1 text-[9px] leading-tight text-slate-500">
+        Restricts which positions can fill FLEX only; required RB, WR, and TE roster slots are unchanged.
+      </p>
+    </div>
+  );
+}
 
 interface LineupWithPlayers {
   id: number;
@@ -442,6 +483,8 @@ export default function SavedLineups() {
   const [regenMinSalary, setRegenMinSalary] = useState<number | null>(null);
   const [regenMaxSalary, setRegenMaxSalary] = useState<number | null>(null);
   const [regenSlateId, setRegenSlateId] = useState<number | null>(null);
+  const [regenFlexAllowedPositions, setRegenFlexAllowedPositions] = useState<NflFlexPosition[]>([...NFL_FLEX_POSITIONS]);
+  const [regenStackGameKeys, setRegenStackGameKeys] = useState<string[]>([]);
   const [simMetric, setSimMetric] = useState<"composite" | "p90" | "p75" | "median" | "avg">("composite");
 
   const { data: lineups, isLoading, error: lineupsError, refetch: refreshLineups, isFetching: refreshingLineups } = useQuery<any[]>({
@@ -476,6 +519,16 @@ export default function SavedLineups() {
     if (!lineups || selectedIds.size === 0) return null;
     const first = lineups.find((l: any) => selectedIds.has(l.id));
     return first?.slateId || null;
+  }, [lineups, selectedIds]);
+
+  const selectedSlateIds = useMemo(() => {
+    if (!lineups || selectedIds.size === 0) return [];
+    return Array.from(new Set(
+      lineups
+        .filter((lineup: any) => selectedIds.has(lineup.id))
+        .map((lineup: any) => Number(lineup.slateId))
+        .filter((id: number) => Number.isFinite(id) && id > 0),
+    ));
   }, [lineups, selectedIds]);
 
   const availableSlates = useMemo(() => {
@@ -606,11 +659,86 @@ export default function SavedLineups() {
   const isPro = tier === "pro";
   const isPaid = tier === "pro" || tier === "star";
 
-  const effectiveSlateId = regenSlateId || selectedLineupSlateId;
+  // An explicit target is authoritative. Without one, controls that depend on
+  // a player pool are only safe when every selected lineup has one source slate.
+  const effectiveSlateId = regenSlateId || (selectedSlateIds.length === 1 ? selectedSlateIds[0] : null);
+  const effectiveSlate = useMemo(() => {
+    if (!effectiveSlateId) return null;
+    const listed = allSlates?.find(slate => Number(slate.id) === Number(effectiveSlateId));
+    if (listed) return listed;
+    const sourceLineup = lineups?.find((lineup: any) => Number(lineup.slateId) === Number(effectiveSlateId));
+    return sourceLineup
+      ? {
+          id: effectiveSlateId,
+          sport: sourceLineup.sport,
+          platform: sourceLineup.platform,
+          gameType: sourceLineup.gameType || (sourceLineup.isShowdown ? "Showdown" : "Classic"),
+        } as Slate
+      : null;
+  }, [allSlates, effectiveSlateId, lineups]);
+  const effectiveSport = String(effectiveSlate?.sport || "").toUpperCase();
+  const effectiveIsClassic = String(effectiveSlate?.gameType || "Classic").trim().toLowerCase() === "classic";
+  const canConfigureStacks = !!effectiveSlate && effectiveIsClassic && STACKABLE_SPORTS.has(effectiveSport);
+  const canConfigureFlex = canConfigureStacks && effectiveSport === "NFL";
+  const effectivePlayerUrl = effectiveSlateId ? `/api/slates/${effectiveSlateId}/players` : "";
+  const { data: effectiveSlatePlayers } = useSessionPlayerQuery<Player[]>({
+    url: effectivePlayerUrl,
+    userId: (user as any)?.id,
+    enabled: !!effectiveSlateId && canConfigureStacks,
+  });
+  const effectiveGames = useMemo(() => {
+    if (!canConfigureStacks || !effectiveSlatePlayers) return [];
+    const games = new Map<string, { key: string; label: string }>();
+    for (const player of effectiveSlatePlayers) {
+      if (!player.gameInfo) continue;
+      const parsed = parseGameInfo(player.gameInfo);
+      let away = parsed.away || "";
+      let home = parsed.home || "";
+      if (!away || !home) {
+        away = player.opponent || "";
+        home = player.team || "";
+      }
+      if (!away || !home || away === home) continue;
+      const key = [away, home].sort().join("-");
+      if (!games.has(key)) games.set(key, { key, label: `${away} @ ${home}` });
+    }
+    return Array.from(games.values()).sort((a, b) => a.key.localeCompare(b.key));
+  }, [canConfigureStacks, effectiveSlatePlayers]);
+
+  useEffect(() => {
+    setRegenStackGameKeys([]);
+  }, [effectiveSlateId]);
+
+  useEffect(() => {
+    if (!canConfigureStacks) setRegenStackGameKeys([]);
+    if (!canConfigureFlex) setRegenFlexAllowedPositions([...NFL_FLEX_POSITIONS]);
+  }, [canConfigureFlex, canConfigureStacks]);
   const regenDraftGroupId = useMemo(() => {
     if (!regenSlateId) return undefined;
     return availableSlates.find(slate => slate.id === regenSlateId)?.draftGroupId;
   }, [availableSlates, regenSlateId]);
+  const buildSimRegenerationSettings = useCallback(() => ({
+    useBoosts: regenUseBoosts,
+    ceilingMode: regenCeilingMode,
+    leverageMode: regenLeverageMode,
+    outperformerMode: regenOutperformerMode,
+    contestType: regenContestType,
+    globalMaxExposure: regenMaxExposure ?? undefined,
+    globalMinExposure: regenMinExposure ?? undefined,
+    projFloor: regenProjFloor ?? undefined,
+    minSalary: regenMinSalary ?? undefined,
+    maxSalary: regenMaxSalary ?? undefined,
+    slateId: regenSlateId ?? undefined,
+    draftGroupId: regenDraftGroupId,
+    ...(canConfigureFlex ? { flexAllowedPositions: regenFlexAllowedPositions } : {}),
+    ...(canConfigureStacks ? { stackGameKeys: regenStackGameKeys } : {}),
+  }), [
+    canConfigureFlex, canConfigureStacks, regenCeilingMode, regenContestType,
+    regenDraftGroupId, regenFlexAllowedPositions, regenLeverageMode,
+    regenMaxExposure, regenMaxSalary, regenMinExposure, regenMinSalary,
+    regenOutperformerMode, regenProjFloor, regenSlateId, regenStackGameKeys,
+    regenUseBoosts,
+  ]);
 
   const { data: slateOverrides } = useQuery<any[]>({
     queryKey: ["/api/player-overrides", effectiveSlateId],
@@ -743,7 +871,7 @@ export default function SavedLineups() {
   });
 
   const simRegenMutation = useMutation({
-    mutationFn: async (params: { ids: number[]; numSims?: number; sortBy: string; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; outperformerMode?: boolean; contestType?: string; globalMaxExposure?: number; projFloor?: number; minSalary?: number; maxSalary?: number; slateId?: number; draftGroupId?: number }) => {
+    mutationFn: async (params: { ids: number[]; numSims?: number; sortBy: string; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; outperformerMode?: boolean; contestType?: string; globalMaxExposure?: number; globalMinExposure?: number; projFloor?: number; minSalary?: number; maxSalary?: number; slateId?: number; draftGroupId?: number; flexAllowedPositions?: NflFlexPosition[]; stackGameKeys?: string[] }) => {
       const res = await apiRequest("POST", "/api/lineups/sim-regenerate", { ...params, preserveSourceSlateId: true });
       return res.json();
     },
@@ -1257,7 +1385,11 @@ export default function SavedLineups() {
                             {simScoreMutation.isPending ? "Scoring..." : "Score"}
                           </Button>
                           <Button
-                            onClick={() => simRegenMutation.mutate({ ids: Array.from(selectedIds), sortBy: simMetric, useBoosts: regenUseBoosts, ceilingMode: regenCeilingMode, leverageMode: regenLeverageMode, outperformerMode: regenOutperformerMode, contestType: regenContestType, globalMaxExposure: regenMaxExposure ?? undefined, globalMinExposure: regenMinExposure ?? undefined, projFloor: regenProjFloor ?? undefined, minSalary: regenMinSalary ?? undefined, maxSalary: regenMaxSalary ?? undefined, slateId: regenSlateId ?? undefined, draftGroupId: regenDraftGroupId })}
+                            onClick={() => simRegenMutation.mutate({
+                              ids: Array.from(selectedIds),
+                              sortBy: simMetric,
+                              ...buildSimRegenerationSettings(),
+                            })}
                             disabled={simRegenMutation.isPending || simScoreMutation.isPending || regenContestType === "cash"}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-md rounded-l-none text-xs disabled:opacity-40"
                             data-testid="sim-regen-btn"
@@ -1474,6 +1606,70 @@ export default function SavedLineups() {
                           </span>
                         ) : null;
                       })()}
+                  </div>
+                )}
+                {selectedSlateIds.length > 1 && !regenSlateId && (
+                  <div className="basis-full rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[10px] text-amber-300" data-testid="resim-games-unavailable">
+                    Game stacks are unavailable because the selected lineups come from multiple slates. Choose one explicit Target group to load an unambiguous game pool.
+                  </div>
+                )}
+                {canConfigureFlex && (
+                  <ResimFlexPositionControls
+                    allowedPositions={regenFlexAllowedPositions}
+                    onToggle={position => setRegenFlexAllowedPositions(current => {
+                      if (current.includes(position)) {
+                        return current.length === 1 ? current : current.filter(item => item !== position);
+                      }
+                      return NFL_FLEX_POSITIONS.filter(item => item === position || current.includes(item));
+                    })}
+                  />
+                )}
+                {canConfigureStacks && (
+                  <div className="basis-full rounded-lg border border-violet-500/20 bg-slate-900/50 px-3 py-2" data-testid="resim-game-stack-controls">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[10px] font-black uppercase tracking-wide text-violet-400">
+                        Games to Stack ({regenStackGameKeys.length} selected)
+                      </span>
+                      {regenStackGameKeys.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setRegenStackGameKeys([])}
+                          className="text-[9px] font-black text-red-400 hover:text-red-300"
+                          data-testid="resim-clear-stack-games"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <p className="mt-1 text-[9px] leading-tight text-slate-500">
+                      {effectiveSport === "NFL"
+                        ? "NFL stacks pair a QB with a same-team catcher and an opposing RB/WR/TE. Selecting multiple games creates alternatives: each generated lineup uses one selected game."
+                        : "Require three players from one selected game, including both teams. Selecting multiple games creates alternatives; each generated lineup uses one of them."}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {effectiveGames.map(game => (
+                        <button
+                          type="button"
+                          key={game.key}
+                          onClick={() => setRegenStackGameKeys(keys =>
+                            keys.includes(game.key) ? keys.filter(key => key !== game.key) : [...keys, game.key])}
+                          aria-pressed={regenStackGameKeys.includes(game.key)}
+                          className={`rounded border px-2 py-1 text-[10px] font-black transition-all ${
+                            regenStackGameKeys.includes(game.key)
+                              ? "border-violet-500/40 bg-violet-500/20 text-violet-300"
+                              : "border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-300"
+                          }`}
+                          data-testid={`resim-stack-game-${game.key}`}
+                        >
+                          {game.label}
+                        </button>
+                      ))}
+                      {effectiveGames.length === 0 && (
+                        <span className="text-[10px] text-slate-500" data-testid="resim-no-games">
+                          No games are available from the target slate player pool.
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1787,18 +1983,7 @@ export default function SavedLineups() {
                           onClick={() => simRegenMutation.mutate({
                             ids: Array.from(selectedIds),
                             sortBy: simMetric,
-                            useBoosts: regenUseBoosts,
-                            ceilingMode: regenCeilingMode,
-                            leverageMode: regenLeverageMode,
-                            outperformerMode: regenOutperformerMode,
-                            contestType: regenContestType,
-                            globalMaxExposure: regenMaxExposure ?? undefined,
-                            globalMinExposure: regenMinExposure ?? undefined,
-                            projFloor: regenProjFloor ?? undefined,
-                            minSalary: regenMinSalary ?? undefined,
-                            maxSalary: regenMaxSalary ?? undefined,
-                            slateId: regenSlateId ?? undefined,
-                            draftGroupId: regenDraftGroupId,
+                            ...buildSimRegenerationSettings(),
                           })}
                           data-testid="exposure-resim-btn"
                         >

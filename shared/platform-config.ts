@@ -15,6 +15,10 @@ export const COMING_SOON_SPORTS: Sport[] = ["NBA"];
 export const OFF_SEASON_SPORTS: Sport[] = ["NHL", "SOCCER"];
 /** World Cup-specific promotions, pages, and API responses are currently disabled. */
 export const WORLD_CUP_ENABLED = false;
+/** User-facing product promotion visibility. Routes and entitlements remain available when hidden. */
+export const FEATURE_VISIBILITY = {
+  draftHub: false,
+} as const;
 
 export interface PlatformConfig {
   platform: Platform;

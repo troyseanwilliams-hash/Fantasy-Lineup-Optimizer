@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { usePageMeta } from "@/hooks/use-page-meta";
 import { Check, Crown, Lock, Trophy, Sparkles, Calendar, Tag, Loader2, AlertTriangle, CreditCard, Gift, Dice5 } from "lucide-react";
 import { PaymentModal } from "@/components/PaymentForm";
+import { FEATURE_VISIBILITY } from "@shared/platform-config";
 
 type BillingCycle = "monthly" | "annual";
 
@@ -340,10 +341,10 @@ export default function Pricing() {
               <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
               <span>No Win Agent or ownership heatmap</span>
             </li>
-            <li className="flex items-center gap-3 text-sm text-slate-400">
+            {FEATURE_VISIBILITY.draftHub && <li className="flex items-center gap-3 text-sm text-slate-400">
               <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
               <span>No NFL Draft Hub</span>
-            </li>
+            </li>}
           </ul>
           {isAdmin ? (
             <Button variant="outline" className="w-full h-12 border-amber-500/30 text-amber-400 font-bold cursor-default" disabled data-testid="admin-star-btn">
@@ -506,10 +507,10 @@ export default function Pricing() {
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
               <span className="font-bold text-amber-300">Bulk lineup regeneration</span>
             </li>
-            <li className="flex items-center gap-3 text-sm text-slate-300">
+            {FEATURE_VISIBILITY.draftHub && <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
               <span className="font-bold text-amber-300">🏈 Full NFL Draft Hub (Mock Draft Simulator + Live Draft Assistant + cheat sheets)</span>
-            </li>
+            </li>}
           </ul>
           {isAdmin ? (
             <Button className="w-full h-12 bg-amber-500/20 border border-amber-500/30 text-amber-300 font-black cursor-default hover:bg-amber-500/20" disabled data-testid="admin-pro-btn">
@@ -553,7 +554,7 @@ export default function Pricing() {
       <p className="text-center text-xs text-slate-500 mt-6">No refunds. Cancel at any time.</p>
 
       {/* Standalone Draft Hub */}
-      <div className="max-w-2xl mx-auto mt-12">
+      {FEATURE_VISIBILITY.draftHub && <div className="max-w-2xl mx-auto mt-12">
         <div className="text-center mb-4">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Standalone — 2026 Season</span>
         </div>
@@ -616,7 +617,7 @@ export default function Pricing() {
             </div>
           </div>
         </Card>
-      </div>
+      </div>}
 
       {paymentTier && (
         <PaymentModal

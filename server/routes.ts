@@ -177,6 +177,66 @@ function isClassicSlate(slate: Slate): boolean {
   return (slate.gameType || "Classic").trim().toLowerCase() === "classic";
 }
 
+const SIM_STACK_SUPPORTED_CLASSIC_SPORTS = new Set(["NFL", "MLB", "NBA", "NHL", "SOCCER"]);
+
+export const simRegenerateRestrictionSchema = z.object({
+  flexAllowedPositions: z.array(z.enum(["RB", "WR", "TE"])).min(1).optional(),
+  stackGameKeys: z.array(z.string()).max(32).optional(),
+}).strict();
+
+export function validateSimRegenerateRestrictions(
+  input: z.infer<typeof simRegenerateRestrictionSchema>,
+  slate: Slate,
+  players: Player[],
+): { flexAllowedPositions?: ("RB" | "WR" | "TE")[]; stackGameKeys?: string[] } {
+  const sport = slate.sport.trim().toUpperCase();
+  const classic = isClassicSlate(slate);
+
+  if (input.flexAllowedPositions !== undefined && (sport !== "NFL" || !classic)) {
+    throw new Error("FLEX position restrictions are supported only for NFL Classic slates.");
+  }
+
+  let stackGameKeys: string[] | undefined;
+  if (input.stackGameKeys !== undefined) {
+    if (input.stackGameKeys.length > 0 && (!classic || !SIM_STACK_SUPPORTED_CLASSIC_SPORTS.has(sport))) {
+      throw new Error("Selected game stacks are supported only for NFL, MLB, NBA, NHL, and SOCCER Classic slates.");
+    }
+    const normalized = input.stackGameKeys.map(key => normalizeStackGameKey(key));
+    if (normalized.some(key => !key)) {
+      throw new Error("Selected stack games must use a canonical TEAM-TEAM game key.");
+    }
+    stackGameKeys = Array.from(new Set(normalized.filter((key): key is string => Boolean(key))));
+    const actualGameKeys = new Set(players.map(player => getStackGameKey(player.gameInfo)).filter(Boolean));
+    if (stackGameKeys.some(key => !actualGameKeys.has(key))) {
+      throw new Error("A selected stack game is not in every affected slate. Clear your game selections and try again.");
+    }
+  }
+
+  return {
+    flexAllowedPositions: input.flexAllowedPositions,
+    stackGameKeys,
+  };
+}
+
+export function buildSimRegenerateSolverConstraints(
+  slateId: number,
+  lockedPlayerIds: number[],
+  salaryCap: number,
+  contestType: "cash" | "gpp",
+  restrictions: ReturnType<typeof validateSimRegenerateRestrictions>,
+): OptimizationConstraints & { stackGameKeys?: string[]; maxSalary?: number } {
+  return {
+    slateId,
+    lockedPlayerIds,
+    excludedPlayerIds: [],
+    flexAllowedPositions: restrictions.flexAllowedPositions,
+    lineupCount: 1,
+    maxSalary: salaryCap,
+    contestType,
+    stackGameKeys: restrictions.stackGameKeys,
+  } as OptimizationConstraints & { stackGameKeys?: string[]; maxSalary?: number };
+}
+
 function serializeFavoriteStack(stack: FavoriteStack) {
   return {
     id: stack.id,
@@ -2043,6 +2103,15 @@ export async function registerRoutes(
   app.post("/api/lineups/sim-regenerate", async (req, res) => {
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const userId = getSessionUserId(req)!;
+    const restrictionInput = simRegenerateRestrictionSchema.safeParse({
+      flexAllowedPositions: req.body.flexAllowedPositions,
+      stackGameKeys: req.body.stackGameKeys,
+    });
+    if (!restrictionInput.success) {
+      return res.status(400).json({
+        message: restrictionInput.error.errors[0]?.message || "Invalid simulation regeneration restrictions.",
+      });
+    }
     const { ids, sortBy, useBoosts, ceilingMode, leverageMode, outperformerMode, contestType: rawContestType, globalMaxExposure, globalMinExposure, minExposureLimits, projFloor, minSalary, maxSalary, slateId: bodySlateId, draftGroupId: bodyDraftGroupId } = req.body;
     const simContestType = rawContestType === "gpp" ? "gpp" : "cash";
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "No lineup IDs provided" });
@@ -2123,15 +2192,45 @@ export async function registerRoutes(
         slateGroups.set(effectiveSlateId, group);
       }
 
+      // Validate every resolved target before projection work or lineup
+      // mutations. Mixed-source requests must not apply one slate's games to
+      // another target that does not actually contain them.
+      const preflightTargets = new Map<number, {
+        slate: Slate;
+        players: Player[];
+        restrictions: ReturnType<typeof validateSimRegenerateRestrictions>;
+      }>();
       for (const [slateId, lineupIds] of slateGroups) {
         const slate = await storage.getSlate(slateId);
+        if (!slate) continue;
+        const players = await storage.getPlayersBySlate(slateId);
+        try {
+          preflightTargets.set(slateId, {
+            slate,
+            players,
+            restrictions: validateSimRegenerateRestrictions(restrictionInput.data, slate, players),
+          });
+        } catch (error: any) {
+          return res.status(400).json({
+            message: error?.message || `Invalid restrictions for target slate ${slateId}.`,
+            slateId,
+            lineupIds,
+          });
+        }
+      }
+
+      for (const [slateId, lineupIds] of slateGroups) {
+        const preflightTarget = preflightTargets.get(slateId);
+        const slate = preflightTarget?.slate ?? await storage.getSlate(slateId);
         if (!slate) {
           lineupIds.forEach(id => results.push({ id, status: "skipped", error: "Slate not found" }));
           continue;
         }
 
         const platform = (lineupOwnership.get(lineupIds[0])?.platform || "draftkings") as Platform;
-        let allPlayers = await storage.getPlayersBySlate(slateId);
+        const simRegenRestrictions = preflightTarget?.restrictions ??
+          validateSimRegenerateRestrictions(restrictionInput.data, slate, []);
+        let allPlayers = preflightTarget?.players ?? await storage.getPlayersBySlate(slateId);
         if (allPlayers.length === 0) {
           console.log(`[SimRegen] Slate ${slateId} has no players — likely refreshed. Skipping ${lineupIds.length} lineups.`);
           lineupIds.forEach(id => results.push({ id, status: "skipped", error: "Slate data was refreshed. Generate new lineups from the current slate first." }));
@@ -2268,6 +2367,14 @@ export async function registerRoutes(
         const keepIds = new Set<number>();
         for (const p of pool) { if (simRegenLocked.has(p.id)) keepIds.add(p.id); }
         for (const mp of minExpPlayers) keepIds.add(mp.id);
+        // A reduced LP pool must retain every currently eligible player from
+        // each selected game. Otherwise pruning can manufacture an
+        // infeasible stack even though the full target pool can satisfy it.
+        for (const gameKey of simRegenRestrictions.stackGameKeys ?? []) {
+          for (const player of pool) {
+            if (getStackGameKey(player.gameInfo) === gameKey) keepIds.add(player.id);
+          }
+        }
         const topPerPos = slate.sport === "GOLF" ? 50 : 20;
         const cheapReserve = 5;
         for (const [, players] of positionGroups) {
@@ -2290,9 +2397,18 @@ export async function registerRoutes(
           return locks;
         }
 
+        const simRegenConstraints = (lockedPlayerIds: number[]) =>
+          buildSimRegenerateSolverConstraints(
+            slateId,
+            lockedPlayerIds,
+            config.salaryCap,
+            simContestType,
+            simRegenRestrictions,
+          );
+
         const baselineResult = solveLineup(
           lpPool,
-          { slateId, lockedPlayerIds: [...simRegenLocked], excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
+          simRegenConstraints([...simRegenLocked]),
           slate.sport, platform,
           undefined,
           { deadline: solverDeadline, timeoutMs: 2_000 },
@@ -2325,7 +2441,7 @@ export async function registerRoutes(
           calibrationAttempts++;
           const result = solveLineup(
             simPool,
-            { slateId, lockedPlayerIds: simLocks, excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
+            simRegenConstraints(simLocks),
             slate.sport, platform,
             undefined,
             { deadline: solverDeadline, timeoutMs: 2_000 },
@@ -2360,7 +2476,7 @@ export async function registerRoutes(
             await yieldToEventLoop();
             const result = solveLineup(
               simPool,
-              { slateId, lockedPlayerIds: fbLocks, excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
+              simRegenConstraints(fbLocks),
               slate.sport,
               platform,
               undefined,
@@ -2406,7 +2522,7 @@ export async function registerRoutes(
           await yieldToEventLoop();
           const result = solveLineup(
             simPool,
-            { slateId, lockedPlayerIds: mainLocks, excludedPlayerIds: [], lineupCount: 1, maxSalary: config.salaryCap, contestType: simContestType } as OptimizationConstraints,
+            simRegenConstraints(mainLocks),
             slate.sport, platform,
             undefined,
             { deadline: solverDeadline, timeoutMs: 2_000 },

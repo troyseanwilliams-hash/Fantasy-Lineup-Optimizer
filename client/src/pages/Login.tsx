@@ -12,6 +12,7 @@ import {
   Zap, TrendingUp, Trophy, Target, Bell, BarChart3, Sparkles, ShieldCheck,
 } from "lucide-react";
 import { LogoBanner } from "@/components/Logo";
+import { FEATURE_VISIBILITY } from "@shared/platform-config";
 
 // Marketing panel content — shown beside the form so every visitor sees what
 // the product does before they type a character.
@@ -119,7 +120,7 @@ export default function Login() {
         </div>
 
         <div className="relative z-10 space-y-3.5 my-8" data-testid="login-feature-list">
-          {FEATURES.map((f) => (
+          {FEATURES.filter((f) => FEATURE_VISIBILITY.draftHub || f.title !== "Live Draft Hub").map((f) => (
             <div key={f.title} className="flex items-start gap-3.5">
               <div className={`w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 ${f.bg}`}>
                 <f.icon className={`w-[18px] h-[18px] ${f.color}`} />
@@ -157,7 +158,7 @@ export default function Login() {
               Win More. <span className="text-emerald-400">Every Night.</span>
             </h1>
             <div className="flex items-center justify-center gap-2 flex-wrap">
-              {MOBILE_PILLS.map((p) => (
+                {MOBILE_PILLS.filter((p) => FEATURE_VISIBILITY.draftHub || p.label !== "Draft Hub").map((p) => (
                 <span
                   key={p.label}
                   className="inline-flex items-center gap-1.5 rounded-full bg-slate-800/80 border border-slate-700 px-3 py-1 text-[11px] font-bold text-slate-300"

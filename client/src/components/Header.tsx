@@ -14,7 +14,7 @@ import {
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Users, Settings2, BarChart3, Award, Swords, Circle, Shield, GitBranch } from "lucide-react";
-import { ACTIVE_SPORTS, COMING_SOON_SPORTS } from "@shared/platform-config";
+import { ACTIVE_SPORTS, COMING_SOON_SPORTS, FEATURE_VISIBILITY } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 import { LogoBanner } from "@/components/Logo";
 
@@ -233,7 +233,7 @@ export function Header() {
                         </DropdownMenuLabel>
                         {sport === "NFL" && (
                           <>
-                            <Link href="/nfl-draft">
+                            {FEATURE_VISIBILITY.draftHub && <Link href="/nfl-draft">
                               <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-draft`}>
                                 <div className="w-6 h-6 rounded bg-amber-500/10 flex items-center justify-center mr-2 shrink-0">
                                   <Sparkles className="w-3.5 h-3.5 text-amber-400" />
@@ -241,7 +241,7 @@ export function Header() {
                                 <span className="text-sm font-bold text-amber-300">Fantasy Draft Hub</span>
                                 <span className="text-[9px] font-black text-amber-400 ml-auto">DRAFT SZN</span>
                               </DropdownMenuItem>
-                            </Link>
+                            </Link>}
                             <Link href="/nfl-mme">
                               <DropdownMenuItem className="cursor-pointer opacity-70 hover:opacity-100" data-testid={`sport-menu-${sport.toLowerCase()}-mme`}>
                                 <div className="w-6 h-6 rounded bg-blue-500/10 flex items-center justify-center mr-2 shrink-0">
@@ -260,7 +260,7 @@ export function Header() {
               </DropdownMenu>
             )}
 
-            <Link href="/nfl-draft">
+            {FEATURE_VISIBILITY.draftHub && <Link href="/nfl-draft">
               <div
                 className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
                   currentPath === "/nfl-draft" ? "text-amber-400" : "text-slate-400 hover:text-white"
@@ -270,6 +270,15 @@ export function Header() {
                 <Sparkles className="w-4 h-4 text-amber-400" />
                 <span>Draft Hub</span>
                 <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">NEW</span>
+              </div>
+            </Link>}
+
+            <Link href="/mma-optimizer">
+              <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
+                currentPath === "/mma-optimizer" ? "text-emerald-400" : "text-slate-400 hover:text-white"
+              }`} data-testid="nav-mma-optimizer">
+                <Swords className="w-4 h-4" />
+                <span>UFC / MMA</span>
               </div>
             </Link>
 
@@ -622,6 +631,17 @@ export function Header() {
             </button>
 
             <button
+              onClick={() => mobileNav("/mma-optimizer")}
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                currentPath === "/mma-optimizer" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+              }`}
+              data-testid="mobile-nav-mma-optimizer"
+            >
+              <Swords className="w-5 h-5 shrink-0" />
+              <span>UFC / MMA Optimizer</span>
+            </button>
+
+            {FEATURE_VISIBILITY.draftHub && <button
               onClick={() => mobileNav("/nfl-draft")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
                 currentPath === "/nfl-draft" ? "bg-amber-500/10 text-amber-400" : "text-amber-300 hover:bg-amber-500/10"
@@ -631,7 +651,7 @@ export function Header() {
               <Sparkles className="w-5 h-5 shrink-0 text-amber-400" />
               <span>NFL Draft Hub</span>
               <span className="ml-auto text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">NEW</span>
-            </button>
+            </button>}
 
             <button
               onClick={() => mobileNav("/props")}

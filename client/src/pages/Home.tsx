@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
-import { ACTIVE_SPORTS } from "@shared/platform-config";
+import { ACTIVE_SPORTS, FEATURE_VISIBILITY } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 import { parseGameInfo, sanitizeGameInfo } from "@/lib/game-info";
 import { TutorialOverlay, useTutorial } from "@/components/TutorialOverlay";
@@ -1123,7 +1123,7 @@ function AuthenticatedDashboard() {
       </div>
 
       <HeroBanner firstName={firstName} tier={tier} />
-      <DraftSeasonBanner />
+      {FEATURE_VISIBILITY.draftHub && <DraftSeasonBanner />}
       <SportSelector activeSport={activeSport} onSelect={setActiveSport} />
 
       <LiveScoresSection sport={activeSport} />
@@ -1233,12 +1233,12 @@ function DraftHubHero() {
             </div>
           </div>
           <div className="shrink-0 flex flex-col gap-2 items-stretch">
-            <Link href="/nfl-draft">
+            {FEATURE_VISIBILITY.draftHub && <Link href="/nfl-draft">
               <button className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-sm transition-colors shadow-lg shadow-amber-500/25">
                 See the Rankings Free
                 <ChevronRight className="w-4 h-4" />
               </button>
-            </Link>
+            </Link>}
             <Link href="/pricing">
               <button className="w-full px-6 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-colors">
                 Full Hub — $49 one-time, no subscription
@@ -1282,12 +1282,12 @@ function NFLFallTeaser() {
                 <ChevronRight className="w-4 h-4" />
               </button>
             </Link>
-            <Link href="/nfl-draft">
+            {FEATURE_VISIBILITY.draftHub && <Link href="/nfl-draft">
               <button className="flex items-center gap-2 px-6 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-300 font-black text-sm transition-colors">
                 🏈 Fantasy Draft Hub
                 <ChevronRight className="w-4 h-4" />
               </button>
-            </Link>
+            </Link>}
           </div>
         </div>
       </div>
@@ -1464,8 +1464,7 @@ export default function Home() {
               AI lineup optimizer for DraftKings & FanDuel. Monte Carlo simulation, ownership projections, prop picks, and multi-entry max tools — across all sports.
             </p>
             <div className="flex items-center justify-center gap-3 flex-wrap mb-6 text-sm text-slate-400 font-bold">
-              <span className="flex items-center gap-1.5"><Circle className="w-2 h-2 text-amber-400 fill-current animate-pulse" /> NFL Draft Hub Live</span>
-              <span className="text-slate-700">·</span>
+              {FEATURE_VISIBILITY.draftHub && <><span className="flex items-center gap-1.5"><Circle className="w-2 h-2 text-amber-400 fill-current animate-pulse" /> NFL Draft Hub Live</span><span className="text-slate-700">·</span></>}
               <span className="flex items-center gap-1.5"><Target className="w-3.5 h-3.5 text-red-400" /> MLB In Season</span>
               <span className="text-slate-700">·</span>
               <span className="flex items-center gap-1.5"><Flag className="w-3.5 h-3.5 text-lime-400" /> Golf Active</span>
@@ -1483,9 +1482,9 @@ export default function Home() {
                   </Badge>
                 );
               })}
-              <Badge className="bg-amber-500/10 text-amber-300 border-amber-500/25 font-bold text-sm px-3 py-1.5 backdrop-blur-sm gap-1.5">
+              {FEATURE_VISIBILITY.draftHub && <Badge className="bg-amber-500/10 text-amber-300 border-amber-500/25 font-bold text-sm px-3 py-1.5 backdrop-blur-sm gap-1.5">
                 🏈 NFL Draft SZN
-              </Badge>
+              </Badge>}
             </div>
             <Button
               onClick={() => (window.location.href = "/login")}
