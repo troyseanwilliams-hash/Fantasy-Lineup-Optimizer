@@ -31,6 +31,9 @@ interface NFLPlayer {
   isLocked: boolean;
   isExcluded: boolean;
   valueScore: number;
+  gameKey?: string;
+  isHome?: boolean;
+  isFavorite?: boolean;
 }
 
 interface ExposureSettings {
@@ -240,6 +243,13 @@ function SettingsPanel({ settings, onChange }: { settings: MMESettings; onChange
 
           <div className="space-y-3 pt-2 border-t border-slate-800">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Stacking & Correlation</p>
+             <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3">
+               <p className="text-[11px] font-black text-blue-300">Historical NFL portfolio rules active</p>
+               <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                 Targets QB + 1 or 2 pass-catchers, two sub-10% WRs, five to six games,
+                 value RBs, home TE/DST preference, and bring-backs in about half of GPP lineups.
+               </p>
+             </div>
 
             <label className="flex items-center justify-between gap-3 cursor-pointer">
               <div>
@@ -375,47 +385,131 @@ function LineupCard({ lineup, platform, index }: { lineup: GeneratedLineup; plat
   );
 }
 
-// ─── Mock lineup generation ─────────────────────────────────────────────────
-// This will be wired to the real optimizer API when NFL season begins.
+// ─── NFL portfolio strategy ──────────────────────────────────────────────────
+// These are portfolio weights learned from the attached 2022–2025 top-100
+// sample. They are targets across the portfolio, not hard locks on every
+// lineup.
+const NFL_STRATEGY = {
+  nakedQB: 0.102,
+  onePassCatcher: 0.491,
+  twoPassCatchers: 0.376,
+  threePassCatchers: 0.031,
+  bringBack: 0.489,
+  lowOwnedWRs: 2,
+  minGames: 5,
+  maxGames: 6,
+  minRBValue: 4,
+};
+
+function shuffled<T>(items: T[]): T[] {
+  return [...items].sort(() => Math.random() - 0.5);
+}
+
+function addIfAvailable(target: NFLPlayer[], candidate: NFLPlayer | undefined) {
+  if (candidate && !target.some(p => p.id === candidate.id)) target.push(candidate);
+}
 
 function generateMockLineups(settings: MMESettings, count: number): GeneratedLineup[] {
   const mockPlayers: NFLPlayer[] = [
-    { id: 1, name: "Patrick Mahomes", position: "QB", team: "KC", opponent: "LV", salary: 8200, projectedPoints: 28.4, projOwnership: 22, isLocked: false, isExcluded: false, valueScore: 3.46 },
-    { id: 2, name: "Josh Allen", position: "QB", team: "BUF", opponent: "MIA", salary: 7900, projectedPoints: 27.1, projOwnership: 18, isLocked: false, isExcluded: false, valueScore: 3.43 },
-    { id: 3, name: "Saquon Barkley", position: "RB", team: "PHI", opponent: "DAL", salary: 7600, projectedPoints: 22.8, projOwnership: 28, isLocked: false, isExcluded: false, valueScore: 3.00 },
-    { id: 4, name: "Jahmyr Gibbs", position: "RB", team: "DET", opponent: "CHI", salary: 7200, projectedPoints: 20.5, projOwnership: 19, isLocked: false, isExcluded: false, valueScore: 2.85 },
-    { id: 5, name: "De'Von Achane", position: "RB", team: "MIA", opponent: "BUF", salary: 6900, projectedPoints: 19.2, projOwnership: 14, isLocked: false, isExcluded: false, valueScore: 2.78 },
-    { id: 6, name: "Tyreek Hill", position: "WR", team: "MIA", opponent: "BUF", salary: 8800, projectedPoints: 26.2, projOwnership: 24, isLocked: false, isExcluded: false, valueScore: 2.98 },
-    { id: 7, name: "CeeDee Lamb", position: "WR", team: "DAL", opponent: "PHI", salary: 8600, projectedPoints: 25.8, projOwnership: 26, isLocked: false, isExcluded: false, valueScore: 3.00 },
-    { id: 8, name: "Davante Adams", position: "WR", team: "LV", opponent: "KC", salary: 7400, projectedPoints: 20.1, projOwnership: 12, isLocked: false, isExcluded: false, valueScore: 2.72 },
-    { id: 9, name: "Travis Kelce", position: "TE", team: "KC", opponent: "LV", salary: 8000, projectedPoints: 18.9, projOwnership: 20, isLocked: false, isExcluded: false, valueScore: 2.36 },
-    { id: 10, name: "Sam LaPorta", position: "TE", team: "DET", opponent: "CHI", salary: 5800, projectedPoints: 14.2, projOwnership: 9, isLocked: false, isExcluded: false, valueScore: 2.45 },
-    { id: 11, name: "49ers DST", position: "DST", team: "SF", opponent: "ARI", salary: 3800, projectedPoints: 9.5, projOwnership: 8, isLocked: false, isExcluded: false, valueScore: 2.50 },
-    { id: 12, name: "Cowboys DST", position: "DST", team: "DAL", opponent: "PHI", salary: 3600, projectedPoints: 8.8, projOwnership: 6, isLocked: false, isExcluded: false, valueScore: 2.44 },
+    { id: 1, name: "Patrick Mahomes", position: "QB", team: "KC", opponent: "LV", salary: 7800, projectedPoints: 25.4, projOwnership: 22, isLocked: false, isExcluded: false, valueScore: 3.26, gameKey: "KC-LV" },
+    { id: 2, name: "Josh Allen", position: "QB", team: "BUF", opponent: "MIA", salary: 7600, projectedPoints: 25.1, projOwnership: 18, isLocked: false, isExcluded: false, valueScore: 3.30, gameKey: "BUF-MIA" },
+    { id: 13, name: "Jalen Hurts", position: "QB", team: "PHI", opponent: "DAL", salary: 7300, projectedPoints: 23.2, projOwnership: 16, isLocked: false, isExcluded: false, valueScore: 3.18, gameKey: "DAL-PHI" },
+    { id: 14, name: "Joe Burrow", position: "QB", team: "CIN", opponent: "CLE", salary: 6900, projectedPoints: 22.4, projOwnership: 9, isLocked: false, isExcluded: false, valueScore: 3.25, gameKey: "CIN-CLE" },
+    { id: 3, name: "Saquon Barkley", position: "RB", team: "PHI", opponent: "DAL", salary: 7000, projectedPoints: 20.8, projOwnership: 28, isLocked: false, isExcluded: false, valueScore: 2.97, gameKey: "DAL-PHI" },
+    { id: 4, name: "Jahmyr Gibbs", position: "RB", team: "DET", opponent: "CHI", salary: 6800, projectedPoints: 19.7, projOwnership: 19, isLocked: false, isExcluded: false, valueScore: 2.90, gameKey: "CHI-DET" },
+    { id: 5, name: "De'Von Achane", position: "RB", team: "MIA", opponent: "BUF", salary: 6600, projectedPoints: 18.8, projOwnership: 14, isLocked: false, isExcluded: false, valueScore: 2.85, gameKey: "BUF-MIA" },
+    { id: 15, name: "James Cook", position: "RB", team: "BUF", opponent: "MIA", salary: 6200, projectedPoints: 17.7, projOwnership: 11, isLocked: false, isExcluded: false, valueScore: 2.85, gameKey: "BUF-MIA" },
+    { id: 16, name: "Chase Brown", position: "RB", team: "CIN", opponent: "CLE", salary: 5600, projectedPoints: 15.8, projOwnership: 7, isLocked: false, isExcluded: false, valueScore: 2.82, gameKey: "CIN-CLE" },
+    { id: 17, name: "Rhamondre Stevenson", position: "RB", team: "NE", opponent: "NYJ", salary: 5400, projectedPoints: 14.9, projOwnership: 8, isLocked: false, isExcluded: false, valueScore: 2.76, gameKey: "NE-NYJ" },
+    { id: 6, name: "Tyreek Hill", position: "WR", team: "MIA", opponent: "BUF", salary: 8200, projectedPoints: 24.6, projOwnership: 24, isLocked: false, isExcluded: false, valueScore: 3.00, gameKey: "BUF-MIA" },
+    { id: 7, name: "CeeDee Lamb", position: "WR", team: "DAL", opponent: "PHI", salary: 8000, projectedPoints: 23.7, projOwnership: 26, isLocked: false, isExcluded: false, valueScore: 2.96, gameKey: "DAL-PHI" },
+    { id: 8, name: "Davante Adams", position: "WR", team: "LV", opponent: "KC", salary: 6800, projectedPoints: 19.1, projOwnership: 12, isLocked: false, isExcluded: false, valueScore: 2.81, gameKey: "KC-LV" },
+    { id: 18, name: "Rashee Rice", position: "WR", team: "KC", opponent: "LV", salary: 6100, projectedPoints: 17.9, projOwnership: 8, isLocked: false, isExcluded: false, valueScore: 2.93, gameKey: "KC-LV" },
+    { id: 19, name: "Khalil Shakir", position: "WR", team: "BUF", opponent: "MIA", salary: 5000, projectedPoints: 15.1, projOwnership: 6, isLocked: false, isExcluded: false, valueScore: 3.02, gameKey: "BUF-MIA" },
+    { id: 20, name: "Wan'Dale Robinson", position: "WR", team: "NYG", opponent: "WAS", salary: 4700, projectedPoints: 14.4, projOwnership: 5, isLocked: false, isExcluded: false, valueScore: 3.06, gameKey: "NYG-WAS" },
+    { id: 21, name: "Cedric Tillman", position: "WR", team: "CLE", opponent: "CIN", salary: 4600, projectedPoints: 13.9, projOwnership: 4, isLocked: false, isExcluded: false, valueScore: 3.02, gameKey: "CIN-CLE" },
+    { id: 22, name: "Jahan Dotson", position: "WR", team: "PHI", opponent: "DAL", salary: 4500, projectedPoints: 13.7, projOwnership: 6, isLocked: false, isExcluded: false, valueScore: 3.04, gameKey: "DAL-PHI" },
+    { id: 9, name: "Travis Kelce", position: "TE", team: "KC", opponent: "LV", salary: 6900, projectedPoints: 17.6, projOwnership: 20, isLocked: false, isExcluded: false, valueScore: 2.55, gameKey: "KC-LV", isHome: true },
+    { id: 10, name: "Sam LaPorta", position: "TE", team: "DET", opponent: "CHI", salary: 5400, projectedPoints: 14.1, projOwnership: 9, isLocked: false, isExcluded: false, valueScore: 2.61, gameKey: "CHI-DET", isHome: true },
+    { id: 23, name: "David Njoku", position: "TE", team: "CLE", opponent: "CIN", salary: 4800, projectedPoints: 13.4, projOwnership: 7, isLocked: false, isExcluded: false, valueScore: 2.79, gameKey: "CIN-CLE", isHome: true },
+    { id: 11, name: "49ers DST", position: "DST", team: "SF", opponent: "ARI", salary: 3500, projectedPoints: 8.9, projOwnership: 8, isLocked: false, isExcluded: false, valueScore: 2.54, gameKey: "ARI-SF", isHome: true, isFavorite: true },
+    { id: 12, name: "Cowboys DST", position: "DST", team: "DAL", opponent: "PHI", salary: 3200, projectedPoints: 8.1, projOwnership: 6, isLocked: false, isExcluded: false, valueScore: 2.53, gameKey: "DAL-PHI", isHome: false, isFavorite: true },
+    { id: 24, name: "Browns DST", position: "DST", team: "CLE", opponent: "CIN", salary: 2900, projectedPoints: 7.2, projOwnership: 3, isLocked: false, isExcluded: false, valueScore: 2.48, gameKey: "CIN-CLE", isHome: true, isFavorite: false },
   ];
 
-  return Array.from({ length: count }, (_, i) => {
-    const shuffle = [...mockPlayers].sort(() => Math.random() - 0.5);
-    const qb = shuffle.find(p => p.position === "QB")!;
-    const rbs = shuffle.filter(p => p.position === "RB").slice(0, 3);
-    const wrs = shuffle.filter(p => p.position === "WR").slice(0, 3);
-    const te = shuffle.find(p => p.position === "TE")!;
-    const dst = shuffle.find(p => p.position === "DST")!;
-    const flex = [...rbs, ...wrs].find(p => ![...rbs.slice(0,2), ...wrs.slice(0,3)].includes(p)) || rbs[0];
-    const players = [qb, rbs[0], rbs[1], wrs[0], wrs[1], wrs[2], te, flex, dst].filter(Boolean);
-    const totalSalary = players.reduce((s, p) => s + p.salary, 0);
-    const projectedPoints = players.reduce((s, p) => s + p.projectedPoints, 0) + (Math.random() * 4 - 2);
-    const avgOwnership = players.reduce((s, p) => s + p.projOwnership, 0) / players.length;
-    return {
+  const qbs = mockPlayers.filter(p => p.position === "QB");
+  const usedSignatures = new Set<string>();
+  const lineups: GeneratedLineup[] = [];
+  const cap = SALARY_CAPS[settings.platform];
+
+  for (let i = 0; i < count; i++) {
+    let selected: NFLPlayer[] = [];
+    for (let attempt = 0; attempt < 500 && selected.length === 0; attempt++) {
+      const qb = shuffled(qbs)[0];
+      const stackRoll = (i / Math.max(1, count)) % 1;
+      const stackCount = !settings.enableQBStack
+        ? 0
+        : stackRoll < NFL_STRATEGY.nakedQB ? 0
+        : stackRoll < NFL_STRATEGY.nakedQB + NFL_STRATEGY.onePassCatcher ? 1
+        : stackRoll < NFL_STRATEGY.nakedQB + NFL_STRATEGY.onePassCatcher + NFL_STRATEGY.twoPassCatchers ? 2
+        : 3;
+      const players: NFLPlayer[] = [qb];
+      const sameTeamPassCatchers = shuffled(mockPlayers
+        .filter(p => p.team === qb.team && ["WR", "TE"].includes(p.position))
+        .sort((a, b) => b.valueScore - a.valueScore));
+      if (stackCount > 0) sameTeamPassCatchers.slice(0, stackCount).forEach(p => addIfAvailable(players, p));
+
+      const addRole = (role: string, limit: number, candidates: NFLPlayer[]) => {
+        for (const candidate of shuffled(candidates.sort((a, b) => b.valueScore - a.valueScore))) {
+          if (players.filter(p => p.position === role).length >= limit) break;
+          if (players.some(p => p.id === candidate.id)) continue;
+          const teamCount = players.filter(p => p.team === candidate.team).length;
+          if (teamCount >= settings.maxPlayersPerTeam) continue;
+          players.push(candidate);
+        }
+      };
+
+      // The sample found sub-$4,500 RBs in fewer than 5% of winners.
+      if (settings.enableBringback && i / Math.max(1, count) < NFL_STRATEGY.bringBack) {
+        addIfAvailable(players, shuffled(mockPlayers.filter(p => p.team === qb.opponent && ["RB", "WR", "TE"].includes(p.position)))[0]);
+      }
+      addRole("RB", 2, mockPlayers.filter(p => p.position === "RB" && p.salary >= NFL_STRATEGY.minRBValue * 1000));
+      const lowOwnedWRs = mockPlayers.filter(p => p.position === "WR" && p.projOwnership < 10);
+      addRole("WR", 3, [...lowOwnedWRs, ...mockPlayers.filter(p => p.position === "WR")]);
+      addRole("TE", 1, mockPlayers.filter(p => p.position === "TE").sort((a, b) => Number(b.isHome) - Number(a.isHome)));
+      addRole("DST", 1, mockPlayers.filter(p => p.position === "DST").sort((a, b) => Number(b.isHome && b.isFavorite) - Number(a.isHome && a.isFavorite)));
+      addRole("FLEX", 1, mockPlayers.filter(p => ["RB", "WR", "TE"].includes(p.position) && (p.position !== "RB" || p.salary >= NFL_STRATEGY.minRBValue * 1000)));
+      if (players.length !== 9) continue;
+
+      const gameCount = new Set(players.map(p => p.gameKey)).size;
+      const lowOwnedCount = players.filter(p => p.position === "WR" && p.projOwnership < 10).length;
+      const totalSalary = players.reduce((s, p) => s + p.salary, 0);
+      const signature = players.map(p => p.id).sort((a, b) => a - b).join("-");
+      if (totalSalary > cap || gameCount < NFL_STRATEGY.minGames || gameCount > NFL_STRATEGY.maxGames || lowOwnedCount < NFL_STRATEGY.lowOwnedWRs || usedSignatures.has(signature)) continue;
+      if (lineups.length && players.filter(p => !lineups[lineups.length - 1].players.some(prev => prev.id === p.id)).length < settings.minUniquePlayers) continue;
+      selected = players;
+      usedSignatures.add(signature);
+    }
+
+    // Keep the preview usable even when a small sample cannot satisfy every
+    // historical target at once; real slates use the same rules as soft scores.
+    if (!selected.length) {
+      selected = shuffled(mockPlayers.filter(p => !p.isExcluded)).slice(0, 9);
+    }
+    const totalSalary = selected.reduce((s, p) => s + p.salary, 0);
+    const projectedPoints = selected.reduce((s, p) => s + p.projectedPoints, 0);
+    const avgOwnership = selected.reduce((s, p) => s + p.projOwnership, 0) / selected.length;
+    lineups.push({
       id: i,
-      players,
+      players: selected,
       totalSalary,
       projectedPoints: Math.round(projectedPoints * 10) / 10,
       avgOwnership: Math.round(avgOwnership * 10) / 10,
-      leverageScore: settings.contestType === "gpp" ? 0.9 + Math.random() * 0.4 : 1.0,
-      uniquenessScore: Math.round(70 + Math.random() * 25),
-    };
-  });
+      leverageScore: settings.contestType === "gpp" ? Math.max(1, 1.35 - avgOwnership / 100) : 1,
+      uniquenessScore: Math.round((new Set(selected.map(p => p.gameKey)).size / 6) * 100),
+    });
+  }
+  return lineups;
 }
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
