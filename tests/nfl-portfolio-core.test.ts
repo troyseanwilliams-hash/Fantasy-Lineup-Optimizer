@@ -100,6 +100,68 @@ test("automatic small batches normalize explicit FLEX and retain exclusions and 
   assert.equal(result.report.metrics.find(m => m.key === "flex_TE")?.target, 12);
   assert.equal(result.report.metrics.find(m => m.key === "flex_RB")?.target, 0);
 });
+test("strict selection returns the largest validated partial portfolio and recalculates targets", async () => {
+  const partialSettings = nflPortfolioSettingsSchema.parse({
+    enabled: true,
+    stackMix: { naked: 0, single: 100, double: 0, triple: 0 },
+    flexMix: { RB: 0, WR: 100, TE: 0 },
+    bringBackPct: 0,
+    secondaryStackPct: 0,
+  });
+  const bank: any[] = [];
+  let calls = 0;
+  const limitedSolve = (players: Player[], constraints: any) => {
+    calls++;
+    if (bank.length >= 4) return bank[calls % bank.length];
+    const result = solve(players, constraints);
+    if (!result.error) {
+      const key = result.lineup.map((p: Player) => p.id).sort((a: number, b: number) => a - b).join(",");
+      if (!bank.some(candidate => candidate.key === key)) bank.push({ ...result, key });
+    }
+    return bank.length ? bank.at(-1) : result;
+  };
+  const result = await generateNflPortfolio({
+    pool, settings: partialSettings, count: 5, baseConstraints: {},
+    strictStructure: true, structureOnly: true, solve: limitedSolve,
+    deadline: Date.now() + 10_000,
+  });
+  assert.equal(result.lineups.length, 4);
+  assert.equal(result.report.partial, true);
+  assert.equal(result.report.generatedCount, 4);
+  assert.equal(result.report.metrics.find(metric => metric.key === "stack_single")?.target, 4);
+  assert.equal(result.report.metrics.find(metric => metric.key === "flex_WR")?.target, 4);
+  assert.ok(result.report.limitingCriteria?.length);
+  assert.match(result.report.warnings.join(" "), /generated 4 of 5/i);
+});
+test("projection floor is hard for partial portfolios and reports zero qualifying capacity", async () => {
+  const valid = await generateNflPortfolio({
+    pool, settings, count: 3, baseConstraints: { projectedPointsFloor: 120 }, solve,
+  });
+  assert.ok(valid.lineups.every(candidate => candidate.lineup.reduce((sum: number, p: Player) => sum + Number(p.projectedPoints), 0) >= 120));
+  await assert.rejects(generateNflPortfolio({
+    pool, settings, count: 3, baseConstraints: { projectedPointsFloor: 10_000 }, solve,
+  }), /Projection floor 10000\.0 left 0 qualifying candidates.*No lineups were saved/);
+});
+test("strict exact selection enforces conditional global minimum exposure", async () => {
+  const conditionalSettings = nflPortfolioSettingsSchema.parse({
+    enabled: true,
+    stackMix: { naked: 0, single: 100, double: 0, triple: 0 },
+    flexMix: { RB: 0, WR: 100, TE: 0 },
+    bringBackPct: 0,
+    secondaryStackPct: 0,
+  });
+  const result = await generateNflPortfolio({
+    pool, settings: conditionalSettings, count: 4,
+    baseConstraints: { globalMinExposure: 50 },
+    strictStructure: true, structureOnly: true, solve,
+    deadline: Date.now() + 10_000,
+  });
+  const appearances = new Map<number, number>();
+  for (const candidate of result.lineups) for (const player of candidate.lineup) {
+    appearances.set(player.id, (appearances.get(player.id) || 0) + 1);
+  }
+  assert.ok([...appearances.values()].every(count => count >= Math.ceil(result.lineups.length * 0.5)));
+});
 test("largest remainder rounding preserves count with stable ties", () => {
   assert.deepEqual(planNflMix({ naked: 10, single: 49, double: 38, triple: 3 }, 10), { naked: 1, single: 5, double: 4, triple: 0 });
   for (let n = 1; n < 150; n++) assert.equal(Object.values(planNflMix(settings.flexMix, n)).reduce((a, b) => a + b), n);

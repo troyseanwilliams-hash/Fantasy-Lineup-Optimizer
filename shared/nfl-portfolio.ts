@@ -85,6 +85,9 @@ export interface NflPortfolioReport {
     rushing: "manual";
   };
   partial: boolean;
+  selectionStatus?: "full" | "partial" | "timed_out";
+  limitingCriteria?: string[];
+  suggestions?: string[];
 }
 
 // Internal, per-candidate solver policy. Never trust a client-supplied value.

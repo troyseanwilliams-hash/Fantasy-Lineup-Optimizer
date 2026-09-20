@@ -44,12 +44,38 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
   let failSecondGroup = false;
   let closeDuringGeneration = false;
   let cokerAppearances: number | undefined;
+  let portfolioReturnCount: number | undefined;
   let failLegacyExposureGroup = false;
   let savedPlayerOverrides: any[] = [];
   let suppliedOwnership = false;
   let failingAdjustment: "outperformer" | "ceiling" | "leverage" | null = null;
+  let failTransactionWriteAt: number | undefined;
   const identity = (p: any) => p;
-  mock("../server/db.ts", { db: { update: () => ({ set: (payload: any) => ({ where: async () => { writes.push(payload); } }) }) }, pool: {} });
+  const mockDb: any = {
+    update: () => ({ set: (payload: any) => ({ where: async () => { writes.push(payload); } }) }),
+    insert: () => ({ values: (payload: any) => ({ returning: async () => [{ id: 500, ...payload }] }) }),
+  };
+  mockDb.transaction = async (callback: any) => {
+    const staged: any[] = [];
+    let writeNumber = 0;
+    const transactionExecutor = {
+      update: () => ({ set: (payload: any) => ({ where: async () => {
+        writeNumber++;
+        if (writeNumber === failTransactionWriteAt) throw new Error("Injected transaction write failure");
+        staged.push(payload);
+      } }) }),
+      insert: () => ({ values: (payload: any) => ({ returning: async () => {
+        writeNumber++;
+        if (writeNumber === failTransactionWriteAt) throw new Error("Injected transaction write failure");
+        staged.push(payload);
+        return [{ id: 500, ...payload }];
+      } }) }),
+    };
+    const value = await callback(transactionExecutor);
+    writes.push(...staged);
+    return value;
+  };
+  mock("../server/db.ts", { db: mockDb, pool: {} });
   mock("../server/replit_integrations/auth/index.ts", { setupAuth: async () => {}, registerAuthRoutes: () => {} });
   mock("../server/storage.ts", { storage: {
     getSlate: async (id: number) => id === 78 && missingTarget ? undefined : ({
@@ -106,7 +132,8 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
       calls.push(options);
       if (options.baseConstraints.slateId === 78 && failSecondGroup) throw new Error("Second target hard validation failed");
       if (options.baseConstraints.slateId === 78 && closeDuringGeneration) closedTarget = true;
-       const lineups = Array.from({ length: options.count }, (_, i) => {
+       const returnedCount = portfolioReturnCount ?? options.count;
+       const lineups = Array.from({ length: returnedCount }, (_, i) => {
          if (cokerAppearances !== undefined) {
            const lineup = players.slice(0, 9).map((p, slot) => ({
              ...p, id: slot === 4 && i < cokerAppearances ? 1 : 1000 + i * 9 + slot,
@@ -120,10 +147,10 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
       });
       if (options.scoreCandidates) {
         const scores = await options.scoreCandidates(lineups);
-        assert.equal(scores.length, options.count);
+         assert.equal(scores.length, returnedCount);
         assert.ok(scores.every(Number.isFinite));
       }
-      return { lineups, report: { requestedCount: options.count, generatedCount: options.count, candidateCount: options.count, seed: options.settings.seed, metrics: [], warnings: [], dataSources: { ownership: "off", vegas: "unavailable", rushing: "manual" }, partial: false } };
+       return { lineups, report: { requestedCount: options.count, generatedCount: returnedCount, candidateCount: returnedCount, seed: options.settings.seed, metrics: [], warnings: [], dataSources: { ownership: "off", vegas: "unavailable", rushing: "manual" }, partial: returnedCount < options.count } };
     },
   });
   const handlers = new Map<string, any>();
@@ -263,6 +290,24 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
     closeDuringGeneration = closedTarget = false;
     const unavailableEv = await invoke("/api/optimize/sim", { ...common, numSims: 50, lineupCount: 1, sortMetric: "ev" }, 400);
     assert.match(unavailableEv.message, /EV portfolio scoring requires complete/);
+    portfolioReturnCount = 12;
+    cokerAppearances = 0;
+    const partialIds = Array.from({ length: 15 }, (_, i) => 201 + i);
+    const beforePartial = writes.length;
+    const partialRegen = await invoke("/api/lineups/sim-regenerate", { ...common, ids: partialIds });
+    assert.equal(partialRegen.updated, 12);
+    assert.equal(partialRegen.total, 15);
+    assert.equal(partialRegen.partial, true);
+    assert.match(partialRegen.message, /active constraints.*12 of 15/i);
+    assert.equal(writes.length, beforePartial + 12, "validated partial portfolio is saved");
+    failTransactionWriteAt = 2;
+    const beforeFailedTransaction = writes.length;
+    const failedPartial = await invoke("/api/lineups/sim-regenerate", { ...common, ids: partialIds }, 500);
+    assert.match(failedPartial.message, /Injected transaction write failure/);
+    assert.equal(writes.length, beforeFailedTransaction, "a failed partial save rolls back every lineup write");
+    failTransactionWriteAt = undefined;
+    portfolioReturnCount = undefined;
+    cokerAppearances = undefined;
     // Real HTTP final boundary regression: 13/15 (rounded 87%) must never save.
     cokerAppearances = 13;
     const requestedIds = Array.from({ length: 15 }, (_, i) => 101 + i);

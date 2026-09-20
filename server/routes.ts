@@ -108,6 +108,7 @@ async function cloneRegeneratedLineup(
     playerSnapshot?: any;
     simData?: any;
   },
+  executor: any = db,
 ): Promise<Lineup> {
   const insert: any = {
     userId: source.userId,
@@ -128,7 +129,8 @@ async function cloneRegeneratedLineup(
     dkEntryFee: null,
   };
   if (payload.simData !== undefined) insert.simData = payload.simData;
-  return storage.createLineup(insert);
+  const [lineup] = await executor.insert(lineupsTable).values(insert).returning();
+  return lineup;
 }
 
 function starRatingMinProjection(starRating: number): number {
@@ -2214,7 +2216,7 @@ export async function registerRoutes(
       let totalSimsRun = 0;
       const origSlatePerSimGroup = new Map<number, number>();
       const nflPortfolioReports: Array<{ slateId: number; report: NflPortfolioReport }> = [];
-      const pendingPortfolioWrites: Array<() => Promise<void>> = [];
+      const pendingPortfolioWrites: Array<(executor: any) => Promise<any>> = [];
       let hasConstrainedResim = !!restrictionInput.data.nflPortfolio?.enabled ||
         (globalMaxExposure ?? 100) < 100 || (globalMinExposure ?? 0) > 0 ||
         Object.values(req.body.exposureLimits || {}).some(value => Number(value) < 100) ||
@@ -2730,7 +2732,7 @@ export async function registerRoutes(
           globalMaxExposure, globalMinExposure, lockedPlayerIds: Array.from(simRegenLocked),
           exposureLimits: mergeExposureMaximums(Object.fromEntries(Object.entries(simRegenOverrideExposure).filter(([, v]) => v.max != null).map(([id, v]) => [id, v.max!])), req.body.exposureLimits),
           minExposureLimits: mergeExposureMinimums(Object.fromEntries(Object.entries(simRegenOverrideExposure).filter(([, v]) => v.min != null).map(([id, v]) => [id, v.min!])), minExposureLimits),
-        }, { count: lineupIds.length, deadline: solverDeadline + 2000, requireFull: hasConstrainedResim, preservePortfolio: !!preset });
+        }, { count: lineupIds.length, deadline: solverDeadline + 2000, requireFull: hasConstrainedResim && !preset, preservePortfolio: !!preset });
 
         for (let i = 0; i < lineupIds.length && i < selectedCandidates.length; i++) {
           const candidate = selectedCandidates[i];
@@ -2762,23 +2764,23 @@ export async function registerRoutes(
             playerSnapshot, simData,
           };
           const sourceLineup = lineupOwnership.get(lineupId)!;
-          const persist = async () => {
+          const persist = async (executor: any) => {
           if (shouldCloneRegeneratedLineup(
             sourceLineup.slateId,
             slateId,
             preserveSourceSlateId,
           )) {
-            const cloned = await cloneRegeneratedLineup(sourceLineup, slateId, simUpdatePayload);
-            results.push({
+            const cloned = await cloneRegeneratedLineup(sourceLineup, slateId, simUpdatePayload, executor);
+            return {
               id: lineupId,
               sourceLineupId: lineupId,
               newLineupId: cloned.id,
               status: "cloned",
-            } as any);
+            };
           } else {
             if (overrideSlateId) simUpdatePayload.slateId = overrideSlateId;
-            await db.update(lineupsTable).set(simUpdatePayload).where(eq(lineupsTable.id, lineupId));
-            results.push({ id: lineupId, status: "updated" });
+            await executor.update(lineupsTable).set(simUpdatePayload).where(eq(lineupsTable.id, lineupId));
+            return { id: lineupId, status: "updated" };
           }
           };
           pendingPortfolioWrites.push(persist);
@@ -2792,8 +2794,20 @@ export async function registerRoutes(
       // Nothing is written until every target has generated and validated its
       // candidates. Recheck all target kickoffs immediately before committing.
       {
-        if (hasConstrainedResim && results.some(r => r.status === "skipped" && r.error !== "Not found or not yours")) {
-          return res.status(400).json({ message: "Regeneration could not fill every requested lineup. No regenerated lineups were saved." });
+        if (hasConstrainedResim) {
+          const unexpectedSkip = results.find(r => r.status === "skipped" &&
+            r.error !== "Not found or not yours" && r.error !== "Not enough sim candidates");
+          if (unexpectedSkip) {
+            return res.status(400).json({ message: "Regeneration could not fill every requested lineup. No regenerated lineups were saved." });
+          }
+          for (const [targetSlateId, lineupIds] of slateGroups) {
+            const skipped = results.filter(r => lineupIds.includes(r.id) && r.status === "skipped" && r.error === "Not enough sim candidates").length;
+            if (!skipped) continue;
+            const report = nflPortfolioReports.find(entry => entry.slateId === targetSlateId)?.report;
+            if (!report?.partial || report.generatedCount <= 0 || skipped !== lineupIds.length - report.generatedCount) {
+              return res.status(400).json({ message: "Regeneration could not fill every requested lineup. No regenerated lineups were saved.", slateId: targetSlateId });
+            }
+          }
         }
         for (const slateId of slateGroups.keys()) {
           const target = await storage.getSlate(slateId);
@@ -2805,7 +2819,12 @@ export async function registerRoutes(
           }
         }
       }
-      for (const persist of pendingPortfolioWrites) await persist();
+      const committedResults = await db.transaction(async executor => {
+        const statuses: any[] = [];
+        for (const persist of pendingPortfolioWrites) statuses.push(await persist(executor));
+        return statuses;
+      });
+      results.push(...committedResults);
       const updatedCount = results.filter(r => r.status === "updated").length;
       const clonedCount = results.filter(r => r.status === "cloned").length;
       const newLineupIds = results
@@ -2824,7 +2843,9 @@ export async function registerRoutes(
         ...(nflPortfolioReports.length ? { nflPortfolioReports } : {}),
         sortBy: sortKey,
         partial: simRegenTimedOut || Date.now() >= solverDeadline || nflPortfolioReports.some(entry => entry.report.partial),
-        message: simRegenTimedOut || Date.now() >= solverDeadline
+        message: nflPortfolioReports.some(entry => entry.report.partial)
+          ? `Due to active constraints, regenerated ${updatedCount} of ${ids.length} requested lineups. Every returned lineup satisfies the configured rules; modify the limiting criteria in the NFL GPP report to generate more.`
+          : simRegenTimedOut || Date.now() >= solverDeadline
           ? `Partial results: regenerated ${updatedCount} of ${ids.length} lineups before the solver time budget was reached.`
           : undefined,
       });
