@@ -70,9 +70,16 @@ export function buildShowdownCSV(lineups: ShowdownLineupSnapshot[]): string {
   const firstSnapshot = normalizeShowdownSnapshot(lineups[0]);
   if (firstSnapshot.length === 0) return "";
 
-  const headers = firstSnapshot.map((player, index) =>
-    player.slot || (index === 0 ? "CPT" : `FLEX${index}`),
-  );
+  // DraftKings validates the upload header against roster-slot labels, not
+  // the internal slot keys used by our saved snapshots.  FLEX1/FLEX2/etc.
+  // are useful internal identifiers, but every flex column in a DraftKings
+  // Showdown upload must be named simply FLEX.
+  const headers = firstSnapshot.map((player, index) => {
+    if (lineups[0].platform === "draftkings") {
+      return index === 0 ? "CPT" : "FLEX";
+    }
+    return player.slot || (index === 0 ? "MVP" : `UTIL${index}`);
+  });
   const rows = lineups.map(lineup => {
     const snapshot = normalizeShowdownSnapshot(lineup);
     return headers.map((_, index) => formatShowdownExportPlayer(snapshot[index], lineup.platform));
