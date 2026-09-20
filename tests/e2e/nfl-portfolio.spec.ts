@@ -24,6 +24,19 @@ async function mock(page: Page, requests: any[], unsupported = false) {
   });
 }
 
+test("Pro ownership distinguishes supplied projections from model estimates", async ({ page }) => {
+  await mock(page, []);
+  await page.route("**/api/slates/*/players", route => route.fulfill({ json: players.map((p, index) => ({
+    ...p, ownershipProjection: index === 0 ? 40.1 : 8.4,
+    ownershipSource: index === 0 ? "supplied" : "estimated",
+    ownershipSourceLabel: index === 0 ? "User-supplied Sunday ownership" : "Model estimate",
+  })) }));
+  await page.goto(`/optimizer-pro/${slate.id}`);
+  await expect(page.getByTestId("ownership-source-1")).toHaveText("Supplied");
+  await expect(page.getByTestId("ownership-source-2")).toHaveText("Est.");
+  await expect(page.getByTestId("text-own-1")).toContainText("40.1%");
+});
+
 for (const mode of ["optimizer", "optimizer-pro"]) {
   test(`${mode}: off payload, invalid mix, enabled report and Sim count`, async ({ page }) => {
     const requests: any[] = [];

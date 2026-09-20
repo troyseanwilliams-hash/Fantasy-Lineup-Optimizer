@@ -177,14 +177,19 @@ async function generateNflPortfolio(options: Parameters<typeof generateNflPortfo
   }
 }
 
-async function portfolioOwnership(pool: Player[], settings: NflPortfolioSettings): Promise<Map<number, number> | undefined> {
-  if (settings.ownershipMode === "off") return undefined;
+async function portfolioOwnership(pool: Player[], settings: NflPortfolioSettings, automaticScoringOnly = false): Promise<Map<number, number> | undefined> {
+  if (settings.ownershipMode === "off" && !automaticScoringOnly) return undefined;
   if (settings.ownershipMode === "provided") return new Map(Object.entries(settings.ownershipOverrides).map(([id, pct]) => [Number(id), pct]));
   try {
-    const ownership = new Map((await calculateOwnership(pool, "NFL", "gpp_large")).map(p => [p.playerId, p.projectedOwnership]));
+    const results = await calculateOwnership(pool, "NFL", "gpp_large");
+    // Automatic structure keeps ownership constraints OFF. Only the confirmed
+    // supplied slate gets the blended map for scoring; other slates are unchanged.
+    if (settings.ownershipMode === "off" && !results.some(p => p.ownershipSource === "supplied")) return undefined;
+    const ownership = new Map(results.map(p => [p.playerId, p.projectedOwnership]));
     for (const [id, value] of Object.entries(settings.ownershipOverrides)) ownership.set(Number(id), value);
     return ownership;
-  } catch {
+  } catch (error) {
+    console.warn("[NFL Portfolio] Ownership calculation unavailable.", error);
     return undefined; // Engine reports unavailable ownership; never invent estimates.
   }
 }
@@ -2477,7 +2482,7 @@ export async function registerRoutes(
         const preset = simRegenRestrictions.nflPortfolio?.enabled ? simRegenRestrictions.nflPortfolio : undefined;
         const portfolioSims = preset ? runSimulations(pool, slate.sport, tierSims, dvpAdjusted, vegasContext ?? undefined) : [];
         if (preset) {
-          const ownershipMap = await portfolioOwnership(pool, preset);
+          const ownershipMap = await portfolioOwnership(pool, preset, !restrictionInput.data.nflPortfolio?.enabled);
           const portfolio = await generateNflPortfolio({
             pool, settings: preset, count: lineupIds.length,
             strictStructure: true, structureOnly: !restrictionInput.data.nflPortfolio?.enabled,
@@ -2490,7 +2495,7 @@ export async function registerRoutes(
             ownershipMap, vegasGames: vegasContext ? [...vegasContext.games.values()].filter(game => game.source !== "fallback") : undefined,
             deadline: solverDeadline,
             solve: (candidatePool, candidateConstraints) => solveLineup(candidatePool, candidateConstraints, slate.sport, platform, candidateConstraints.ownershipMap ?? ownershipMap, { deadline: solverDeadline, timeoutMs: 100 }),
-            scoreCandidates: candidates => scorePortfolioSims(candidates, portfolioSims, sortKey),
+            scoreCandidates: candidates => scorePortfolioSims(candidates, portfolioSims, sortKey, pool, ownershipMap),
           });
           nflPortfolioReports.push({ slateId, report: portfolio.report });
           for (const candidate of portfolio.lineups) lineupMap.set(candidate.lineup.map((p: Player) => p.id).sort().join(","), { lineup: candidate.lineup, frequency: 1, simScores: [] });

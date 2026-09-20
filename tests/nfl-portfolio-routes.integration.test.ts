@@ -46,6 +46,7 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
   let cokerAppearances: number | undefined;
   let failLegacyExposureGroup = false;
   let savedPlayerOverrides: any[] = [];
+  let suppliedOwnership = false;
   const identity = (p: any) => p;
   mock("../server/db.ts", { db: { update: () => ({ set: (payload: any) => ({ where: async () => { writes.push(payload); } }) }) }, pool: {} });
   mock("../server/replit_integrations/auth/index.ts", { setupAuth: async () => {}, registerAuthRoutes: () => {} });
@@ -74,7 +75,13 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
   mock("../server/variance-profiles.ts", { getEmpiricalCV: (_sport: string, _position: string, _projection: number, prior: number) => prior });
   mock("../server/dvp-client.ts", { buildOpponentMap: () => new Map(), buildDvPContext: async () => null });
   mock("../server/balldontlie-stats.ts", { fetchBDLStats: async () => new Map() });
-  mock("../server/ownership-engine.ts", { calculateOwnership: async () => [], computeOwnershipForPlayers: identity });
+  mock("../server/ownership-engine.ts", {
+    calculateOwnership: async () => suppliedOwnership ? players.map(p => ({
+      playerId: p.id, projectedOwnership: p.id === 1 ? 40.1 : 8.2,
+      ownershipSource: p.id === 1 ? "supplied" : "estimated",
+    })) : [],
+    computeOwnershipForPlayers: identity,
+  });
   mock("../server/nfl-portfolio.ts", {
     regenerationNflSettings,
     addNflPortfolioConstraints: () => {},
@@ -161,6 +168,19 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
     assert.equal(calls.at(-1).structureOnly, true);
     assert.equal(calls.at(-1).settings.rbMinSalary, 0);
     assert.deepEqual(calls.at(-1).settings.nakedQbIds, [1]);
+    assert.equal(calls.at(-1).ownershipMap, undefined);
+    suppliedOwnership = true;
+    await invoke("/api/lineups/sim-regenerate", { ids: [1], contestType: "gpp", nflPortfolio: { enabled: false } });
+    assert.equal(calls.at(-1).ownershipMap.get(1), 40.1);
+    assert.equal(calls.at(-1).ownershipMap.get(2), 8.2);
+    assert.equal(calls.at(-1).settings.ownershipMode, "off", "automatic scoring must not enable ownership constraints");
+    assert.equal(calls.at(-1).structureOnly, true);
+    await invoke("/api/optimize", { ...common, nflPortfolio: { ...settings, ownershipMode: "estimated", ownershipOverrides: { 1: 0 } } });
+    assert.equal(calls.at(-1).ownershipMap.get(1), 0, "explicit zero overrides supplied ownership");
+    assert.equal(calls.at(-1).ownershipMap.get(2), 8.2);
+    await invoke("/api/optimize", { ...common, nflPortfolio: { ...settings, ownershipMode: "provided", ownershipOverrides: { 1: 17 } } });
+    assert.deepEqual(Array.from(calls.at(-1).ownershipMap.entries()), [[1, 17]], "provided map must not be filled or overwritten");
+    suppliedOwnership = false;
     const beforeAutomaticFailure = writes.length;
     savedPlayerOverrides = [{ playerId: 1, isLocked: true, maxExposure: 40 }];
     await invoke("/api/lineups/sim-regenerate", { ids: [1], contestType: "gpp", nflPortfolio: { enabled: false } }, 400);

@@ -2,6 +2,25 @@ import type { Player, PlayerHistory } from "@shared/schema";
 import type { PlayerStatsMap } from "./balldontlie-stats";
 import { normalizeName } from "./balldontlie-stats";
 import { storage } from "./storage";
+import { suppliedOwnershipForPool, SUPPLIED_OWNERSHIP_LABEL, type OwnershipScope } from "./supplied-nfl-ownership";
+
+// Cache metadata only, never ownership/player results: projections and overrides
+// can change between optimizer, ReSim, EV and UI requests.
+const ownershipScopeCache = new Map<number, { expires: number; scope: OwnershipScope }>();
+async function getOwnershipScope(slateId: number): Promise<OwnershipScope | undefined> {
+  const cached = ownershipScopeCache.get(slateId);
+  if (cached && cached.expires > Date.now()) return cached.scope;
+  const slate = await storage.getSlate(slateId);
+  if (!slate) {
+    ownershipScopeCache.delete(slateId);
+    return undefined;
+  }
+  const { id, sport, platform, startTime, isMain, draftGroupId, gameType } = slate;
+  const scope = { id, sport, platform, startTime, isMain, draftGroupId, gameType };
+  if (ownershipScopeCache.size >= 500) ownershipScopeCache.clear();
+  ownershipScopeCache.set(slateId, { expires: Date.now() + 30_000, scope });
+  return scope;
+}
 
 export type ContestType = "gpp_large" | "gpp_small" | "cash";
 
@@ -294,6 +313,8 @@ export interface OwnershipResult {
   projectedPoints: number;
   projectedOwnership: number;
   ownershipTier: "chalk" | "popular" | "mid" | "low" | "contrarian";
+  ownershipSource?: "supplied" | "estimated";
+  ownershipSourceLabel?: string;
 }
 
 function assignTier(ownership: number): OwnershipResult["ownershipTier"] {
@@ -333,10 +354,16 @@ export async function calculateOwnership(
   const probabilities = softmaxTransform(popularityScores, temperature);
   const ownershipMap = normalizeOwnership(probabilities, sport, contestType, players.length);
 
-  const scoreMap = new Map(popularityScores.map(s => [s.playerId, s]));
+  const scopes = new Map<number, OwnershipScope | undefined>();
+  if (sport.toUpperCase() === "NFL") {
+    await Promise.all(Array.from(new Set(players.map(p => p.slateId))).map(async id => {
+      scopes.set(id, await getOwnershipScope(id));
+    }));
+  }
+  const supplied = suppliedOwnershipForPool(players, scopes);
 
   return players.map(player => {
-    const ownership = ownershipMap.get(player.id) || config.ownershipFloor;
+    const ownership = supplied.get(player.id) ?? ownershipMap.get(player.id) ?? config.ownershipFloor;
     return {
       playerId: player.id,
       name: player.name,
@@ -346,6 +373,8 @@ export async function calculateOwnership(
       projectedPoints: Number(player.projectedPoints) || 0,
       projectedOwnership: ownership,
       ownershipTier: assignTier(ownership),
+      ownershipSource: supplied.has(player.id) ? "supplied" as const : "estimated" as const,
+      ownershipSourceLabel: supplied.has(player.id) ? SUPPLIED_OWNERSHIP_LABEL : "Modeled ownership estimate",
     };
   }).sort((a, b) => b.projectedOwnership - a.projectedOwnership);
 }
@@ -353,11 +382,13 @@ export async function calculateOwnership(
 export function computeOwnershipForPlayers(
   players: Player[],
   ownershipResults: OwnershipResult[]
-): (Player & { ownershipProjection: number })[] {
-  const ownershipMap = new Map(ownershipResults.map(r => [r.playerId, r.projectedOwnership]));
+): (Player & { ownershipProjection: number; ownershipSource: "supplied" | "estimated"; ownershipSourceLabel?: string })[] {
+  const ownershipMap = new Map(ownershipResults.map(r => [r.playerId, r]));
   return players.map(p => ({
     ...p,
-    ownershipProjection: ownershipMap.get(p.id) || 0.5,
+    ownershipProjection: ownershipMap.get(p.id)?.projectedOwnership ?? 0.5,
+    ownershipSource: ownershipMap.get(p.id)?.ownershipSource ?? "estimated",
+    ownershipSourceLabel: ownershipMap.get(p.id)?.ownershipSourceLabel ?? "Modeled ownership estimate",
   }));
 }
 

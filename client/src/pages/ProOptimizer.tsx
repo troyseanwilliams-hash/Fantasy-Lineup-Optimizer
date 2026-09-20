@@ -52,6 +52,8 @@ type SortDir = "asc" | "desc";
 
 interface PlayerWithOwnership extends Player {
   ownershipProjection?: number;
+  ownershipSource?: "supplied" | "estimated";
+  ownershipSourceLabel?: string;
 }
 
 interface FavoriteStack {
@@ -2388,6 +2390,13 @@ export default function ProOptimizer() {
                               "text-emerald-400"
                             }`}>
                               {player.ownershipProjection.toFixed(1)}%
+                            </span>
+                            <span
+                              className="text-[9px] text-slate-400"
+                              title={player.ownershipSourceLabel || "Model-estimated projected ownership"}
+                              data-testid={`ownership-source-${player.id}`}
+                            >
+                              {player.ownershipSource === "supplied" ? "Supplied" : "Est."}
                             </span>
                           </div>
                         </td>
