@@ -2351,7 +2351,8 @@ export async function registerRoutes(
           try {
             pool = await applyOutperformerMode(pool, slate.sport);
           } catch (opErr: any) {
-            console.warn(`[SimRegen] Outperformer mode failed, skipping: ${opErr.message}`);
+            throw new z.ZodError([{ code: "custom", path: ["outperformerMode"], message:
+              `Outperformer Mode could not be applied: ${opErr?.message || "projection adjustment failed"}. No lineups were saved.` }]);
           }
         }
 
@@ -2364,7 +2365,8 @@ export async function registerRoutes(
           try {
             pool = applyCeilingMode(pool, slate.sport);
           } catch (ceilErr: any) {
-            console.warn(`[SimRegen] Ceiling mode failed, skipping: ${ceilErr.message}`);
+            throw new z.ZodError([{ code: "custom", path: ["ceilingMode"], message:
+              `Ceiling Mode could not be applied: ${ceilErr?.message || "projection adjustment failed"}. No lineups were saved.` }]);
           }
         }
 
@@ -2375,7 +2377,8 @@ export async function registerRoutes(
             const playersWithOwnership = computeOwnershipForPlayers(pool, ownershipResults);
             pool = applyLeverageMode(playersWithOwnership);
           } catch (levErr: any) {
-            console.warn(`[SimRegen] Leverage mode failed, skipping: ${levErr.message}`);
+            throw new z.ZodError([{ code: "custom", path: ["leverageMode"], message:
+              `Leverage Mode could not be applied: ${levErr?.message || "ownership adjustment failed"}. No lineups were saved.` }]);
           }
         }
 

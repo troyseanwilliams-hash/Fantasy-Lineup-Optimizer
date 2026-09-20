@@ -47,6 +47,7 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
   let failLegacyExposureGroup = false;
   let savedPlayerOverrides: any[] = [];
   let suppliedOwnership = false;
+  let failingAdjustment: "outperformer" | "ceiling" | "leverage" | null = null;
   const identity = (p: any) => p;
   mock("../server/db.ts", { db: { update: () => ({ set: (payload: any) => ({ where: async () => { writes.push(payload); } }) }) }, pool: {} });
   mock("../server/replit_integrations/auth/index.ts", { setupAuth: async () => {}, registerAuthRoutes: () => {} });
@@ -66,7 +67,23 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
     createLineup: async (payload: any) => { writes.push(payload); return { id: 500, ...payload }; },
     updateLineup: async (_id: number, payload: any) => { writes.push(payload); return payload; },
   } });
-  mock("../server/boost-engine.ts", { applyActualAdjustedProjections: identity, applyWinningLineupAdjustment: identity, applyCeilingMode: identity, applyLeverageMode: identity, computeCorrelationBonus: () => 0 });
+  mock("../server/boost-engine.ts", {
+    applyActualAdjustedProjections: identity,
+    applyWinningLineupAdjustment: identity,
+    applyOutperformerMode: (p: any) => {
+      if (failingAdjustment === "outperformer") throw new Error("fixture outperformer failure");
+      return p;
+    },
+    applyCeilingMode: (p: any) => {
+      if (failingAdjustment === "ceiling") throw new Error("fixture ceiling failure");
+      return p;
+    },
+    applyLeverageMode: (p: any) => {
+      if (failingAdjustment === "leverage") throw new Error("fixture leverage failure");
+      return p;
+    },
+    computeCorrelationBonus: () => 0,
+  });
   mock("../server/market-projections.ts", { applyMarketProjectionBlend: identity });
   mock("../server/historical-adjustments.ts", { getHistoricalProfile: async () => ({ ready: false }) });
   mock("../server/ai-scout.ts", { getCachedSignals: () => [] });
@@ -191,6 +208,20 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
     await invoke("/api/lineups/sim-regenerate", { ids: [1], contestType: "gpp", nflPortfolio: { enabled: false } }, 400);
     assert.equal(writes.length, beforeAutomaticFailure, "automatic impossible lock/exposure request must not save");
     savedPlayerOverrides = [];
+    for (const mode of ["outperformer", "ceiling", "leverage"] as const) {
+      failingAdjustment = mode;
+      const writesBeforeModeFailure = writes.length;
+      const failed = await invoke("/api/lineups/sim-regenerate", {
+        ids: [1], contestType: "gpp",
+        outperformerMode: mode === "outperformer",
+        ceilingMode: mode === "ceiling",
+        leverageMode: mode === "leverage",
+      }, 400);
+      assert.match(failed.message, new RegExp(`${mode === "outperformer" ? "Outperformer" : mode[0].toUpperCase() + mode.slice(1)} Mode could not be applied`));
+      assert.match(failed.message, /No lineups were saved/);
+      assert.equal(writes.length, writesBeforeModeFailure);
+    }
+    failingAdjustment = null;
     // Disabled incompatible contexts remain legal and must not reach the engine.
     slate = { ...slate, sport: "NBA" };
     for (const path of ["/api/optimize", "/api/optimize/pro", "/api/optimize/sim", "/api/lineups/sim-regenerate"]) {

@@ -50,3 +50,9 @@ NFL DraftKings Classic GPP regeneration must exclude RBs under $4,500, including
 **Why:** After automatic structural balancing was enabled without the optional research restrictions, the user objected to cheap RBs still appearing. The RB floor is required for regeneration, not merely an optional portfolio preference.
 
 **How to apply:** Keep higher explicit RB floors, reject conflicting cheap-RB locks without saving, and do not extend this NFL-specific requirement to other sports or Showdown.
+
+Enabled regeneration modes must fail closed when their projection adjustment cannot run.
+
+**Why:** Ceiling, Leverage, and Outperformer previously logged adjustment failures and silently regenerated without the selected mode, making the result differ from the user's request.
+
+**How to apply:** Return a readable no-save error when an enabled mode fails. Never continue with unadjusted projections while presenting the batch as if that mode was applied.
