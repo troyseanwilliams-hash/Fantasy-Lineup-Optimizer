@@ -36,7 +36,7 @@ import { getCachedSignals, getScoutStatus, refreshAll, forceRefreshAll, secondsU
 import { runSimulations, detectStack, scoreLineupsAcrossSims } from "./simulation-engine";
 import { addSimGameStacks, addSimStackAlternatives, stackGameKey as getStackGameKey, type SimStackAlternative } from "./sim-game-stacks";
 import { addNFLQuarterbackStacks } from "./nfl-qb-stacks";
-import { generateNflPortfolio as generateNflPortfolioEngine, addNflPortfolioConstraints } from "./nfl-portfolio";
+import { generateNflPortfolio as generateNflPortfolioEngine, addNflPortfolioConstraints, regenerationNflSettings } from "./nfl-portfolio";
 import { nflPortfolioSettingsSchema, type NflPortfolioSettings, type NflPortfolioLineupPolicy, type NflPortfolioReport } from "@shared/nfl-portfolio";
 import { buildVegasContext } from "./vegas-client";
 import { buildDvPContext, applyDvPToProjections, buildOpponentMap } from "./dvp-client";
@@ -2253,7 +2253,12 @@ export async function registerRoutes(
         }
         if (!slate) continue;
         const players = await storage.getPlayersBySlate(slateId);
-        if (restrictionInput.data.nflPortfolio?.enabled && players.length === 0) {
+        const automaticStructure = slate.sport.toUpperCase() === "NFL" && slate.platform === "draftkings" &&
+          (lineupOwnership.get(lineupIds[0])?.platform || "draftkings") === "draftkings" && isClassicSlate(slate) && simContestType === "gpp";
+        const targetInput = automaticStructure && !restrictionInput.data.nflPortfolio?.enabled
+          ? { ...restrictionInput.data, nflPortfolio: regenerationNflSettings(players) } : restrictionInput.data;
+        hasConstrainedResim ||= automaticStructure;
+        if (targetInput.nflPortfolio?.enabled && players.length === 0) {
           return res.status(400).json({ message: "NFL portfolio target has no available player pool.", slateId });
         }
         try {
@@ -2261,7 +2266,7 @@ export async function registerRoutes(
           preflightTargets.set(slateId, {
             slate,
             players,
-            restrictions: validateSimRegenerateRestrictions(restrictionInput.data, slate, players),
+            restrictions: validateSimRegenerateRestrictions(targetInput, slate, players),
           });
         } catch (error: any) {
           return res.status(400).json({
@@ -2475,6 +2480,7 @@ export async function registerRoutes(
           const ownershipMap = await portfolioOwnership(pool, preset);
           const portfolio = await generateNflPortfolio({
             pool, settings: preset, count: lineupIds.length,
+            strictStructure: true, structureOnly: !restrictionInput.data.nflPortfolio?.enabled,
             baseConstraints: {
               ...simRegenConstraints([...simRegenLocked]),
               globalMaxExposure, globalMinExposure, projectedPointsFloor: simProjFloor || undefined,
@@ -2483,7 +2489,7 @@ export async function registerRoutes(
             },
             ownershipMap, vegasGames: vegasContext ? [...vegasContext.games.values()].filter(game => game.source !== "fallback") : undefined,
             deadline: solverDeadline,
-            solve: (candidatePool, candidateConstraints) => solveLineup(candidatePool, candidateConstraints, slate.sport, platform, candidateConstraints.ownershipMap ?? ownershipMap, { deadline: solverDeadline, timeoutMs: 2000 }),
+            solve: (candidatePool, candidateConstraints) => solveLineup(candidatePool, candidateConstraints, slate.sport, platform, candidateConstraints.ownershipMap ?? ownershipMap, { deadline: solverDeadline, timeoutMs: 100 }),
             scoreCandidates: candidates => scorePortfolioSims(candidates, portfolioSims, sortKey),
           });
           nflPortfolioReports.push({ slateId, report: portfolio.report });
@@ -2772,7 +2778,10 @@ export async function registerRoutes(
         }
         for (const slateId of slateGroups.keys()) {
           const target = await storage.getSlate(slateId);
-          if (!target || target.isActive === false || new Date(target.startTime).getTime() <= Date.now()) {
+          const automaticStructure = !restrictionInput.data.nflPortfolio?.enabled && nflPortfolioReports.some(entry => entry.slateId === slateId);
+          if (!target || target.isActive === false || (automaticStructure
+            ? configurationExpiry(target, preflightTargets.get(slateId)?.players ?? []).isExpired
+            : new Date(target.startTime).getTime() <= Date.now())) {
             return res.status(400).json({ message: "A target slate closed during NFL portfolio regeneration. No regenerated lineups were saved.", slateId });
           }
         }

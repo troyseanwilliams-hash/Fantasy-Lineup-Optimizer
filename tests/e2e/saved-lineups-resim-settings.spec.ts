@@ -97,6 +97,8 @@ test("main ReSim sends FLEX restrictions and target-player game stacks", async (
   const requests: Record<string, unknown>[] = [];
   await mockApi(page, [lineup(976201, classicA)], requests);
   await selectAndOpenSettings(page, 976201);
+  await expect(page.getByTestId("regen-structure-targets")).toContainText("38% double");
+  await expect(page.getByTestId("regen-structure-targets")).toContainText("19.3% TE");
 
   await page.getByTestId("resim-flex-TE").uncheck();
   await page.getByTestId("resim-stack-game-BUF-HOU").click();
@@ -222,6 +224,7 @@ test("Showdown omits controls and mixed source slates require an explicit target
   await page.getByTestId("select-lineup-976204").click();
   await page.getByTestId("regen-settings-btn").click();
   await expect(page.getByTestId("resim-nfl-flex-controls")).toHaveCount(0);
+  await expect(page.getByTestId("regen-structure-targets")).toHaveCount(0);
   await expect(page.getByTestId("resim-game-stack-controls")).toHaveCount(0);
   await page.getByTestId("sim-regen-btn").click();
   await expect.poll(() => requests.length).toBe(1);

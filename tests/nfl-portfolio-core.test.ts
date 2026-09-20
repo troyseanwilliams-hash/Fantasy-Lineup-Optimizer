@@ -3,7 +3,7 @@ import test from "node:test";
 import solver from "javascript-lp-solver";
 import type { Player } from "../shared/schema";
 import { nflPortfolioSettingsSchema, type NflPortfolioLineupPolicy } from "../shared/nfl-portfolio";
-import { addNflPortfolioConstraints, classifyNflLineup, generateNflPortfolio, planNflMix } from "../server/nfl-portfolio";
+import { addNflPortfolioConstraints, classifyNflLineup, generateNflPortfolio, planNflMix, regenerationNflSettings } from "../server/nfl-portfolio";
 
 const pool = ["A", "B", "C", "D", "E", "F"].flatMap((team, ti) =>
   ["QB", "RB", "RB", "WR", "WR", "WR", "TE", "DST"].map((position, pi) => ({
@@ -25,6 +25,11 @@ function modelFor(players: Player[]) {
 }
 function solve(players: Player[], constraints: any) {
   const m = modelFor(players);
+  m.timeout = 100;
+  if (constraints.flexAllowedPositions?.length === 1) {
+    const flex = constraints.flexAllowedPositions[0];
+    for (const [position, count] of Object.entries({ RB: 2, WR: 3, TE: 1 })) m.constraints[position] = { equal: count + Number(flex === position) };
+  }
   for (const id of constraints.lockedPlayerIds || []) {
     m.constraints[`lock${id}`] = { equal: 1 };
     if (m.variables[`p${id}`]) m.variables[`p${id}`][`lock${id}`] = 1;
@@ -34,6 +39,42 @@ function solve(players: Player[], constraints: any) {
   return r.feasible ? { lineup: players.filter(p => Number(r[`p${p.id}`]) > 0.5) } : { error: "Fixture infeasible" };
 }
 const settings = nflPortfolioSettingsSchema.parse({ enabled: true, stackMix: { naked: 0, single: 100, double: 0, triple: 0 }, bringBackPct: 0 });
+test("automatic structure uses the real LP for 193 lineups at 40% and 60% exposure", async () => {
+  for (const cap of [40, 60]) {
+    const result = await generateNflPortfolio({
+      pool, settings: regenerationNflSettings(pool), count: 193,
+      baseConstraints: { globalMaxExposure: cap },
+      strictStructure: true, structureOnly: true, solve, deadline: Date.now() + 60000,
+    });
+    assert.equal(result.lineups.length, 193);
+    assert.equal(result.report.partial, false);
+    for (const p of pool) assert.ok(result.lineups.filter(l => l.lineup.some((x: Player) => x.id === p.id)).length <= Math.floor(193 * cap / 100));
+    for (const metric of result.report.metrics.filter(m => m.key.startsWith("stack_") || m.key.startsWith("flex_") || ["bringBack", "secondary"].includes(m.key))) {
+      assert.ok(Math.abs(metric.achieved! - metric.target!) <= 3, JSON.stringify(metric));
+    }
+    assert.ok(!result.report.metrics.some(m => m.key.startsWith("qb_")));
+  }
+});
+test("automatic structure cannot return a partial or unconstrained batch", async () => {
+  await assert.rejects(generateNflPortfolio({
+    pool, settings: regenerationNflSettings(pool), count: 5,
+    baseConstraints: { lockedPlayerIds: [1], globalMaxExposure: 60 },
+    strictStructure: true, structureOnly: true, solve,
+  }), /locked player/);
+});
+test("automatic small batches normalize explicit FLEX and retain exclusions and individual minimums", async () => {
+  const result = await generateNflPortfolio({
+    pool, settings: regenerationNflSettings(pool), count: 12,
+    baseConstraints: { flexAllowedPositions: ["TE"], excludedPlayerIds: [48], minExposureLimits: { 1: 25 }, exposureLimits: { 1: 50 }, globalMaxExposure: 75 },
+    strictStructure: true, structureOnly: true, solve,
+  });
+  assert.equal(result.lineups.length, 12);
+  assert.ok(result.lineups.every(l => classifyNflLineup(l.lineup).flex === "TE" && !l.lineup.some((p: Player) => p.id === 48)));
+  const used = result.lineups.filter(l => l.lineup.some((p: Player) => p.id === 1)).length;
+  assert.ok(used >= 3 && used <= 6);
+  assert.equal(result.report.metrics.find(m => m.key === "flex_TE")?.target, 12);
+  assert.equal(result.report.metrics.find(m => m.key === "flex_RB")?.target, 0);
+});
 test("largest remainder rounding preserves count with stable ties", () => {
   assert.deepEqual(planNflMix({ naked: 10, single: 49, double: 38, triple: 3 }, 10), { naked: 1, single: 5, double: 4, triple: 0 });
   for (let n = 1; n < 150; n++) assert.equal(Object.values(planNflMix(settings.flexMix, n)).reduce((a, b) => a + b), n);

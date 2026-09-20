@@ -6,6 +6,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { optimizationConstraintSchema, proOptimizationConstraintSchema, optimizeResponseSchema, proOptimizeResponseSchema } from "../shared/schema";
 import { nflPortfolioSettingsSchema } from "../shared/nfl-portfolio";
+import { regenerationNflSettings } from "../server/nfl-portfolio";
 
 const require = createRequire(import.meta.url);
 
@@ -20,7 +21,7 @@ test("portfolio boundary is optional, extendable, strips internal policy, and pr
   assert.deepEqual(proOptimizeResponseSchema.parse({ lineups: [], nflPortfolioReport: report }).nflPortfolioReport, report);
 });
 
-test("all four handlers propagate enabled strategy and simulation scoring; OFF never invokes portfolio", async () => {
+test("explicit strategy propagates; NFL GPP Resim defaults to structure and never saves an invalid batch", async () => {
   const saved = new Map<string, any>();
   const mock = (path: string, exports: any) => {
     const id = require.resolve(path);
@@ -75,6 +76,7 @@ test("all four handlers propagate enabled strategy and simulation scoring; OFF n
   mock("../server/balldontlie-stats.ts", { fetchBDLStats: async () => new Map() });
   mock("../server/ownership-engine.ts", { calculateOwnership: async () => [], computeOwnershipForPlayers: identity });
   mock("../server/nfl-portfolio.ts", {
+    regenerationNflSettings,
     addNflPortfolioConstraints: () => {},
     generateNflPortfolio: async (options: any) => {
       calls.push(options);
@@ -147,12 +149,23 @@ test("all four handlers propagate enabled strategy and simulation scoring; OFF n
     assert.deepEqual(disabledShape, defaultShape);
     assert.equal("nflPortfolioReport" in disabledNormal, false);
     assert.equal(calls.length, 4);
-    for (const path of ["/api/optimize/pro", "/api/optimize/sim", "/api/lineups/sim-regenerate"]) {
+    for (const path of ["/api/optimize/pro", "/api/optimize/sim"]) {
       const disabled = await invoke(path, { slateId: 77, ids: [1], lineupCount: 1, numSims: 50, nflPortfolio: { enabled: false } });
       assert.equal("nflPortfolioReport" in disabled, false);
       assert.equal("nflPortfolioReports" in disabled, false);
       assert.equal(calls.length, 4);
     }
+    const automatic = await invoke("/api/lineups/sim-regenerate", { ids: [1], contestType: "gpp", nflPortfolio: { enabled: false } });
+    assert.equal(automatic.nflPortfolioReports[0].report.generatedCount, 1);
+    assert.equal(calls.at(-1).strictStructure, true);
+    assert.equal(calls.at(-1).structureOnly, true);
+    assert.equal(calls.at(-1).settings.rbMinSalary, 0);
+    assert.deepEqual(calls.at(-1).settings.nakedQbIds, [1]);
+    const beforeAutomaticFailure = writes.length;
+    savedPlayerOverrides = [{ playerId: 1, isLocked: true, maxExposure: 40 }];
+    await invoke("/api/lineups/sim-regenerate", { ids: [1], contestType: "gpp", nflPortfolio: { enabled: false } }, 400);
+    assert.equal(writes.length, beforeAutomaticFailure, "automatic impossible lock/exposure request must not save");
+    savedPlayerOverrides = [];
     // Disabled incompatible contexts remain legal and must not reach the engine.
     slate = { ...slate, sport: "NBA" };
     for (const path of ["/api/optimize", "/api/optimize/pro", "/api/optimize/sim", "/api/lineups/sim-regenerate"]) {
@@ -182,6 +195,8 @@ test("all four handlers propagate enabled strategy and simulation scoring; OFF n
     failSecondGroup = true;
     await invoke("/api/lineups/sim-regenerate", multiTarget, 400);
     assert.equal(writes.length, existingWrites, "later target validation failure must prevent earlier writes");
+    await invoke("/api/lineups/sim-regenerate", { ...multiTarget, nflPortfolio: { enabled: false } }, 400);
+    assert.equal(writes.length, existingWrites, "automatic structure also defers every write until all target groups validate");
     failSecondGroup = false;
     closeDuringGeneration = true;
     await invoke("/api/lineups/sim-regenerate", multiTarget, 400);

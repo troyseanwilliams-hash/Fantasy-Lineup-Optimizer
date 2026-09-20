@@ -89,6 +89,7 @@ export interface NflPortfolioReport {
 
 // Internal, per-candidate solver policy. Never trust a client-supplied value.
 export interface NflPortfolioLineupPolicy {
+  secondary?: boolean;
   catcherCount: 0 | 1 | 2 | 3;
   bringBack: boolean;
   nakedQbIds: number[];

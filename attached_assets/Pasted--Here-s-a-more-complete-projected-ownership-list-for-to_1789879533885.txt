@@ -1,0 +1,73 @@
+**Here’s a more complete projected ownership list** for today’s **DraftKings NFL Main Slate** (Sunday, September 20, 2026 – Week 2).
+
+Source: OneWeekSeason (ownership updated late Saturday / early Sunday). These are among the most detailed free public numbers available.
+
+### High Ownership (Chalk)
+| Player                  | Pos | Team | Salary | Own %   |
+|-------------------------|-----|------|--------|---------|
+| Bijan Robinson         | RB  | ATL  | $8,200 | **40.1%** |
+| Aaron Jones Sr.        | RB  | MIN  | $5,100 | **24.1%** |
+| Derrick Henry          | RB  | BAL  | $7,200 | **22.2%** |
+| Javonte Williams       | RB  | DAL  | $6,400 | **22.2%** |
+| Christian McCaffrey    | RB  | SF   | $8,000 | **21.9%** |
+| Dalton Schultz         | TE  | HOU  | $3,200 | **20.5%** |
+| CeeDee Lamb            | WR  | DAL  | $7,300 | **20.3%** |
+| George Pickens         | WR  | DAL  | $6,300 | **17.9%** |
+| Ja'Marr Chase          | WR  | CIN  | $7,600 | **17.2%** |
+| Mark Andrews           | TE  | BAL  | $4,400 | **17.1%** |
+| Ashton Jeanty          | RB  | LV   | $6,800 | **16.5%** |
+| Justin Jefferson       | WR  | MIN  | $7,800 | **15.4%** |
+| Michael Mayer          | TE  | LV   | $3,600 | **14.1%** |
+| Jaxon Smith-Njigba     | WR  | SEA  | $8,100 | **13.9%** |
+| Garrett Wilson         | WR  | NYJ  | $6,000 | **13.6%** |
+| Bucky Irving           | RB  | TB   | $6,100 | **13.5%** |
+
+### Mid-Ownership (10–13%)
+| Player                  | Pos | Team | Salary | Own %   |
+|-------------------------|-----|------|--------|---------|
+| Dak Prescott           | QB  | DAL  | $6,400 | **12.0%** |
+| Quentin Johnston       | WR  | LAC  | $5,000 | **11.6%** |
+| DK Metcalf             | WR  | PIT  | $5,200 | **11.5%** |
+| Matthew Golden         | WR  | GB   | $4,700 | **11.3%** |
+| Breece Hall            | RB  | NYJ  | $6,200 | **11.1%** |
+| Terry McLaurin         | WR  | WAS  | $5,200 | **10.7%** |
+| Parker Washington      | WR  | JAC  | $5,900 | **10.5%** |
+| Christian Watson       | WR  | GB   | $6,200 | **10.3%** |
+| De'Von Achane          | RB  | MIA  | $6,700 | **10.1%** |
+| Rhamondre Stevenson    | RB  | NE   | $5,700 | **10.0%** |
+| Brock Purdy            | QB  | SF   | $6,200 | **9.9%** |
+| Tampa Bay Buccaneers   | DST | TB   | $3,600 | **9.7%** |
+| Saquon Barkley         | RB  | PHI  | $7,000 | **9.6%** |
+| Jalen Coker            | WR  | CAR  | $5,100 | **9.1%** |
+
+### Lower Ownership / Leverage Range (Selected)
+| Player                  | Pos | Team | Salary | Own %   |
+|-------------------------|-----|------|--------|---------|
+| Baltimore Ravens       | DST | BAL  | $3,300 | 8.4%    |
+| Trey McBride           | TE  | ARI  | $6,900 | 8.2%    |
+| Jordan Love            | QB  | GB   | $5,900 | 8.0%    |
+| Chris Olave            | WR  | NO   | $7,200 | 7.9%    |
+| Tetairoa McMillan      | WR  | CAR  | $6,100 | 7.7%    |
+| George Kittle          | TE  | SF   | $4,600 | 7.5%    |
+| Colston Loveland       | TE  | CHI  | $5,000 | 7.5%    |
+| Rashod Bateman         | WR  | BAL  | $4,400 | 7.2%    |
+| Chuba Hubbard          | RB  | CAR  | $5,800 | 7.1%    |
+| Jayden Reed            | WR  | GB   | $4,500 | 6.9%    |
+| Omarion Hampton        | RB  | LAC  | $6,600 | 6.7%    |
+| Jayden Daniels         | QB  | WAS  | $6,300 | 6.6%    |
+| Jaylen Waddle          | WR  | DEN  | $6,500 | 6.5%    |
+| Denver Broncos         | DST | DEN  | $2,800 | 6.5%    |
+| Stefon Diggs           | WR  | WAS  | $5,300 | 6.4%    |
+| Lamar Jackson          | QB  | BAL  | $7,300 | 5.8%    |
+| Carson Wentz           | QB  | MIN  | $4,600 | 5.2%    |
+| Mike Evans             | WR  | SF   | $6,600 | 5.2%    |
+| Drake London           | WR  | ATL  | $6,000 | 5.1%    |
+| C.J. Stroud            | QB  | HOU  | $5,500 | 3.7%    |
+
+### Notes
+- **Dallas offense** is heavily owned as a group (team own ~78%).
+- **Bijan** is the clear restrictive chalk.
+- Numbers can still shift with late news (injuries, weather, etc.).
+- FantasyTeamAdvice currently shows slightly lower numbers on some of the top RBs (Bijan ~37.5%, Henry ~24.5%, Javonte ~24.1%).
+
+Would you like me to break this out by position (QB / RB / WR / TE / DST) or focus on a specific range (e.g., under 8% leverage plays)?

@@ -1,11 +1,18 @@
 import type { Player } from "@shared/schema";
-import { OWNERSHIP_TARGETS, type NflPortfolioSettings, type NflPortfolioReport, type NflPortfolioLineupPolicy } from "@shared/nfl-portfolio";
+import { DEFAULT_NFL_PORTFOLIO, OWNERSHIP_TARGETS, type NflPortfolioSettings, type NflPortfolioReport, type NflPortfolioLineupPolicy } from "@shared/nfl-portfolio";
 import { parseGameInfo } from "@shared/game-info";
 import { stackGameKey } from "./sim-game-stacks";
 import solver from "javascript-lp-solver";
 
 const pos = (p: Player, positions: string[]) => p.position.toUpperCase().split("/").some(x => positions.includes(x.trim()));
 const team = (p: Player) => p.team.trim().toUpperCase();
+/** Automatic regeneration activates structure only, not the optional research preset. */
+export function regenerationNflSettings(pool: Player[]): NflPortfolioSettings {
+  return { ...DEFAULT_NFL_PORTFOLIO, enabled: true, rbMinSalary: 0,
+    nakedQbIds: pool.filter(p => pos(p, ["QB"])).map(p => p.id),
+    minGames: 2, maxGames: 9, preferHomeTe: false, preferHomeFavoriteDst: false,
+    preferLowTotalGames: false, preferValueWr: false, preferFourXUpside: false, preferLowOwnedWr: false };
+}
 export const qbSalaryBin = (salary: number): "punt" | "value" | "mid" | "premium" =>
   salary < 5000 ? "punt" : salary < 6000 ? "value" : salary < 7000 ? "mid" : "premium";
 
@@ -26,6 +33,20 @@ export function addNflPortfolioConstraints(model: any, pool: Player[], policy: N
     model.variables[`p${p.id}`][key] = 1;
   };
   const M = available.length + 1;
+  if (policy.secondary === false) {
+    const skills = available.filter(p => pos(p, ["RB", "WR", "TE"]));
+    for (let i = 0; i < skills.length; i++) for (let j = i + 1; j < skills.length; j++) {
+      const a = skills[i], b = skills[j], game = stackGameKey(a.gameInfo);
+      if (!game || game !== stackGameKey(b.gameInfo)) continue;
+      if (team(a) === team(b) && !(pos(a, ["RB"]) && pos(b, ["WR", "TE"])) && !(pos(b, ["RB"]) && pos(a, ["WR", "TE"]))) continue;
+      const key = `nfl_pair_${a.id}_${b.id}`;
+      const qbs = available.filter(p => pos(p, ["QB"]) && stackGameKey(p.gameInfo) === game);
+      model.constraints[key] = { max: 1 };
+      model.variables[`p${a.id}`][key] = 1;
+      model.variables[`p${b.id}`][key] = 1;
+      for (const qb of qbs) model.variables[`p${qb.id}`][key] = -1;
+    }
+  }
   for (const qb of available.filter(p => pos(p, ["QB"]))) {
     if ((policy.catcherCount === 0 && !policy.nakedQbIds.includes(qb.id)) ||
       (policy.stackGameKeys.length && !policy.stackGameKeys.includes(stackGameKey(qb.gameInfo)))) forbid(qb);
@@ -81,6 +102,8 @@ export async function generateNflPortfolio(options: {
   vegasGames?: Array<{ gameKey: string; homeTeam: string; awayTeam: string; total: number; homeImplied: number; awayImplied: number }>;
   deadline?: number; solve: (pool: Player[], constraints: any) => any;
   scoreCandidates?: (lineups: any[]) => Promise<number[]> | number[];
+  strictStructure?: boolean;
+  structureOnly?: boolean;
 }): Promise<{ lineups: any[]; report: NflPortfolioReport }> {
   const { settings: s, count, baseConstraints: base } = options;
   if (!Number.isInteger(count) || count < 1) throw new Error("NFL portfolio count must be a positive integer.");
@@ -94,7 +117,7 @@ export async function generateNflPortfolio(options: {
   const eligible = pool.filter(p => !(pos(p, ["RB"]) && p.salary < s.rbMinSalary && !(s.allowLockedCheapRb && locks.includes(p.id))));
   if (locks.some(id => !eligible.some(p => p.id === id))) throw new Error("Locked RB violates the RB salary floor; explicitly enable the locked-cheap-RB exemption.");
   const maximum = (id: number) => Math.min(base.globalMaxExposure ?? 100, base.exposureLimits?.[id] ?? 100);
-  const minimum = (id: number) => base.minExposureLimits?.[id] ?? base.globalMinExposure ?? 0;
+  const minimum = (id: number) => options.strictStructure ? base.minExposureLimits?.[id] ?? 0 : base.minExposureLimits?.[id] ?? base.globalMinExposure ?? 0;
   for (const id of locks) if (maximum(id) < 100) throw new Error(`Infeasible hard exposure requirements: locked player ${id} must appear in 100%, above its ${maximum(id)}% maximum.`);
   for (const id of Array.from(new Set([...eligible.map(p => p.id), ...Object.keys(base.minExposureLimits || {}).map(Number)]))) {
     if (minimum(id) > maximum(id) || (minimum(id) > 0 && !eligible.some(p => p.id === id))) throw new Error(`Infeasible minimum and maximum exposures for player ${id}: minimum exceeds maximum or player is unavailable.`);
@@ -137,6 +160,7 @@ export async function generateNflPortfolio(options: {
   const maxAttempts = Math.min(1500, Math.max(48, count * 12));
   let lastError = "";
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (options.strictStructure && candidates.length >= Math.max(80, count * 3)) break;
     if (Date.now() >= candidateDeadline) { budgetReached = true; warnings.push("Candidate solve budget reached; reserved time for scoring and hard-exposure selection."); break; }
     // Let HTTP requests and timers run between bounded synchronous solves.
     await new Promise<void>(resolve => setImmediate(resolve));
@@ -145,6 +169,7 @@ export async function generateNflPortfolio(options: {
     const catcherCount = ["naked", "single", "double", "triple"].indexOf(stack) as 0 | 1 | 2 | 3;
     if (!catcherCount && !s.nakedQbIds.length) continue;
     const policy: NflPortfolioLineupPolicy = {
+      ...(options.strictStructure ? { secondary: random() * 100 < s.secondaryStackPct } : {}),
       catcherCount, bringBack: random() * 100 < s.bringBackPct,
       nakedQbIds: s.nakedQbIds, rbMinSalary: s.rbMinSalary,
       exemptLockedRbIds: s.allowLockedCheapRb ? locks : [],
@@ -155,7 +180,17 @@ export async function generateNflPortfolio(options: {
     // One additional lock per solve limits incompatible temporary structures.
     const deficitTargets = minTargets.filter(p => (usage.get(p.id) || 0) < Math.max(1, Math.ceil((candidates.length + 1) * minimum(p.id) / 100)));
     const forced = deficitTargets.length ? deficitTargets[minTargetTurn++ % deficitTargets.length] : undefined;
-    const attemptLocks = Array.from(new Set([...locks, ...(forced ? [forced.id] : [])]));
+    const secondaryPairs: Player[][] = [];
+    if (policy.secondary) {
+      const skills = eligible.filter(p => pos(p, ["RB", "WR", "TE"]) && maximum(p.id) > 0);
+      for (let i = 0; i < skills.length; i++) for (let j = i + 1; j < skills.length; j++) {
+        const a = skills[i], b = skills[j], game = stackGameKey(a.gameInfo);
+        if (game && game === stackGameKey(b.gameInfo) && (team(a) !== team(b) ||
+          (pos(a, ["RB"]) && pos(b, ["WR", "TE"])) || (pos(b, ["RB"]) && pos(a, ["WR", "TE"])))) secondaryPairs.push([a, b]);
+      }
+    }
+    const pair = secondaryPairs.length ? secondaryPairs[Math.floor(random() * secondaryPairs.length)] : [];
+    const attemptLocks = Array.from(new Set([...locks, ...(forced ? [forced.id] : []), ...pair.map(p => p.id)]));
     const alwaysExcluded = eligible.filter(p => maximum(p.id) <= 0).map(p => p.id);
     // Retain baseline attempts, but actively omit heavily reused players on most solves.
     // Exclusions are temporary candidate-search decisions, not relaxed caller rules.
@@ -167,9 +202,39 @@ export async function generateNflPortfolio(options: {
       : [];
     const attemptExcluded = Array.from(new Set([...excluded, ...alwaysExcluded, ...pressured.slice(0, 3).map(p => p.id)]));
     const jittered = eligible.map(p => ({ ...p, projectedPoints: String(Number(p.projectedPoints || p.fppg || 0) * (0.8 + random() * 0.4)) }));
-    const constraints = { ...base, minProjection: undefined, lockedPlayerIds: attemptLocks, excludedPlayerIds: attemptExcluded, nflPortfolio: s, nflPortfolioLineupPolicy: policy, ownershipMap: ownership };
+    let searchPool = jittered.filter(p => !attemptExcluded.includes(p.id));
+    if (options.strictStructure) {
+      // Pick a QB before the roster solve. This removes dozens of conditional
+      // QB branches from a full-slate LP without changing final eligibility.
+      const qbChoices = searchPool.filter(p => pos(p, ["QB"]) &&
+        (catcherCount > 0 || s.nakedQbIds.includes(p.id)) &&
+        (!(base.stackAlternatives?.length) || base.stackAlternatives.some((alt: any) => alt.kind === "players" || alt.gameKey === stackGameKey(p.gameInfo))) &&
+        (!policy.stackGameKeys.length || policy.stackGameKeys.includes(stackGameKey(p.gameInfo))))
+        .sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
+      const forcedQb = qbChoices.find(p => attemptLocks.includes(p.id));
+      const qb = forcedQb ?? qbChoices[Math.floor(random() * Math.min(12, qbChoices.length))];
+      if (!qb) continue;
+      if (!attemptLocks.includes(qb.id)) attemptLocks.push(qb.id);
+      const keep = new Set(attemptLocks);
+      for (const alt of base.stackAlternatives || []) for (const id of alt.playerIds || []) keep.add(id);
+      // Rank anew on each jittered solve, retain cheap salary alternatives, all
+      // required players and the chosen QB's correlation partners.
+      for (const position of ["RB", "WR", "TE", "DST"]) {
+        const group = searchPool.filter(p => pos(p, [position])).sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
+        for (const p of group.slice(0, 22)) keep.add(p.id);
+        for (const p of [...group].sort((a, b) => a.salary - b.salary || Number(b.projectedPoints) - Number(a.projectedPoints)).slice(0, 4)) keep.add(p.id);
+      }
+      for (const p of searchPool) if (stackGameKey(p.gameInfo) === stackGameKey(qb.gameInfo) && pos(p, ["RB", "WR", "TE"])) keep.add(p.id);
+      searchPool = searchPool.filter(p => keep.has(p.id) && (!pos(p, ["QB"]) || p.id === qb.id));
+    }
+    // Deliberately generate every eligible FLEX shape, rather than hoping TE wins
+    // a projection-only FLEX contest. Final selection still enforces the mix.
+    const flexChoices = Object.keys(flexMix).filter(k => flexMix[k] > 0);
+    const chosenFlex = flexChoices[Math.floor(random() * flexChoices.length)];
+    const constraints = { ...base, minProjection: undefined, lockedPlayerIds: attemptLocks, excludedPlayerIds: attemptExcluded, nflPortfolio: s, nflPortfolioLineupPolicy: policy, ownershipMap: ownership,
+      ...(options.strictStructure ? { flexAllowedPositions: [chosenFlex] } : {}) };
     let result: any;
-    try { result = await options.solve(jittered.filter(p => !attemptExcluded.includes(p.id)), constraints); } catch (error) { lastError = String(error); continue; }
+    try { result = await options.solve(searchPool, constraints); } catch (error) { lastError = String(error); continue; }
     if (!result?.lineup?.length || result.error) { lastError = result?.error || "No feasible candidate"; continue; }
     const lineup: Player[] = result.lineup.map((p: Player) => original.get(p.id)).filter(Boolean);
     const ids = lineup.map(p => p.id);
@@ -189,7 +254,8 @@ export async function generateNflPortfolio(options: {
       lineup.some(p => (base.playerMinSalary && !pos(p, ["DST", "DEF"]) && p.salary < base.playerMinSalary && !locks.includes(p.id)) || (base.playerMaxSalary && p.salary > base.playerMaxSalary && !locks.includes(p.id)))) continue;
     // Validate policy even if a custom solve callback did not apply the LP helper.
     if (lineup.length !== 9 || new Set(ids).size !== 9 || attemptLocks.some(id => !ids.includes(id)) || ids.some(id => attemptExcluded.includes(id)) ||
-      !info.qb || info.catchers !== catcherCount || info.bringBack !== policy.bringBack ||
+       !info.qb || info.catchers !== catcherCount || info.bringBack !== policy.bringBack ||
+       (policy.secondary !== undefined && info.secondary !== policy.secondary) ||
       (!catcherCount && (!s.nakedQbIds.includes(info.qb.id) || !info.naked)) ||
       (policy.stackGameKeys.length && !policy.stackGameKeys.includes(stackGameKey(info.qb.gameInfo))) ||
       lineup.some(p => pos(p, ["RB"]) && p.salary < s.rbMinSalary && !policy.exemptLockedRbIds.includes(p.id)) ||
@@ -205,18 +271,25 @@ export async function generateNflPortfolio(options: {
   if (scores.length !== candidates.length || scores.some(x => !Number.isFinite(x))) throw new Error("NFL portfolio scoring callback returned invalid scores.");
   const infos = candidates.map(x => classifyNflLineup(x.lineup));
   const scoreMin = Math.min(...scores), scoreRange = Math.max(...scores) - scoreMin || 1;
-  // Select the entire batch as an integer program, not a greedy exposure approximation.
+  // Select and validate the entire batch, never a greedy exposure approximation.
   let selected: number[] = [];
-  for (let size = Math.min(count, candidates.length); size >= 1; size--) {
+  for (let size = Math.min(count, candidates.length); size >= (options.strictStructure ? count : 1); size--) {
     if (options.deadline && Date.now() >= options.deadline && size !== Math.min(count, candidates.length)) break;
     const model: any = { optimize: "utility", opType: "max", constraints: { size: { equal: size } }, variables: {}, ints: {}, timeout: Math.min(2000, Math.max(1, (options.deadline || Date.now() + 2000) - Date.now())) };
     const targets: Record<string, number> = {};
     for (const [k, n] of Object.entries(planNflMix(s.stackMix, size))) targets[`stack_${k}`] = n;
     for (const [k, n] of Object.entries(planNflMix(flexMix, size))) targets[`flex_${k}`] = n;
-    for (const [k, n] of Object.entries(planNflMix(s.qbSalaryMix, size))) targets[`qb_${k}`] = n;
+    if (!options.structureOnly) for (const [k, n] of Object.entries(planNflMix(s.qbSalaryMix, size))) targets[`qb_${k}`] = n;
     targets.bringBack = Math.round(size * s.bringBackPct / 100);
     targets.secondary = Math.round(size * s.secondaryStackPct / 100);
     for (const [key, target] of Object.entries(targets)) {
+      if (options.strictStructure && !key.startsWith("qb_")) {
+        // At most one lineup for small batches, 2% for large batches.
+        // A zero target remains zero (including forbidden FLEX positions).
+        const tolerance = target === 0 ? 0 : Math.max(1, Math.floor(size * 0.02));
+        model.constraints[key] = { min: Math.max(0, target - tolerance), max: Math.min(size, target + tolerance) };
+        continue;
+      }
       model.constraints[key] = { equal: target };
       model.variables[`under_${key}`] = { [key]: 1, utility: -20 };
       model.variables[`over_${key}`] = { [key]: -1, utility: -20 };
@@ -224,8 +297,9 @@ export async function generateNflPortfolio(options: {
     const allIds = new Set([...pool.map(p => p.id), ...Object.keys(base.minExposureLimits || {}).map(Number)]);
     for (const id of Array.from(allIds)) {
       const maxPct = Math.min(base.globalMaxExposure ?? 100, base.exposureLimits?.[id] ?? 100);
-      const minPct = base.minExposureLimits?.[id] ?? base.globalMinExposure ?? 0;
-      model.constraints[`exp_${id}`] = { min: Math.ceil(size * minPct / 100 - 1e-9), max: Math.floor(size * maxPct / 100 + 1e-9) };
+      const minPct = minimum(id);
+      model.constraints[`exp_${id}`] = { min: Math.ceil(size * minPct / 100 - 1e-9), max: Math.floor(size * maxPct / 100 + 1e-9),
+        ...(options.strictStructure ? { usedMin: Math.ceil(size * (base.globalMinExposure ?? 0) / 100 - 1e-9) } : {}) };
     }
     candidates.forEach((candidate, i) => {
       const f = infos[i];
@@ -250,31 +324,71 @@ export async function generateNflPortfolio(options: {
       model.constraints[`bound_${i}`] = { max: 1 };
       model.ints[`c${i}`] = 1;
     });
-    const result: any = solver.Solve(model);
+    // Bounded repair avoids a dense, highly degenerate portfolio MIP occupying
+    // the event loop in an uninterruptible simplex step. Candidate rosters still
+    // come from the real roster LP; acceptance below checks every hard bound.
+    let result: any;
+    if (options.strictStructure) {
+      const keys = Object.keys(model.constraints).filter(k => k !== "size" && !k.startsWith("bound_") && !k.startsWith("qb_"));
+      const bounds = keys.map(k => model.constraints[k]);
+      const rows = candidates.map((_, i) => keys.map(k => Number(model.variables[`c${i}`][k] || 0)));
+      const penalty = (n: number, b: any) => Math.max(0, Math.max(b.min ?? b.equal ?? 0, n > 0 ? b.usedMin ?? 0 : 0) - n) ** 2 +
+        Math.max(0, n - (b.max ?? b.equal ?? size)) ** 2;
+      const stop = Math.min(deadline, Date.now() + 4000);
+      let found: number[] | undefined;
+      for (let restart = 0; restart < 12 && Date.now() < stop && !found; restart++) {
+        const order = candidates.map((_, i) => i).sort((a, b) => model.variables[`c${b}`].utility - model.variables[`c${a}`].utility);
+        if (restart) for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+        const inside = order.slice(0, size), outside = order.slice(size);
+        const totals = keys.map((_, k) => inside.reduce((n, i) => n + rows[i][k], 0));
+        let loss = totals.reduce((n, v, k) => n + penalty(v, bounds[k]), 0);
+        for (let step = 0; step < 40000 && Date.now() < stop; step++) {
+          if (loss < 1e-8) { found = inside; break; }
+          if (!outside.length) break;
+          const ai = Math.floor(random() * inside.length), bi = Math.floor(random() * outside.length);
+          const a = inside[ai], b = outside[bi];
+          let delta = 0;
+          for (let k = 0; k < keys.length; k++) if (rows[a][k] !== rows[b][k]) delta += penalty(totals[k] - rows[a][k] + rows[b][k], bounds[k]) - penalty(totals[k], bounds[k]);
+          const heat = Math.max(0.05, 1 - step / 10000);
+          if (delta <= 0 || random() < Math.exp(-delta / heat)) {
+            for (let k = 0; k < keys.length; k++) totals[k] += rows[b][k] - rows[a][k];
+            inside[ai] = b; outside[bi] = a; loss += delta;
+          }
+        }
+      }
+      result = found ? { feasible: true, ...Object.fromEntries(found.map(i => [`c${i}`, 1])) } : { feasible: false };
+    } else result = solver.Solve(model);
     if (!result.feasible) continue;
     const choice = candidates.map((_, i) => i).filter(i => Number(result[`c${i}`]) > 0.5);
     if (choice.length !== size) continue;
     const valid = Array.from(allIds).every(id => {
       const used = choice.filter(i => candidates[i].lineup.some((p: Player) => p.id === id)).length;
       const bound = model.constraints[`exp_${id}`];
-      return used >= bound.min && used <= bound.max;
+       return used >= Math.max(bound.min, used > 0 ? bound.usedMin ?? 0 : 0) && used <= bound.max;
     });
-    if (valid) { selected = choice; break; }
+    const structureValid = !options.strictStructure || Object.keys(targets).filter(k => !k.startsWith("qb_")).every(key => {
+      const used = choice.reduce((n, i) => n + (model.variables[`c${i}`][key] || 0), 0);
+      return used >= model.constraints[key].min && used <= model.constraints[key].max;
+    });
+    if (valid && structureValid) { selected = choice; break; }
   }
-  if (!selected.length) throw new Error(`No NFL portfolio found satisfying hard global/per-player minimum and maximum exposures within the ${budgetReached || Date.now() >= deadline ? "time" : "candidate search"} budget. Search exhaustion does not prove infeasibility; increase the budget or expand the eligible pool, or review exposure bounds.`);
+  if (!selected.length) throw new Error(`No full NFL portfolio found satisfying ${options.strictStructure ? "bounded structure targets and " : ""}hard global/per-player minimum and maximum exposures within the ${budgetReached || Date.now() >= deadline ? "time" : "candidate search"} budget (${candidates.length} candidates for ${count} requested). No regenerated lineups were saved. Search exhaustion does not prove infeasibility; increase the budget or expand the eligible pool, or review exposure bounds.`);
   const lineups = selected.map(i => candidates[i]);
   const achieved = selected.map(i => infos[i]);
   const report: NflPortfolioReport = { requestedCount: count, generatedCount: lineups.length, candidateCount: candidates.length, seed: s.seed, metrics: [], warnings, partial: lineups.length < count, dataSources: { ownership: s.ownershipMode, vegas: options.vegasGames?.length ? "verified" : "unavailable", rushing: "manual" } };
   const metric = (key: string, label: string, target: number | null, value: number | null, unit: "lineups" | "percent" | "points" | "games" = "lineups", detail?: string) => {
-    report.metrics.push({ key, label, target, achieved: value, unit, status: value === null ? "unavailable" : target === null ? "info" : Math.abs(value - target) < 0.01 ? "met" : "shortfall", detail });
+    const structural = options.strictStructure && (key.startsWith("stack_") || key.startsWith("flex_") || ["bringBack", "secondary"].includes(key));
+    const tolerance = structural && target ? Math.max(1, Math.floor(count * 0.02)) : 0;
+    report.metrics.push({ key, label, target, achieved: value, unit, status: value === null ? "unavailable" : target === null ? "info" : Math.abs(value - target) <= tolerance + 1e-9 ? "met" : "shortfall",
+      detail: structural ? [detail, `Largest-remainder mix rounding; allowed deviation ±${tolerance} lineup(s). All exposure bounds remain exact.`].filter(Boolean).join(" ") : detail });
   };
   metric("count", "Unique lineups", count, lineups.length);
   for (const [k, n] of Object.entries(stackPlan)) metric(`stack_${k}`, `${k} QB stack`, n, achieved.filter(x => x.stack === k).length);
   for (const [k, n] of Object.entries(planNflMix(flexMix, count))) metric(`flex_${k}`, `${k} FLEX`, n, achieved.filter(x => x.flex === k).length, "lineups", allowedFlex.includes(k) ? undefined : "Unavailable under hard FLEX mask; target adjusted to zero.");
-  for (const [k, n] of Object.entries(planNflMix(s.qbSalaryMix, count))) metric(`qb_${k}`, `${k} QB salary`, n, achieved.filter(x => x.qbSalary === k).length);
+  if (!options.structureOnly) for (const [k, n] of Object.entries(planNflMix(s.qbSalaryMix, count))) metric(`qb_${k}`, `${k} QB salary`, n, achieved.filter(x => x.qbSalary === k).length);
   metric("bringBack", "QB game bring-back", Math.round(count * s.bringBackPct / 100), achieved.filter(x => x.bringBack).length);
   metric("secondary", "Secondary skill pair outside QB game (same-team RB+WR/TE or opposing skills)", Math.round(count * s.secondaryStackPct / 100), achieved.filter(x => x.secondary).length);
-  metric("games", `Lineups with ${minGames}–${s.maxGames} games`, count, achieved.filter(x => x.games >= minGames && x.games <= s.maxGames).length);
+  metric("games", `Lineups with ${minGames}–${s.maxGames} games`, options.structureOnly ? null : count, achieved.filter(x => x.games >= minGames && x.games <= s.maxGames).length);
   metric("lowOwned", "Lineups meeting low-owned minimum", ownership ? count : null, ownership ? lineups.filter(x => x.lineup.filter((p: Player) => ownership!.get(p.id)! < s.lowOwnershipThreshold).length >= s.minLowOwnedPlayers).length : null);
   metric("ownershipSum", "Average ownership sum", ownership ? OWNERSHIP_TARGETS[s.fieldSize] : null, ownership ? lineups.reduce((n, x) => n + x.lineup.reduce((sum: number, p: Player) => sum + ownership!.get(p.id)!, 0), 0) / lineups.length : null, "percent");
   const preference = (key: string, label: string, enabled: boolean, predicate: (p: Player) => boolean, available = true) => {

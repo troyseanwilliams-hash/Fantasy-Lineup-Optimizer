@@ -38,3 +38,9 @@ Automatic projection-quality filters must not eliminate candidates needed for a 
 **Why:** A large Resim request had enough raw candidates, but a baseline-derived floor removed roughly half of them, leaving fewer candidates than requested. The resulting exposure error appeared to be a search timeout even though full-batch selection could not start.
 
 **How to apply:** Keep explicit user projection floors hard. Treat automatic floors as preferences when diversification needs alternatives, reserve time for selection, and report candidate-count shortages separately from exhausted search or conflicting constraints.
+
+NFL DraftKings Classic GPP regeneration should apply the agreed portfolio structure by default, without requiring the optional full research preset.
+
+**Why:** The user audited a legal, exposure-compliant export that was nevertheless overwhelmingly single-stacked, overused bring-backs and RB FLEX, and lacked double stacks and secondary correlations. They explicitly requested regeneration correct those imbalances.
+
+**How to apply:** Target QB-stack, bring-back, secondary-correlation and allowed-FLEX distributions together. Preserve explicit caps and restrictions, and let an explicitly enabled custom preset take precedence. Do not implicitly activate unrelated ownership, salary-bin or game-count requirements merely to enable structural balancing.
