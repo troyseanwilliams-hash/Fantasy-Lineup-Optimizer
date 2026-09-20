@@ -209,6 +209,16 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
       assert.equal("nflPortfolioReports" in disabled, false);
       assert.equal(calls.length, 4);
     }
+    const beforeRejectedFloor = writes.length;
+    const rejectedFloor = await invoke("/api/lineups/sim-regenerate",
+      { ...common, ids: [1, 2], projFloor: 250 }, 400);
+    assert.match(rejectedFloor.message, /250 projected points floor/);
+    assert.equal(writes.length, beforeRejectedFloor, "portfolio candidates below the deterministic floor must never be saved");
+
+    const acceptedFloor = await invoke("/api/lineups/sim-regenerate",
+      { ...common, ids: [1, 2], projFloor: 180 });
+    assert.equal(acceptedFloor.updated, 2);
+    assert.ok(writes.slice(beforeRejectedFloor).every(write => Number(write.totalProjectedPoints) >= 180));
     const automatic = await invoke("/api/lineups/sim-regenerate", { ids: [1], contestType: "gpp", nflPortfolio: { enabled: false } });
     assert.equal(automatic.nflPortfolioReports[0].report.generatedCount, 1);
     assert.equal(calls.at(-1).strictStructure, true);

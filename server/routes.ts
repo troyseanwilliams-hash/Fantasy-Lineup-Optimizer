@@ -2207,6 +2207,7 @@ export async function registerRoutes(
     const MAX_RUNTIME_MS = simRegenerationRuntimeMs(ids.length);
     const solverDeadline = startTime + MAX_RUNTIME_MS - 3_000;
     let simRegenTimedOut = false;
+    let projectionFloorPartial = false;
 
     console.log(`[SimRegen] Starting: ${ids.length} lineups, max ${tierSims} sims (tier=${tier}), sortBy=${sortKey}, contest=${simContestType}, boosts=${useBoosts}, ceiling=${ceilingMode}, leverage=${leverageMode}, opm=${outperformerMode}, maxExp=${globalMaxExposure}, minExp=${globalMinExposure}, projFloor=${projFloor}, minSal=${minSalary}, maxSal=${maxSalary}, overrideSlate=${overrideSlateId}`);
 
@@ -2666,6 +2667,8 @@ export async function registerRoutes(
         const simProjectionArrays = allSims.map(sim => sim.projections);
         const numSimsActual = simProjectionArrays.length;
 
+        const origMap = new Map(allPlayers.map(op => [op.id, op]));
+        const boostedMap = new Map(pool.map(bp => [bp.id, bp]));
         const scoredCandidates = candidateEntries.map(([key, data]) => {
           const playerIds = data.lineup.map(p => p.id);
           const allSimScores = new Float64Array(numSimsActual);
@@ -2694,19 +2697,18 @@ export async function registerRoutes(
             compositeScore: Math.round(composite * 10) / 10,
             freqPct: Math.round((data.frequency / n) * 1000) / 10,
             totalSalary: data.lineup.reduce((s, p) => s + p.salary, 0),
+            deterministicProjectedPoints: data.lineup.reduce((sum, p) =>
+              sum + Number(boostedMap.get(p.id)?.projectedPoints ?? 0), 0),
           };
         });
 
         // The baseline-derived floor is only a quality heuristic. It must not
         // delete the alternatives needed to satisfy a hard exposure batch.
         const effectiveFloor = simProjFloor || (hasConstrainedResim ? 0 : autoFloor);
-        if (!preset && effectiveFloor > 0) {
-          const boostedFloorMap = new Map(pool.map(bp => [bp.id, bp]));
+        if (effectiveFloor > 0) {
           const beforeCount = scoredCandidates.length;
-          const filtered = filterSimProjectionCandidates(scoredCandidates, c => {
-            const totalBoostedPts = c.lineup.reduce((sum, p) => sum + Number(boostedFloorMap.get(p.id)?.projectedPoints ?? p.projectedPoints ?? 0), 0);
-            return totalBoostedPts;
-          }, { count: lineupIds.length, explicitFloor: simProjFloor, automaticFloor: autoFloor, constrained: hasConstrainedResim });
+          const filtered = filterSimProjectionCandidates(scoredCandidates, c => c.deterministicProjectedPoints,
+            { count: lineupIds.length, explicitFloor: simProjFloor, automaticFloor: autoFloor, constrained: hasConstrainedResim });
           if (filtered !== scoredCandidates) {
             scoredCandidates.length = 0;
             scoredCandidates.push(...filtered);
@@ -2714,6 +2716,23 @@ export async function registerRoutes(
           if (beforeCount !== scoredCandidates.length) {
             console.log(`[SimRegen] ProjFloor ${effectiveFloor.toFixed(1)} (auto=${autoFloor}): filtered ${beforeCount} -> ${scoredCandidates.length} candidates`);
           }
+          if (preset && simProjFloor && beforeCount !== scoredCandidates.length) {
+            const reportEntry = nflPortfolioReports.find(entry => entry.slateId === slateId);
+            if (reportEntry) {
+              reportEntry.report.generatedCount = scoredCandidates.length;
+              reportEntry.report.partial = scoredCandidates.length < lineupIds.length;
+              const criterion = `Projected points floor (${simProjFloor})`;
+              reportEntry.report.limitingCriteria ||= [];
+              if (!reportEntry.report.limitingCriteria.includes(criterion)) reportEntry.report.limitingCriteria.push(criterion);
+            }
+          }
+          if (simProjFloor && scoredCandidates.length === 0) {
+            return res.status(400).json({
+              message: `No regenerated lineup met the ${simProjFloor} projected points floor. No regenerated lineups were saved.`,
+              slateId,
+            });
+          }
+          if (simProjFloor && scoredCandidates.length < lineupIds.length) projectionFloorPartial = true;
         }
 
         const sortFn: Record<string, (a: typeof scoredCandidates[0], b: typeof scoredCandidates[0]) => number> = {
@@ -2724,9 +2743,6 @@ export async function registerRoutes(
           avg: (a, b) => b.avgSimScore - a.avgSimScore,
         };
         scoredCandidates.sort(sortFn[sortKey] || sortFn.composite);
-
-        const origMap = new Map(allPlayers.map(op => [op.id, op]));
-        const boostedMap = new Map(pool.map(bp => [bp.id, bp]));
 
         const selectedCandidates = selectExposureLineups(scoredCandidates, c => c.lineup.map(p => p.id), {
           globalMaxExposure, globalMinExposure, lockedPlayerIds: Array.from(simRegenLocked),
@@ -2751,7 +2767,10 @@ export async function registerRoutes(
             };
           });
 
-          const totalPts = playerSnapshot.reduce((sum: number, p: any) => sum + Number(p.projectedPoints), 0);
+          const totalPts = candidate.deterministicProjectedPoints;
+          if (simProjFloor && totalPts < simProjFloor) {
+            throw new Error(`Regenerated lineup failed the ${simProjFloor} projected points floor before persistence`);
+          }
 
           const simData = {
             avgSimScore: candidate.avgSimScore, medianScore: candidate.medianScore,
@@ -2842,9 +2861,11 @@ export async function registerRoutes(
         simsRun: totalSimsRun || tierSims,
         ...(nflPortfolioReports.length ? { nflPortfolioReports } : {}),
         sortBy: sortKey,
-        partial: simRegenTimedOut || Date.now() >= solverDeadline || nflPortfolioReports.some(entry => entry.report.partial),
+        partial: projectionFloorPartial || simRegenTimedOut || Date.now() >= solverDeadline || nflPortfolioReports.some(entry => entry.report.partial),
         message: nflPortfolioReports.some(entry => entry.report.partial)
           ? `Due to active constraints, regenerated ${updatedCount} of ${ids.length} requested lineups. Every returned lineup satisfies the configured rules; modify the limiting criteria in the NFL GPP report to generate more.`
+          : projectionFloorPartial
+          ? `Partial results: regenerated ${updatedCount} of ${ids.length} requested lineups that met the projected points floor.`
           : simRegenTimedOut || Date.now() >= solverDeadline
           ? `Partial results: regenerated ${updatedCount} of ${ids.length} lineups before the solver time budget was reached.`
           : undefined,

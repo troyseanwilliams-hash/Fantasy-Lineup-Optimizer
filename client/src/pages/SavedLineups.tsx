@@ -706,7 +706,7 @@ export default function SavedLineups() {
     enabled: !!effectiveSlateId && canConfigureStacks,
   });
   const effectiveGames = useMemo(() => {
-    if (!canConfigureStacks || !effectiveSlatePlayers) return [];
+    if (!canConfigureStacks || !Array.isArray(effectiveSlatePlayers)) return [];
     const games = new Map<string, { key: string; label: string }>();
     for (const player of effectiveSlatePlayers) {
       if (!player.gameInfo) continue;
@@ -1385,8 +1385,8 @@ export default function SavedLineups() {
                     >
                       <option value="newest">Newest First</option>
                       <option value="oldest">Oldest First</option>
-                      <option value="projection_high">Projection: High → Low</option>
-                      <option value="projection_low">Projection: Low → High</option>
+                      <option value="projection_high">Projected Points: High → Low</option>
+                      <option value="projection_low">Projected Points: Low → High</option>
                       {isPaid ? (
                         <>
                           <option value="ownership_high">Proj. Ownership: High → Low</option>
@@ -1456,11 +1456,11 @@ export default function SavedLineups() {
                             className="h-9 px-2 text-xs font-bold bg-slate-800 border border-violet-500/30 rounded-l-md text-violet-300 focus:outline-none focus:ring-1 focus:ring-violet-500"
                             data-testid="sim-metric-select"
                           >
-                            <option value="composite">Composite</option>
-                            <option value="p90">P90</option>
-                            <option value="p75">P75</option>
-                            <option value="median">Median</option>
-                            <option value="avg">Average</option>
+                            <option value="composite">Sim Composite</option>
+                            <option value="p90">Sim P90</option>
+                            <option value="p75">Sim P75</option>
+                            <option value="median">Sim Median</option>
+                            <option value="avg">Sim Average</option>
                           </select>
                           <Button
                             onClick={() => simScoreMutation.mutate({ ids: Array.from(selectedIds), numSims: 200 })}
@@ -1622,8 +1622,8 @@ export default function SavedLineups() {
                   </span>
                 </div>
                 <div className="flex items-center gap-2 min-w-[180px]">
-                  <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Proj Floor</span>
-                  <InfoTip text="Minimum total projected points a lineup must hit to be kept. Filters out low-scoring lineups." side="bottom" />
+                  <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Projected Points Floor</span>
+                  <InfoTip text="Minimum deterministic projected points a regenerated lineup must have when saved. Simulation metrics can be lower." side="bottom" />
                   <Slider
                     value={[regenProjFloor ?? 0]}
                     onValueChange={(v) => setRegenProjFloor(v[0] <= 0 ? null : v[0])}
@@ -2585,7 +2585,7 @@ function LineupCard({
         <div className="flex shrink-0 items-center gap-5">
           <div className="hidden sm:flex items-center gap-4">
             <div className="text-right">
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Proj</p>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Projected Pts</p>
               <p className="text-lg font-black text-emerald-400 tabular-nums" data-testid={`lineup-proj-${lineup.id}`}>{Number(lineup.totalProjectedPoints).toFixed(1)}</p>
             </div>
             {isPaid ? (
@@ -2626,13 +2626,13 @@ function LineupCard({
               <div className="flex items-center gap-2 px-2 py-1 bg-indigo-500/10 rounded-lg border border-indigo-500/20">
                 {lineup.simData.p75Score != null && (
                   <div className="text-right">
-                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">P75</p>
+                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Sim P75</p>
                     <p className="text-sm font-black text-emerald-400 tabular-nums">{lineup.simData.p75Score}</p>
                   </div>
                 )}
                 {lineup.simData.p90Score != null && (
                   <div className="text-right">
-                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">P90</p>
+                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Sim P90</p>
                     <p className="text-sm font-black text-amber-400 tabular-nums">{lineup.simData.p90Score}</p>
                   </div>
                 )}
