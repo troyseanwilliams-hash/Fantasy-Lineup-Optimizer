@@ -3,7 +3,7 @@ import test from "node:test";
 import solver from "javascript-lp-solver";
 import type { Player } from "../shared/schema";
 import { nflPortfolioSettingsSchema, type NflPortfolioLineupPolicy } from "../shared/nfl-portfolio";
-import { addNflPortfolioConstraints, classifyNflLineup, generateNflPortfolio, planNflMix, regenerationNflSettings } from "../server/nfl-portfolio";
+import { addNflPortfolioConstraints, classifyNflLineup, generateNflPortfolio, planNflMix, regenerationNflSettings, scoreNflFallbackCandidates } from "../server/nfl-portfolio";
 
 const pool = ["A", "B", "C", "D", "E", "F"].flatMap((team, ti) =>
   ["QB", "RB", "RB", "WR", "WR", "WR", "TE", "DST"].map((position, pi) => ({
@@ -132,6 +132,46 @@ test("strict selection returns the largest validated partial portfolio and recal
   assert.equal(result.report.metrics.find(metric => metric.key === "flex_WR")?.target, 4);
   assert.ok(result.report.limitingCriteria?.length);
   assert.match(result.report.warnings.join(" "), /generated 4 of 5/i);
+});
+test("fallback scoring prioritizes outcome then lower ownership without fabricating ownership", () => {
+  const candidates = [
+    { lineup: [pool[0], pool[1]] },
+    { lineup: [pool[2], pool[3]] },
+    { lineup: [pool[4], pool[5]] },
+  ];
+  assert.deepEqual(scoreNflFallbackCandidates(candidates, [100, 110, 120]), [0, 0.5, 1]);
+  const ownership = new Map(pool.map(p => [p.id, p.id <= 2 ? 5 : p.id <= 4 ? 20 : 40]));
+  const tied = scoreNflFallbackCandidates(candidates, [100, 100, 100], ownership);
+  assert.ok(tied[0] > tied[1] && tied[1] > tied[2]);
+});
+test("strict GPP shortfall is completed by projection fallback without relaxing hard rules", async () => {
+  const fallbackSettings = nflPortfolioSettingsSchema.parse({
+    enabled: true,
+    stackMix: { naked: 0, single: 90, double: 10, triple: 0 },
+    flexMix: { RB: 0, WR: 100, TE: 0 },
+    bringBackPct: 0,
+    secondaryStackPct: 0,
+    ownershipMode: "off",
+  });
+  const singleOnlySolve = (players: Player[], constraints: any) =>
+    constraints.nflPortfolioLineupPolicy.catcherCount === 1 ? solve(players, constraints) : { error: "Fixture withholds double-stack candidates" };
+  const result = await generateNflPortfolio({
+    pool, settings: fallbackSettings, count: 20,
+    baseConstraints: { excludedPlayerIds: [48], exposureLimits: { 18: 75 }, projectedPointsFloor: 100 },
+    strictStructure: true, structureOnly: true, solve: singleOnlySolve,
+    deadline: Date.now() + 15_000,
+  });
+  assert.equal(result.lineups.length, 20);
+  assert.equal(result.report.partial, false);
+  assert.ok(result.report.normalFormulaCount! < 20);
+  assert.equal(result.report.fallbackCount, 20 - result.report.normalFormulaCount!);
+  assert.equal(result.report.fallbackMode, "projection_only");
+  assert.ok(result.report.adjustedTargets?.some(target => target.includes("stack")));
+  assert.match(result.report.warnings.join(" "), /fallback.*projected outcome/i);
+  assert.equal(new Set(result.lineups.map(candidate => candidate.lineup.map((p: Player) => p.id).sort((a: number, b: number) => a - b).join(","))).size, 20);
+  assert.ok(result.lineups.every(candidate => !candidate.lineup.some((p: Player) => p.id === 48)));
+  assert.ok(result.lineups.every(candidate => candidate.totalProjectedPoints >= 100));
+  assert.ok(result.lineups.filter(candidate => candidate.lineup.some((p: Player) => p.id === 18)).length <= 15);
 });
 test("projection floor is hard for partial portfolios and reports zero qualifying capacity", async () => {
   const valid = await generateNflPortfolio({

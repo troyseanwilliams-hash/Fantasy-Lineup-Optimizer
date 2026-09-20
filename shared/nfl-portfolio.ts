@@ -88,6 +88,10 @@ export interface NflPortfolioReport {
   selectionStatus?: "full" | "partial" | "timed_out";
   limitingCriteria?: string[];
   suggestions?: string[];
+  normalFormulaCount?: number;
+  fallbackCount?: number;
+  fallbackMode?: "projection_low_ownership" | "projection_only";
+  adjustedTargets?: string[];
 }
 
 // Internal, per-candidate solver policy. Never trust a client-supplied value.

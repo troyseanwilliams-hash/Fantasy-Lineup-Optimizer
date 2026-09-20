@@ -66,6 +66,25 @@ export function planNflMix(mix: Record<string, number>, count: number): Record<s
   return Object.fromEntries(entries.map(x => [x.key, x.n]));
 }
 
+/** Deterministic fallback quality: outcome leads, lower ownership breaks toward leverage. */
+export function scoreNflFallbackCandidates(
+  candidates: Array<{ lineup: Player[] }>,
+  outcomeScores: number[],
+  ownership?: Map<number, number>,
+): number[] {
+  if (candidates.length !== outcomeScores.length) throw new Error("NFL fallback scoring requires one outcome score per candidate.");
+  const normalize = (values: number[], invert = false) => {
+    const min = Math.min(...values), range = Math.max(...values) - min;
+    if (!range) return values.map(() => invert ? 1 : 0.5);
+    return values.map(value => invert ? 1 - (value - min) / range : (value - min) / range);
+  };
+  const outcome = normalize(outcomeScores);
+  if (!ownership) return outcome;
+  const ownershipSums = candidates.map(candidate => candidate.lineup.reduce((sum, player) => sum + ownership.get(player.id)!, 0));
+  const leverage = normalize(ownershipSums, true);
+  return outcome.map((value, index) => value * 0.7 + leverage[index] * 0.3);
+}
+
 /** Additive constraints: never deletes a caller's locks, favorite players, or bounds. */
 export function addNflPortfolioConstraints(model: any, pool: Player[], policy: NflPortfolioLineupPolicy, ownershipMap?: Map<number, number>): void {
   const available = pool.filter(p => model.variables[`p${p.id}`]);
@@ -340,11 +359,13 @@ export async function generateNflPortfolio(options: {
   if (scores.length !== candidates.length || scores.some(x => !Number.isFinite(x))) throw new Error("NFL portfolio scoring callback returned invalid scores.");
   const infos = candidates.map(x => classifyNflLineup(x.lineup));
   const scoreMin = Math.min(...scores), scoreRange = Math.max(...scores) - scoreMin || 1;
+  const fallbackScores = scoreNflFallbackCandidates(candidates, scores, ownership);
   // Select and validate the entire batch, never a greedy exposure approximation.
   // Every smaller size recomputes all percentage-derived bounds.
   let selected: number[] = [];
   let selectionTimedOut = false;
   let requestedCapacityIssues: string[] = [];
+  const allIds = new Set([...pool.map(p => p.id), ...Object.keys(base.minExposureLimits || {}).map(Number)]);
   const capacityIssues = (size: number, targets: Record<string, number>) => {
     const issues: string[] = [];
     const countFor = (key: string) => infos.filter(f =>
@@ -369,9 +390,11 @@ export async function generateNflPortfolio(options: {
     }
     return issues;
   };
+  const fallbackReserve = options.strictStructure ? Math.min(2500, Math.max(0, (deadline - Date.now()) * 0.45)) : 0;
+  const strictSelectionDeadline = deadline - fallbackReserve;
   for (let size = Math.min(count, candidates.length); size >= 1; size--) {
-    if (options.deadline && Date.now() >= options.deadline && size !== Math.min(count, candidates.length)) break;
-    const model: any = { optimize: "utility", opType: "max", constraints: { size: { equal: size } }, variables: {}, ints: {}, timeout: Math.min(2000, Math.max(1, (options.deadline || Date.now() + 2000) - Date.now())) };
+    if (options.deadline && Date.now() >= strictSelectionDeadline && size !== Math.min(count, candidates.length)) break;
+    const model: any = { optimize: "utility", opType: "max", constraints: { size: { equal: size } }, variables: {}, ints: {}, timeout: Math.min(2000, Math.max(1, strictSelectionDeadline - Date.now())) };
     const targets: Record<string, number> = {};
     for (const [k, n] of Object.entries(planNflMix(s.stackMix, size))) targets[`stack_${k}`] = n;
     for (const [k, n] of Object.entries(planNflMix(flexMix, size))) targets[`flex_${k}`] = n;
@@ -393,7 +416,6 @@ export async function generateNflPortfolio(options: {
     const issues = capacityIssues(size, targets);
     if (size === count) requestedCapacityIssues = issues;
     if (issues.length) continue;
-    const allIds = new Set([...pool.map(p => p.id), ...Object.keys(base.minExposureLimits || {}).map(Number)]);
     for (const id of Array.from(allIds)) {
       const maxPct = Math.min(base.globalMaxExposure ?? 100, base.exposureLimits?.[id] ?? 100);
       const minPct = minimum(id);
@@ -450,21 +472,21 @@ export async function generateNflPortfolio(options: {
       // Run dense exact feasibility outside the server process. javascript-lp-solver
       // can remain inside a simplex operation past its own timeout; a child process
       // gives this request a real, killable deadline without blocking all traffic.
-      const exactBudget = Math.min(size === count ? 1_200 : 180, Math.max(1, deadline - Date.now()));
+      const exactBudget = Math.min(size === count ? 1_200 : 180, Math.max(1, strictSelectionDeadline - Date.now()));
       const feasibilityModel = structuredClone(model);
       for (const variable of Object.values(feasibilityModel.variables) as any[]) variable.utility = 0;
       const exact = await solvePortfolioModelIsolated(feasibilityModel, exactBudget);
       result = validatedIntegralResult(exact.result, feasibilityModel);
       selectionTimedOut ||= exact.timedOut && !result;
     }
-    if (options.strictStructure && !result && Date.now() < deadline) {
+    if (options.strictStructure && !result && Date.now() < strictSelectionDeadline) {
       const keys = Object.keys(model.constraints).filter(k => k !== "size" && !k.startsWith("bound_") &&
         !k.startsWith("exp_lo_") && !k.startsWith("exp_hi_") && !k.startsWith("exp_used_"));
       const bounds = keys.map(k => model.constraints[k]);
       const rows = candidates.map((_, i) => keys.map(k => Number(model.variables[`c${i}`][k] || 0)));
       const penalty = (n: number, b: any) => Math.max(0, Math.max(b.min ?? b.equal ?? 0, n > 0 ? b.usedMin ?? 0 : 0) - n) ** 2 +
         Math.max(0, n - (b.max ?? b.equal ?? size)) ** 2;
-      const stop = Math.min(deadline, Date.now() + (size === count ? 1_200 : 120));
+      const stop = Math.min(strictSelectionDeadline, Date.now() + (size === count ? 1_200 : 120));
       let found: number[] | undefined;
       for (let restart = 0; restart < 12 && Date.now() < stop && !found; restart++) {
         const order = candidates.map((_, i) => i).sort((a, b) => model.variables[`c${b}`].utility - model.variables[`c${a}`].utility);
@@ -502,6 +524,125 @@ export async function generateNflPortfolio(options: {
     });
     if (valid && structureValid) { selected = choice; break; }
   }
+  const normalSelection = [...selected];
+  let preservedNormalSelection = true;
+  if (options.strictStructure && selected.length < count && candidates.length > selected.length && Date.now() < deadline) {
+    const normalBonus = candidates.length + 1;
+    const makeFallbackModel = (size: number, required: Set<number>) => {
+      const model: any = {
+        optimize: "utility", opType: "max", constraints: { size: { equal: size } }, variables: {}, ints: {},
+        timeout: Math.max(1, deadline - Date.now() - 25),
+      };
+      for (const id of Array.from(allIds)) {
+        const conditional = Math.ceil(size * (base.globalMinExposure ?? 0) / 100 - 1e-9);
+        model.constraints[`exp_${id}`] = {
+          min: Math.ceil(size * minimum(id) / 100 - 1e-9),
+          max: Math.floor(size * maximum(id) / 100 + 1e-9),
+          ...(conditional > 0 ? { usedMin: conditional } : {}),
+        };
+        if (conditional > 0) {
+          model.constraints[`exp_lo_${id}`] = { min: 0 };
+          model.constraints[`exp_hi_${id}`] = { max: 0 };
+          model.constraints[`exp_used_${id}`] = { max: 1 };
+          model.variables[`exp_y_${id}`] = {
+            [`exp_lo_${id}`]: -conditional, [`exp_hi_${id}`]: -size, [`exp_used_${id}`]: 1, utility: 0,
+          };
+          model.ints[`exp_y_${id}`] = 1;
+        }
+      }
+      candidates.forEach((candidate, i) => {
+        // One retained normal-formula lineup is worth more than every fallback
+        // quality difference combined, so preservation is lexicographically first.
+        const v: any = { size: 1, utility: fallbackScores[i] + (normalSelection.includes(i) ? normalBonus : 0), [`bound_${i}`]: 1 };
+        for (const p of candidate.lineup) {
+          v[`exp_${p.id}`] = 1;
+          if (model.constraints[`exp_lo_${p.id}`]) {
+            v[`exp_lo_${p.id}`] = 1;
+            v[`exp_hi_${p.id}`] = 1;
+          }
+        }
+        if (required.has(i)) {
+          model.constraints[`keep_${i}`] = { equal: 1 };
+          v[`keep_${i}`] = 1;
+        }
+        model.variables[`c${i}`] = v;
+        model.constraints[`bound_${i}`] = { max: 1 };
+        model.ints[`c${i}`] = 1;
+      });
+      return model;
+    };
+    const hardValid = (choice: number[], size: number) => Array.from(allIds).every(id => {
+      const used = choice.filter(i => candidates[i].lineup.some((p: Player) => p.id === id)).length;
+      const explicit = Math.ceil(size * minimum(id) / 100 - 1e-9);
+      const conditional = used > 0 ? Math.ceil(size * (base.globalMinExposure ?? 0) / 100 - 1e-9) : 0;
+      return used >= Math.max(explicit, conditional) && used <= Math.floor(size * maximum(id) / 100 + 1e-9);
+    });
+    const improveFallback = (choice: number[], size: number, required: Set<number>) => {
+      const chosen = new Set(choice);
+      const utility = (i: number) => fallbackScores[i] + (normalSelection.includes(i) ? normalBonus : 0);
+      for (const incoming of candidates.map((_, i) => i).filter(i => !chosen.has(i)).sort((a, b) => utility(b) - utility(a) || a - b)) {
+        if (Date.now() >= deadline) break;
+        const outgoing = Array.from(chosen).filter(i => !required.has(i) && utility(i) < utility(incoming))
+          .sort((a, b) => utility(a) - utility(b) || b - a);
+        for (const removed of outgoing) {
+          if (Date.now() >= deadline) break;
+          const trial = Array.from(chosen).filter(i => i !== removed);
+          trial.push(incoming);
+          if (!hardValid(trial, size)) continue;
+          chosen.delete(removed);
+          chosen.add(incoming);
+          break;
+        }
+      }
+      return Array.from(chosen);
+    };
+    const tryFallback = async (size: number, required: Set<number>) => {
+      const model = makeFallbackModel(size, required);
+      // Ask the isolated solver for the actual best outcome/leverage portfolio.
+      // Its process-level deadline is authoritative even if the LP library stays
+      // inside an optimization step past its own timeout.
+      const optimizeBudget = Math.min(900, Math.max(1, (deadline - Date.now()) * 0.65));
+      const optimized = await solvePortfolioModelIsolated(model, optimizeBudget);
+      selectionTimedOut ||= optimized.timedOut;
+      const optimizedResult = validatedIntegralResult(optimized.result, model);
+      if (optimizedResult) {
+        const choice = candidates.map((_, i) => i).filter(i => Number(optimizedResult[`c${i}`]) > 0.5);
+        if (choice.length === size && hardValid(choice, size)) return choice;
+      }
+      if (Date.now() >= deadline) return undefined;
+      // Optimization timing out must not discard a hard-valid completion. Find
+      // feasibility with the remaining budget, then improve it only until deadline.
+      const feasibility = structuredClone(model);
+      for (const variable of Object.values(feasibility.variables) as any[]) variable.utility = 0;
+      feasibility.timeout = Math.max(1, deadline - Date.now() - 25);
+      const budget = Math.min(700, Math.max(1, deadline - Date.now()));
+      const exact = await solvePortfolioModelIsolated(feasibility, budget);
+      selectionTimedOut ||= exact.timedOut;
+      const result = validatedIntegralResult(exact.result, feasibility);
+      if (!result) return undefined;
+      const choice = candidates.map((_, i) => i).filter(i => Number(result[`c${i}`]) > 0.5);
+      return choice.length === size && hardValid(choice, size) ? improveFallback(choice, size, required) : undefined;
+    };
+    const minimumFallbackSize = Math.min(count, candidates.length);
+    for (let size = minimumFallbackSize; size > normalSelection.length && Date.now() < deadline; size--) {
+      const required = new Set(normalSelection.filter(i => i < candidates.length));
+      let choice = await tryFallback(size, required);
+      let preserved = !!choice;
+      if (!choice && Date.now() < deadline && required.size) {
+        choice = await tryFallback(size, new Set());
+        preserved = false;
+      }
+      if (choice) {
+        preservedNormalSelection = preserved;
+        const normalSet = new Set(normalSelection);
+        selected = [
+          ...choice.filter(i => normalSet.has(i)).sort((a, b) => fallbackScores[b] - fallbackScores[a] || a - b),
+          ...choice.filter(i => !normalSet.has(i)).sort((a, b) => fallbackScores[b] - fallbackScores[a] || a - b),
+        ];
+        break;
+      }
+    }
+  }
   if (!selected.length) {
     const reason = requestedCapacityIssues[0] ||
       (selectionTimedOut || budgetReached || Date.now() >= deadline
@@ -512,6 +653,32 @@ export async function generateNflPortfolio(options: {
   const lineups = selected.map(i => candidates[i]);
   const achieved = selected.map(i => infos[i]);
   const actualCount = lineups.length;
+  const normalSet = new Set(normalSelection);
+  // If the hard-valid completion required an unconstrained re-selection, treat
+  // every returned lineup as fallback rather than claiming accidental overlap.
+  const normalFormulaCount = preservedNormalSelection ? selected.filter(i => normalSet.has(i)).length : 0;
+  const fallbackCount = Math.max(0, actualCount - normalFormulaCount);
+  const adjustedTargets: string[] = [];
+  if (fallbackCount > 0) {
+    const finalTargets: Record<string, number> = {};
+    for (const [k, n] of Object.entries(planNflMix(s.stackMix, actualCount))) finalTargets[`stack_${k}`] = n;
+    for (const [k, n] of Object.entries(planNflMix(flexMix, actualCount))) finalTargets[`flex_${k}`] = n;
+    if (!options.structureOnly) for (const [k, n] of Object.entries(planNflMix(s.qbSalaryMix, actualCount))) finalTargets[`qb_${k}`] = n;
+    finalTargets.bringBack = Math.round(actualCount * s.bringBackPct / 100);
+    finalTargets.secondary = Math.round(actualCount * s.secondaryStackPct / 100);
+    const actualFor = (key: string) => achieved.filter(f =>
+      key === "bringBack" ? f.bringBack :
+      key === "secondary" ? f.secondary :
+      key.startsWith("stack_") ? f.stack === key.slice(6) :
+      key.startsWith("flex_") ? f.flex === key.slice(5) :
+      key.startsWith("qb_") ? f.qbSalary === key.slice(3) : false).length;
+    for (const [key, target] of Object.entries(finalTargets)) {
+      const tolerance = target === 0 ? 0 : Math.max(1, Math.floor(actualCount * 0.02));
+      if (Math.abs(actualFor(key) - target) > tolerance) adjustedTargets.push(key.replaceAll("_", " "));
+    }
+    if (!adjustedTargets.length) adjustedTargets.push("Formula mix bounds were softened during completion; the final mix still landed within configured tolerance.");
+    warnings.push(`Adjusted-formula fallback supplied ${fallbackCount} lineup${fallbackCount === 1 ? "" : "s"} after the normal formula supplied ${normalFormulaCount}. ${ownership ? "Fallback ranking combined projected outcome (70%) with lower ownership (30%)." : "Ownership was unavailable, so fallback ranking used projected outcome only."}`);
+  }
   const limitingCriteria = actualCount < count
     ? requestedCapacityIssues.slice(0, 3)
     : [];
@@ -536,6 +703,9 @@ export async function generateNflPortfolio(options: {
     metrics: [], warnings, partial: actualCount < count,
     selectionStatus: actualCount === count ? "full" : selectionTimedOut || budgetReached || Date.now() >= deadline ? "timed_out" : "partial",
     limitingCriteria, suggestions,
+    normalFormulaCount, fallbackCount,
+    fallbackMode: fallbackCount > 0 ? ownership ? "projection_low_ownership" : "projection_only" : undefined,
+    adjustedTargets: fallbackCount > 0 ? adjustedTargets : [],
     dataSources: { ownership: s.ownershipMode, vegas: options.vegasGames?.length ? "verified" : "unavailable", rushing: "manual" },
   };
   const metric = (key: string, label: string, target: number | null, value: number | null, unit: "lineups" | "percent" | "points" | "games" = "lineups", detail?: string) => {
