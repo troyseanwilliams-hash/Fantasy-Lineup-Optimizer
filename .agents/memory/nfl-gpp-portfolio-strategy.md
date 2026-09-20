@@ -43,4 +43,10 @@ NFL DraftKings Classic GPP regeneration should apply the agreed portfolio struct
 
 **Why:** The user audited a legal, exposure-compliant export that was nevertheless overwhelmingly single-stacked, overused bring-backs and RB FLEX, and lacked double stacks and secondary correlations. They explicitly requested regeneration correct those imbalances.
 
-**How to apply:** Target QB-stack, bring-back, secondary-correlation and allowed-FLEX distributions together. Preserve explicit caps and restrictions, and let an explicitly enabled custom preset take precedence. Do not implicitly activate unrelated ownership, salary-bin or game-count requirements merely to enable structural balancing.
+**How to apply:** Target QB-stack, bring-back, secondary-correlation and allowed-FLEX distributions together. Preserve explicit caps and restrictions, and let an explicitly enabled custom preset take precedence for structure. Do not implicitly activate unrelated ownership, salary-bin or game-count requirements merely to enable structural balancing.
+
+NFL DraftKings Classic GPP regeneration must exclude RBs under $4,500, including FLEX, even when a custom preset or lock requests otherwise.
+
+**Why:** After automatic structural balancing was enabled without the optional research restrictions, the user objected to cheap RBs still appearing. The RB floor is required for regeneration, not merely an optional portfolio preference.
+
+**How to apply:** Keep higher explicit RB floors, reject conflicting cheap-RB locks without saving, and do not extend this NFL-specific requirement to other sports or Showdown.

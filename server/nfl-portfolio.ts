@@ -6,9 +6,9 @@ import solver from "javascript-lp-solver";
 
 const pos = (p: Player, positions: string[]) => p.position.toUpperCase().split("/").some(x => positions.includes(x.trim()));
 const team = (p: Player) => p.team.trim().toUpperCase();
-/** Automatic regeneration activates structure only, not the optional research preset. */
+/** Automatic regeneration applies structure and the hard RB floor, not the full research preset. */
 export function regenerationNflSettings(pool: Player[]): NflPortfolioSettings {
-  return { ...DEFAULT_NFL_PORTFOLIO, enabled: true, rbMinSalary: 0,
+  return { ...DEFAULT_NFL_PORTFOLIO, enabled: true, rbMinSalary: 4500, allowLockedCheapRb: false,
     nakedQbIds: pool.filter(p => pos(p, ["QB"])).map(p => p.id),
     minGames: 2, maxGames: 9, preferHomeTe: false, preferHomeFavoriteDst: false,
     preferLowTotalGames: false, preferValueWr: false, preferFourXUpside: false, preferLowOwnedWr: false };
@@ -115,7 +115,7 @@ export async function generateNflPortfolio(options: {
   const pool = options.pool.filter(p => !excluded.includes(p.id) && Number(p.projectedPoints || p.fppg || 0) >= floor);
   if (locks.some(id => !pool.some(p => p.id === id))) throw new Error("NFL portfolio locked player is unavailable.");
   const eligible = pool.filter(p => !(pos(p, ["RB"]) && p.salary < s.rbMinSalary && !(s.allowLockedCheapRb && locks.includes(p.id))));
-  if (locks.some(id => !eligible.some(p => p.id === id))) throw new Error("Locked RB violates the RB salary floor; explicitly enable the locked-cheap-RB exemption.");
+  if (locks.some(id => !eligible.some(p => p.id === id))) throw new Error(`Locked RB violates the $${s.rbMinSalary.toLocaleString("en-US")} RB salary floor. Unlock the player or choose an eligible RB. No lineups were saved.`);
   const maximum = (id: number) => Math.min(base.globalMaxExposure ?? 100, base.exposureLimits?.[id] ?? 100);
   const minimum = (id: number) => options.strictStructure ? base.minExposureLimits?.[id] ?? 0 : base.minExposureLimits?.[id] ?? base.globalMinExposure ?? 0;
   for (const id of locks) if (maximum(id) < 100) throw new Error(`Infeasible hard exposure requirements: locked player ${id} must appear in 100%, above its ${maximum(id)}% maximum.`);

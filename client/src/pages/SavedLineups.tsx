@@ -1346,6 +1346,11 @@ export default function SavedLineups() {
                 <p className="text-slate-400">Your exposure caps and player restrictions remain hard limits. The custom portfolio preset above replaces these default targets.</p>
               </div>
             )}
+            {selectedIds.size > 0 && portfolioSupported && (
+              <p className="text-sm text-slate-300" data-testid="regen-rb-salary-floor">
+                RB minimum: $4,500, including RBs at FLEX. Locks and custom presets cannot bypass this minimum.
+              </p>
+            )}
             {portfolioReports.map((item, index) => <NflPortfolioReportView key={`${item.slateId}-${index}`} report={item.report} target={item.target} />)}
           </div>
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8">

@@ -55,6 +55,31 @@ test("automatic structure uses the real LP for 193 lineups at 40% and 60% exposu
     assert.ok(!result.report.metrics.some(m => m.key.startsWith("qb_")));
   }
 });
+test("automatic regeneration excludes sub-$4500 RBs including FLEX, accepts $4500, and rejects cheap locks", async () => {
+  const players = pool.map(p => ({ ...p,
+    salary: p.id === 2 ? 4499 : p.id === 3 ? 4500 : p.salary,
+    projectedPoints: p.id === 2 ? "1000" : p.id === 3 ? "100" : p.projectedPoints,
+  }));
+  const automatic = regenerationNflSettings(players);
+  assert.equal(automatic.rbMinSalary, 4500);
+  assert.equal(automatic.allowLockedCheapRb, false);
+  const result = await generateNflPortfolio({
+    pool: players, settings: automatic, count: 12,
+    baseConstraints: { flexAllowedPositions: ["RB"] },
+    strictStructure: true, structureOnly: true, solve,
+  });
+  assert.equal(result.lineups.length, 12);
+  for (const candidate of result.lineups) {
+    const backs = candidate.lineup.filter((p: Player) => p.position === "RB");
+    assert.equal(backs.length, 3);
+    assert.ok(backs.every((p: Player) => p.salary >= 4500));
+  }
+  assert.ok(result.lineups.some(c => c.lineup.some((p: Player) => p.id === 3)), "$4500 RB remains eligible");
+  await assert.rejects(generateNflPortfolio({
+    pool: players, settings: automatic, count: 1,
+    baseConstraints: { lockedPlayerIds: [2] }, strictStructure: true, structureOnly: true, solve,
+  }), /Locked RB violates the \$4,500.*No lineups were saved/);
+});
 test("automatic structure cannot return a partial or unconstrained batch", async () => {
   await assert.rejects(generateNflPortfolio({
     pool, settings: regenerationNflSettings(pool), count: 5,

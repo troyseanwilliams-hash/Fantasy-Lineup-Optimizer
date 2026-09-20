@@ -166,9 +166,14 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
     assert.equal(automatic.nflPortfolioReports[0].report.generatedCount, 1);
     assert.equal(calls.at(-1).strictStructure, true);
     assert.equal(calls.at(-1).structureOnly, true);
-    assert.equal(calls.at(-1).settings.rbMinSalary, 0);
+    assert.equal(calls.at(-1).settings.rbMinSalary, 4500);
+    assert.equal(calls.at(-1).settings.allowLockedCheapRb, false);
     assert.deepEqual(calls.at(-1).settings.nakedQbIds, [1]);
     assert.equal(calls.at(-1).ownershipMap, undefined);
+    await invoke("/api/lineups/sim-regenerate", { ids: [1], contestType: "gpp",
+      nflPortfolio: { ...settings, rbMinSalary: 0, allowLockedCheapRb: true } }, 200);
+    assert.equal(calls.at(-1).settings.rbMinSalary, 4500);
+    assert.equal(calls.at(-1).settings.allowLockedCheapRb, false);
     suppliedOwnership = true;
     await invoke("/api/lineups/sim-regenerate", { ids: [1], contestType: "gpp", nflPortfolio: { enabled: false } });
     assert.equal(calls.at(-1).ownershipMap.get(1), 40.1);

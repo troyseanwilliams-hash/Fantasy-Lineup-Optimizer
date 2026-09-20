@@ -99,6 +99,7 @@ test("main ReSim sends FLEX restrictions and target-player game stacks", async (
   await selectAndOpenSettings(page, 976201);
   await expect(page.getByTestId("regen-structure-targets")).toContainText("38% double");
   await expect(page.getByTestId("regen-structure-targets")).toContainText("19.3% TE");
+  await expect(page.getByTestId("regen-rb-salary-floor")).toContainText("$4,500");
 
   await page.getByTestId("resim-flex-TE").uncheck();
   await page.getByTestId("resim-stack-game-BUF-HOU").click();

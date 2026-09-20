@@ -2260,8 +2260,12 @@ export async function registerRoutes(
         const players = await storage.getPlayersBySlate(slateId);
         const automaticStructure = slate.sport.toUpperCase() === "NFL" && slate.platform === "draftkings" &&
           (lineupOwnership.get(lineupIds[0])?.platform || "draftkings") === "draftkings" && isClassicSlate(slate) && simContestType === "gpp";
-        const targetInput = automaticStructure && !restrictionInput.data.nflPortfolio?.enabled
-          ? { ...restrictionInput.data, nflPortfolio: regenerationNflSettings(players) } : restrictionInput.data;
+        const targetInput = automaticStructure
+          ? { ...restrictionInput.data, nflPortfolio: {
+              ...(restrictionInput.data.nflPortfolio?.enabled ? restrictionInput.data.nflPortfolio : regenerationNflSettings(players)),
+              rbMinSalary: Math.max(4500, restrictionInput.data.nflPortfolio?.enabled ? restrictionInput.data.nflPortfolio.rbMinSalary : 4500),
+              allowLockedCheapRb: false,
+            } } : restrictionInput.data;
         hasConstrainedResim ||= automaticStructure;
         if (targetInput.nflPortfolio?.enabled && players.length === 0) {
           return res.status(400).json({ message: "NFL portfolio target has no available player pool.", slateId });
