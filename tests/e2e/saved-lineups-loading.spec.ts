@@ -371,6 +371,7 @@ test("bulk export separates slates and uses verified captain and flex IDs", asyn
   const showdown = files.find(file => /^"?CPT"?,/.test(file.text))!;
   expect(classic).toBeTruthy();
   expect(showdown).toBeTruthy();
+  expect(showdown.text.split("\n")[0]).toBe('"CPT","FLEX","FLEX","FLEX","FLEX","FLEX"');
   expect(classic.name).toContain(String(normalSlate.id));
   expect(showdown.name).toContain(String(showdownSlate.id));
   expect(classic.text.trim().split("\n")).toHaveLength(2);

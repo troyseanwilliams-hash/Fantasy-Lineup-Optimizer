@@ -9,6 +9,7 @@
 - [NFL GPP portfolio strategy](nfl-gpp-portfolio-strategy.md) — treat 2022–2025 top-100 tendencies as portfolio targets, prioritizing QB stacks, low-owned WRs, and secondary correlation.
 - [YouTube integration scope](youtube-integration-scope.md) — YouTube OAuth belongs to a different site and must not be added to this project.
 - [DraftKings Showdown rows](draftkings-showdown-rows.md) — DraftKings sends separate captain and flex rows; store the lower flex-priced row and apply captain multipliers in the optimizer.
+- [DraftKings Showdown export](draftkings-showdown-export.md) — upload headers must repeat FLEX for every flex column; FLEX1/FLEX2 are internal slot keys only.
 - [DraftKings Classic rows](draftkings-classic-rows.md) — live NFL feeds can return equal-priced positional/FLEX entries; verified exact contest IDs disambiguate Classic exports.
 - [Playwright post-merge setup](playwright-post-merge.md) — validation workflows need Chromium provisioned by the post-merge hook before Playwright tests can launch.
 - [Sim count UX](sim-count-ux.md) — Sim uses its own count selector; Normal Qty must be hidden and ignored in Sim Mode.
