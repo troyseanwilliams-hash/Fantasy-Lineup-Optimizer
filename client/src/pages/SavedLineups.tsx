@@ -1,4 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { NflPortfolioControls, NflPortfolioReportView, useNflPortfolio } from "@/components/NflPortfolio";
+import type { NflPortfolioReport } from "@shared/nfl-portfolio";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye, AlertTriangle, Upload, Settings, RefreshCw, FileUp, Star, Activity, Loader2, Flame, Percent, BarChart3, Ban } from "lucide-react";
 import { gradeLineup, GRADE_COLORS, type LineupGrade } from "@/lib/lineup-grader";
@@ -474,6 +476,8 @@ export default function SavedLineups() {
   const [regenCeilingMode, setRegenCeilingMode] = useState(false);
   const [regenLeverageMode, setRegenLeverageMode] = useState(false);
   const [regenContestType, setRegenContestType] = useState<"cash" | "gpp">("gpp");
+  const portfolio = useNflPortfolio();
+  const [portfolioReports, setPortfolioReports] = useState<Array<{ slateId: number; report: NflPortfolioReport; target: string }>>([]);
   const [regenOutperformerMode, setRegenOutperformerMode] = useState(false);
   const [showRegenSettings, setShowRegenSettings] = useState(false);
   const [showExposure, setShowExposure] = useState(true);
@@ -483,6 +487,7 @@ export default function SavedLineups() {
   const [regenMinSalary, setRegenMinSalary] = useState<number | null>(null);
   const [regenMaxSalary, setRegenMaxSalary] = useState<number | null>(null);
   const [regenSlateId, setRegenSlateId] = useState<number | null>(null);
+  useEffect(() => { setPortfolioReports([]); }, [regenSlateId, regenContestType]);
   const [regenFlexAllowedPositions, setRegenFlexAllowedPositions] = useState<NflFlexPosition[]>([...NFL_FLEX_POSITIONS]);
   const [regenStackGameKeys, setRegenStackGameKeys] = useState<string[]>([]);
   const [simMetric, setSimMetric] = useState<"composite" | "p90" | "p75" | "median" | "avg">("composite");
@@ -680,6 +685,7 @@ export default function SavedLineups() {
   const effectiveIsClassic = String(effectiveSlate?.gameType || "Classic").trim().toLowerCase() === "classic";
   const canConfigureStacks = !!effectiveSlate && effectiveIsClassic && STACKABLE_SPORTS.has(effectiveSport);
   const canConfigureFlex = canConfigureStacks && effectiveSport === "NFL";
+  const portfolioSupported = canConfigureFlex && effectiveSlate?.platform === "draftkings" && regenContestType === "gpp";
   const effectivePlayerUrl = effectiveSlateId ? `/api/slates/${effectiveSlateId}/players` : "";
   const { data: effectiveSlatePlayers } = useSessionPlayerQuery<Player[]>({
     url: effectivePlayerUrl,
@@ -707,6 +713,7 @@ export default function SavedLineups() {
 
   useEffect(() => {
     setRegenStackGameKeys([]);
+    portfolio.setSettings(previous => ({ ...previous, nakedQbIds: [], ownershipOverrides: {} }));
   }, [effectiveSlateId]);
 
   useEffect(() => {
@@ -872,11 +879,20 @@ export default function SavedLineups() {
 
   const simRegenMutation = useMutation({
     mutationFn: async (params: { ids: number[]; numSims?: number; sortBy: string; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; outperformerMode?: boolean; contestType?: string; globalMaxExposure?: number; globalMinExposure?: number; projFloor?: number; minSalary?: number; maxSalary?: number; slateId?: number; draftGroupId?: number; flexAllowedPositions?: NflFlexPosition[]; stackGameKeys?: string[] }) => {
-      const res = await apiRequest("POST", "/api/lineups/sim-regenerate", { ...params, preserveSourceSlateId: true });
+      setPortfolioReports([]);
+      if (portfolioSupported && portfolio.error) throw new Error(portfolio.error);
+      const res = await apiRequest("POST", "/api/lineups/sim-regenerate", { ...params, preserveSourceSlateId: true,
+        ...(portfolioSupported && portfolio.settings.enabled ? { nflPortfolio: portfolio.settings } : {}),
+      });
       return res.json();
     },
     onSuccess: async (data, variables) => {
       const summary = summarizeRegeneration(data);
+      setPortfolioReports((Array.isArray(data.nflPortfolioReports) ? data.nflPortfolioReports : []).filter((item: any) => item?.report).map((item: any) => ({
+        ...item,
+        report: { ...item.report, partial: item.report.partial || summary.failed + summary.skipped > 0 },
+        target: allSlates?.find(s => s.id === item.slateId) ? formatSlateIdentity(allSlates.find(s => s.id === item.slateId)!) : `Target slate ${item.slateId}`,
+      })));
       const metricLabel = { p90: "P90", p75: "P75", composite: "Composite", median: "Median", avg: "Average" }[data.sortBy] || data.sortBy;
       const targetDescription = variables?.draftGroupId
         ? `DraftKings draftGroupId ${variables.draftGroupId}`
@@ -890,7 +906,7 @@ export default function SavedLineups() {
       }
       if (summary.failed + summary.skipped > 0) desc += ` ${summary.failed + summary.skipped} skipped.`;
       if (data?.partial && data?.message) desc += ` ${data.message}`;
-      toast({ title: summary.cloned > 0 ? "New Sim Lineups Created" : "Sim Regeneration Complete", description: desc });
+      toast({ title: summary.failed + summary.skipped > 0 ? "Partial Sim Regeneration" : summary.cloned > 0 ? "New Sim Lineups Created" : "Sim Regeneration Complete", description: desc });
       setSelectedIds(new Set());
       await queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
       await refreshLineups();
@@ -1270,6 +1286,10 @@ export default function SavedLineups() {
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/3" />
 
         <div className="relative container mx-auto px-4 py-10">
+          <div className="space-y-2 mb-3">
+            {selectedIds.size > 0 && <NflPortfolioControls settings={portfolio.settings} onChange={portfolio.setSettings} supported={portfolioSupported} players={effectiveSlatePlayers || []} />}
+            {portfolioReports.map((item, index) => <NflPortfolioReportView key={`${item.slateId}-${index}`} report={item.report} target={item.target} />)}
+          </div>
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">

@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { NflPortfolioControls, NflPortfolioReportView, useNflPortfolio } from "@/components/NflPortfolio";
 import { useRoute, useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -147,6 +148,7 @@ export default function Optimizer() {
   const [projectedPointsFloor, setProjectedPointsFloor] = useState<number | null>(null);
   const [flexAllowedPositions, setFlexAllowedPositions] = useState<NflFlexPosition[]>([...NFL_FLEX_POSITIONS]);
   const [contestType, setContestType] = useState<"cash" | "gpp">("cash");
+  const portfolio = useNflPortfolio();
   const [outperformerMode, setOutperformerMode] = useState(false);
   const [mobileView, setMobileView] = useState<"players" | "lineup">("players");
   const [playerFocus, setPlayerFocus] = useState(false);
@@ -169,6 +171,8 @@ export default function Optimizer() {
   const slate = useResolvedSlate(slateId, slates, "/optimizer");
   const sport = (slate?.sport || "NBA") as Sport;
   const isNflClassic = sport === "NFL" && (slate?.gameType || "Classic").toLowerCase() === "classic";
+  const portfolioSupported = isNflClassic && platform === "draftkings" && contestType === "gpp";
+  useEffect(() => { portfolio.setReport(undefined); }, [contestType, platform]);
 
   const { data: accuracyData } = useQuery<{ players: Array<{ playerName: string; hitRate: number; avgDelta: number; slatesAnalyzed: number }> }>({
     queryKey: ["/api/projection-accuracy", sport],
@@ -241,6 +245,7 @@ export default function Optimizer() {
       return res.json();
     },
     onSuccess: (data) => {
+      portfolio.setReport((data as any).nflPortfolioReport);
       setRemovedSlots(new Set());
       setActiveSwapSlot(null);
       setManualReplacements({});
@@ -256,6 +261,7 @@ export default function Optimizer() {
 
   useEffect(() => {
     optimizeMutation.reset();
+    portfolio.reset();
     setRemovedSlots(new Set());
     setActiveSwapSlot(null);
     setManualReplacements({});
@@ -456,6 +462,11 @@ export default function Optimizer() {
   }, []);
 
   const handleOptimize = () => {
+    portfolio.setReport(undefined);
+    if (portfolioSupported && portfolio.error) {
+      toast({ title: "Invalid NFL strategy", description: portfolio.error, variant: "destructive" });
+      return;
+    }
     setActiveSwapSlot(null);
     setActiveSwapSlot(null);
     const mergedProjections: Record<string, number> = { ...customProjections };
@@ -480,6 +491,7 @@ export default function Optimizer() {
       minProjection: minProjection ?? undefined,
       projectedPointsFloor: projectedPointsFloor ?? undefined,
       contestType,
+      ...(portfolioSupported && portfolio.settings.enabled ? { nflPortfolio: portfolio.settings } : {}),
       outperformerMode,
       ...(isNflClassic ? { flexAllowedPositions } : {}),
     });
@@ -500,6 +512,7 @@ export default function Optimizer() {
   };
 
   const handleReset = () => {
+    portfolio.reset();
     setLockedIds([]);
     setExcludedIds([]);
     setCustomProjections({});
@@ -1512,6 +1525,10 @@ export default function Optimizer() {
 
       {/* RIGHT: Lineup Builder */}
       <div className={`w-full xl:w-[360px] 2xl:w-[400px] flex-col bg-slate-900/30 border-l border-slate-800 xl:overflow-hidden ${playerFocus ? "hidden" : mobileView !== "lineup" ? "hidden xl:flex" : "flex"}`}>
+        <div className="p-2 space-y-2 max-h-[60vh] overflow-auto">
+          <NflPortfolioControls settings={portfolio.settings} onChange={portfolio.setSettings} supported={portfolioSupported} players={players || []} single />
+          <NflPortfolioReportView report={portfolio.report} target={`Slate ${slateId}`} />
+        </div>
         {/* Salary & Projection Bar */}
         <div className="px-3 sm:px-4 py-2 sm:py-3 bg-slate-900/60 border-b border-slate-800">
           <div className="grid grid-cols-4 gap-1.5 sm:gap-2 mb-2">

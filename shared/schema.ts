@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, boolean, timestamp, numeric, date, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { nflPortfolioSettingsSchema, type NflPortfolioReport } from "./nfl-portfolio";
 import { users } from "./models/auth";
 
 export * from "./models/auth";
@@ -456,6 +457,7 @@ export type SupportTicket = typeof supportTickets.$inferSelect;
 
 // --- OPTIMIZATION TYPES ---
 export const optimizationConstraintSchema = z.object({
+  nflPortfolio: nflPortfolioSettingsSchema.optional(),
   slateId: z.number(),
   platform: z.enum(["draftkings", "fanduel", "yahoo"]).optional(),
   lockedPlayerIds: z.array(z.number()).default([]),
@@ -478,6 +480,7 @@ export const optimizationConstraintSchema = z.object({
 export type OptimizationConstraints = z.infer<typeof optimizationConstraintSchema>;
 
 export const optimizeResponseSchema = z.object({
+  nflPortfolioReport: z.custom<NflPortfolioReport>().optional(),
   lineup: z.array(z.custom<Player>()),
   totalSalary: z.number(),
   totalProjectedPoints: z.number(),
@@ -503,6 +506,7 @@ export const proOptimizationConstraintSchema = optimizationConstraintSchema.exte
 export type ProOptimizationConstraints = z.infer<typeof proOptimizationConstraintSchema>;
 
 export const proOptimizeResponseSchema = z.object({
+  nflPortfolioReport: z.custom<NflPortfolioReport>().optional(),
   lineups: z.array(optimizeResponseSchema),
   boostsSummary: z.array(z.object({
     playerId: z.number(),

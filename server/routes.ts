@@ -12,7 +12,7 @@ import { parseGameInfo, sanitizeGameInfo } from "@shared/game-info";
 import { computeBoostScores, computeCorrelationBonus, applyCeilingMode, applyLeverageMode, applyActualAdjustedProjections, applyWinningLineupAdjustment, applyOutperformerMode } from "./boost-engine";
 import { getHistoricalProfile, applyHistoricalAdjustments } from "./historical-adjustments";
 import { applyMarketProjectionBlend } from "./market-projections";
-import { generateFieldLineups, computeTournamentEV } from "./tournament-ev";
+import { generateFieldLineups, computeTournamentEV, type TournamentEVResult } from "./tournament-ev";
 
 function getSessionUserId(req: Request): string | null {
   return (req.session as any)?.userId || null;
@@ -33,6 +33,8 @@ import { getCachedSignals, getScoutStatus, refreshAll, forceRefreshAll, secondsU
 import { runSimulations, detectStack, scoreLineupsAcrossSims } from "./simulation-engine";
 import { addSimGameStacks, addSimStackAlternatives, stackGameKey as getStackGameKey, type SimStackAlternative } from "./sim-game-stacks";
 import { addNFLQuarterbackStacks } from "./nfl-qb-stacks";
+import { generateNflPortfolio as generateNflPortfolioEngine, addNflPortfolioConstraints } from "./nfl-portfolio";
+import { nflPortfolioSettingsSchema, type NflPortfolioSettings, type NflPortfolioLineupPolicy, type NflPortfolioReport } from "@shared/nfl-portfolio";
 import { buildVegasContext } from "./vegas-client";
 import { buildDvPContext, applyDvPToProjections, buildOpponentMap } from "./dvp-client";
 import { fetchStartingLineups, getStartingLineupsData, clearLineupsCache } from "./lineups-ingest";
@@ -177,9 +179,76 @@ function isClassicSlate(slate: Slate): boolean {
   return (slate.gameType || "Classic").trim().toLowerCase() === "classic";
 }
 
+export function validateNflPortfolioContext(settings: NflPortfolioSettings | undefined, slate: Slate, platform: string, contestType: string): void {
+  if (settings?.enabled && (slate.sport.toUpperCase() !== "NFL" || platform !== "draftkings" || slate.platform !== "draftkings" || !isClassicSlate(slate) || contestType !== "gpp")) {
+    throw new z.ZodError([{ code: "custom", path: ["nflPortfolio"], message: "NFL portfolio strategy requires NFL DraftKings Classic GPP." }]);
+  }
+}
+
+async function generateNflPortfolio(options: Parameters<typeof generateNflPortfolioEngine>[0]) {
+  try {
+    return await generateNflPortfolioEngine(options);
+  } catch (error) {
+    throw new z.ZodError([{ code: "custom", path: ["nflPortfolio"], message: error instanceof Error ? error.message : "NFL portfolio generation failed." }]);
+  }
+}
+
+async function portfolioOwnership(pool: Player[], settings: NflPortfolioSettings): Promise<Map<number, number> | undefined> {
+  if (settings.ownershipMode === "off") return undefined;
+  if (settings.ownershipMode === "provided") return new Map(Object.entries(settings.ownershipOverrides).map(([id, pct]) => [Number(id), pct]));
+  try {
+    const ownership = new Map((await calculateOwnership(pool, "NFL", "gpp_large")).map(p => [p.playerId, p.projectedOwnership]));
+    for (const [id, value] of Object.entries(settings.ownershipOverrides)) ownership.set(Number(id), value);
+    return ownership;
+  } catch {
+    return undefined; // Engine reports unavailable ownership; never invent estimates.
+  }
+}
+
+export function scorePortfolioSims(
+  candidates: Array<{ lineup: Player[] }>,
+  sims: ReturnType<typeof runSimulations>,
+  metric: string,
+  pool?: Player[],
+  ownership?: Map<number, number>,
+  evResults?: Map<string, TournamentEVResult>,
+): number[] {
+  const entries = candidates.map(c => ({ playerIds: c.lineup.map(p => p.id), key: c.lineup.map(p => p.id).sort().join(",") }));
+  const scored = scoreLineupsAcrossSims(entries, sims);
+  if (metric === "ev") {
+    if (!pool || !ownership || !pool.every(p => Number.isFinite(ownership.get(p.id)))) {
+      throw new Error("EV portfolio scoring requires complete explicit estimated or provided ownership. Choose another simulation metric or provide ownership.");
+    }
+    const field = generateFieldLineups(pool.map(p => ({ ...p, ownershipProjection: ownership.get(p.id)! })), "NFL", "draftkings", 800);
+    if (field.length >= 100) {
+      const ev = computeTournamentEV(entries.map(e => ({
+        key: e.key, pids: e.playerIds,
+        ownProduct: e.playerIds.reduce((n, id) => n * Math.min(0.6, Math.max(0.002, ownership.get(id)! / 100)), 1),
+      })), field, sims.map(s => s.projections));
+      if (entries.some(e => !Number.isFinite(ev.get(e.key)?.evScore))) {
+        throw new Error("EV portfolio scoring did not return a valid score for every candidate.");
+      }
+      for (const [key, value] of ev) evResults?.set(key, value);
+      return entries.map(e => ev.get(e.key)!.evScore);
+    }
+    throw new Error("EV portfolio scoring could not generate a sufficient field sample. Choose another simulation metric or relax the pool constraints.");
+  }
+  return scored.map((c, index) => {
+    if (metric === "p90") return c.p90Score;
+    if (metric === "p75") return c.p75Score;
+    if (metric === "avg") return c.avgSimScore;
+    if (metric === "median") {
+      const totals = sims.map(s => entries[index].playerIds.reduce((sum, id) => sum + (s.projections[id] || 0), 0)).sort((a, b) => a - b);
+      return totals[Math.floor(totals.length * 0.5)] ?? 0;
+    }
+    return c.avgSimScore * 0.35 + c.p75Score * 0.35 + c.p90Score * 0.20;
+  });
+}
+
 const SIM_STACK_SUPPORTED_CLASSIC_SPORTS = new Set(["NFL", "MLB", "NBA", "NHL", "SOCCER"]);
 
 export const simRegenerateRestrictionSchema = z.object({
+  nflPortfolio: nflPortfolioSettingsSchema.optional(),
   flexAllowedPositions: z.array(z.enum(["RB", "WR", "TE"])).min(1).optional(),
   stackGameKeys: z.array(z.string()).max(32).optional(),
 }).strict();
@@ -188,7 +257,7 @@ export function validateSimRegenerateRestrictions(
   input: z.infer<typeof simRegenerateRestrictionSchema>,
   slate: Slate,
   players: Player[],
-): { flexAllowedPositions?: ("RB" | "WR" | "TE")[]; stackGameKeys?: string[] } {
+): { flexAllowedPositions?: ("RB" | "WR" | "TE")[]; stackGameKeys?: string[]; nflPortfolio?: NflPortfolioSettings } {
   const sport = slate.sport.trim().toUpperCase();
   const classic = isClassicSlate(slate);
 
@@ -213,6 +282,7 @@ export function validateSimRegenerateRestrictions(
   }
 
   return {
+    ...(input.nflPortfolio ? { nflPortfolio: input.nflPortfolio } : {}),
     flexAllowedPositions: input.flexAllowedPositions,
     stackGameKeys,
   };
@@ -233,8 +303,9 @@ export function buildSimRegenerateSolverConstraints(
     lineupCount: 1,
     maxSalary: salaryCap,
     contestType,
+    ...(restrictions.nflPortfolio ? { nflPortfolio: restrictions.nflPortfolio } : {}),
     stackGameKeys: restrictions.stackGameKeys,
-  } as OptimizationConstraints & { stackGameKeys?: string[]; maxSalary?: number };
+  } as unknown as OptimizationConstraints & { stackGameKeys?: string[]; maxSalary?: number };
 }
 
 function serializeFavoriteStack(stack: FavoriteStack) {
@@ -1032,6 +1103,7 @@ export async function registerRoutes(
       }
 
       const platform = (constraints.platform || slate.platform || "draftkings") as Platform;
+      validateNflPortfolioContext(constraints.nflPortfolio, slate, platform, constraints.contestType);
 
       if (isLoggedIn(req)) {
         const userId = getSessionUserId(req)!;
@@ -1164,7 +1236,7 @@ export async function registerRoutes(
 
       const contestType = constraints.contestType || "cash";
       let ownershipByPlayerId: Map<number, number> | undefined;
-      if (slate.sport.toUpperCase() === "NFL" && contestType === "gpp") {
+      if (!constraints.nflPortfolio?.enabled && slate.sport.toUpperCase() === "NFL" && contestType === "gpp") {
         try {
           const ownership = await calculateOwnership(salaryFilteredPool, "NFL", "gpp_large");
           ownershipByPlayerId = new Map(ownership.map(p => [p.playerId, p.projectedOwnership]));
@@ -1173,6 +1245,16 @@ export async function registerRoutes(
         }
       }
       await yieldToEventLoop();
+      if (constraints.nflPortfolio?.enabled) {
+        const ownershipMap = await portfolioOwnership(salaryFilteredPool, constraints.nflPortfolio);
+        const portfolio = await generateNflPortfolio({
+          pool: salaryFilteredPool, settings: constraints.nflPortfolio, count: 1,
+          baseConstraints: { ...constraints, minProjection: undefined, lockedPlayerIds: mergedLocked, excludedPlayerIds: mergedExclusions },
+          ownershipMap, deadline: optimizeDeadline,
+          solve: (candidatePool, candidateConstraints) => solveLineup(candidatePool, candidateConstraints, slate.sport, platform, candidateConstraints.ownershipMap ?? ownershipMap, { deadline: optimizeDeadline, timeoutMs: 2000 }),
+        });
+        return res.json({ ...(portfolio.lineups[0] ?? { lineup: [], totalSalary: 0, totalProjectedPoints: 0 }), platform, nflPortfolioReport: portfolio.report, partial: portfolio.report.partial });
+      }
       const result = solveLineup(
         salaryFilteredPool,
         {
@@ -2104,6 +2186,7 @@ export async function registerRoutes(
     if (!isLoggedIn(req)) return res.sendStatus(401);
     const userId = getSessionUserId(req)!;
     const restrictionInput = simRegenerateRestrictionSchema.safeParse({
+      nflPortfolio: req.body.nflPortfolio,
       flexAllowedPositions: req.body.flexAllowedPositions,
       stackGameKeys: req.body.stackGameKeys,
     });
@@ -2126,6 +2209,11 @@ export async function registerRoutes(
       const requestedTargetSlate = await storage.getSlate(overrideSlateId);
       if (!requestedTargetSlate) {
         return res.status(400).json({ message: "Target slate not found" });
+      }
+      try {
+        validateNflPortfolioContext(restrictionInput.data.nflPortfolio, requestedTargetSlate, requestedTargetSlate.platform, simContestType);
+      } catch (error) {
+        return res.status(400).json({ message: error instanceof z.ZodError ? error.errors[0].message : "Invalid NFL portfolio target." });
       }
       if (requestedDraftGroupId !== null &&
           requestedTargetSlate.draftGroupId !== requestedDraftGroupId) {
@@ -2162,6 +2250,8 @@ export async function registerRoutes(
       const lineupOwnership = new Map<number, any>();
       let totalSimsRun = 0;
       const origSlatePerSimGroup = new Map<number, number>();
+      const nflPortfolioReports: Array<{ slateId: number; report: NflPortfolioReport }> = [];
+      const pendingPortfolioWrites: Array<() => Promise<void>> = [];
 
       const results: { id: number; status: string; error?: string }[] = [];
 
@@ -2202,9 +2292,17 @@ export async function registerRoutes(
       }>();
       for (const [slateId, lineupIds] of slateGroups) {
         const slate = await storage.getSlate(slateId);
+        if (restrictionInput.data.nflPortfolio?.enabled &&
+            (!slate || slate.isActive === false || new Date(slate.startTime).getTime() <= Date.now())) {
+          return res.status(400).json({ message: "NFL portfolio regeneration requires every target slate to exist, be active, and not have started.", slateId });
+        }
         if (!slate) continue;
         const players = await storage.getPlayersBySlate(slateId);
+        if (restrictionInput.data.nflPortfolio?.enabled && players.length === 0) {
+          return res.status(400).json({ message: "NFL portfolio target has no available player pool.", slateId });
+        }
         try {
+          validateNflPortfolioContext(restrictionInput.data.nflPortfolio, slate, lineupOwnership.get(lineupIds[0])?.platform || "draftkings", simContestType);
           preflightTargets.set(slateId, {
             slate,
             players,
@@ -2228,7 +2326,8 @@ export async function registerRoutes(
         }
 
         const platform = (lineupOwnership.get(lineupIds[0])?.platform || "draftkings") as Platform;
-        const simRegenRestrictions = preflightTarget?.restrictions ??
+        validateNflPortfolioContext(restrictionInput.data.nflPortfolio, slate, platform, simContestType);
+        const simRegenRestrictions: ReturnType<typeof validateSimRegenerateRestrictions> = preflightTarget?.restrictions ??
           validateSimRegenerateRestrictions(restrictionInput.data, slate, []);
         let allPlayers = preflightTarget?.players ?? await storage.getPlayersBySlate(slateId);
         if (allPlayers.length === 0) {
@@ -2406,7 +2505,27 @@ export async function registerRoutes(
             simRegenRestrictions,
           );
 
-        const baselineResult = solveLineup(
+        const preset = simRegenRestrictions.nflPortfolio?.enabled ? simRegenRestrictions.nflPortfolio : undefined;
+        const portfolioSims = preset ? runSimulations(pool, slate.sport, tierSims, dvpAdjusted, vegasContext ?? undefined) : [];
+        if (preset) {
+          const ownershipMap = await portfolioOwnership(pool, preset);
+          const portfolio = await generateNflPortfolio({
+            pool, settings: preset, count: lineupIds.length,
+            baseConstraints: {
+              ...simRegenConstraints([...simRegenLocked]),
+              globalMaxExposure, globalMinExposure, projectedPointsFloor: simProjFloor || undefined,
+              exposureLimits: Object.fromEntries(Object.entries(simRegenOverrideExposure).filter(([, v]) => v.max != null).map(([id, v]) => [id, v.max!])),
+              minExposureLimits: { ...Object.fromEntries(Object.entries(simRegenOverrideExposure).filter(([, v]) => v.min != null).map(([id, v]) => [id, v.min!])), ...minExposureLimits },
+            },
+            ownershipMap, vegasGames: vegasContext ? [...vegasContext.games.values()].filter(game => game.source !== "fallback") : undefined,
+            deadline: solverDeadline,
+            solve: (candidatePool, candidateConstraints) => solveLineup(candidatePool, candidateConstraints, slate.sport, platform, candidateConstraints.ownershipMap ?? ownershipMap, { deadline: solverDeadline, timeoutMs: 2000 }),
+            scoreCandidates: candidates => scorePortfolioSims(candidates, portfolioSims, sortKey),
+          });
+          nflPortfolioReports.push({ slateId, report: portfolio.report });
+          for (const candidate of portfolio.lineups) lineupMap.set(candidate.lineup.map((p: Player) => p.id).sort().join(","), { lineup: candidate.lineup, frequency: 1, simScores: [] });
+        }
+        const baselineResult = preset ? { totalProjectedPoints: 0, timedOut: false } : solveLineup(
           lpPool,
           simRegenConstraints([...simRegenLocked]),
           slate.sport, platform,
@@ -2419,11 +2538,11 @@ export async function registerRoutes(
         console.log(`[SimRegen] Baseline optimal: ${baselineTotal.toFixed(1)} pts, auto floor: ${autoFloor}`);
 
         const CALIBRATION_BATCH = 10;
-        const calibrationSims = runSimulations(pool, slate.sport, CALIBRATION_BATCH, dvpAdjusted, vegasContext ?? undefined);
+        const calibrationSims = preset ? portfolioSims : runSimulations(pool, slate.sport, CALIBRATION_BATCH, dvpAdjusted, vegasContext ?? undefined);
 
         const calStart = Date.now();
         let calibrationAttempts = 0;
-        for (let i = 0; i < calibrationSims.length; i++) {
+        for (let i = 0; !preset && i < calibrationSims.length; i++) {
           if (Date.now() >= solverDeadline) {
             simRegenTimedOut = true;
             break;
@@ -2456,7 +2575,7 @@ export async function registerRoutes(
         const calElapsed = Date.now() - calStart;
         const msPerSolve = Math.max(1, calElapsed / Math.max(1, calibrationAttempts));
 
-        if (lineupMap.size === 0 && lpPool.length < pool.length) {
+        if (!preset && lineupMap.size === 0 && lpPool.length < pool.length) {
           console.log(`[SimRegen] Trimmed pool infeasible, falling back to full pool (${pool.length} players)`);
           lpPool = pool;
           for (let i = 0; i < calibrationSims.length; i++) {
@@ -2492,7 +2611,7 @@ export async function registerRoutes(
         }
 
         const remainingBudget = Math.max(0, LP_BUDGET_MS - calElapsed);
-        const adaptiveSims = Math.min(tierSims - CALIBRATION_BATCH, Math.max(40, Math.floor(remainingBudget / msPerSolve)));
+        const adaptiveSims = preset ? 0 : Math.min(tierSims - CALIBRATION_BATCH, Math.max(40, Math.floor(remainingBudget / msPerSolve)));
         const totalTargetSims = CALIBRATION_BATCH + adaptiveSims;
 
         const remainingSims = runSimulations(pool, slate.sport, adaptiveSims, dvpAdjusted, vegasContext ?? undefined);
@@ -2501,10 +2620,10 @@ export async function registerRoutes(
           console.log(`[SimRegen] Min exposure locks: ${minExpPlayers.map(p => `${p.id}@${p.pct}%`).join(", ")}`);
         }
         console.log(`[SimRegen] ${slate.sport} slate ${slateId}: lpPool=${lpPool.length}, ${msPerSolve.toFixed(0)}ms/solve, adaptive=${totalTargetSims} sims (tier max ${tierSims})`);
-        totalSimsRun += totalTargetSims;
+        totalSimsRun += preset ? portfolioSims.length : totalTargetSims;
 
         let actualSimsSolved = CALIBRATION_BATCH;
-        for (let i = CALIBRATION_BATCH; i < allSims.length; i++) {
+        for (let i = CALIBRATION_BATCH; !preset && i < allSims.length; i++) {
           if (Date.now() >= solverDeadline) {
             simRegenTimedOut = true;
             console.log(`[SimRegen] Hard time cap reached after ${actualSimsSolved} sims`);
@@ -2537,6 +2656,9 @@ export async function registerRoutes(
         }
 
         if (lineupMap.size === 0) {
+          if (preset) {
+            return res.status(400).json({ message: "A target slate produced no valid NFL portfolio candidates. No regenerated lineups were saved.", slateId });
+          }
           lineupIds.forEach(id => results.push({ id, status: "skipped", error: "No feasible lineups from sims" }));
           continue;
         }
@@ -2584,7 +2706,7 @@ export async function registerRoutes(
         });
 
         const effectiveFloor = simProjFloor ? Math.max(simProjFloor, autoFloor) : autoFloor;
-        if (effectiveFloor > 0) {
+        if (!preset && effectiveFloor > 0) {
           const boostedFloorMap = new Map(pool.map(bp => [bp.id, bp]));
           const beforeCount = scoredCandidates.length;
           const filtered = scoredCandidates.filter(c => {
@@ -2717,6 +2839,7 @@ export async function registerRoutes(
             playerSnapshot, simData,
           };
           const sourceLineup = lineupOwnership.get(lineupId)!;
+          const persist = async () => {
           if (shouldCloneRegeneratedLineup(
             sourceLineup.slateId,
             slateId,
@@ -2734,6 +2857,9 @@ export async function registerRoutes(
             await db.update(lineupsTable).set(simUpdatePayload).where(eq(lineupsTable.id, lineupId));
             results.push({ id: lineupId, status: "updated" });
           }
+          };
+          if (preset) pendingPortfolioWrites.push(persist);
+          else await persist();
         }
 
         for (let i = selectedCandidates.length; i < lineupIds.length; i++) {
@@ -2741,6 +2867,17 @@ export async function registerRoutes(
         }
       }
 
+      // Nothing is written until every target has generated and validated its
+      // candidates. Recheck all target kickoffs immediately before committing.
+      if (restrictionInput.data.nflPortfolio?.enabled) {
+        for (const slateId of slateGroups.keys()) {
+          const target = await storage.getSlate(slateId);
+          if (!target || target.isActive === false || new Date(target.startTime).getTime() <= Date.now()) {
+            return res.status(400).json({ message: "A target slate closed during NFL portfolio regeneration. No regenerated lineups were saved.", slateId });
+          }
+        }
+      }
+      for (const persist of pendingPortfolioWrites) await persist();
       const updatedCount = results.filter(r => r.status === "updated").length;
       const clonedCount = results.filter(r => r.status === "cloned").length;
       const newLineupIds = results
@@ -2756,14 +2893,16 @@ export async function registerRoutes(
         newLineupIds,
         total: ids.length,
         simsRun: totalSimsRun || tierSims,
+        ...(nflPortfolioReports.length ? { nflPortfolioReports } : {}),
         sortBy: sortKey,
-        partial: simRegenTimedOut || Date.now() >= solverDeadline,
+        partial: simRegenTimedOut || Date.now() >= solverDeadline || nflPortfolioReports.some(entry => entry.report.partial),
         message: simRegenTimedOut || Date.now() >= solverDeadline
           ? `Partial results: regenerated ${updatedCount} of ${ids.length} lineups before the solver time budget was reached.`
           : undefined,
       });
     } catch (err: any) {
       console.error("[SimRegen] Error:", err);
+      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
       res.status(500).json({ message: err.message || "Sim regeneration failed" });
     }
   });
@@ -5081,6 +5220,7 @@ export async function registerRoutes(
       }
 
       const platform = (constraints.platform || slate.platform || "draftkings") as Platform;
+      validateNflPortfolioContext(constraints.nflPortfolio, slate, platform, constraints.contestType);
       let allPlayers = await storage.getPlayersBySlate(constraints.slateId);
       if (allPlayers.length === 0) {
         return res.status(400).json({ message: "No players found for this slate" });
@@ -5254,13 +5394,25 @@ export async function registerRoutes(
       }
 
       const maxAttempts = constraints.lineupCount * 10;
+      let nflPortfolioReport: NflPortfolioReport | undefined;
+      if (constraints.nflPortfolio?.enabled) {
+        const ownershipMap = await portfolioOwnership(pool, constraints.nflPortfolio);
+        const portfolio = await generateNflPortfolio({
+          pool, settings: constraints.nflPortfolio, count: constraints.lineupCount,
+          baseConstraints: { ...constraints, minProjection: undefined, excludedPlayerIds: baseExcluded },
+          ownershipMap, deadline: proSolveDeadline,
+          solve: (candidatePool, candidateConstraints) => solveLineup(candidatePool, candidateConstraints, slate.sport, platform, candidateConstraints.ownershipMap ?? ownershipMap, { deadline: proSolveDeadline, timeoutMs: 2000 }),
+        });
+        lineupResults.push(...portfolio.lineups);
+        nflPortfolioReport = portfolio.report;
+      }
       let attempts = 0;
       let proTimedOut = false;
 
       const playerAppearances: Record<number, number> = {};
       const candidateLineups: { result: any; correlationScore: number }[] = [];
 
-      while (lineupResults.length < constraints.lineupCount && attempts < maxAttempts) {
+      while (!constraints.nflPortfolio?.enabled && lineupResults.length < constraints.lineupCount && attempts < maxAttempts) {
         if (Date.now() >= proSolveDeadline) {
           proTimedOut = true;
           console.log(`[ProOptimizer] Timeout after ${attempts} attempts, ${lineupResults.length} lineups found`);
@@ -5406,7 +5558,7 @@ export async function registerRoutes(
           ? `Partial results: generated ${lineupResults.length} of ${constraints.lineupCount} requested lineups before the solver time budget was reached.`
           : undefined;
 
-      res.json({ lineups: lineupResults, boostsSummary, injurySummary, message, partial: partialResults });
+      res.json({ lineups: lineupResults, boostsSummary, injurySummary, message, partial: partialResults || !!nflPortfolioReport?.partial, ...(nflPortfolioReport ? { nflPortfolioReport } : {}) });
     } catch (err) {
       if (err instanceof z.ZodError) {
         res.status(400).json({ message: err.errors[0].message });
@@ -5418,6 +5570,8 @@ export async function registerRoutes(
   });
 
   const simOptimizeSchema = z.object({
+    nflPortfolio: nflPortfolioSettingsSchema.optional(),
+    contestType: z.enum(["cash", "gpp"]).default("cash"),
     slateId:              z.number(),
     platform:             z.enum(["draftkings", "fanduel", "yahoo"]).default("draftkings"),
     lockedPlayerIds:      z.array(z.number()).default([]),
@@ -5487,6 +5641,7 @@ export async function registerRoutes(
 
       const sport = slate.sport;
       const platform = (input.platform || slate.platform || "draftkings") as Platform;
+      validateNflPortfolioContext(input.nflPortfolio, slate, platform, input.contestType);
       const config = getPlatformConfig(sport, platform);
 
       let allPlayers = await storage.getPlayersBySlate(input.slateId);
@@ -5811,7 +5966,7 @@ export async function registerRoutes(
 
       const LP_BUDGET_MS = 18000;
       const SIM_CAL_BATCH = 10;
-      const calSims = runSimulations(pool, sport, SIM_CAL_BATCH, dvpAdjustedOverrides, vegasContext ?? undefined);
+      const calSims = runSimulations(pool, sport, input.nflPortfolio?.enabled ? input.numSims : SIM_CAL_BATCH, dvpAdjustedOverrides, vegasContext ?? undefined);
       const lineupMap = new Map<string, {
         lineup:    Player[];
         frequency: number;
@@ -5820,6 +5975,7 @@ export async function registerRoutes(
       }>();
 
       const simConstraintsBase = {
+        ...(input.nflPortfolio?.enabled ? input : {}),
         slateId: input.slateId,
         lockedPlayerIds: input.lockedPlayerIds,
         excludedPlayerIds: input.excludedPlayerIds,
@@ -5835,9 +5991,39 @@ export async function registerRoutes(
         minSalary?: number;
       };
 
+      let nflPortfolioReport: NflPortfolioReport | undefined;
+      const portfolioEvResults = new Map<string, TournamentEVResult>();
+      if (input.nflPortfolio?.enabled) {
+        const ownershipMap = await portfolioOwnership(pool, input.nflPortfolio);
+        const portfolio = await generateNflPortfolio({
+          pool, settings: input.nflPortfolio, count: input.lineupCount,
+          baseConstraints: { ...simConstraintsBase, minProjection: undefined,
+            stackGameKeys: stackAlternatives.some(choice => choice.kind === "players") ? [] : stackGameKeys,
+            exposureLimits: Object.fromEntries(Object.entries(simOverrideExposure).filter(([, v]) => v.max != null).map(([id, v]) => [id, v.max!])),
+            minExposureLimits: { ...Object.fromEntries(Object.entries(simOverrideExposure).filter(([, v]) => v.min != null).map(([id, v]) => [id, v.min!])), ...input.minExposureLimits },
+          },
+          ownershipMap, vegasGames: vegasContext ? [...vegasContext.games.values()].filter(game => game.source !== "fallback") : undefined,
+          deadline: solverDeadline,
+          solve: (candidatePool, candidateConstraints) => solveLineup(candidatePool, candidateConstraints, sport, platform, candidateConstraints.ownershipMap ?? ownershipMap, { deadline: solverDeadline, timeoutMs: 2000 }),
+          scoreCandidates: candidates => scorePortfolioSims(candidates, calSims, input.sortMetric, pool, ownershipMap, portfolioEvResults),
+        });
+        nflPortfolioReport = portfolio.report;
+        for (const candidate of portfolio.lineups) {
+          const ids = new Set(candidate.lineup.map((p: Player) => p.id));
+          const qb = candidate.lineup.find((p: Player) => p.position.split("/").includes("QB"));
+          const stackChoiceIndex = stackAlternatives.findIndex(choice => choice.kind === "players"
+            ? (choice.playerIds || []).every(id => ids.has(id))
+            : !!qb && getStackGameKey(qb.gameInfo) === choice.gameKey);
+          lineupMap.set(candidate.lineup.map((p: Player) => p.id).sort().join(","), {
+            lineup: candidate.lineup, frequency: 1, simScores: [],
+            stackChoiceIndex: stackChoiceIndex >= 0 ? stackChoiceIndex : undefined,
+          });
+        }
+      }
+
       const calT0 = Date.now();
       let calibrationAttempts = 0;
-      for (let i = 0; i < calSims.length; i++) {
+      for (let i = 0; !input.nflPortfolio?.enabled && i < calSims.length; i++) {
         if (Date.now() >= solverDeadline) {
           simTimedOut = true;
           break;
@@ -5878,7 +6064,7 @@ export async function registerRoutes(
       const calMs = Date.now() - calT0;
       const msPerLP = Math.max(1, calMs / Math.max(1, calibrationAttempts));
 
-      if (lineupMap.size === 0 && lpSimPool.length < pool.length) {
+      if (!input.nflPortfolio?.enabled && lineupMap.size === 0 && lpSimPool.length < pool.length) {
         console.log(`[SimOptimizer] Trimmed pool infeasible, falling back to full pool (${pool.length} players)`);
         lpSimPool = pool;
         for (let i = 0; i < calSims.length; i++) {
@@ -5921,14 +6107,14 @@ export async function registerRoutes(
       }
 
       const simBudgetLeft = Math.max(0, LP_BUDGET_MS - calMs);
-      const adaptiveCount = Math.min(input.numSims - SIM_CAL_BATCH, Math.max(40, Math.floor(simBudgetLeft / msPerLP)));
+      const adaptiveCount = input.nflPortfolio?.enabled ? 0 : Math.min(input.numSims - SIM_CAL_BATCH, Math.max(40, Math.floor(simBudgetLeft / msPerLP)));
       const totalSimTarget = SIM_CAL_BATCH + adaptiveCount;
       console.log(`[SimOptimizer] Adaptive: ${msPerLP.toFixed(0)}ms/solve, lpPool=${lpSimPool.length}, target=${totalSimTarget} sims (tier max ${input.numSims})`);
 
       const remainingSims = runSimulations(pool, sport, adaptiveCount, dvpAdjustedOverrides, vegasContext ?? undefined);
       const sims = [...calSims, ...remainingSims];
 
-      for (let i = SIM_CAL_BATCH; i < sims.length; i++) {
+      for (let i = SIM_CAL_BATCH; !input.nflPortfolio?.enabled && i < sims.length; i++) {
         if (Date.now() >= solverDeadline) {
           simTimedOut = true;
           console.log(`[SimOptimizer] Time cap reached after ${i} sims`);
@@ -5971,6 +6157,7 @@ export async function registerRoutes(
         const partial = simTimedOut || Date.now() >= solverDeadline;
         return res.status(200).json({
           lineups: [],
+          ...(nflPortfolioReport ? { nflPortfolioReport } : {}),
           message: stackAlternatives.length
             ? "No feasible lineups satisfy your selected stacks. Check player locks, exclusions, player status, salary/FLEX filters, or select another stack."
             : partial
@@ -6027,7 +6214,14 @@ export async function registerRoutes(
       // Tournament EV: score candidates against a simulated opponent field
       // sampled from projected ownership, mapped through a GPP payout curve
       // with a duplication penalty. Only computed when requested.
-      if (input.sortMetric === "ev") {
+      if (input.sortMetric === "ev" && input.nflPortfolio?.enabled) {
+        for (const lu of uniqueLineups as any[]) {
+          const ev = portfolioEvResults.get(lu.key);
+          if (!ev) throw new Error("EV portfolio result is missing its candidate score.");
+          Object.assign(lu, ev);
+        }
+      }
+      if (input.sortMetric === "ev" && !input.nflPortfolio?.enabled) {
         try {
           const bdlStatsEV = await fetchBDLStats(slate.sport).catch(() => undefined);
           const ownershipResultsEV = await calculateOwnership(pool, slate.sport, "gpp_large", bdlStatsEV);
@@ -6152,7 +6346,7 @@ export async function registerRoutes(
       }
 
       const elapsedMs = Date.now() - startTime;
-      const partial = simTimedOut || Date.now() >= solverDeadline;
+      const partial = simTimedOut || Date.now() >= solverDeadline || !!nflPortfolioReport?.partial;
       const partialMessage = partial
         ? `Partial results: generated ${selected.length} of ${input.lineupCount} requested lineups before the solver time budget was reached.`
         : undefined;
@@ -6181,6 +6375,7 @@ export async function registerRoutes(
 
       res.json({
         lineups:         selected,
+        ...(nflPortfolioReport ? { nflPortfolioReport } : {}),
         simsRun:         sims.length,
         uniqueLineups:   lineupMap.size,
         elapsedMs,
@@ -7126,6 +7321,7 @@ function nflTournamentScore(player: Player, ownership: number | undefined): numb
 export function solveLineup(
   pool: Player[],
   constraints: OptimizationConstraints & {
+    nflPortfolioLineupPolicy?: NflPortfolioLineupPolicy;
     stackGameKeys?: string[];
     stackAlternatives?: SimStackAlternative[];
     maxSalary?: number;
@@ -7258,7 +7454,10 @@ export function solveLineup(
     optimize: isNflClassicGpp ? "tournamentScore" : "projectedPoints",
     opType: "max",
     constraints: {
-      salary: { max: constraints.maxSalary || config.salaryCap, ...(constraints.minSalary ? { min: constraints.minSalary } : {}) },
+      salary: {
+        max: constraints.nflPortfolio?.enabled ? Math.min(constraints.totalMaxSalary ?? config.salaryCap, constraints.maxSalary ?? config.salaryCap) : constraints.maxSalary || config.salaryCap,
+        ...(constraints.nflPortfolio?.enabled && constraints.totalMinSalary !== undefined ? { min: constraints.totalMinSalary } : constraints.minSalary ? { min: constraints.minSalary } : {}),
+      },
       rosterSize: { equal: config.rosterSize },
     },
     variables: {},
@@ -7334,14 +7533,23 @@ export function solveLineup(
   });
 
   const gameKeys = Array.from(gameMap.keys());
-  addNFLQuarterbackStacks(model, availablePool, sport);
-  if (constraints.stackAlternatives?.length) {
+  const portfolioPolicy = constraints.nflPortfolio?.enabled && isNFLClassic && platform === "draftkings" && contestType === "gpp"
+    ? constraints.nflPortfolioLineupPolicy : undefined;
+  if (portfolioPolicy) {
+    addNflPortfolioConstraints(model, availablePool, portfolioPolicy, ownershipByPlayerId);
+    const playerAlternatives = constraints.stackAlternatives?.flatMap(choice => choice.kind === "players" ? [choice] :
+      availablePool.filter(p => p.position.split("/").includes("QB") && getStackGameKey(p.gameInfo) === choice.gameKey)
+        .map(qb => ({ kind: "players" as const, playerIds: [qb.id] })));
+    if (playerAlternatives?.length) addSimStackAlternatives(model, availablePool, playerAlternatives, sport);
+  } else if (constraints.stackAlternatives?.length) {
+    addNFLQuarterbackStacks(model, availablePool, sport);
     addSimStackAlternatives(model, availablePool, constraints.stackAlternatives, sport);
   } else {
+    addNFLQuarterbackStacks(model, availablePool, sport);
     addSimGameStacks(model, availablePool, constraints.stackGameKeys ?? [], sport);
   }
 
-  if (isNflClassicGpp) {
+  if (isNflClassicGpp || portfolioPolicy) {
     const selectablePlayers = availablePool.filter(p => model.variables[`p${p.id}`]);
     const quarterbacks = selectablePlayers.filter(p => p.position.toUpperCase().split("/").includes("QB"));
 
@@ -7353,7 +7561,7 @@ export function solveLineup(
             p => p.team.trim().toUpperCase() === opponent && isBringBackCandidate(p.position),
           )
         : [];
-      if (bringBacks.length > 0) {
+      if (!portfolioPolicy && bringBacks.length > 0) {
         const bringBackConstraint = `nfl_bringback_qb_${qb.id}`;
         model.constraints[bringBackConstraint] = { max: 0 };
         model.variables[qbVariable][bringBackConstraint] = 1;

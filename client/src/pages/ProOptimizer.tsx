@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { NflPortfolioControls, NflPortfolioReportView, useNflPortfolio } from "@/components/NflPortfolio";
 import { useRoute, useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -175,6 +176,7 @@ export default function ProOptimizer() {
   const [sortKey, setSortKey] = useState<SortKey>("projectedPoints");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [lineupCount, setLineupCount] = useState(5);
+  const portfolio = useNflPortfolio();
   // useBoosts: pro users get boosts on by default; they can still toggle it off.
   // We use a separate userOverride flag so a pro user's explicit "off" is respected
   // even after subData refetches — without this, the useEffect would flip it back on.
@@ -228,6 +230,8 @@ export default function ProOptimizer() {
   const sport = (slate?.sport || "NBA") as Sport;
   const isClassic = (slate?.gameType || "Classic").trim().toLowerCase() === "classic";
   const isNflClassic = sport === "NFL" && (slate?.gameType || "Classic").toLowerCase() === "classic";
+  const portfolioSupported = isNflClassic && platform === "draftkings";
+  useEffect(() => { portfolio.setReport(undefined); }, [simMode, platform]);
 
   const favoriteStacksQueryKey = `/api/slates/${slateId}/favorite-stacks`;
   const {
@@ -339,6 +343,7 @@ export default function ProOptimizer() {
       return res.json();
     },
     onSuccess: (data) => {
+      portfolio.setReport((data as any).nflPortfolioReport);
       if (data.lineups?.length) setMobileView("lineup");
       // Warn if server returned lineups that violate the requested exposure limits.
       // This can happen due to solver rounding or insufficient player pool diversity.
@@ -374,6 +379,7 @@ export default function ProOptimizer() {
       return res.json();
     },
     onSuccess: (data: any) => {
+      portfolio.setReport(data.nflPortfolioReport);
       if (data?.lineups?.length === 0) {
         toast({ title: "No sim lineups", description: data.message || "Try reducing constraints.", variant: "destructive" });
       } else if (data?.lineups?.length > 0) {
@@ -796,6 +802,11 @@ export default function ProOptimizer() {
   }, [generatedLineups, players, exposureLimits, globalMaxExposure]);
 
   const handleOptimize = () => {
+    portfolio.setReport(undefined);
+    if (portfolioSupported && portfolio.error) {
+      toast({ title: "Invalid NFL strategy", description: portfolio.error, variant: "destructive" });
+      return;
+    }
     const projections = buildPlayerProjections();
     if (isPro && fadedIds.length > 0 && players) {
       for (const p of players) {
@@ -825,6 +836,7 @@ export default function ProOptimizer() {
     if (simMode) {
       // ── Simulation mode: Monte Carlo game-script optimization ──────────────
       simMutation.mutate({
+        ...(portfolioSupported && portfolio.settings.enabled ? { nflPortfolio: portfolio.settings, contestType: "gpp" } : {}),
         slateId,
         platform,
         lockedPlayerIds:  lockedIds,
@@ -848,6 +860,7 @@ export default function ProOptimizer() {
       });
     } else {
       optimizeMutation.mutate({
+        ...(portfolioSupported && portfolio.settings.enabled ? { nflPortfolio: portfolio.settings, contestType: "gpp" } : {}),
         slateId,
         platform,
         lockedPlayerIds: lockedIds,
@@ -1108,6 +1121,7 @@ export default function ProOptimizer() {
   };
 
   const handleReset = () => {
+    portfolio.reset();
     setLockedIds([]);
     setExcludedIds([]);
     setFadedIds([]);
@@ -1219,6 +1233,10 @@ export default function ProOptimizer() {
   return (
     <div className={`flex flex-col ${playerFocus ? "fixed inset-0 z-50 h-[100dvh] overflow-hidden bg-slate-950" : "min-h-full overflow-visible"}`} data-testid="pro-optimizer-page">
       {/* Top Controls Bar */}
+      {!playerFocus && <div className="p-2 space-y-2 max-h-[60vh] overflow-auto">
+        <NflPortfolioControls settings={portfolio.settings} onChange={portfolio.setSettings} supported={portfolioSupported} players={players || []} />
+        <NflPortfolioReportView report={portfolio.report} target={`Slate ${slateId} · ${simMode ? "Sim" : "Pro"}`} />
+      </div>}
       {!playerFocus && <div className="border-b border-slate-800 bg-slate-900/60 px-4 py-2">
         <div className="flex flex-col gap-2 md:gap-0">
           {/* Row 1: Slate info + selector */}
