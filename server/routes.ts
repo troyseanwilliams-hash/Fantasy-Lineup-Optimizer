@@ -297,6 +297,10 @@ export function buildSimRegenerateSolverConstraints(
   } as unknown as OptimizationConstraints & { stackGameKeys?: string[]; maxSalary?: number };
 }
 
+export function simRegenerationRuntimeMs(lineupCount: number): number {
+  return Math.min(90_000, Math.max(35_000, 20_000 + Math.max(0, lineupCount) * 250));
+}
+
 function serializeFavoriteStack(stack: FavoriteStack) {
   return {
     id: stack.id,
@@ -2195,7 +2199,10 @@ export async function registerRoutes(
     const tierSims = isAdmin ? 750 : tier === "pro" ? 500 : 200;
     const startTime = Date.now();
     const LP_BUDGET_MS = 20000;
-    const MAX_RUNTIME_MS = 35000;
+    // Large strict NFL portfolios need substantially more unique candidates
+    // than requested lineups before exact structure/exposure selection. A
+    // fixed small-batch budget can stop a valid 193-lineup search prematurely.
+    const MAX_RUNTIME_MS = simRegenerationRuntimeMs(ids.length);
     const solverDeadline = startTime + MAX_RUNTIME_MS - 3_000;
     let simRegenTimedOut = false;
 

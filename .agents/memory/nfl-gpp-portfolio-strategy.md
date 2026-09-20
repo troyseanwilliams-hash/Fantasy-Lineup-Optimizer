@@ -27,6 +27,12 @@ Exposure feasibility depends on candidate generation as well as final portfolio 
 
 **How to apply:** Generate deliberate alternatives for overrepresented players and minimum-exposure targets, while preserving locks. Distinguish an exhausted search budget from proven infeasibility; never relax hard exposures silently.
 
+Strict regeneration search time must scale with requested lineup count, within a firm upper bound.
+
+**Why:** A fixed small-batch deadline stopped a valid 193-lineup search at 169 unique candidates before exact portfolio selection could run.
+
+**How to apply:** Give large batches enough candidate-generation time while retaining a response reserve. Do not solve deadline failures by loosening exposure, structure, or salary requirements.
+
 Exposure maxima are final-batch invariants, not candidate-ranking preferences.
 
 **Why:** Legacy fill-to-count and minimum-exposure replacement passes could undo an earlier valid selection, producing more than the configured maximum. Source-preserving Resim clones can also make all-saved exposure differ from the newly generated batch.

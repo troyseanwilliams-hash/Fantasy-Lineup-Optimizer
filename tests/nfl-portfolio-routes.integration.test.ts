@@ -141,6 +141,9 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
   };
   try {
     const routes = require("../server/routes.ts");
+    assert.equal(routes.simRegenerationRuntimeMs(1), 35_000);
+    assert.equal(routes.simRegenerationRuntimeMs(193), 68_250);
+    assert.equal(routes.simRegenerationRuntimeMs(1_000), 90_000);
     await routes.registerRoutes({}, app);
     for (const [path, handler] of handlers) httpApp.post(path, handler);
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
