@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { AFFILIATE_LINKS } from "@shared/affiliate-config";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { apiErrorMessage } from "@/lib/api-error-message";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { getPlatformConfig, getShowdownConfig, assignPlayersToSlots, getSlotDisplayName, positionFitsSlot } from "@shared/platform-config";
@@ -961,7 +962,7 @@ export default function SavedLineups() {
       await refreshLineups();
     },
     onError: (err: any) => {
-      toast({ title: "Sim Regeneration Failed", description: err.message || "Could not regenerate lineups.", variant: "destructive" });
+      toast({ title: "Sim Regeneration Failed", description: apiErrorMessage(err, "Could not regenerate lineups."), variant: "destructive" });
     }
   });
 

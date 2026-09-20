@@ -68,6 +68,9 @@ export function selectExposureLineups<T>(ranked: T[], ids: (lineup: T) => number
     return ranked;
   }
   const candidates = ranked.filter(c => (bounds.lockedPlayerIds || []).every(id => ids(c).includes(id)));
+  if (options.requireFull && candidates.length < options.count) {
+    fail(`Insufficient eligible candidates: ${candidates.length} for ${options.count} requested lineups after pool/projection filtering. No lineups were saved.`);
+  }
   const constrained = (bounds.globalMaxExposure ?? 100) < 100 || (bounds.globalMinExposure ?? 0) > 0 ||
     Object.values(bounds.exposureLimits || {}).some(x => x < 100) || Object.values(bounds.minExposureLimits || {}).some(x => x > 0);
   if (!constrained) {
@@ -102,12 +105,19 @@ export function selectExposureLineups<T>(ranked: T[], ids: (lineup: T) => number
       model.constraints[`b${i}`] = { max: 1 };
       model.ints[`c${i}`] = 1;
     });
-    const { result } = solveWithBudget(model, { deadline, timeoutMs: 2000 });
+    let { result } = solveWithBudget(model, { deadline, timeoutMs: Math.min(2000, Math.max(1, (deadline - Date.now()) * 0.4)) });
+    if (!validatedIntegralResult(result, model) && Date.now() < deadline) {
+      // Ranking is a preference, not an extra feasibility condition. Spend
+      // remaining time finding any integral constrained batch, not proving the
+      // optimal sum of ranks. No bound or candidate is relaxed.
+      for (const variable of Object.values(model.variables) as Record<string, number>[]) variable.rank = 0;
+      result = solveWithBudget(model, { deadline, timeoutMs: Math.max(1, deadline - Date.now()) }).result;
+    }
     if (!validatedIntegralResult(result, model)) continue;
     const selected = candidates.filter((_, i) => result[`c${i}`] > 0.5);
     if (selected.length !== size) continue;
     assertLineupExposures(selected, ids, bounds);
     return selected;
   }
-  fail("No batch satisfying hard exposure limits was found within the candidate/search time budget. This does not prove infeasibility. Expand the pool or review exposures; no lineups were saved.");
+  fail(`No batch satisfying hard exposure limits was found: ${candidates.length} eligible candidates, ${options.count} requested; ${Date.now() >= deadline ? "selection time budget exhausted" : "candidate set cannot supply a validated batch within the search budget"}. This does not prove pool infeasibility. Expand the pool or review exposures; no lineups were saved.`);
 }

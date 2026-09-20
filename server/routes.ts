@@ -3,6 +3,7 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { registerPlayerConfiguration, configurationExpiry, resolveConfigurationOverrides } from "./player-configuration";
 import { selectExposureLineups, assertLineupExposures, validateExposureBounds, mergeExposureMinimums, mergeExposureMaximums } from "./lineup-exposure";
+import { createSimExposureSearch, filterSimProjectionCandidates } from "./sim-exposure-search";
 import { db } from "./db";
 import { users, subscriptions, slates, lineups as lineupsTable, signupEvents, supportTickets, draftTeams, type FavoriteStack } from "@shared/schema";
 import { eq, and, lt, sql, desc, gte, inArray } from "drizzle-orm";
@@ -2446,24 +2447,27 @@ export async function registerRoutes(
         console.log(`[SimRegen] Pool trimmed: ${pool.length} → ${lpPool.length} players for LP solving`);
 
         function getSimLocks(simIndex: number, totalSims: number): number[] {
-          const locks = [...simRegenLocked];
-          for (const mp of minExpPlayers) {
-            const neededSims = Math.ceil((mp.pct / 100) * totalSims);
-            if (simIndex < neededSims) {
-              if (!locks.includes(mp.id)) locks.push(mp.id);
-            }
-          }
-          return locks;
+          return [...simRegenLocked];
         }
 
-        const simRegenConstraints = (lockedPlayerIds: number[]) =>
-          buildSimRegenerateSolverConstraints(
+        const regenExposureBounds = {
+          globalMaxExposure, globalMinExposure, lockedPlayerIds: Array.from(simRegenLocked),
+          exposureLimits: mergeExposureMaximums(Object.fromEntries(Object.entries(simRegenOverrideExposure).filter(([, v]) => v.max != null).map(([id, v]) => [id, v.max!])), req.body.exposureLimits),
+          minExposureLimits: mergeExposureMinimums(Object.fromEntries(Object.entries(simRegenOverrideExposure).filter(([, v]) => v.min != null).map(([id, v]) => [id, v.min!])), minExposureLimits),
+        };
+        const exposureSearch = createSimExposureSearch(regenExposureBounds, lineupIds.length);
+        const candidateDeadline = solverDeadline - 5000;
+        const simRegenConstraints = (lockedPlayerIds: number[]) => {
+          const base = buildSimRegenerateSolverConstraints(
             slateId,
             lockedPlayerIds,
             config.salaryCap,
             simContestType,
             simRegenRestrictions,
           );
+          return simRegenRestrictions.nflPortfolio?.enabled ? base :
+            exposureSearch(base, lpPool.map(p => p.id), lineupMap.values());
+        };
 
         const preset = simRegenRestrictions.nflPortfolio?.enabled ? simRegenRestrictions.nflPortfolio : undefined;
         const portfolioSims = preset ? runSimulations(pool, slate.sport, tierSims, dvpAdjusted, vegasContext ?? undefined) : [];
@@ -2503,7 +2507,7 @@ export async function registerRoutes(
         const calStart = Date.now();
         let calibrationAttempts = 0;
         for (let i = 0; !preset && i < calibrationSims.length; i++) {
-          if (Date.now() >= solverDeadline) {
+          if (Date.now() >= candidateDeadline) {
             simRegenTimedOut = true;
             break;
           }
@@ -2523,7 +2527,7 @@ export async function registerRoutes(
             simRegenConstraints(simLocks),
             slate.sport, platform,
             undefined,
-            { deadline: solverDeadline, timeoutMs: 2_000 },
+            { deadline: candidateDeadline, timeoutMs: 2_000 },
           );
           if (result.timedOut) simRegenTimedOut = true;
           if (result.error || result.lineup.length === 0) continue;
@@ -2539,7 +2543,7 @@ export async function registerRoutes(
           console.log(`[SimRegen] Trimmed pool infeasible, falling back to full pool (${pool.length} players)`);
           lpPool = pool;
           for (let i = 0; i < calibrationSims.length; i++) {
-            if (Date.now() >= solverDeadline) {
+            if (Date.now() >= candidateDeadline) {
               simRegenTimedOut = true;
               break;
             }
@@ -2559,7 +2563,7 @@ export async function registerRoutes(
               slate.sport,
               platform,
               undefined,
-              { deadline: solverDeadline, timeoutMs: 2_000 },
+              { deadline: candidateDeadline, timeoutMs: 2_000 },
             );
             if (result.timedOut) simRegenTimedOut = true;
             if (result.error || result.lineup.length === 0) continue;
@@ -2584,7 +2588,7 @@ export async function registerRoutes(
 
         let actualSimsSolved = CALIBRATION_BATCH;
         for (let i = CALIBRATION_BATCH; !preset && i < allSims.length; i++) {
-          if (Date.now() >= solverDeadline) {
+          if (Date.now() >= candidateDeadline) {
             simRegenTimedOut = true;
             console.log(`[SimRegen] Hard time cap reached after ${actualSimsSolved} sims`);
             break;
@@ -2604,7 +2608,7 @@ export async function registerRoutes(
             simRegenConstraints(mainLocks),
             slate.sport, platform,
             undefined,
-            { deadline: solverDeadline, timeoutMs: 2_000 },
+            { deadline: candidateDeadline, timeoutMs: 2_000 },
           );
           if (result.timedOut) simRegenTimedOut = true;
           actualSimsSolved++;
@@ -2623,7 +2627,8 @@ export async function registerRoutes(
           continue;
         }
 
-        const candidateLimit = Math.max(lineupIds.length * 5, 60);
+        // Rare exposure alternatives must not be discarded by frequency.
+        const candidateLimit = hasConstrainedResim ? lineupMap.size : Math.max(lineupIds.length * 5, 60);
         let candidateEntries = Array.from(lineupMap.entries());
         if (!preset && candidateEntries.length > candidateLimit) {
           candidateEntries.sort((a, b) => b[1].frequency - a[1].frequency);
@@ -2665,15 +2670,17 @@ export async function registerRoutes(
           };
         });
 
-        const effectiveFloor = simProjFloor ? Math.max(simProjFloor, autoFloor) : autoFloor;
+        // The baseline-derived floor is only a quality heuristic. It must not
+        // delete the alternatives needed to satisfy a hard exposure batch.
+        const effectiveFloor = simProjFloor || (hasConstrainedResim ? 0 : autoFloor);
         if (!preset && effectiveFloor > 0) {
           const boostedFloorMap = new Map(pool.map(bp => [bp.id, bp]));
           const beforeCount = scoredCandidates.length;
-          const filtered = scoredCandidates.filter(c => {
+          const filtered = filterSimProjectionCandidates(scoredCandidates, c => {
             const totalBoostedPts = c.lineup.reduce((sum, p) => sum + Number(boostedFloorMap.get(p.id)?.projectedPoints ?? p.projectedPoints ?? 0), 0);
-            return totalBoostedPts >= effectiveFloor;
-          });
-          if (filtered.length >= Math.min(lineupIds.length, 3)) {
+            return totalBoostedPts;
+          }, { count: lineupIds.length, explicitFloor: simProjFloor, automaticFloor: autoFloor, constrained: hasConstrainedResim });
+          if (filtered !== scoredCandidates) {
             scoredCandidates.length = 0;
             scoredCandidates.push(...filtered);
           }
@@ -2760,7 +2767,7 @@ export async function registerRoutes(
       // Nothing is written until every target has generated and validated its
       // candidates. Recheck all target kickoffs immediately before committing.
       {
-        if (hasConstrainedResim && (simRegenTimedOut || results.some(r => r.status === "skipped" && r.error !== "Not found or not yours"))) {
+        if (hasConstrainedResim && results.some(r => r.status === "skipped" && r.error !== "Not found or not yours")) {
           return res.status(400).json({ message: "Regeneration could not fill every requested lineup. No regenerated lineups were saved." });
         }
         for (const slateId of slateGroups.keys()) {
@@ -5830,6 +5837,10 @@ export async function registerRoutes(
       }
       const simKeepIds = new Set<number>();
       for (const pid of input.lockedPlayerIds) simKeepIds.add(pid);
+      for (const [id, pct] of Object.entries(mergeExposureMinimums(
+        Object.fromEntries(Object.entries(simOverrideExposure).filter(([, v]) => v.min != null).map(([id, v]) => [id, v.min!])),
+        input.minExposureLimits,
+      ))) if (pct > 0) simKeepIds.add(Number(id));
       // Keep every player that can satisfy a selected alternative in the
       // reduced LP pool.  Excluded/inactive players are not reintroduced;
       // their exact-player selector remains infeasible instead of receiving a
@@ -5910,6 +5921,14 @@ export async function registerRoutes(
         maxSalary?: number;
         minSalary?: number;
       };
+      const simExposureSearch = createSimExposureSearch({
+        globalMaxExposure: input.globalMaxExposure, globalMinExposure: input.globalMinExposure,
+        lockedPlayerIds: input.lockedPlayerIds,
+        exposureLimits: mergeExposureMaximums(Object.fromEntries(Object.entries(simOverrideExposure).filter(([, v]) => v.max != null).map(([id, v]) => [id, v.max!])), input.exposureLimits),
+        minExposureLimits: mergeExposureMinimums(Object.fromEntries(Object.entries(simOverrideExposure).filter(([, v]) => v.min != null).map(([id, v]) => [id, v.min!])), input.minExposureLimits),
+      }, input.lineupCount);
+      const simCandidateDeadline = solverDeadline - 5000;
+      const simSearchConstraints = () => simExposureSearch(simConstraintsBase, lpSimPool.map(p => p.id), lineupMap.values());
 
       let nflPortfolioReport: NflPortfolioReport | undefined;
       const portfolioEvResults = new Map<string, TournamentEVResult>();
@@ -5944,7 +5963,7 @@ export async function registerRoutes(
       const calT0 = Date.now();
       let calibrationAttempts = 0;
       for (let i = 0; !input.nflPortfolio?.enabled && i < calSims.length; i++) {
-        if (Date.now() >= solverDeadline) {
+        if (Date.now() >= simCandidateDeadline) {
           simTimedOut = true;
           break;
         }
@@ -5958,11 +5977,11 @@ export async function registerRoutes(
         calibrationAttempts++;
         const result = solveLineup(
           simPool,
-          simConstraintsBase,
+          simSearchConstraints(),
           sport,
           platform,
           undefined,
-          { deadline: solverDeadline, timeoutMs: 2_000 },
+          { deadline: simCandidateDeadline, timeoutMs: 2_000 },
         );
         if (result.timedOut) simTimedOut = true;
         if (result.error || result.lineup.length === 0) continue;
@@ -5988,7 +6007,7 @@ export async function registerRoutes(
         console.log(`[SimOptimizer] Trimmed pool infeasible, falling back to full pool (${pool.length} players)`);
         lpSimPool = pool;
         for (let i = 0; i < calSims.length; i++) {
-          if (Date.now() >= solverDeadline) {
+          if (Date.now() >= simCandidateDeadline) {
             simTimedOut = true;
             break;
           }
@@ -6001,11 +6020,11 @@ export async function registerRoutes(
           await yieldToEventLoop();
           const result = solveLineup(
             simPool,
-            simConstraintsBase,
+            simSearchConstraints(),
             sport,
             platform,
             undefined,
-            { deadline: solverDeadline, timeoutMs: 2_000 },
+            { deadline: simCandidateDeadline, timeoutMs: 2_000 },
           );
           if (result.timedOut) simTimedOut = true;
           if (result.error || result.lineup.length === 0) continue;
@@ -6035,7 +6054,7 @@ export async function registerRoutes(
       const sims = [...calSims, ...remainingSims];
 
       for (let i = SIM_CAL_BATCH; !input.nflPortfolio?.enabled && i < sims.length; i++) {
-        if (Date.now() >= solverDeadline) {
+        if (Date.now() >= simCandidateDeadline) {
           simTimedOut = true;
           console.log(`[SimOptimizer] Time cap reached after ${i} sims`);
           break;
@@ -6049,11 +6068,11 @@ export async function registerRoutes(
         await yieldToEventLoop();
         const result = solveLineup(
           simPool,
-          simConstraintsBase,
+          simSearchConstraints(),
           sport,
           platform,
           undefined,
-          { deadline: solverDeadline, timeoutMs: 2_000 },
+          { deadline: simCandidateDeadline, timeoutMs: 2_000 },
         );
         if (result.timedOut) simTimedOut = true;
         if (result.error || result.lineup.length === 0) continue;

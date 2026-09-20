@@ -78,6 +78,21 @@ async function setMaxExposureTo80(page: Page) {
   await expect(page.getByTestId("regen-text-exposure")).toHaveText("80%");
 }
 
+test("Resim failure shows a readable explanation and preserves selected lineups", async ({ page }) => {
+  await mockApi(page, [lineup(976201, classicA)], []);
+  const message = "Only 137 valid candidates were found for 193 requested lineups. No lineups were saved.";
+  await page.route("**/api/lineups/sim-regenerate", route => route.fulfill({
+    status: 400, json: { message },
+  }));
+  await page.goto("/lineups");
+  await page.getByTestId("select-lineup-976201").click();
+  await page.getByTestId("sim-regen-btn").click();
+  await expect(page.getByText("Sim Regeneration Failed", { exact: true })).toBeVisible();
+  await expect(page.getByText(message, { exact: true })).toBeVisible();
+  await expect(page.getByTestId("sim-regen-btn")).toBeEnabled();
+  await expect(page.getByText(`400: {"message":"${message}"}`, { exact: true })).toHaveCount(0);
+});
+
 test("main ReSim sends FLEX restrictions and target-player game stacks", async ({ page }) => {
   const requests: Record<string, unknown>[] = [];
   await mockApi(page, [lineup(976201, classicA)], requests);

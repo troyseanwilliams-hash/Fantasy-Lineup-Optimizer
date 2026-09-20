@@ -32,3 +32,9 @@ Exposure maxima are final-batch invariants, not candidate-ranking preferences.
 **Why:** Legacy fill-to-count and minimum-exposure replacement passes could undo an earlier valid selection, producing more than the configured maximum. Source-preserving Resim clones can also make all-saved exposure differ from the newly generated batch.
 
 **How to apply:** Validate the final returned/saved set against its actual count after every selection stage; neither player overrides nor locks may silently loosen a global maximum. Distinguish batch exposure from historical saved-lineup exposure in reports.
+
+Automatic projection-quality filters must not eliminate candidates needed for a full exposure-constrained batch.
+
+**Why:** A large Resim request had enough raw candidates, but a baseline-derived floor removed roughly half of them, leaving fewer candidates than requested. The resulting exposure error appeared to be a search timeout even though full-batch selection could not start.
+
+**How to apply:** Keep explicit user projection floors hard. Treat automatic floors as preferences when diversification needs alternatives, reserve time for selection, and report candidate-count shortages separately from exhausted search or conflicting constraints.
