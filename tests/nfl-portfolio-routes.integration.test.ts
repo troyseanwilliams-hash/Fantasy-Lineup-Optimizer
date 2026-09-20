@@ -44,6 +44,7 @@ test("all four handlers propagate enabled strategy and simulation scoring; OFF n
   let closeDuringGeneration = false;
   let cokerAppearances: number | undefined;
   let failLegacyExposureGroup = false;
+  let savedPlayerOverrides: any[] = [];
   const identity = (p: any) => p;
   mock("../server/db.ts", { db: { update: () => ({ set: (payload: any) => ({ where: async () => { writes.push(payload); } }) }) }, pool: {} });
   mock("../server/replit_integrations/auth/index.ts", { setupAuth: async () => {}, registerAuthRoutes: () => {} });
@@ -57,9 +58,11 @@ test("all four handlers propagate enabled strategy and simulation scoring; OFF n
     getUser: async () => ({ isAdmin: true }),
     getSubscription: async () => ({ tier: "pro" }),
     getPlayerOverrides: async (_userId: string, slateId: number) => failLegacyExposureGroup && slateId === 78
-      ? [{ playerId: 99999, minExposure: 100, maxExposure: 100 }] : [],
+      ? [{ playerId: 99999, minExposure: 100, maxExposure: 100 }] : slateId === 77 ? savedPlayerOverrides : [],
     getZeroPointPlayerNames: async () => [],
     getLineup: async (id: number) => ({ id, slateId: id === 4 ? 78 : 77, userId: id === 999 ? "other" : "owner", sport: "NFL", platform: "draftkings" }),
+    createLineup: async (payload: any) => { writes.push(payload); return { id: 500, ...payload }; },
+    updateLineup: async (_id: number, payload: any) => { writes.push(payload); return payload; },
   } });
   mock("../server/boost-engine.ts", { applyActualAdjustedProjections: identity, applyWinningLineupAdjustment: identity, applyCeilingMode: identity, applyLeverageMode: identity, computeCorrelationBonus: () => 0 });
   mock("../server/market-projections.ts", { applyMarketProjectionBlend: identity });
@@ -219,6 +222,44 @@ test("all four handlers propagate enabled strategy and simulation scoring; OFF n
     const beforeLegacyFailure = writes.length;
     await invoke("/api/lineups/sim-regenerate", { ids: [1, 4], globalMaxExposure: 100 }, 400);
     assert.equal(writes.length, beforeLegacyFailure, "legacy exposure-constrained groups must all validate before any saves");
+    failLegacyExposureGroup = false;
+    savedPlayerOverrides = [{ playerId: 1, maxExposure: 80 }];
+    cokerAppearances = 13;
+    for (const path of ["/api/optimize/pro", "/api/optimize/sim", "/api/lineups/sim-regenerate"]) {
+      const rejected = await invoke(path, {
+        ...common, ids: requestedIds, lineupCount: 15, numSims: 50,
+        globalMaxExposure: 100, exposureLimits: { 1: 100 },
+      }, 400);
+      assert.match(rejected.message, /exposure/i, "request 100 must not loosen stored 80");
+      assert.equal(writes.length, beforeLegacyFailure);
+    }
+    const cappedNormal = await invoke("/api/optimize", { slateId: 77 }, 400);
+    assert.match(cappedNormal.message, /batch/i);
+    const cappedBulk = await invoke("/api/lineups/bulk-generate", {
+      ids: [1], slateId: 77, globalMaxExposure: 100, exposureLimits: { 1: 100 },
+    }, 400);
+    assert.match(cappedBulk.message, /exposure/i);
+    assert.equal(writes.length, beforeLegacyFailure);
+    cokerAppearances = undefined;
+    savedPlayerOverrides = [{ playerId: 1, customProjection: "40", boostPercent: 20, isLocked: true }, { playerId: 11, isExcluded: true }];
+    for (const path of ["/api/optimize", "/api/optimize/pro", "/api/optimize/sim", "/api/lineups/sim-regenerate"]) {
+      await invoke(path, { ...common, ids: [1], lineupCount: 1, numSims: 50, playerProjections: { 1: 1 } });
+      const last = calls.at(-1);
+      assert.ok(last.baseConstraints.lockedPlayerIds.includes(1), path);
+      assert.ok(Number(last.pool.find((p: any) => p.id === 1)?.projectedPoints) >= 48, `${path} honors stored projection and boost`);
+      assert.ok(last.baseConstraints.excludedPlayerIds.includes(11) || !last.pool.some((p: any) => p.id === 11), path);
+    }
+    const beforeBulk = writes.length;
+    const configuredBulk = await invoke("/api/lineups/bulk-generate", { ids: [1], slateId: 77, globalMaxExposure: 100, useBoosts: false });
+    assert.equal(configuredBulk.updated, 1);
+    assert.equal(writes.length, beforeBulk + 1);
+    assert.ok(writes.at(-1).playerIds.includes(1));
+    assert.ok(!writes.at(-1).playerIds.includes(11));
+    const clone = await invoke("/api/lineups/sim-regenerate", { ...common, slateId: 78, ids: [1], preserveSourceSlateId: true });
+    assert.equal(clone.created, 1);
+    assert.deepEqual(calls.at(-1).baseConstraints.lockedPlayerIds, [], "source-slate locks never leak into target configuration");
+    assert.equal(writes.at(-1).userId, "owner", "clone belongs to source owner");
+    assert.equal(writes.at(-1).slateId, 78);
   } finally {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     for (const [id, previous] of saved) {

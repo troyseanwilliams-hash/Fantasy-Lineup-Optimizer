@@ -286,7 +286,7 @@ export function Header() {
               <DropdownMenuTrigger asChild>
                 <button
                   className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer outline-none ${
-                    ["/props", "/prizepicks", "/showdown", "/player-config", "/ownership", "/nfl-mme", "/top-stacks"].includes(currentPath)
+                    ["/props", "/prizepicks", "/showdown", "/player-config", "/player-configuration", "/ownership", "/nfl-mme", "/top-stacks"].includes(currentPath)
                       ? "text-[#10B981]"
                       : "text-slate-400 hover:text-white"
                   }`}
@@ -328,7 +328,7 @@ export function Header() {
                     <Link href="/player-config">
                       <DropdownMenuItem className="cursor-pointer" data-testid="nav-player-config">
                         <Settings2 className="w-4 h-4 mr-2 text-slate-400" />
-                        <span className="text-sm font-bold text-slate-300">Player Config</span>
+                        <span className="text-sm font-bold text-slate-300">Player Configuration</span>
                       </DropdownMenuItem>
                     </Link>
                     <Link href="/scout">
@@ -713,7 +713,7 @@ export function Header() {
               <button
                 onClick={() => mobileNav("/player-config")}
                 className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                  currentPath === "/player-config" ? "bg-amber-500/10 text-amber-400" : "text-white hover:bg-slate-800"
+                  (currentPath === "/player-config" || currentPath === "/player-configuration") ? "bg-amber-500/10 text-amber-400" : "text-white hover:bg-slate-800"
                 }`}
                 data-testid="mobile-nav-player-config"
               >

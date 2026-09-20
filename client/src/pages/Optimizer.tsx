@@ -883,6 +883,13 @@ export default function Optimizer() {
               <span className="text-[10px] text-slate-500 whitespace-nowrap">
                 Exports and new lineups use this exact group.
               </span>
+               <Link
+                 href={`/player-config?slateId=${slateId}`}
+                 className={`ml-auto text-[10px] font-black uppercase tracking-wide ${pColors.text} hover:underline whitespace-nowrap`}
+                 data-testid="optimizer-player-configuration-link"
+               >
+                 Player Configuration
+               </Link>
             </div>
           )}
 

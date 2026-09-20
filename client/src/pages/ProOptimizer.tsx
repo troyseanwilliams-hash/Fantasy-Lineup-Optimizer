@@ -1298,6 +1298,13 @@ export default function ProOptimizer() {
                 Target: <span className="text-amber-300">{formatDraftGroupIdentity(slate)}</span>
               </span>
             )}
+            <Link
+              href={`/player-config?slateId=${slateId}`}
+              className="hidden lg:inline-flex text-[10px] font-black uppercase tracking-wide text-amber-300 hover:text-amber-200"
+              data-testid="pro-player-configuration-link"
+            >
+              Player Configuration
+            </Link>
 
             {isPro && (
               <>

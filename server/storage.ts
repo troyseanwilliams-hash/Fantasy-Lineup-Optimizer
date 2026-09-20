@@ -348,6 +348,11 @@ export class DatabaseStorage implements IStorage {
             .from(lineups)
             .where(eq(lineups.slateId, slateId));
           const referencedPlayerIds = new Set(slateLineups.flatMap(lineup => lineup.playerIds));
+          // Configuration is historical data too. Retain its provider identity
+          // so a returning draftable can reactivate the same row and settings.
+          const configuredPlayers = await tx.select({ playerId: playerOverrides.playerId })
+            .from(playerOverrides).where(eq(playerOverrides.slateId, slateId));
+          for (const configured of configuredPlayers) referencedPlayerIds.add(configured.playerId);
           const referencedStaleIds = stalePlayerIds.filter(id => referencedPlayerIds.has(id));
           const unreferencedStaleIds = stalePlayerIds.filter(id => !referencedPlayerIds.has(id));
 

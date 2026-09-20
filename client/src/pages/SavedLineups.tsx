@@ -1350,6 +1350,15 @@ export default function SavedLineups() {
               </div>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
+              {effectiveSlateId && (
+                <Link
+                  href={`/player-config?slateId=${effectiveSlateId}`}
+                  className="inline-flex h-9 items-center rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20"
+                  data-testid="saved-lineups-player-configuration-link"
+                >
+                  Player Configuration
+                </Link>
+              )}
               {lineups && lineups.length > 0 && (
                 <>
                   <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50" data-testid="vault-sort-controls">

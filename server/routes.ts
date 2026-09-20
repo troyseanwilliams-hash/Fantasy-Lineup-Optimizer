@@ -1,6 +1,7 @@
 import type { Express, Request } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
+import { registerPlayerConfiguration, configurationExpiry, resolveConfigurationOverrides } from "./player-configuration";
 import { selectExposureLineups, assertLineupExposures, validateExposureBounds, mergeExposureMinimums, mergeExposureMaximums } from "./lineup-exposure";
 import { db } from "./db";
 import { users, subscriptions, slates, lineups as lineupsTable, signupEvents, supportTickets, draftTeams, type FavoriteStack } from "@shared/schema";
@@ -77,31 +78,12 @@ async function loadOverridesWithCrossRef(
   originalSlateId: number | null,
   altSlatePlayers: Player[]
 ): Promise<{ overrides: any[]; overrideMap: Map<number, any>; excluded: Set<number>; locked: Set<number>; exposureMap: Record<string, { min?: number; max?: number }> }> {
-  let overrides = await storage.getPlayerOverrides(userId, effectiveSlateId);
-
-  if (originalSlateId && originalSlateId !== effectiveSlateId && overrides.length === 0) {
-    const origOverrides = await storage.getPlayerOverrides(userId, originalSlateId);
-    if (origOverrides.length > 0) {
-      const origPlayers = await storage.getPlayersBySlate(originalSlateId);
-      const origIdToDkId = new Map<number, number>();
-      for (const p of origPlayers) {
-        if (p.draftKingsPlayerId) origIdToDkId.set(p.id, p.draftKingsPlayerId);
-      }
-      const dkIdToAltId = new Map<number, number>();
-      for (const p of altSlatePlayers) {
-        if (p.draftKingsPlayerId) dkIdToAltId.set(p.draftKingsPlayerId, p.id);
-      }
-      overrides = origOverrides
-        .map(o => {
-          const dkId = origIdToDkId.get(o.playerId);
-          if (!dkId) return null;
-          const altId = dkIdToAltId.get(dkId);
-          if (!altId) return null;
-          return { ...o, playerId: altId, slateId: effectiveSlateId };
-        })
-        .filter(Boolean) as any[];
-    }
+  // Clone resolution may change the target slate, never the configuration scope.
+  const target = await storage.getSlate(effectiveSlateId);
+  if (!target || configurationExpiry(target, altSlatePlayers).isExpired) {
+    throw new z.ZodError([{ code: "custom", path: ["slateId"], message: "This slate has expired. Generation is unavailable." }]);
   }
+  const overrides = resolveConfigurationOverrides(await storage.getPlayerOverrides(userId, effectiveSlateId), altSlatePlayers);
 
   const overrideMap = new Map(overrides.map(o => [o.playerId, o]));
   const excluded = new Set(overrides.filter(o => o.isExcluded).map(o => o.playerId));
@@ -353,6 +335,7 @@ export async function registerRoutes(
 ): Promise<Server> {
   await setupAuth(app);
   registerAuthRoutes(app);
+  registerPlayerConfiguration(app, storage);
 
   const SITE_URL = "https://fantasy-lineup-optimizer.replit.app";
   app.get("/robots.txt", (_req, res) => {
@@ -390,19 +373,9 @@ export async function registerRoutes(
       }
       const original = await storage.getSlate(id);
       if (!original) return res.status(404).json({ message: "Slate not found" });
-      if (original.isActive !== false) return res.json(original);
-      const candidates = await storage.getSlates();
-      const replacement = original.draftGroupId
-        ? candidates.find(s =>
-            s.isActive !== false &&
-            s.sport === original.sport &&
-            s.platform === original.platform &&
-            (s.gameType || "Classic") === (original.gameType || "Classic") &&
-            s.draftGroupId === original.draftGroupId)
-        : undefined;
-      // Preserve historical metadata when there is no identical active contest.
-      // Never redirect a saved link to a different slate merely sharing its sport.
-      return res.json(replacement || original);
+      // Saved configuration links are historical identities, not live-target
+      // selectors. Regeneration retains its separate source-clone resolution.
+      return res.json(original);
     } catch (err) {
       console.error("Slate resolution error:", err);
       return res.status(500).json({ message: "Failed to resolve slate" });
@@ -1002,95 +975,6 @@ export async function registerRoutes(
     });
   }
 
-  app.get("/api/player-overrides/:slateId", async (req, res) => {
-    const userId = getSessionUserId(req);
-    if (!userId) return res.status(401).json({ message: "Not logged in" });
-    const dbUser = await storage.getUser(userId);
-    if (!dbUser) return res.status(401).json({ message: "User not found" });
-    const sub = await storage.getSubscription(userId);
-    const isAdmin = dbUser.isAdmin === true;
-    const tier = isAdmin ? "pro" : (sub?.tier || "free");
-    if (tier === "free") return res.status(403).json({ message: "Sharpshooter or Champion required" });
-    const slateId = parseInt(req.params.slateId);
-    if (isNaN(slateId)) return res.status(400).json({ message: "Invalid slate ID" });
-    const overrides = await storage.getPlayerOverrides(userId, slateId);
-    const slatePlayers = await storage.getPlayersBySlate(slateId);
-    const playerDkMap = new Map<number, number>();
-    for (const p of slatePlayers) {
-      if (p.draftKingsPlayerId) playerDkMap.set(p.id, p.draftKingsPlayerId);
-    }
-    const enriched = overrides.map((o: any) => ({ ...o, dkPlayerId: playerDkMap.get(o.playerId) ?? null }));
-    res.json(enriched);
-  });
-
-  const playerOverrideBodySchema = z.object({
-    customProjection: z.number().min(0).max(500).nullable().optional(),
-    boostPercent: z.number().int().refine(v => [0, 5, 10, 15, 20].includes(v), { message: "Boost must be 0, 5, 10, 15, or 20" }).default(0),
-    isExcluded: z.boolean().default(false),
-    isLocked: z.boolean().default(false),
-    minExposure: z.number().int().min(0).max(100).nullable().optional(),
-    maxExposure: z.number().int().min(0).max(100).nullable().optional(),
-    notes: z.string().max(200).nullable().optional(),
-    dkPlayerId: z.number().int().positive().optional(),
-  });
-
-  app.put("/api/player-overrides/:slateId/:playerId", async (req, res) => {
-    const userId = getSessionUserId(req);
-    if (!userId) return res.status(401).json({ message: "Not logged in" });
-    const dbUser = await storage.getUser(userId);
-    if (!dbUser) return res.status(401).json({ message: "User not found" });
-    const sub = await storage.getSubscription(userId);
-    const isAdmin = dbUser.isAdmin === true;
-    const tier = isAdmin ? "pro" : (sub?.tier || "free");
-    if (tier === "free") return res.status(403).json({ message: "Sharpshooter or Champion required" });
-    const slateId = parseInt(req.params.slateId);
-    let playerId = parseInt(req.params.playerId);
-    if (isNaN(slateId) || isNaN(playerId)) return res.status(400).json({ message: "Invalid IDs" });
-    const parsed = playerOverrideBodySchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ message: "Invalid request body", errors: parsed.error.flatten() });
-    const { customProjection, boostPercent, isExcluded, isLocked, minExposure, maxExposure, notes, dkPlayerId } = parsed.data;
-    if (minExposure != null && maxExposure != null && minExposure > maxExposure) {
-      return res.status(400).json({ message: "Min exposure cannot exceed max exposure" });
-    }
-    if (dkPlayerId) {
-      const slatePlayers = await storage.getPlayersBySlate(slateId);
-      const current = slatePlayers.find(p => p.draftKingsPlayerId === dkPlayerId);
-      if (current) playerId = current.id;
-    }
-    const override = await storage.upsertPlayerOverride({
-      userId,
-      slateId,
-      playerId,
-      customProjection: customProjection != null ? customProjection.toString() : null,
-      boostPercent: boostPercent || 0,
-      isExcluded: isExcluded || false,
-      isLocked: isLocked || false,
-      minExposure: minExposure ?? null,
-      maxExposure: maxExposure ?? null,
-      notes: notes || null,
-    });
-    res.json(override);
-  });
-
-  app.delete("/api/player-overrides/:slateId/:playerId", async (req, res) => {
-    const userId = getSessionUserId(req);
-    if (!userId) return res.status(401).json({ message: "Not logged in" });
-    const slateId = parseInt(req.params.slateId);
-    const playerId = parseInt(req.params.playerId);
-    if (isNaN(slateId) || isNaN(playerId)) return res.status(400).json({ message: "Invalid IDs" });
-    await storage.deletePlayerOverride(userId, slateId, playerId);
-    res.json({ success: true });
-  });
-
-  app.delete("/api/player-overrides/:slateId", async (req, res) => {
-    const userId = getSessionUserId(req);
-    if (!userId) return res.status(401).json({ message: "Not logged in" });
-    const slateId = parseInt(req.params.slateId);
-    if (isNaN(slateId)) return res.status(400).json({ message: "Invalid slate ID" });
-    await storage.deletePlayerOverridesByUser(userId, slateId);
-    res.json({ success: true });
-  });
-
   app.post(api.optimizer.optimize.path, async (req, res) => {
     const optimizeStartTime = Date.now();
     const optimizeDeadline = optimizeStartTime + 26_000;
@@ -1099,7 +983,7 @@ export async function registerRoutes(
       const slate = await storage.getSlate(constraints.slateId);
       if (!slate) return res.status(404).json({ message: "Slate not found" });
 
-      if (new Date(slate.startTime) <= new Date()) {
+      if (slate.isActive === false || new Date(slate.startTime) <= new Date()) {
         return res.status(400).json({ message: "This slate has already started. Lineups can no longer be generated." });
       }
 
@@ -1136,14 +1020,36 @@ export async function registerRoutes(
         const overrideUser = await storage.getUser(overrideUserId);
         const overrideTier = overrideUser?.isAdmin ? "pro" : (overrideSub?.tier || "free");
         if (overrideTier !== "free") {
-          userOverrides = await storage.getPlayerOverrides(overrideUserId, constraints.slateId);
+          userOverrides = resolveConfigurationOverrides(await storage.getPlayerOverrides(overrideUserId, constraints.slateId), allPlayers);
         }
       }
       const overrideMap = new Map(userOverrides.map(o => [o.playerId, o]));
+      constraints.playerProjections = {
+        ...constraints.playerProjections,
+        ...Object.fromEntries(userOverrides.filter(o => o.customProjection != null).map(o => [o.playerId, Number(o.customProjection)])),
+      };
+      validateExposureBounds(req.body);
+      const normalBounds = {
+        globalMaxExposure: req.body.globalMaxExposure,
+        globalMinExposure: req.body.globalMinExposure,
+        exposureLimits: mergeExposureMaximums(req.body.exposureLimits, Object.fromEntries(userOverrides.filter(o => o.maxExposure != null).map(o => [o.playerId, o.maxExposure]))),
+        minExposureLimits: mergeExposureMinimums(req.body.minExposureLimits, Object.fromEntries(userOverrides.filter(o => o.minExposure != null).map(o => [o.playerId, o.minExposure]))),
+      };
 
-      const overrideExcluded = userOverrides.filter(o => o.isExcluded).map(o => o.playerId);
-      const overrideLocked = userOverrides.filter(o => o.isLocked).map(o => o.playerId);
+      // With denominator one any maximum below 100 allows zero appearances.
+      const overrideExcluded = [
+        ...userOverrides.filter(o => o.isExcluded).map(o => o.playerId),
+        ...allPlayers.filter(p => Math.min(normalBounds.globalMaxExposure ?? 100, normalBounds.exposureLimits[p.id] ?? 100) < 100).map(p => p.id),
+      ];
+      const overrideLocked = [
+        ...userOverrides.filter(o => o.isLocked).map(o => o.playerId),
+        ...Object.entries(normalBounds.minExposureLimits).filter(([, min]) => min > 0).map(([id]) => Number(id)),
+      ];
       const mergedLocked = [...new Set([...constraints.lockedPlayerIds, ...overrideLocked])];
+      validateExposureBounds({ ...normalBounds, lockedPlayerIds: mergedLocked });
+      if (mergedLocked.some(id => overrideExcluded.includes(id))) {
+        return res.status(400).json({ message: "A required player is excluded or capped below 100%. Use batch generation for fractional exposure caps." });
+      }
 
       const autoExcluded = allPlayers
         .filter(p => isPlayerOut(p.injuryStatus) && !mergedLocked.includes(p.id))
@@ -1172,7 +1078,7 @@ export async function registerRoutes(
         : undefined;
 
       const scoutMap = buildScoutMap(slate.sport);
-      const useBoosts = constraints.useBoosts !== false;
+      const useBoosts = req.body.useBoosts !== false;
 
       let pool = allPlayers.map(p => {
         const override = overrideMap.get(p.id);
@@ -1250,10 +1156,11 @@ export async function registerRoutes(
         const ownershipMap = await portfolioOwnership(salaryFilteredPool, constraints.nflPortfolio);
         const portfolio = await generateNflPortfolio({
           pool: salaryFilteredPool, settings: constraints.nflPortfolio, count: 1,
-          baseConstraints: { ...constraints, minProjection: undefined, lockedPlayerIds: mergedLocked, excludedPlayerIds: mergedExclusions },
+          baseConstraints: { ...constraints, ...normalBounds, minProjection: undefined, lockedPlayerIds: mergedLocked, excludedPlayerIds: mergedExclusions },
           ownershipMap, deadline: optimizeDeadline,
           solve: (candidatePool, candidateConstraints) => solveLineup(candidatePool, candidateConstraints, slate.sport, platform, candidateConstraints.ownershipMap ?? ownershipMap, { deadline: optimizeDeadline, timeoutMs: 2000 }),
         });
+        assertLineupExposures(portfolio.lineups, c => c.lineup.map((p: Player) => p.id), { ...normalBounds, lockedPlayerIds: mergedLocked });
         return res.json({ ...(portfolio.lineups[0] ?? { lineup: [], totalSalary: 0, totalProjectedPoints: 0 }), platform, nflPortfolioReport: portfolio.report, partial: portfolio.report.partial });
       }
       const result = solveLineup(
@@ -1272,6 +1179,9 @@ export async function registerRoutes(
       );
 
       if (result.error) {
+        if ((normalBounds.globalMaxExposure ?? 100) < 100 || Object.values(normalBounds.exposureLimits).some(max => max < 100)) {
+          return res.status(400).json({ message: "No single lineup satisfies the saved exposure caps. Sub-100% caps allow zero appearances in a one-lineup batch. Use Pro Normal or Pro Sim batch generation.", ...result });
+        }
         if (constraints.projectedPointsFloor) {
           return res.json({
             lineup: [],
@@ -1284,6 +1194,7 @@ export async function registerRoutes(
         return res.status(400).json(result);
       }
 
+      assertLineupExposures([result], c => c.lineup.map(p => p.id), { ...normalBounds, lockedPlayerIds: mergedLocked });
       res.json({
         ...result,
         platform,
@@ -1846,7 +1757,7 @@ export async function registerRoutes(
           results.push({ id, status: "skipped", error: "Slate no longer available" });
           continue;
         }
-        if (new Date(slate.startTime) <= new Date()) {
+        if (slate.isActive === false || new Date(slate.startTime) <= new Date()) {
           results.push({ id, status: "skipped", error: "Slate already started" });
           continue;
         }
@@ -5212,7 +5123,12 @@ export async function registerRoutes(
         allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
       }
 
-      const proUserOverrides = await storage.getPlayerOverrides(userId, constraints.slateId);
+      const proUserOverrides = resolveConfigurationOverrides(await storage.getPlayerOverrides(userId, constraints.slateId), allPlayers);
+      if (configurationExpiry(slate, allPlayers).isExpired) return res.status(409).json({ message: "This slate has expired." });
+      constraints.playerProjections = {
+        ...constraints.playerProjections,
+        ...Object.fromEntries(proUserOverrides.filter(o => o.customProjection != null).map(o => [o.playerId, Number(o.customProjection)])),
+      };
       const proOverrideMap = new Map(proUserOverrides.map(o => [o.playerId, o]));
       const proOverrideExcluded = proUserOverrides.filter(o => o.isExcluded).map(o => o.playerId);
       const proOverrideLocked = proUserOverrides.filter(o => o.isLocked).map(o => o.playerId);
@@ -5699,7 +5615,12 @@ export async function registerRoutes(
       const useLeverageMode = input.leverageMode === true;
       const useOutperformerMode = input.outperformerMode === true;
 
-      const simUserOverrides = await storage.getPlayerOverrides(userId, input.slateId);
+      const simUserOverrides = resolveConfigurationOverrides(await storage.getPlayerOverrides(userId, input.slateId), allPlayers);
+      if (configurationExpiry(slate, allPlayers).isExpired) return res.status(409).json({ message: "This slate has expired." });
+      input.playerProjections = {
+        ...input.playerProjections,
+        ...Object.fromEntries(simUserOverrides.filter(o => o.customProjection != null).map(o => [o.playerId, Number(o.customProjection) * (1 + (o.boostPercent || 0) / 100)])),
+      };
       const simUserOverrideMap = new Map(simUserOverrides.map(o => [o.playerId, o]));
       const simOverrideExposure: Record<string, { min?: number; max?: number }> = {};
       for (const o of simUserOverrides) {
@@ -5825,7 +5746,9 @@ export async function registerRoutes(
       const projOverrides: Record<number, number> = {};
       if (input.playerProjections) {
         for (const [pid, v] of Object.entries(input.playerProjections)) {
-          projOverrides[Number(pid)] = v;
+          const saved = simUserOverrideMap.get(Number(pid));
+          projOverrides[Number(pid)] = saved?.customProjection == null
+            ? v * (1 + (saved?.boostPercent || 0) / 100) : v;
         }
       }
       for (const p of pool) {
