@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { NflPortfolioControls, NflPortfolioReportView, useNflPortfolio } from "@/components/NflPortfolio";
+import { QualitySearchDiagnostics } from "@/components/QualitySearchDiagnostics";
 import { useRoute, useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -572,7 +573,8 @@ export default function ProOptimizer() {
       const mapped = simMutation.data.lineups.map((lu: any) => ({
         lineup:               lu.lineup,
         totalSalary:          lu.totalSalary,
-        totalProjectedPoints: (lu[sortKey] ?? lu.medianScore ?? 0) as number,
+        totalProjectedPoints: lu.totalProjectedPoints,
+        simSortValue:         (lu[sortKey] ?? lu.medianScore ?? 0) as number,
         simData: {
           avgSimScore:   lu.avgSimScore,
           medianScore:   lu.medianScore,
@@ -588,7 +590,7 @@ export default function ProOptimizer() {
           cashPct:       lu.cashPct,
         },
       }));
-      mapped.sort((a: any, b: any) => b.totalProjectedPoints - a.totalProjectedPoints);
+      mapped.sort((a: any, b: any) => b.simSortValue - a.simSortValue);
       return mapped;
     }
     return optimizeMutation.data?.lineups || [];
@@ -3003,6 +3005,14 @@ export default function ProOptimizer() {
             )}
 
             {/* Generated Lineups */}
+            {!portfolio.report?.searchDiagnostics && (
+              <QualitySearchDiagnostics
+                diagnostics={(simMode ? simMutation.data : optimizeMutation.data as any)?.searchDiagnostics}
+                partial={(simMode ? simMutation.data : optimizeMutation.data as any)?.partial}
+                mode={simMode ? "sim" : "projection"}
+                className="mb-3"
+              />
+            )}
             {generatedLineups.length > 0 && (
               <div ref={lineupsRef} data-testid="generated-lineups-section">
                 <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">

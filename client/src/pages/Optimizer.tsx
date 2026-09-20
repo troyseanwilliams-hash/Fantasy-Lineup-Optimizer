@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { NflPortfolioControls, NflPortfolioReportView, useNflPortfolio } from "@/components/NflPortfolio";
+import { QualitySearchDiagnostics } from "@/components/QualitySearchDiagnostics";
 import { useRoute, useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -1535,6 +1536,12 @@ export default function Optimizer() {
         <div className="p-2 space-y-2 max-h-[60vh] overflow-auto">
           <NflPortfolioControls settings={portfolio.settings} onChange={portfolio.setSettings} supported={portfolioSupported} players={players || []} single />
           <NflPortfolioReportView report={portfolio.report} target={`Slate ${slateId}`} />
+          {!portfolio.report?.searchDiagnostics && (
+            <QualitySearchDiagnostics
+              diagnostics={(optimizeMutation.data as any)?.searchDiagnostics}
+              partial={(optimizeMutation.data as any)?.partial}
+            />
+          )}
         </div>
         {/* Salary & Projection Bar */}
         <div className="px-3 sm:px-4 py-2 sm:py-3 bg-slate-900/60 border-b border-slate-800">

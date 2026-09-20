@@ -3,6 +3,7 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { registerPlayerConfiguration, configurationExpiry, resolveConfigurationOverrides } from "./player-configuration";
 import { selectExposureLineups, assertLineupExposures, validateExposureBounds, mergeExposureMinimums, mergeExposureMaximums } from "./lineup-exposure";
+import { qualityFloor, projectionTotal, qualityReport } from "./lineup-quality";
 import { createSimExposureSearch, filterSimProjectionCandidates } from "./sim-exposure-search";
 import { db } from "./db";
 import { users, subscriptions, slates, lineups as lineupsTable, signupEvents, supportTickets, draftTeams, type FavoriteStack } from "@shared/schema";
@@ -1175,7 +1176,7 @@ export async function registerRoutes(
         assertLineupExposures(portfolio.lineups, c => c.lineup.map((p: Player) => p.id), { ...normalBounds, lockedPlayerIds: mergedLocked });
         return res.json({ ...(portfolio.lineups[0] ?? { lineup: [], totalSalary: 0, totalProjectedPoints: 0 }), platform, nflPortfolioReport: portfolio.report, partial: portfolio.report.partial });
       }
-      const result = solveLineup(
+      let result = solveLineup(
         salaryFilteredPool,
         {
           ...constraints,
@@ -1200,15 +1201,38 @@ export async function registerRoutes(
             totalSalary: 0,
             totalProjectedPoints: 0,
             platform,
+            searchDiagnostics: qualityReport([], 0, constraints.projectedPointsFloor, 0, 1,
+              result.timedOut ? "time_budget" : "no_feasible_candidate"),
             message: `No lineups could reach the ${constraints.projectedPointsFloor}-point floor. Try lowering it or relaxing other constraints.`,
           });
         }
-        return res.status(400).json(result);
+        return res.status(400).json({ ...result, searchDiagnostics: qualityReport([], 0,
+          constraints.projectedPointsFloor, 0, 1, result.timedOut ? "time_budget" : "no_feasible_candidate") });
       }
 
       assertLineupExposures([result], c => c.lineup.map(p => p.id), { ...normalBounds, lockedPlayerIds: mergedLocked });
+      const normalBaseline = solveLineup(salaryFilteredPool, {
+        ...constraints, minProjection: undefined, projectedPointsFloor: undefined, deterministicObjective: true,
+        lockedPlayerIds: mergedLocked, excludedPlayerIds: mergedExclusions, contestType,
+      }, slate.sport, platform, ownershipByPlayerId, { deadline: optimizeDeadline, timeoutMs: 2000 });
+      const normalBaselineTotal = !normalBaseline.error && normalBaseline.lineup.length
+        ? projectionTotal(normalBaseline.lineup, salaryFilteredPool) : 0;
+      const normalCandidateCount = new Set([result, normalBaseline]
+        .filter(candidate => !candidate.error && candidate.lineup.length)
+        .map(candidate => candidate.lineup.map(p => p.id).sort().join(","))).size;
+      if (projectionTotal(result.lineup, salaryFilteredPool) < qualityFloor(normalBaselineTotal, constraints.projectedPointsFloor) &&
+          !normalBaseline.error && normalBaseline.lineup.length) result = normalBaseline;
+      const normalTotal = projectionTotal(result.lineup, salaryFilteredPool);
+      if (normalTotal < qualityFloor(normalBaselineTotal, constraints.projectedPointsFloor)) {
+        return res.status(400).json({ message: "No lineup met the deterministic quality floor.",
+          searchDiagnostics: qualityReport([], normalBaselineTotal, constraints.projectedPointsFloor,
+            normalCandidateCount, 1, "quality_floor") });
+      }
       res.json({
         ...result,
+        totalProjectedPoints: normalTotal,
+        searchDiagnostics: qualityReport([normalTotal], Math.max(normalTotal, normalBaselineTotal), constraints.projectedPointsFloor, normalCandidateCount, 1,
+          result.timedOut ? "time_budget" : "deterministic_solve"),
         platform,
         partial: !!result.timedOut,
         message: result.timedOut
@@ -1736,6 +1760,16 @@ export async function registerRoutes(
       return res.status(400).json({ message: "draftGroupId requires a target slateId" });
     }
     const origSlatePerGroup = new Map<number, number>();
+    const bulkQualityBaselines = new Map<number, number>();
+    const bulkQualityConsidered = new Map<number, number>();
+    const bulkRequestedBySlate = new Map<number, number>();
+    const bulkSourceLineups = new Map(await Promise.all(ids.map(async (id: number) =>
+      [Number(id), await storage.getLineup(Number(id))] as const)));
+    for (const source of bulkSourceLineups.values()) {
+      if (!source || source.userId !== userId) continue;
+      const target = overrideSlateId || source.slateId;
+      bulkRequestedBySlate.set(target, (bulkRequestedBySlate.get(target) ?? 0) + 1);
+    }
 
     for (const id of ids) {
       if (Date.now() >= bulkSolveDeadline) {
@@ -1745,7 +1779,7 @@ export async function registerRoutes(
         }
         break;
       }
-      const lineup = await storage.getLineup(Number(id));
+      const lineup = bulkSourceLineups.get(Number(id));
       if (!lineup || lineup.userId !== userId) {
         results.push({ id, status: "skipped", error: "Not found or not yours" });
         continue;
@@ -1858,6 +1892,18 @@ export async function registerRoutes(
       }
 
       const { slate, pool, baseExcluded, platform, lockedOverrideIds, overrideExposure } = cached;
+      if (!bulkQualityBaselines.has(effectiveSlateId)) {
+        const baselinePool = pool.filter(p => lockedOverrideIds.includes(p.id) ||
+          ((!minSalary || isDefense(p.position) || p.salary >= minSalary) && (!maxSalary || p.salary <= maxSalary)));
+        const baseline = solveLineup(baselinePool, {
+          slateId: effectiveSlateId, platform, lockedPlayerIds: lockedOverrideIds,
+          excludedPlayerIds: baseExcluded, playerProjections: {},
+          contestType: req.body.contestType === "gpp" ? "gpp" : "cash",
+          deterministicObjective: true,
+        } as any, slate.sport, platform, undefined, { deadline: bulkSolveDeadline, timeoutMs: 2000 });
+        bulkTimedOut ||= !!baseline.timedOut;
+        bulkQualityBaselines.set(effectiveSlateId, baseline.error || !baseline.lineup.length ? 0 : projectionTotal(baseline.lineup, pool));
+      }
       const iteration = pendingBulk.length;
       const maxAttempts = 10;
       let updated = false;
@@ -1942,7 +1988,7 @@ export async function registerRoutes(
           const orig = origMap.get(p.id) || p;
           return {
             id: p.id, name: orig.name, team: orig.team, position: orig.position,
-            salary: orig.salary, fppg: orig.fppg, projectedPoints: orig.projectedPoints,
+            salary: orig.salary, fppg: orig.fppg, projectedPoints: pool.find(player => player.id === p.id)?.projectedPoints,
             opponent: orig.opponent, gameInfo: orig.gameInfo,
             draftKingsPlayerId: orig.draftKingsPlayerId,
             boostScore: orig.boostScore, boostReason: orig.boostReason,
@@ -1951,7 +1997,8 @@ export async function registerRoutes(
 
         const origTotalPts = playerSnapshot.reduce((sum: number, p: any) => sum + Number(p.projectedPoints), 0);
 
-        if (projFloor && origTotalPts < projFloor) continue;
+        bulkQualityConsidered.set(effectiveSlateId, (bulkQualityConsidered.get(effectiveSlateId) ?? 0) + 1);
+        if (!Number.isFinite(origTotalPts) || origTotalPts < qualityFloor(bulkQualityBaselines.get(effectiveSlateId) ?? 0, projFloor)) continue;
 
         usedLineupKeys.add(lineupKey);
 
@@ -1963,7 +2010,7 @@ export async function registerRoutes(
         const updatePayload: any = {
           playerIds,
           totalSalary: solveResult.totalSalary,
-          totalProjectedPoints: origTotalPts.toFixed(1),
+          totalProjectedPoints: String(origTotalPts),
           playerSnapshot,
         };
         const targetSlateId = effectiveSlateId;
@@ -2021,9 +2068,18 @@ export async function registerRoutes(
       created: clonedCount,
       newLineupIds,
       total: ids.length,
-      partial: bulkTimedOut,
+      searchReports: Array.from(bulkQualityBaselines, ([slateId, baseline]) => ({
+        slateId, report: qualityReport(
+          pendingBulk.filter(c => c.slateId === slateId).map(c =>
+            projectionTotal(c.playerIds.map(id => ({ id })), slateCache.get(slateId)!.pool)),
+          baseline, projFloor ?? undefined, bulkQualityConsidered.get(slateId) ?? 0, bulkRequestedBySlate.get(slateId) ?? 0,
+          bulkTimedOut ? "time_budget" : "candidate_budget"),
+      })),
+      partial: bulkTimedOut || updatedCount + clonedCount < ids.length,
       message: bulkTimedOut
         ? `Partial results: updated ${updatedCount} of ${ids.length} lineups before the solver time budget was reached.`
+        : updatedCount + clonedCount < ids.length
+        ? `Partial results: generated ${updatedCount + clonedCount} of ${ids.length} quality-qualified unique lineups within the search budget.`
         : undefined,
     });
   });
@@ -2217,6 +2273,7 @@ export async function registerRoutes(
       let totalSimsRun = 0;
       const origSlatePerSimGroup = new Map<number, number>();
       const nflPortfolioReports: Array<{ slateId: number; report: NflPortfolioReport }> = [];
+      const searchReports: Array<{ slateId: number; report: ReturnType<typeof qualityReport> }> = [];
       const pendingPortfolioWrites: Array<(executor: any) => Promise<any>> = [];
       let hasConstrainedResim = !!restrictionInput.data.nflPortfolio?.enabled ||
         (globalMaxExposure ?? 100) < 100 || (globalMinExposure ?? 0) > 0 ||
@@ -2470,7 +2527,7 @@ export async function registerRoutes(
           const bySalary = [...players].sort((a, b) => a.salary - b.salary);
           for (let i = 0; i < Math.min(bySalary.length, cheapReserve); i++) keepIds.add(bySalary[i].id);
         }
-        let lpPool = pool.filter(p => keepIds.has(p.id));
+        let lpPool = pool;
         console.log(`[SimRegen] Pool trimmed: ${pool.length} → ${lpPool.length} players for LP solving`);
 
         function getSimLocks(simIndex: number, totalSims: number): number[] {
@@ -2517,17 +2574,23 @@ export async function registerRoutes(
           nflPortfolioReports.push({ slateId, report: portfolio.report });
           for (const candidate of portfolio.lineups) lineupMap.set(candidate.lineup.map((p: Player) => p.id).sort().join(","), { lineup: candidate.lineup, frequency: 1, simScores: [] });
         }
-        const baselineResult = preset ? { totalProjectedPoints: 0, timedOut: false } : solveLineup(
-          lpPool,
-          simRegenConstraints([...simRegenLocked]),
+        const baselineResult = preset ? { totalProjectedPoints: 0, timedOut: false, lineup: [] } : solveLineup(
+          pool,
+          { ...simRegenConstraints([...simRegenLocked]), deterministicObjective: true },
           slate.sport, platform,
           undefined,
           { deadline: solverDeadline, timeoutMs: 2_000 },
         );
         if (baselineResult.timedOut) simRegenTimedOut = true;
-        const baselineTotal = baselineResult.totalProjectedPoints || 0;
-        const autoFloor = baselineTotal > 0 ? Math.round(baselineTotal * 0.85 * 10) / 10 : 0;
-        console.log(`[SimRegen] Baseline optimal: ${baselineTotal.toFixed(1)} pts, auto floor: ${autoFloor}`);
+        const baselineTotal = projectionTotal(baselineResult.lineup, pool);
+        if (!preset && baselineResult.lineup.length) {
+          const baselineLineup = baselineResult.lineup.map(p => pool.find(original => original.id === p.id)!);
+          lineupMap.set(baselineLineup.map(p => p.id).sort().join(","), {
+            lineup: baselineLineup, frequency: 1, simScores: [],
+          });
+        }
+        const autoFloor = qualityFloor(baselineTotal);
+        console.log(`[SimRegen] Deterministic baseline best found: ${baselineTotal.toFixed(1)} pts, auto floor: ${autoFloor}`);
 
         const CALIBRATION_BATCH = 10;
         const calibrationSims = preset ? portfolioSims : runSimulations(pool, slate.sport, CALIBRATION_BATCH, dvpAdjusted, vegasContext ?? undefined);
@@ -2602,7 +2665,7 @@ export async function registerRoutes(
           }
         }
 
-        const remainingBudget = Math.max(0, LP_BUDGET_MS - calElapsed);
+        const remainingBudget = Math.max(0, candidateDeadline - Date.now());
         const adaptiveSims = preset ? 0 : Math.min(tierSims - CALIBRATION_BATCH, Math.max(40, Math.floor(remainingBudget / msPerSolve)));
         const totalTargetSims = CALIBRATION_BATCH + adaptiveSims;
 
@@ -2656,7 +2719,7 @@ export async function registerRoutes(
         }
 
         // Rare exposure alternatives must not be discarded by frequency.
-        const candidateLimit = hasConstrainedResim ? lineupMap.size : Math.max(lineupIds.length * 5, 60);
+        const candidateLimit = lineupMap.size;
         let candidateEntries = Array.from(lineupMap.entries());
         if (!preset && candidateEntries.length > candidateLimit) {
           candidateEntries.sort((a, b) => b[1].frequency - a[1].frequency);
@@ -2704,11 +2767,11 @@ export async function registerRoutes(
 
         // The baseline-derived floor is only a quality heuristic. It must not
         // delete the alternatives needed to satisfy a hard exposure batch.
-        const effectiveFloor = simProjFloor || (hasConstrainedResim ? 0 : autoFloor);
+        const effectiveFloor = qualityFloor(Math.max(baselineTotal, ...scoredCandidates.map(c => c.deterministicProjectedPoints)), simProjFloor);
         if (effectiveFloor > 0) {
           const beforeCount = scoredCandidates.length;
           const filtered = filterSimProjectionCandidates(scoredCandidates, c => c.deterministicProjectedPoints,
-            { count: lineupIds.length, explicitFloor: simProjFloor, automaticFloor: autoFloor, constrained: hasConstrainedResim });
+            { count: lineupIds.length, explicitFloor: simProjFloor, automaticFloor: effectiveFloor, constrained: hasConstrainedResim });
           if (filtered !== scoredCandidates) {
             scoredCandidates.length = 0;
             scoredCandidates.push(...filtered);
@@ -2732,7 +2795,7 @@ export async function registerRoutes(
               slateId,
             });
           }
-          if (simProjFloor && scoredCandidates.length < lineupIds.length) projectionFloorPartial = true;
+          if (scoredCandidates.length < lineupIds.length) projectionFloorPartial = true;
         }
 
         const sortFn: Record<string, (a: typeof scoredCandidates[0], b: typeof scoredCandidates[0]) => number> = {
@@ -2748,7 +2811,15 @@ export async function registerRoutes(
           globalMaxExposure, globalMinExposure, lockedPlayerIds: Array.from(simRegenLocked),
           exposureLimits: mergeExposureMaximums(Object.fromEntries(Object.entries(simRegenOverrideExposure).filter(([, v]) => v.max != null).map(([id, v]) => [id, v.max!])), req.body.exposureLimits),
           minExposureLimits: mergeExposureMinimums(Object.fromEntries(Object.entries(simRegenOverrideExposure).filter(([, v]) => v.min != null).map(([id, v]) => [id, v.min!])), minExposureLimits),
-        }, { count: lineupIds.length, deadline: solverDeadline + 2000, requireFull: hasConstrainedResim && !preset, preservePortfolio: !!preset });
+        }, { count: lineupIds.length, deadline: solverDeadline + 2000, preservePortfolio: !!preset });
+        searchReports.push({ slateId, report: {
+          ...qualityReport(scoredCandidates.map(c => c.deterministicProjectedPoints),
+            Math.max(baselineTotal, ...candidateEntries.map(([, c]) => projectionTotal(c.lineup, pool))),
+            simProjFloor ?? undefined, candidateEntries.length, lineupIds.length,
+            simRegenTimedOut ? "time_budget" : "candidate_budget"),
+          generatedCount: selectedCandidates.length, uniqueVariants: selectedCandidates.length,
+        } });
+        if (selectedCandidates.length < lineupIds.length) projectionFloorPartial = true;
 
         for (let i = 0; i < lineupIds.length && i < selectedCandidates.length; i++) {
           const candidate = selectedCandidates[i];
@@ -2768,8 +2839,8 @@ export async function registerRoutes(
           });
 
           const totalPts = candidate.deterministicProjectedPoints;
-          if (simProjFloor && totalPts < simProjFloor) {
-            throw new Error(`Regenerated lineup failed the ${simProjFloor} projected points floor before persistence`);
+          if (!Number.isFinite(totalPts) || totalPts < effectiveFloor) {
+            throw new Error(`Regenerated lineup failed the ${effectiveFloor} projected points floor before persistence`);
           }
 
           const simData = {
@@ -2779,7 +2850,7 @@ export async function registerRoutes(
           };
           const simUpdatePayload: any = {
             playerIds, totalSalary: candidate.totalSalary,
-            totalProjectedPoints: totalPts.toFixed(1),
+            totalProjectedPoints: String(totalPts),
             playerSnapshot, simData,
           };
           const sourceLineup = lineupOwnership.get(lineupId)!;
@@ -2823,7 +2894,9 @@ export async function registerRoutes(
             const skipped = results.filter(r => lineupIds.includes(r.id) && r.status === "skipped" && r.error === "Not enough sim candidates").length;
             if (!skipped) continue;
             const report = nflPortfolioReports.find(entry => entry.slateId === targetSlateId)?.report;
-            if (!report?.partial || report.generatedCount <= 0 || skipped !== lineupIds.length - report.generatedCount) {
+            const quality = searchReports.find(entry => entry.slateId === targetSlateId)?.report;
+            if (!(quality && quality.generatedCount > 0 && skipped === lineupIds.length - quality.generatedCount) &&
+                (!report?.partial || report.generatedCount <= 0 || skipped !== lineupIds.length - report.generatedCount)) {
               return res.status(400).json({ message: "Regeneration could not fill every requested lineup. No regenerated lineups were saved.", slateId: targetSlateId });
             }
           }
@@ -2860,6 +2933,7 @@ export async function registerRoutes(
         total: ids.length,
         simsRun: totalSimsRun || tierSims,
         ...(nflPortfolioReports.length ? { nflPortfolioReports } : {}),
+        searchReports,
         sortBy: sortKey,
         partial: projectionFloorPartial || simRegenTimedOut || Date.now() >= solverDeadline || nflPortfolioReports.some(entry => entry.report.partial),
         message: nflPortfolioReports.some(entry => entry.report.partial)
@@ -5355,20 +5429,16 @@ export async function registerRoutes(
         return res.status(400).json({ message: proRequiredPositionMessage });
       }
 
-      const MAX_POOL_SIZE = 150;
-      const excludedSet = new Set(baseExcluded);
-      const eligiblePool = pool.filter(p => !excludedSet.has(p.id));
-      if (eligiblePool.length > MAX_POOL_SIZE) {
-        const lockedSet = new Set(constraints.lockedPlayerIds);
-        const locked = eligiblePool.filter(p => lockedSet.has(p.id));
-        const unlocked = eligiblePool.filter(p => !lockedSet.has(p.id));
-        unlocked.sort((a, b) => Number(b.projectedPoints) - Number(a.projectedPoints));
-        const trimmed = [...locked, ...unlocked.slice(0, MAX_POOL_SIZE - locked.length)];
-        console.log(`[ProOptimizer] Trimmed eligible pool from ${eligiblePool.length} to ${trimmed.length} players`);
-        pool = [...trimmed, ...pool.filter(p => excludedSet.has(p.id))];
-      }
+      // Keep the full eligible pool. The deadline bounds computation without
+      // pruning salary/position substitutes needed by the best feasible roster.
 
-      const maxAttempts = constraints.lineupCount * 10;
+      const maxAttempts = Math.max(60, constraints.lineupCount * 20);
+      const proBaselineResult = constraints.nflPortfolio?.enabled ? undefined : solveLineup(
+        pool, { ...constraints, minProjection: undefined, excludedPlayerIds: baseExcluded,
+          projectedPointsFloor: undefined, deterministicObjective: true }, slate.sport, platform, undefined,
+        { deadline: proSolveDeadline, timeoutMs: 2000 });
+      const proBaselineProjection = proBaselineResult && !proBaselineResult.error && proBaselineResult.lineup.length
+        ? projectionTotal(proBaselineResult.lineup, pool) : 0;
       validateExposureBounds(constraints);
       let nflPortfolioReport: NflPortfolioReport | undefined;
       if (constraints.nflPortfolio?.enabled) {
@@ -5383,13 +5453,20 @@ export async function registerRoutes(
         nflPortfolioReport = portfolio.report;
       }
       let attempts = 0;
-      let proTimedOut = false;
+      let proTimedOut = !!proBaselineResult?.timedOut;
 
       const playerAppearances: Record<number, number> = {};
       const candidateLineups: { result: any; correlationScore: number }[] = [];
+      if (proBaselineResult && !proBaselineResult.error && proBaselineResult.lineup.length) {
+        const key = proBaselineResult.lineup.map(p => p.id).sort().join(",");
+        usedLineupKeys.add(key);
+        lineupResults.push({ ...proBaselineResult, platform,
+          totalProjectedPoints: proBaselineProjection,
+          correlationScore: computeCorrelationBonus(proBaselineResult.lineup, slate.sport) });
+        for (const p of proBaselineResult.lineup) playerAppearances[p.id] = 1;
+      }
 
-      const proCandidateTarget = constraints.globalMaxExposure !== undefined || constraints.globalMinExposure !== undefined || constraints.exposureLimits || constraints.minExposureLimits
-        ? constraints.lineupCount * 3 : constraints.lineupCount;
+      const proCandidateTarget = Math.max(20, constraints.lineupCount * 5);
       while (!constraints.nflPortfolio?.enabled && lineupResults.length < proCandidateTarget && attempts < maxAttempts) {
         if (Date.now() >= proSolveDeadline) {
           proTimedOut = true;
@@ -5466,6 +5543,9 @@ export async function registerRoutes(
         const modConstraints = {
           ...constraints,
           minProjection: undefined,
+          // The explicit floor is evaluated against canonical projections
+          // below, not this iteration's random optimization coefficients.
+          projectedPointsFloor: undefined,
           excludedPlayerIds: iterationExcluded,
           lockedPlayerIds: combinedLocks,
         };
@@ -5486,7 +5566,9 @@ export async function registerRoutes(
           const key = result.lineup.map((p: Player) => p.id).sort().join(",");
           if (!usedLineupKeys.has(key)) {
             const correlationScore = computeCorrelationBonus(result.lineup as Player[], slate.sport);
-            lineupResults.push({ ...result, platform, correlationScore });
+            const deterministicLineup = result.lineup.map((p: Player) => pool.find(original => original.id === p.id)!);
+            lineupResults.push({ ...result, lineup: deterministicLineup,
+              totalProjectedPoints: projectionTotal(result.lineup, pool), platform, correlationScore });
             usedLineupKeys.add(key);
             for (const p of result.lineup as Player[]) {
               playerAppearances[p.id] = (playerAppearances[p.id] || 0) + 1;
@@ -5505,7 +5587,9 @@ export async function registerRoutes(
         return (b.correlationScore || 0) - (a.correlationScore || 0);
       });
 
-      const finalProLineups = selectExposureLineups(lineupResults, c => c.lineup.map((p: Player) => p.id), constraints, {
+      const proQualityFloor = qualityFloor(Math.max(proBaselineProjection, ...lineupResults.map(c => c.totalProjectedPoints)), constraints.projectedPointsFloor);
+      const proQualifiedCount = lineupResults.filter(c => c.totalProjectedPoints >= proQualityFloor).length;
+      const finalProLineups = selectExposureLineups(lineupResults.filter(c => c.totalProjectedPoints >= proQualityFloor), c => c.lineup.map((p: Player) => p.id), constraints, {
         count: constraints.lineupCount, deadline: proSolveDeadline + 2000, preservePortfolio: !!nflPortfolioReport,
       });
       lineupResults.splice(0, lineupResults.length, ...finalProLineups);
@@ -5541,7 +5625,12 @@ export async function registerRoutes(
           ? `Partial results: generated ${lineupResults.length} of ${constraints.lineupCount} requested lineups within the candidate/search budget and hard exposure limits. All percentages use the returned batch size.`
           : undefined;
 
-      res.json({ lineups: lineupResults, boostsSummary, injurySummary, message, partial: partialResults || !!nflPortfolioReport?.partial, ...(nflPortfolioReport ? { nflPortfolioReport } : {}) });
+      res.json({ lineups: lineupResults, boostsSummary, injurySummary, message,
+        searchDiagnostics: { ...qualityReport(lineupResults.map(c => c.totalProjectedPoints),
+          Math.max(proBaselineProjection, ...lineupResults.map(c => c.totalProjectedPoints)), constraints.projectedPointsFloor, usedLineupKeys.size, constraints.lineupCount,
+          proTimedOut ? "time_budget" : attempts >= maxAttempts ? "candidate_budget" : "candidate_target"),
+          qualifiedCandidates: proQualifiedCount },
+        partial: partialResults || !!nflPortfolioReport?.partial, ...(nflPortfolioReport ? { nflPortfolioReport } : {}) });
     } catch (err) {
       if (err instanceof z.ZodError) {
         res.status(400).json({ message: err.errors[0].message });
@@ -5563,6 +5652,7 @@ export async function registerRoutes(
     playerProjections:    z.record(z.string(), z.number()).optional(),
     minProjection:        z.number().finite().min(0).optional(),
     playerMinSalary:      z.number().optional(),
+    projectedPointsFloor: z.number().finite().min(0).optional(),
     playerMaxSalary:      z.number().optional(),
     lineupCount:          z.number().min(1).max(2000).default(20),
     numSims:              z.number().min(50).max(1000).default(200),
@@ -5696,7 +5786,7 @@ export async function registerRoutes(
       if (configurationExpiry(slate, allPlayers).isExpired) return res.status(409).json({ message: "This slate has expired." });
       input.playerProjections = {
         ...input.playerProjections,
-        ...Object.fromEntries(simUserOverrides.filter(o => o.customProjection != null).map(o => [o.playerId, Number(o.customProjection) * (1 + (o.boostPercent || 0) / 100)])),
+        ...Object.fromEntries(simUserOverrides.filter(o => o.customProjection != null).map(o => [o.playerId, Number(o.customProjection)])),
       };
       const simUserOverrideMap = new Map(simUserOverrides.map(o => [o.playerId, o]));
       const simOverrideExposure: Record<string, { min?: number; max?: number }> = {};
@@ -5734,7 +5824,8 @@ export async function registerRoutes(
 
       let pool = allPlayers.map(p => {
         const override = simUserOverrideMap.get(p.id);
-        let boostedPoints = override?.customProjection != null ? Number(override.customProjection) : Number(p.projectedPoints);
+        const manualProjection = input.playerProjections?.[p.id];
+        let boostedPoints = manualProjection ?? Number(p.projectedPoints);
 
         if (override?.boostPercent && override.boostPercent > 0) {
           boostedPoints = Math.round(boostedPoints * (1 + override.boostPercent / 100) * 10) / 10;
@@ -5746,7 +5837,7 @@ export async function registerRoutes(
           const boostPct = Math.max(-0.08, Math.min(0.08, Number(p.boostScore) * 0.008));
           boostedPoints = Math.round(boostedPoints * (1 + boostPct) * 10) / 10;
         }
-        boostedPoints = applyScoutToProjection(boostedPoints, p.name, proScoutMap, override?.customProjection != null);
+        boostedPoints = applyScoutToProjection(boostedPoints, p.name, proScoutMap, manualProjection != null);
 
         if (isPlayerOut(p.injuryStatus)) {
           boostedPoints = 0;
@@ -5821,17 +5912,8 @@ export async function registerRoutes(
       }
 
       const projOverrides: Record<number, number> = {};
-      if (input.playerProjections) {
-        for (const [pid, v] of Object.entries(input.playerProjections)) {
-          const saved = simUserOverrideMap.get(Number(pid));
-          projOverrides[Number(pid)] = saved?.customProjection == null
-            ? v * (1 + (saved?.boostPercent || 0) / 100) : v;
-        }
-      }
       for (const p of pool) {
-        if (projOverrides[p.id] === undefined) {
-          projOverrides[p.id] = Number(p.projectedPoints) ?? 0;
-        }
+        projOverrides[p.id] = Number(p.projectedPoints) ?? 0;
       }
       // Eligibility comes from raw projections plus explicit request
       // projections; apply those IDs after all deterministic Sim adjustments.
@@ -5934,7 +6016,7 @@ export async function registerRoutes(
         const bySalary = [...players].sort((a, b) => a.salary - b.salary);
         for (let i = 0; i < Math.min(bySalary.length, simCheapReserve); i++) simKeepIds.add(bySalary[i].id);
       }
-      let lpSimPool = pool.filter(p => simKeepIds.has(p.id));
+      let lpSimPool = pool;
       console.log(`[SimOptimizer] Pool trimmed: ${pool.length} → ${lpSimPool.length} players for LP solving`);
 
       console.log(`[SimOptimizer] Starting ${input.numSims} sims for ${sport} slate ${input.slateId}, pool: ${pool.length} players, requesting ${input.lineupCount} lineups`);
@@ -5977,6 +6059,7 @@ export async function registerRoutes(
 
       const simConstraintsBase = {
         ...(input.nflPortfolio?.enabled ? input : {}),
+        projectedPointsFloor: input.nflPortfolio?.enabled ? input.projectedPointsFloor : undefined,
         slateId: input.slateId,
         lockedPlayerIds: input.lockedPlayerIds,
         excludedPlayerIds: input.excludedPlayerIds,
@@ -5999,6 +6082,19 @@ export async function registerRoutes(
       }, input.lineupCount);
       const simCandidateDeadline = solverDeadline - 5000;
       const simSearchConstraints = () => simExposureSearch(simConstraintsBase, lpSimPool.map(p => p.id), lineupMap.values());
+      // Seed the search with the deterministic objective before simulated
+      // perturbations. A bounded solve is best-found, not a proof of optimality.
+      if (!input.nflPortfolio?.enabled && Date.now() < simCandidateDeadline) {
+        const baseline = solveLineup(pool, { ...simConstraintsBase, deterministicObjective: true }, sport, platform, undefined,
+          { deadline: simCandidateDeadline, timeoutMs: 2000 });
+        simTimedOut ||= !!baseline.timedOut;
+        if (!baseline.error && baseline.lineup.length) {
+          lineupMap.set(baseline.lineup.map(p => p.id).sort().join(","), {
+            lineup: baseline.lineup as Player[], frequency: 1, simScores: [],
+            stackChoiceIndex: baseline.stackChoiceIndex,
+          });
+        }
+      }
 
       let nflPortfolioReport: NflPortfolioReport | undefined;
       const portfolioEvResults = new Map<string, TournamentEVResult>();
@@ -6115,7 +6211,7 @@ export async function registerRoutes(
         }
       }
 
-      const simBudgetLeft = Math.max(0, LP_BUDGET_MS - calMs);
+      const simBudgetLeft = Math.max(0, simCandidateDeadline - Date.now());
       const adaptiveCount = input.nflPortfolio?.enabled ? 0 : Math.min(input.numSims - SIM_CAL_BATCH, Math.max(40, Math.floor(simBudgetLeft / msPerLP)));
       const totalSimTarget = SIM_CAL_BATCH + adaptiveCount;
       console.log(`[SimOptimizer] Adaptive: ${msPerLP.toFixed(0)}ms/solve, lpPool=${lpSimPool.length}, target=${totalSimTarget} sims (tier max ${input.numSims})`);
@@ -6166,6 +6262,8 @@ export async function registerRoutes(
         const partial = simTimedOut || Date.now() >= solverDeadline;
         return res.status(200).json({
           lineups: [],
+          searchDiagnostics: qualityReport([], 0, input.projectedPointsFloor, 0, input.lineupCount,
+            partial ? "time_budget" : "no_feasible_candidate"),
           ...(nflPortfolioReport ? { nflPortfolioReport } : {}),
           message: stackAlternatives.length
             ? "No feasible lineups satisfy your selected stacks. Check player locks, exclusions, player status, salary/FLEX filters, or select another stack."
@@ -6203,7 +6301,8 @@ export async function registerRoutes(
         const stack = detectStack(data.lineup);
 
         return {
-          lineup:       data.lineup,
+          lineup:       data.lineup.map(p => pool.find(original => original.id === p.id)!),
+          totalProjectedPoints: projectionTotal(data.lineup, pool),
           key,
           frequency:    data.frequency,
           freqPct:      Math.round((data.frequency / nSims) * 1000) / 10,
@@ -6278,7 +6377,11 @@ export async function registerRoutes(
       uniqueLineups.sort((a, b) =>
         (((b as any)[metricKey] ?? b.compositeScore) as number) - (((a as any)[metricKey] ?? a.compositeScore) as number));
 
-      const selected = selectExposureLineups(uniqueLineups, c => c.lineup.map(p => p.id), {
+      const simDeterministicTotals = uniqueLineups.map(candidate => projectionTotal(candidate.lineup, pool));
+      const simBaseline = Math.max(0, ...simDeterministicTotals);
+      const simQualityFloor = qualityFloor(simBaseline, input.projectedPointsFloor);
+      const qualifiedSimLineups = uniqueLineups.filter((candidate, index) => simDeterministicTotals[index] >= simQualityFloor);
+      const selected = selectExposureLineups(qualifiedSimLineups, c => c.lineup.map(p => p.id), {
         globalMaxExposure: input.globalMaxExposure, globalMinExposure: input.globalMinExposure,
         lockedPlayerIds: input.lockedPlayerIds,
         exposureLimits: mergeExposureMaximums(Object.fromEntries(Object.entries(simOverrideExposure).filter(([, v]) => v.max != null).map(([id, v]) => [id, v.max!])), input.exposureLimits),
@@ -6314,6 +6417,11 @@ export async function registerRoutes(
 
       res.json({
         lineups:         selected,
+        searchDiagnostics: {
+          ...qualityReport(qualifiedSimLineups.map(c => projectionTotal(c.lineup, pool)), simBaseline,
+            input.projectedPointsFloor, uniqueLineups.length, input.lineupCount, simTimedOut ? "time_budget" : "candidate_budget"),
+          generatedCount: selected.length, uniqueVariants: selected.length,
+        },
         ...(nflPortfolioReport ? { nflPortfolioReport } : {}),
         simsRun:         sims.length,
         uniqueLineups:   lineupMap.size,
@@ -7260,6 +7368,7 @@ function nflTournamentScore(player: Player, ownership: number | undefined): numb
 export function solveLineup(
   pool: Player[],
   constraints: OptimizationConstraints & {
+    deterministicObjective?: boolean;
     nflPortfolioLineupPolicy?: NflPortfolioLineupPolicy;
     stackGameKeys?: string[];
     stackAlternatives?: SimStackAlternative[];
@@ -7390,7 +7499,7 @@ export function solveLineup(
     availableGameCount >= 4;
   
   const model: any = {
-    optimize: isNflClassicGpp ? "tournamentScore" : "projectedPoints",
+    optimize: isNflClassicGpp && !constraints.deterministicObjective ? "tournamentScore" : "projectedPoints",
     opType: "max",
     constraints: {
       salary: {
@@ -7429,12 +7538,12 @@ export function solveLineup(
     
     const rawProjectedPoints = Number(p.projectedPoints);
     let projectedPoints = rawProjectedPoints;
-    if (contestType === "cash") {
+    if (!constraints.deterministicObjective && contestType === "cash") {
       const fppg = Number((p as any).fppg) || projectedPoints;
       if (fppg > 0 && projectedPoints >= fppg) {
         projectedPoints = projectedPoints * 1.03;
       }
-    } else if (contestType === "gpp") {
+    } else if (!constraints.deterministicObjective && contestType === "gpp") {
       if (projectedPoints >= 30) projectedPoints = projectedPoints * 1.12;
       else if (projectedPoints >= 20) projectedPoints = projectedPoints * 1.06;
       else if (projectedPoints > 0) projectedPoints = projectedPoints * 1.02;

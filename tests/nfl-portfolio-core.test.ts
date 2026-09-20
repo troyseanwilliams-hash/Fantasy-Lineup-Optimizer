@@ -156,7 +156,9 @@ test("strict GPP shortfall is completed by projection fallback without relaxing 
   const singleOnlySolve = (players: Player[], constraints: any) =>
     constraints.nflPortfolioLineupPolicy.catcherCount === 1 ? solve(players, constraints) : { error: "Fixture withholds double-stack candidates" };
   const result = await generateNflPortfolio({
-    pool, settings: fallbackSettings, count: 20,
+    // Isolate structure fallback from relative-quality rejection: every
+    // feasible lineup in this fixture has the same deterministic projection.
+    pool: pool.map(p => ({ ...p, projectedPoints: "20" })), settings: fallbackSettings, count: 20,
     baseConstraints: { excludedPlayerIds: [48], exposureLimits: { 18: 75 }, projectedPointsFloor: 100 },
     strictStructure: true, structureOnly: true, solve: singleOnlySolve,
     deadline: Date.now() + 15_000,
@@ -289,27 +291,23 @@ test("exact favorite constraints coexist with portfolio constraints in actual LP
   for (const id of [1, 4, 18]) assert.equal(r[`p${id}`], 1);
   assert.equal(classifyNflLineup(pool.filter(p => r[`p${p.id}`] === 1)).bringBack, false);
 });
-test("candidate generation actively excludes dominant players to satisfy exposure", async () => {
+test("quality cannot be relaxed to satisfy exposure on an overwhelmingly dominant player", async () => {
   const dominant = pool.map(p => ({ ...p, projectedPoints: p.id === 18 ? "500" : p.projectedPoints }));
   let pressureAttempts = 0;
-  const result = await generateNflPortfolio({
+  await assert.rejects(generateNflPortfolio({
     pool: dominant, settings, count: 4, baseConstraints: { exposureLimits: { "18": 50 } },
     solve: (p, c) => { if (c.excludedPlayerIds.includes(18)) pressureAttempts++; return solve(p, c); },
-  });
+  }));
   assert.ok(pressureAttempts > 0);
-  assert.equal(result.lineups.length, 4);
-  assert.ok(result.lineups.filter(x => x.lineup.some((p: Player) => p.id === 18)).length <= 2);
 });
-test("candidate generation explicitly seeds low-projection minimum exposure targets", async () => {
+test("minimum exposure does not force candidates below the relative quality floor", async () => {
   const low = pool.map(p => ({ ...p, projectedPoints: p.id === 18 ? "0.01" : p.projectedPoints }));
   let forcedAttempts = 0;
-  const result = await generateNflPortfolio({
+  await assert.rejects(generateNflPortfolio({
     pool: low, settings, count: 4, baseConstraints: { minExposureLimits: { "18": 50 } },
     solve: (p, c) => { if (c.lockedPlayerIds.includes(18)) forcedAttempts++; return solve(p, c); },
-  });
+  }), /hard global\/per-player minimum and maximum exposures/);
   assert.ok(forcedAttempts > 0);
-  assert.equal(result.lineups.length, 4);
-  assert.ok(result.lineups.filter(x => x.lineup.some((p: Player) => p.id === 18)).length >= 2);
 });
 test("locked player max contradiction is infeasible before search; exhausted time is not proof", async () => {
   await assert.rejects(generateNflPortfolio({ pool, settings, count: 3, baseConstraints: { lockedPlayerIds: [1], globalMaxExposure: 80 }, solve }), /locked player.*100%/);

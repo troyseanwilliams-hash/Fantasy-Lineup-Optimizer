@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { NflPortfolioControls, NflPortfolioReportView, useNflPortfolio } from "@/components/NflPortfolio";
+import { QualitySearchDiagnostics, type QualitySearchDiagnosticsData } from "@/components/QualitySearchDiagnostics";
 import type { NflPortfolioReport } from "@shared/nfl-portfolio";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Trophy, Zap, Trash2, ChevronDown, ChevronUp, ArrowLeftRight, Download, Lock, X, Check, DollarSign, CheckSquare, Square, ExternalLink, Shield, TrendingUp, ArrowUpDown, Users, History, Eye, AlertTriangle, Upload, Settings, RefreshCw, FileUp, Star, Activity, Loader2, Flame, Percent, BarChart3, Ban } from "lucide-react";
@@ -479,6 +480,7 @@ export default function SavedLineups() {
   const [regenContestType, setRegenContestType] = useState<"cash" | "gpp">("gpp");
   const portfolio = useNflPortfolio();
   const [portfolioReports, setPortfolioReports] = useState<Array<{ slateId: number; report: NflPortfolioReport; target: string }>>([]);
+  const [qualitySearchReports, setQualitySearchReports] = useState<Array<{ slateId: number; report: QualitySearchDiagnosticsData; partial: boolean }>>([]);
   const [regenOutperformerMode, setRegenOutperformerMode] = useState(false);
   const [showRegenSettings, setShowRegenSettings] = useState(false);
   const [showExposure, setShowExposure] = useState(true);
@@ -490,7 +492,10 @@ export default function SavedLineups() {
   const [regenMinSalary, setRegenMinSalary] = useState<number | null>(null);
   const [regenMaxSalary, setRegenMaxSalary] = useState<number | null>(null);
   const [regenSlateId, setRegenSlateId] = useState<number | null>(null);
-  useEffect(() => { setPortfolioReports([]); }, [regenSlateId, regenContestType]);
+  useEffect(() => {
+    setPortfolioReports([]);
+    setQualitySearchReports([]);
+  }, [regenSlateId, regenContestType]);
   const [regenFlexAllowedPositions, setRegenFlexAllowedPositions] = useState<NflFlexPosition[]>([...NFL_FLEX_POSITIONS]);
   const [regenStackGameKeys, setRegenStackGameKeys] = useState<string[]>([]);
   const [simMetric, setSimMetric] = useState<"composite" | "p90" | "p75" | "median" | "avg">("composite");
@@ -902,6 +907,7 @@ export default function SavedLineups() {
   const simRegenMutation = useMutation({
     mutationFn: async (params: { ids: number[]; numSims?: number; sortBy: string; useBoosts?: boolean; ceilingMode?: boolean; leverageMode?: boolean; outperformerMode?: boolean; contestType?: string; globalMaxExposure?: number; globalMinExposure?: number; projFloor?: number; minSalary?: number; maxSalary?: number; slateId?: number; draftGroupId?: number; flexAllowedPositions?: NflFlexPosition[]; stackGameKeys?: string[] }) => {
       setPortfolioReports([]);
+      setQualitySearchReports([]);
       if (portfolioSupported && portfolio.error) throw new Error(portfolio.error);
       const res = await apiRequest("POST", "/api/lineups/sim-regenerate", { ...params, preserveSourceSlateId: true,
         ...(portfolioSupported && portfolio.settings.enabled ? { nflPortfolio: portfolio.settings } : {}),
@@ -944,6 +950,19 @@ export default function SavedLineups() {
         report: { ...item.report, partial: item.report.partial || summary.failed + summary.skipped > 0 },
         target: allSlates?.find(s => s.id === item.slateId) ? formatSlateIdentity(allSlates.find(s => s.id === item.slateId)!) : `Target slate ${item.slateId}`,
       })));
+      const portfolioDiagnosticSlateIds = new Set(
+        (Array.isArray(data.nflPortfolioReports) ? data.nflPortfolioReports : [])
+          .filter((item: any) => item?.report?.searchDiagnostics)
+          .map((item: any) => Number(item.slateId)),
+      );
+      setQualitySearchReports((Array.isArray(data.searchReports) ? data.searchReports : [])
+        .filter((item: any) => item?.report)
+        .filter((item: any) => !portfolioDiagnosticSlateIds.has(Number(item.slateId)))
+        .map((item: any) => ({
+          slateId: Number(item.slateId),
+          report: item.report as QualitySearchDiagnosticsData,
+          partial: Boolean(data.partial) || item.report.generatedCount < item.report.requestedCount,
+        })));
       const metricLabel = { p90: "P90", p75: "P75", composite: "Composite", median: "Median", avg: "Average" }[data.sortBy] || data.sortBy;
       const targetDescription = variables?.draftGroupId
         ? `DraftKings draftGroupId ${variables.draftGroupId}`
@@ -958,6 +977,15 @@ export default function SavedLineups() {
       if (summary.failed + summary.skipped > 0) desc += ` ${summary.failed + summary.skipped} skipped.`;
       if (data?.partial && data?.message) desc += ` ${data.message}`;
       toast({ title: summary.failed + summary.skipped > 0 ? "Partial Sim Regeneration" : summary.cloned > 0 ? "New Sim Lineups Created" : "Sim Regeneration Complete", description: desc });
+      if (Array.isArray(data.searchReports) && data.searchReports.length) {
+        const reports = data.searchReports.map((entry: any) => entry.report);
+        toast({
+          title: "Quality-first search",
+          description: reports.map((report: any) =>
+            `${report.generatedCount} variants returned; ${report.qualifiedCandidates}/${report.candidatesConsidered} candidates qualified. Projected floor ${Number(report.effectiveFloor).toFixed(1)}, best found ${Number(report.baselineProjection).toFixed(1)}. ${String(report.stoppingReason).replaceAll("_", " ")}.`
+          ).join(" "),
+        });
+      }
       await queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
       await refreshLineups();
     },
@@ -1352,6 +1380,12 @@ export default function SavedLineups() {
               </p>
             )}
             {portfolioReports.map((item, index) => <NflPortfolioReportView key={`${item.slateId}-${index}`} report={item.report} target={item.target} />)}
+            {qualitySearchReports.map((item, index) => (
+              <div key={`${item.slateId}-${index}`} className="space-y-1">
+                <p className="text-xs font-semibold text-slate-300">ReSim quality search · Target slate {item.slateId}</p>
+                <QualitySearchDiagnostics diagnostics={item.report} partial={item.partial} mode="sim" />
+              </div>
+            ))}
           </div>
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8">
             <div className="flex items-center gap-4">

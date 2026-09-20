@@ -1,14 +1,10 @@
 import { validateExposureBounds, type ExposureBounds } from "./lineup-exposure";
 
-/** Explicit floors are hard; automatic quality heuristics cannot erase a constrained batch. */
+/** Neither exposure pressure nor requested count may relax quality eligibility. */
 export function filterSimProjectionCandidates<T>(candidates: T[], projection: (candidate: T) => number,
   options: { count: number; explicitFloor?: number | null; automaticFloor: number; constrained: boolean }): T[] {
-  if (options.explicitFloor && options.explicitFloor > 0) {
-    return candidates.filter(c => projection(c) >= options.explicitFloor!);
-  }
-  if (options.constrained || options.automaticFloor <= 0) return candidates;
-  const filtered = candidates.filter(c => projection(c) >= options.automaticFloor);
-  return filtered.length >= options.count ? filtered : candidates;
+  const floor = Math.max(options.explicitFloor ?? 0, options.automaticFloor);
+  return candidates.filter(c => Number.isFinite(projection(c)) && projection(c) >= floor);
 }
 
 /**
@@ -47,6 +43,13 @@ export function createSimExposureSearch(bounds: ExposureBounds, count: number) {
     turn++;
     const offset = pressure.length ? Math.floor(turn / 3) % pressure.length : 0;
     const omit = [...pressure.slice(offset), ...pressure.slice(0, offset)].slice(0, width);
+    // Explore alternatives even without exposure caps instead of repeatedly
+    // rediscovering the same maximizer. Keep every fourth solve unrestricted.
+    if (size && !omit.length && turn % 4 !== 0) {
+      const alternatives = [...usage.keys()].filter(id => !locks.includes(id));
+      alternatives.sort((a, b) => (usage.get(b) || 0) - (usage.get(a) || 0) || a - b);
+      if (alternatives.length) omit.push(alternatives[turn % alternatives.length]);
+    }
     return { ...base, lockedPlayerIds: locks, excludedPlayerIds: Array.from(new Set([
       ...base.excludedPlayerIds, ...poolIds.filter(id => Math.floor(count * maximum(id) / 100 + 1e-9) === 0), ...omit,
     ])) };

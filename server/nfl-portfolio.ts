@@ -7,6 +7,7 @@ import type { VegasGameOdds } from "./vegas-client";
 import solver from "javascript-lp-solver";
 import { validatedIntegralResult } from "./solver-guard";
 import { spawn } from "node:child_process";
+import { qualityFloor, qualityReport, createQualityConvergence } from "./lineup-quality";
 
 async function solvePortfolioModelIsolated(model: any, timeoutMs: number): Promise<{ result?: any; timedOut: boolean }> {
   const script = [
@@ -225,7 +226,7 @@ export async function generateNflPortfolio(options: {
   let state = s.seed >>> 0;
   const random = () => { state = (Math.imul(state, 1664525) + 1013904223) >>> 0; return state / 4294967296; };
   const original = new Map(pool.map(p => [p.id, p]));
-  const maxAttempts = Math.min(1500, Math.max(48, count * 12));
+  const maxAttempts = Math.min(3000, Math.max(120, count * 20));
   const coverageSize = Math.min(maxAttempts, Math.max(80, count * 3));
   const planned = (mix: Record<string, number>) => {
     const values: string[] = [];
@@ -245,8 +246,14 @@ export async function generateNflPortfolio(options: {
   const bringBackSchedule = booleanSchedule(s.bringBackPct);
   const secondarySchedule = booleanSchedule(s.secondaryStackPct);
   let lastError = "";
+  let converged = false;
+  let candidateTargetReached = false;
+  const convergence = createQualityConvergence(Math.max(80, coverageSize));
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    if (options.strictStructure && candidates.length >= Math.max(80, count * 3)) break;
+    const bestFound = Math.max(0, ...candidates.map(c => c.totalProjectedPoints));
+    const qualifiedCount = candidates.filter(c => c.totalProjectedPoints >= qualityFloor(bestFound, base.projectedPointsFloor)).length;
+    if (options.strictStructure && qualifiedCount >= Math.max(120, count * 5)) { candidateTargetReached = true; break; }
+    if (convergence(bestFound, qualifiedCount) && candidates.length) { converged = true; break; }
     if (Date.now() >= candidateDeadline) { budgetReached = true; warnings.push("Candidate solve budget reached; reserved time for scoring and hard-exposure selection."); break; }
     // Let HTTP requests and timers run between bounded synchronous solves.
     await new Promise<void>(resolve => setImmediate(resolve));
@@ -288,7 +295,13 @@ export async function generateNflPortfolio(options: {
           ((usage.get(a.id) || 0) / candidates.length - maximum(a.id) / 100) || a.id - b.id)
       : [];
     const attemptExcluded = Array.from(new Set([...excluded, ...alwaysExcluded, ...pressured.slice(0, 3).map(p => p.id)]));
-    const jittered = eligible.map(p => ({ ...p, projectedPoints: String(Number(p.projectedPoints || p.fppg || 0) * (0.8 + random() * 0.4)) }));
+    // Periodic unperturbed solves establish a deterministic best-found
+    // baseline across the same hard-valid structure search, not a ceiling
+    // objective or an unconstrained roster that the caller cannot actually use.
+    const jittered = eligible.map(p => {
+      const jitter = 0.8 + random() * 0.4;
+      return { ...p, projectedPoints: String(Number(p.projectedPoints || p.fppg || 0) * (attempt % 4 === 0 ? 1 : jitter)) };
+    });
     let searchPool = jittered.filter(p => !attemptExcluded.includes(p.id));
     if (options.strictStructure) {
       // Pick a QB before the roster solve. This removes dozens of conditional
@@ -321,7 +334,7 @@ export async function generateNflPortfolio(options: {
     // a projection-only FLEX contest. Final selection still enforces the mix.
     const flexChoices = Object.keys(flexMix).filter(k => flexMix[k] > 0);
     const chosenFlex = plannedAttempt ? flexSchedule[attempt] : flexChoices[Math.floor(random() * flexChoices.length)];
-    const constraints = { ...base, minProjection: undefined, lockedPlayerIds: attemptLocks, excludedPlayerIds: attemptExcluded, nflPortfolio: s, nflPortfolioLineupPolicy: policy, ownershipMap: ownership,
+    const constraints = { ...base, projectedPointsFloor: undefined, deterministicObjective: attempt % 4 === 0, minProjection: undefined, lockedPlayerIds: attemptLocks, excludedPlayerIds: attemptExcluded, nflPortfolio: s, nflPortfolioLineupPolicy: policy, ownershipMap: ownership,
       ...(options.strictStructure ? { flexAllowedPositions: [chosenFlex] } : {}) };
     let result: any;
     try { result = await options.solve(searchPool, constraints); } catch (error) { lastError = String(error); continue; }
@@ -365,6 +378,14 @@ export async function generateNflPortfolio(options: {
       : lastError || "Check locks, RB salary floor, ownership, naked eligibility and stack alternatives.";
     throw new Error(`No NFL portfolio lineup found within the ${budgetReached ? "time" : "candidate search"} budget; this does not prove infeasibility. ${floorMessage} No lineups were saved.`);
   }
+  // Compare original deterministic projections, never the perturbed objective
+  // or a simulated ceiling. Exposure selection may not reintroduce weak filler.
+  const considered = candidates.length;
+  const baselineProjection = Math.max(...candidates.map(candidate => candidate.totalProjectedPoints));
+  const effectiveQualityFloor = qualityFloor(baselineProjection, base.projectedPointsFloor);
+  const qualified = candidates.filter(candidate => candidate.totalProjectedPoints >= effectiveQualityFloor);
+  candidates.splice(0, candidates.length, ...qualified);
+  if (considered !== candidates.length) warnings.push(`Quality floor ${effectiveQualityFloor.toFixed(1)} retained ${candidates.length} of ${considered} unique candidates (90% of best found deterministic projection or the explicit floor, whichever is higher).`);
   const scores = options.scoreCandidates ? await options.scoreCandidates(candidates) : candidates.map(x => x.totalProjectedPoints);
   if (scores.length !== candidates.length || scores.some(x => !Number.isFinite(x))) throw new Error("NFL portfolio scoring callback returned invalid scores.");
   const infos = candidates.map(x => classifyNflLineup(x.lineup));
@@ -709,6 +730,13 @@ export async function generateNflPortfolio(options: {
   if (limitingCriteria.some(x => x.includes("projection floor"))) suggestions.push("Lower the projection floor or expand the eligible player pool.");
   if (actualCount < count && !suggestions.length) suggestions.push("Expand the eligible player pool or reduce the requested lineup count, then retry.");
   const report: NflPortfolioReport = {
+    searchDiagnostics: {
+      ...qualityReport(lineups.map(candidate => candidate.totalProjectedPoints), baselineProjection,
+        base.projectedPointsFloor, considered, count, budgetReached ? "time_budget" : converged ? "convergence" : candidateTargetReached ? "qualified_candidate_target" : "candidate_budget"),
+      generatedCount: actualCount,
+      qualifiedCandidates: candidates.length,
+      uniqueVariants: actualCount,
+    },
     requestedCount: count, generatedCount: actualCount, candidateCount: candidates.length, seed: s.seed,
     metrics: [], warnings, partial: actualCount < count,
     selectionStatus: actualCount === count ? "full" : selectionTimedOut || budgetReached || Date.now() >= deadline ? "timed_out" : "partial",

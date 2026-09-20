@@ -130,6 +130,47 @@ function minProjectionNFLPool(): Player[] {
   ];
 }
 
+test("deterministic GPP baseline is independent of ownership and retains hard locks", () => {
+  const pool = minProjectionNFLPool();
+  const constraints = {
+    slateId: 1, lockedPlayerIds: [1], excludedPlayerIds: [],
+    contestType: "gpp" as const, deterministicObjective: true,
+  };
+  const first = solveLineup(pool, constraints, "NFL", "draftkings",
+    new Map(pool.map(p => [p.id, p.id % 2 ? 1 : 90])), { timeoutMs: 1000 });
+  const second = solveLineup(pool, constraints, "NFL", "draftkings",
+    new Map(pool.map(p => [p.id, p.id % 2 ? 90 : 1])), { timeoutMs: 1000 });
+  assert.ok(!first.error, first.error);
+  assert.ok(!second.error, second.error);
+  assert.equal(first.totalProjectedPoints, second.totalProjectedPoints);
+  assert.ok(first.lineup.some(p => p.id === 1));
+  assert.ok(first.lineup.some(p => p.team === "HOU" && /WR|TE/.test(p.position)));
+});
+
+for (const contestType of ["cash", "gpp"] as const) {
+  for (const boundary of [20, 30]) {
+    test(`deterministic ${contestType} baseline maximizes raw totals across ${boundary}-point multiplier boundary`, () => {
+      const pool = [
+        ...Array.from({ length: 4 }, (_, i) => nflPlayer(i + 1, "G", "A", 1, 8000)),
+        nflPlayer(5, "G", "A", boundary, 10000),
+        nflPlayer(6, "G", "A", 10, 8000),
+        nflPlayer(7, "G", "A", boundary - 0.1, 9000),
+        nflPlayer(8, "G", "A", 10.2, 9000),
+      ].map(p => ({ ...p, fppg: p.id === 5 ? String(boundary) : "100" }));
+      const constraints = { slateId: 1, lockedPlayerIds: [1, 2, 3, 4], excludedPlayerIds: [],
+        contestType, deterministicObjective: true };
+      const baseline = solveLineup(pool, constraints, "GOLF", "draftkings", undefined, { timeoutMs: 1000 });
+      assert.ok(!baseline.error, baseline.error);
+      assert.ok(baseline.lineup.some(p => p.id === 7));
+      assert.ok(baseline.lineup.some(p => p.id === 8));
+      assert.ok(Math.abs(baseline.totalProjectedPoints - (boundary + 14.1)) < 1e-9);
+      const preference = solveLineup(pool, { ...constraints, deterministicObjective: false },
+        "GOLF", "draftkings", undefined, { timeoutMs: 1000 });
+      assert.ok(preference.lineup.some(p => p.id === 5), "fixture crosses the preference-objective boundary");
+    });
+  }
+}
+
 test("optimization schemas accept finite nonnegative minProjection and reject invalid values", () => {
   const standard = optimizationConstraintSchema.parse({ slateId: 1, minProjection: 0 });
   const pro = proOptimizationConstraintSchema.parse({ slateId: 1, minProjection: 8 });

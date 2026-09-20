@@ -50,10 +50,12 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
   let suppliedOwnership = false;
   let failingAdjustment: "outperformer" | "ceiling" | "leverage" | null = null;
   let failTransactionWriteAt: number | undefined;
+  let forceWeakSimulation = false;
+  let lastSimulationProjections: Record<number, number> = {};
   const identity = (p: any) => p;
   const mockDb: any = {
     update: () => ({ set: (payload: any) => ({ where: async () => { writes.push(payload); } }) }),
-    insert: () => ({ values: (payload: any) => ({ returning: async () => [{ id: 500, ...payload }] }) }),
+    insert: () => ({ values: (payload: any) => ({ returning: async () => { writes.push(payload); return [{ id: 500, ...payload }]; } }) }),
   };
   mockDb.transaction = async (callback: any) => {
     const staged: any[] = [];
@@ -83,7 +85,12 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
       isActive: id === 78 && inactiveTarget ? false : slate.isActive,
       startTime: id === 78 && closedTarget ? new Date("2000-01-01") : slate.startTime,
     }),
-    getPlayersBySlate: async () => players,
+    getPlayersBySlate: async () => cokerAppearances === undefined ? players : [
+      ...players,
+      ...Array.from({ length: 15 }, (_, i) => players.slice(0, 9).map((p, slot) => ({
+        ...p, id: 1000 + i * 9 + slot,
+      }))).flat(),
+    ],
     getUser: async () => ({ isAdmin: true }),
     getSubscription: async () => ({ tier: "pro" }),
     getPlayerOverrides: async (_userId: string, slateId: number) => failLegacyExposureGroup && slateId === 78
@@ -111,6 +118,18 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
     computeCorrelationBonus: () => 0,
   });
   mock("../server/market-projections.ts", { applyMarketProjectionBlend: identity });
+  const simulationEngine = require("../server/simulation-engine.ts");
+  mock("../server/simulation-engine.ts", {
+    ...simulationEngine,
+    runSimulations: (...args: any[]) => {
+      lastSimulationProjections = args[3];
+      return forceWeakSimulation
+      ? Array.from({ length: args[2] }, () => ({
+          projections: Object.fromEntries(args[0].map((p: any) => [p.id, p.id > 9 ? 500 : 1])),
+        }))
+      : simulationEngine.runSimulations(...args);
+    },
+  });
   mock("../server/historical-adjustments.ts", { getHistoricalProfile: async () => ({ ready: false }) });
   mock("../server/ai-scout.ts", { getCachedSignals: () => [] });
   mock("../server/espn-activity.ts", { getRecentlyPlayedCache: () => new Set(), normalizePlayerName: (s: string) => s });
@@ -219,6 +238,13 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
       { ...common, ids: [1, 2], projFloor: 180 });
     assert.equal(acceptedFloor.updated, 2);
     assert.ok(writes.slice(beforeRejectedFloor).every(write => Number(write.totalProjectedPoints) >= 180));
+    const simFloor = await invoke("/api/optimize/sim", {
+      slateId: 77, numSims: 50, lineupCount: 2, projectedPointsFloor: 250,
+    });
+    assert.equal(simFloor.lineups.length, 0, "simulation upside cannot bypass the deterministic floor");
+    assert.equal(simFloor.partial, true);
+    assert.equal(simFloor.searchDiagnostics.effectiveFloor, 250);
+    assert.equal(simFloor.searchDiagnostics.baselineStatus, "best_found");
     const automatic = await invoke("/api/lineups/sim-regenerate", { ids: [1], contestType: "gpp", nflPortfolio: { enabled: false } });
     assert.equal(automatic.nflPortfolioReports[0].report.generatedCount, 1);
     assert.equal(calls.at(-1).strictStructure, true);
@@ -362,6 +388,7 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
       assert.match(rejected.message, /exposure/i, "request 100 must not loosen stored 80");
       assert.equal(writes.length, beforeLegacyFailure);
     }
+    cokerAppearances = undefined;
     const cappedNormal = await invoke("/api/optimize", { slateId: 77 }, 400);
     assert.match(cappedNormal.message, /batch/i);
     const cappedBulk = await invoke("/api/lineups/bulk-generate", {
@@ -389,6 +416,51 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
     assert.deepEqual(calls.at(-1).baseConstraints.lockedPlayerIds, [], "source-slate locks never leak into target configuration");
     assert.equal(writes.at(-1).userId, "owner", "clone belongs to source owner");
     assert.equal(writes.at(-1).slateId, 78);
+    savedPlayerOverrides = [];
+    const requestProjectionResult = await invoke("/api/optimize/sim", { ...common, numSims: 50, lineupCount: 1,
+      playerProjections: { 1: 77 } });
+    assert.equal(Number(calls.at(-1).pool.find((p: any) => p.id === 1).projectedPoints), 77,
+      "request-only projection enters canonical baseline pool, not just simulation map");
+    assert.equal(lastSimulationProjections[1], 77, "simulation and deterministic quality share the canonical edit");
+    assert.equal(Number(requestProjectionResult.lineups[0].lineup.find((p: any) => p.id === 1).projectedPoints), 77);
+    assert.equal(requestProjectionResult.lineups[0].totalProjectedPoints, 237);
+    savedPlayerOverrides = [{ playerId: 1, boostPercent: 20 }];
+    await invoke("/api/optimize/sim", { ...common, numSims: 50, lineupCount: 1,
+      playerProjections: { 1: 50 } });
+    assert.equal(Number(calls.at(-1).pool.find((p: any) => p.id === 1).projectedPoints), 60);
+    savedPlayerOverrides = [];
+    const normalDiagnostics = await invoke("/api/optimize", { slateId: 77 });
+    assert.equal(normalDiagnostics.searchDiagnostics.candidatesConsidered, 1,
+      "identical preference and baseline rosters count once");
+    const emptyNormal = await invoke("/api/optimize", { slateId: 77, projectedPointsFloor: 500 });
+    assert.equal(emptyNormal.searchDiagnostics.generatedCount, 0);
+    assert.equal(emptyNormal.searchDiagnostics.effectiveFloor, 500);
+    const mixedBulk = await invoke("/api/lineups/bulk-generate", { ids: [1, 4], globalMaxExposure: 100 });
+    assert.deepEqual(mixedBulk.searchReports.map((entry: any) => entry.report.requestedCount), [1, 1]);
+    const originalProjections = players.map(p => p.projectedPoints);
+    try {
+      players.forEach(p => { p.projectedPoints = "20.003"; });
+      for (const path of ["/api/lineups/sim-regenerate", "/api/lineups/bulk-generate"]) {
+        for (const target of [77, 78]) {
+          const beforeFractional = writes.length;
+          const fractional = await invoke(path, { ids: [1], slateId: target, preserveSourceSlateId: true,
+            ...(path.endsWith("sim-regenerate") ? { contestType: "gpp", nflPortfolio: settings } : { contestType: "cash" }),
+            globalMaxExposure: 100, projFloor: 180.025, useBoosts: false });
+          assert.equal(fractional.updated + fractional.cloned, 1, `${path} returns the fractional qualifier`);
+          assert.equal(writes.length, beforeFractional + 1);
+          assert.ok(Number(writes.at(-1).totalProjectedPoints) >= 180.025,
+            `${path} must not round an eligible update/clone below its floor`);
+        }
+      }
+      players.forEach(p => { p.projectedPoints = p.id > 9 ? "1" : "20"; });
+      forceWeakSimulation = true;
+      const seeded = await invoke("/api/lineups/sim-regenerate", { ids: [1], contestType: "cash", projFloor: 179 });
+      assert.equal(seeded.updated, 1, "deterministic qualifier remains selectable when simulated winners are weak");
+      assert.ok(Number(writes.at(-1).totalProjectedPoints) >= 179);
+    } finally {
+      forceWeakSimulation = false;
+      players.forEach((p, i) => { p.projectedPoints = originalProjections[i]; });
+    }
   } finally {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     for (const [id, previous] of saved) {

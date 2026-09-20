@@ -88,6 +88,19 @@ export interface NflPortfolioReport {
     rushing: "manual";
   };
   partial: boolean;
+  searchDiagnostics?: {
+    baselineProjection: number;
+    baselineStatus: "best_found";
+    relativeThreshold: number;
+    effectiveFloor: number;
+    candidatesConsidered: number;
+    qualifiedCandidates: number;
+    uniqueVariants: number;
+    requestedCount: number;
+    generatedCount: number;
+    stoppingReason: string;
+    projectionRange: { min: number; max: number } | null;
+  };
   selectionStatus?: "full" | "partial" | "timed_out";
   limitingCriteria?: string[];
   suggestions?: string[];

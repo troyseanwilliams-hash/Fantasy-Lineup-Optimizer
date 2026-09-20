@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { DEFAULT_NFL_PORTFOLIO, nflPortfolioSettingsSchema, type NflPortfolioSettings, type NflPortfolioReport } from "@shared/nfl-portfolio";
+import { QualitySearchDiagnostics } from "@/components/QualitySearchDiagnostics";
 
 export function useNflPortfolio() {
   const [settings, setSettings] = useState<NflPortfolioSettings>(() => structuredClone(DEFAULT_NFL_PORTFOLIO));
@@ -72,6 +73,12 @@ export function NflPortfolioReportView({ report, target }: { report?: NflPortfol
     {(report.fallbackCount ?? 0) > 0 && <p className="text-amber-200"><strong>Adjusted formula:</strong> {report.normalFormulaCount ?? report.generatedCount - report.fallbackCount!} standard target lineups + {report.fallbackCount} {report.fallbackMode === "projection_low_ownership" ? "high-projection, low-ownership" : "projection-ranked"} fallback lineups.</p>}
     {!!report.adjustedTargets?.length && <div><strong>Softened portfolio targets</strong><ul className="list-disc pl-5">{report.adjustedTargets.map((item, i) => <li key={i}>{item}</li>)}</ul></div>}
     <p>Sources: ownership {report.dataSources?.ownership === "estimated" ? "model estimates" : report.dataSources?.ownership ?? "unavailable"} · Vegas {vegasSource}{report.dataSources?.vegasProvider ? ` (${report.dataSources.vegasProvider}${vegasTime})` : vegasTime}{eventTimes} · rushing role manual (not verified)</p>
+    <QualitySearchDiagnostics
+      diagnostics={report.searchDiagnostics}
+      partial={report.partial}
+      mode={target.includes("Sim") ? "sim" : "projection"}
+      testId="portfolio-quality-report"
+    />
     {!!report.limitingCriteria?.length && <div><strong>Limiting criteria</strong><ul className="list-disc pl-5">{report.limitingCriteria.map((item, i) => <li key={i}>{item}</li>)}</ul></div>}
     {!!report.suggestions?.length && <div><strong>To generate more lineups</strong><ul className="list-disc pl-5">{report.suggestions.map((item, i) => <li key={i}>{item}</li>)}</ul></div>}
     <div className="overflow-auto"><table className="w-full text-left [&_th]:pr-3 [&_td]:pr-3 [&_td]:py-1"><thead><tr><th>Metric</th><th>Target</th><th>Achieved</th><th>Status / detail</th></tr></thead><tbody>{(report.metrics || []).map(m => <tr key={m.key}><td>{m.label} ({m.unit})</td><td>{m.target ?? "Unavailable"}</td><td>{m.achieved ?? "Unavailable"}</td><td className={m.status === "shortfall" ? "text-amber-300" : ""}>{m.status} {m.detail}</td></tr>)}</tbody></table></div>

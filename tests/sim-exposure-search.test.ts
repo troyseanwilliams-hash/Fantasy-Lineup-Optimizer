@@ -19,11 +19,11 @@ const pool = Array.from({ length: 16 }, (_, team) =>
     fppg: "15", injuryStatus: null,
   } as Player))).flat();
 
-test("193/40 regression: automatic 235.7 floor cannot cut 273 candidates to 137; explicit floor remains hard", () => {
+test("quality floors reject weak filler even when count and exposure need more candidates", () => {
   const candidates = Array.from({ length: 273 }, (_, i) => i < 137 ? 250 : 230);
   const options = { count: 193, automaticFloor: 235.7, constrained: true };
-  assert.equal(filterSimProjectionCandidates(candidates, x => x, options), candidates);
-  assert.equal(filterSimProjectionCandidates(candidates, x => x, { ...options, constrained: false }), candidates);
+  assert.equal(filterSimProjectionCandidates(candidates, x => x, options).length, 137);
+  assert.equal(filterSimProjectionCandidates(candidates, x => x, { ...options, constrained: false }).length, 137);
   assert.equal(filterSimProjectionCandidates(candidates, x => x, { ...options, explicitFloor: 235.7 }).length, 137);
   assert.equal(filterSimProjectionCandidates(candidates, x => x, { ...options, explicitFloor: 300 }).length, 0);
 });
