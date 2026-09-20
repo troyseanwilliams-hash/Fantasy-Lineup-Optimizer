@@ -481,6 +481,8 @@ export default function SavedLineups() {
   const [regenOutperformerMode, setRegenOutperformerMode] = useState(false);
   const [showRegenSettings, setShowRegenSettings] = useState(false);
   const [showExposure, setShowExposure] = useState(true);
+  const [exposureScope, setExposureScope] = useState<"selected" | "lastResim" | "all">("selected");
+  const [lastResimLineupIds, setLastResimLineupIds] = useState<number[]>([]);
   const [regenMaxExposure, setRegenMaxExposure] = useState<number | null>(null);
   const [regenMinExposure, setRegenMinExposure] = useState<number | null>(null);
   const [regenProjFloor, setRegenProjFloor] = useState<number | null>(null);
@@ -606,10 +608,20 @@ export default function SavedLineups() {
     return lineups.some((lu: any) => lu.simData && (lu.simData.p75Score != null || lu.simData.p90Score != null));
   }, [lineups]);
 
+  const exposureLineups = useMemo(() => {
+    if (!lineups) return [];
+    if (exposureScope === "selected" && selectedIds.size > 0) {
+      return lineups.filter((lineup: any) => selectedIds.has(lineup.id));
+    }
+    if (exposureScope === "lastResim" && lastResimLineupIds.length > 0) {
+      const batchIds = new Set(lastResimLineupIds);
+      return lineups.filter((lineup: any) => batchIds.has(Number(lineup.id)));
+    }
+    return lineups;
+  }, [exposureScope, lastResimLineupIds, lineups, selectedIds]);
+
   const exposureData = useMemo(() => {
-    if (!lineups || selectedIds.size === 0) return [];
-    const selectedLineups = lineups.filter((l: any) => selectedIds.has(l.id));
-    const total = selectedLineups.length;
+    const total = exposureLineups.length;
     if (total === 0) return [];
     const counts = new Map<string, {
       name: string; position: string; team: string; salary: number; count: number;
@@ -620,7 +632,7 @@ export default function SavedLineups() {
       playerId: number | null;
       dkPlayerId: number | null;
     }>();
-    for (const lu of selectedLineups) {
+    for (const lu of exposureLineups) {
       const snap = lu.playerSnapshot && Array.isArray(lu.playerSnapshot) ? lu.playerSnapshot as any[] : [];
       for (const p of snap) {
         const key = p.name || "";
@@ -652,7 +664,7 @@ export default function SavedLineups() {
         avgActual: p.actualAvg,
       }))
       .sort((a, b) => b.pct - a.pct || b.count - a.count);
-  }, [lineups, selectedIds]);
+  }, [exposureLineups]);
 
   const { data: subscription } = useQuery<any>({
     queryKey: ["/api/subscription"],
@@ -835,6 +847,15 @@ export default function SavedLineups() {
     onSuccess: async (data, variables) => {
       const summary = summarizeRegeneration(data);
       const generated = summary.cloned + summary.updated;
+      if (generated === 0) {
+        toast({
+          title: "No Lineups Changed",
+          description: data?.message || `${summary.failed + summary.skipped || variables.ids.length} lineup(s) could not satisfy the requested constraints.`,
+          variant: "destructive",
+        });
+        await queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
+        return;
+      }
       const targetDescription = variables?.draftGroupId
         ? `DraftKings draftGroupId ${variables.draftGroupId}`
         : "the source slate";
@@ -888,6 +909,35 @@ export default function SavedLineups() {
     },
     onSuccess: async (data, variables) => {
       const summary = summarizeRegeneration(data);
+      const changed = summary.cloned + summary.updated;
+      if (changed === 0) {
+        toast({
+          title: "No Lineups Changed",
+          description: data?.message || `${summary.failed + summary.skipped || variables.ids.length} lineup(s) could not satisfy the requested simulation constraints.`,
+          variant: "destructive",
+        });
+        await queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
+        return;
+      }
+      // Only expose a "last ReSim batch" when the response identifies its
+      // actual rows. Counts alone are not enough: cross-slate ReSim preserves
+      // source rows and creates clones, so inferring from the whole vault would
+      // produce a misleading exposure denominator.
+      const explicitBatchIds = Array.from(new Set([
+        ...summary.outcomes.flatMap(outcome => {
+          if (outcome.status === "updated") {
+            return [outcome.newLineupId ?? outcome.sourceLineupId];
+          }
+          if (outcome.status === "cloned" || outcome.status === "clone" || outcome.status === "created") {
+            return [outcome.newLineupId];
+          }
+          return [];
+        }),
+        ...summary.newLineupIds,
+      ].filter((id): id is number => id !== null)));
+      setLastResimLineupIds(explicitBatchIds);
+      setSelectedIds(new Set());
+      if (explicitBatchIds.length > 0) setExposureScope("lastResim");
       setPortfolioReports((Array.isArray(data.nflPortfolioReports) ? data.nflPortfolioReports : []).filter((item: any) => item?.report).map((item: any) => ({
         ...item,
         report: { ...item.report, partial: item.report.partial || summary.failed + summary.skipped > 0 },
@@ -907,7 +957,6 @@ export default function SavedLineups() {
       if (summary.failed + summary.skipped > 0) desc += ` ${summary.failed + summary.skipped} skipped.`;
       if (data?.partial && data?.message) desc += ` ${data.message}`;
       toast({ title: summary.failed + summary.skipped > 0 ? "Partial Sim Regeneration" : summary.cloned > 0 ? "New Sim Lineups Created" : "Sim Regeneration Complete", description: desc });
-      setSelectedIds(new Set());
       await queryClient.invalidateQueries({ queryKey: ["/api/lineups"] });
       await refreshLineups();
     },
@@ -1535,7 +1584,7 @@ export default function SavedLineups() {
                 </div>
                 <div className="flex items-center gap-2 min-w-[180px]">
                   <span className="text-xs font-bold text-slate-300 whitespace-nowrap">Max Exp</span>
-                  <InfoTip text="Limits how often any single player can appear across your lineups. Lower = more diverse lineups." side="bottom" />
+                  <InfoTip text="Caps a player's share of the newly generated batch only. An 80% cap still allows that player in up to 80% of the batch, so one injury can still affect many lineups; it reduces concentration, not risk to zero." side="bottom" />
                   <Slider
                     value={[regenMaxExposure ?? 100]}
                     onValueChange={(v) => setRegenMaxExposure(v[0] >= 100 ? null : v[0])}
@@ -1832,7 +1881,11 @@ export default function SavedLineups() {
                     <BarChart3 className="w-4 h-4 text-cyan-400" />
                     <span className="text-sm font-black text-white">Player Exposure</span>
                     <Badge variant="outline" className="border-cyan-500/20 text-cyan-400 text-[10px]">
-                      {selectedIds.size} lineup{selectedIds.size !== 1 ? "s" : ""}
+                      {exposureScope === "selected" && selectedIds.size > 0
+                        ? "Selected"
+                        : exposureScope === "lastResim" && lastResimLineupIds.length > 0
+                          ? "Last ReSim batch"
+                          : "All saved"} · {exposureLineups.length} lineup{exposureLineups.length !== 1 ? "s" : ""}
                     </Badge>
                     <Badge variant="outline" className="border-slate-600 text-slate-400 text-[10px]">
                       {exposureData.length} player{exposureData.length !== 1 ? "s" : ""}
@@ -1847,6 +1900,50 @@ export default function SavedLineups() {
                 </button>
                 {showExposure && (
                   <div className="px-4 pb-4">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-700/40 pb-3">
+                      <p className="text-[10px] text-slate-400" data-testid="exposure-scope-description">
+                        Current {exposureScope === "selected" && selectedIds.size > 0
+                          ? "selected"
+                          : exposureScope === "lastResim" && lastResimLineupIds.length > 0
+                            ? "last successful ReSim batch"
+                            : "saved-vault"} scope: {exposureLineups.length} lineup{exposureLineups.length !== 1 ? "s" : ""}. Regeneration caps apply only to each newly generated batch; preserved source lineups and new clones combined may exceed that cap.
+                      </p>
+                      {(selectedIds.size > 0 || lastResimLineupIds.length > 0) && (
+                        <div className="flex rounded-md border border-slate-700 bg-slate-900/60 p-0.5" data-testid="exposure-scope-toggle">
+                          {selectedIds.size > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setExposureScope("selected")}
+                              aria-pressed={exposureScope === "selected"}
+                              className={`rounded px-2 py-1 text-[10px] font-black ${exposureScope === "selected" ? "bg-cyan-600 text-white" : "text-slate-400"}`}
+                              data-testid="exposure-scope-selected"
+                            >
+                              Selected ({selectedIds.size})
+                            </button>
+                          )}
+                          {lastResimLineupIds.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setExposureScope("lastResim")}
+                              aria-pressed={exposureScope === "lastResim"}
+                              className={`rounded px-2 py-1 text-[10px] font-black ${exposureScope === "lastResim" ? "bg-cyan-600 text-white" : "text-slate-400"}`}
+                              data-testid="exposure-scope-last-resim"
+                            >
+                              Last ReSim ({lastResimLineupIds.length})
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setExposureScope("all")}
+                            aria-pressed={exposureScope === "all"}
+                            className={`rounded px-2 py-1 text-[10px] font-black ${exposureScope === "all" ? "bg-cyan-600 text-white" : "text-slate-400"}`}
+                            data-testid="exposure-scope-all"
+                          >
+                            All saved ({lineups?.length || 0})
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm" data-testid="exposure-table">
                         <thead>
@@ -1969,7 +2066,7 @@ export default function SavedLineups() {
                                   </div>
                                 </div>
                               </td>
-                              <td className="py-1.5 px-2 text-right text-slate-300 text-xs">{p.count}/{selectedIds.size}</td>
+                              <td className="py-1.5 px-2 text-right text-slate-300 text-xs">{p.count}/{exposureLineups.length}</td>
                               <td className="py-1.5 px-2 text-right">
                                 <div className="flex items-center justify-end gap-2">
                                   <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">

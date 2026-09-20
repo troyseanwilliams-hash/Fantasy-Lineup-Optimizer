@@ -1389,7 +1389,7 @@ export default function ProOptimizer() {
               {isPro && (simMode ? numSims : lineupCount) > 1 && (
                 <>
                   <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
-                    <LabelTip text="Maximum % any single player can appear across all generated lineups. Lower values increase lineup diversity."><span className="text-[10px] font-black text-cyan-400 uppercase whitespace-nowrap">Max Exp</span></LabelTip>
+                    <LabelTip text="Maximum share for any player within this newly generated batch. An 80% cap still allows the player in up to 80% of the batch, so it reduces concentration but cannot guarantee one injury will not affect many lineups."><span className="text-[10px] font-black text-cyan-400 uppercase whitespace-nowrap">Max Exp</span></LabelTip>
                     <Slider
                       value={[globalMaxExposure ?? 100]}
                       onValueChange={(v) => setGlobalMaxExposure(v[0] === 100 ? null : v[0])}
@@ -3277,7 +3277,7 @@ export default function ProOptimizer() {
               <div data-testid="exposure-tracking-panel">
                 <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-3">
                   <Target className="w-4 h-4 text-cyan-400" />
-                  Player Exposure ({generatedLineups.length} lineups)
+                  Player Exposure · Current Generated Batch ({generatedLineups.length} lineups)
                   {globalMaxExposure && (
                     <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30 text-[9px] font-black ml-1" data-testid="badge-global-exposure">
                       Max {globalMaxExposure}%
@@ -3285,6 +3285,9 @@ export default function ProOptimizer() {
                   )}
                 </h3>
                 <Card className="bg-slate-800/60 border-slate-700/50 p-3">
+                  <p className="mb-2 text-[10px] leading-relaxed text-slate-400" data-testid="exposure-batch-scope">
+                    Exposure uses this generated batch as the denominator. A max cap limits concentration within this batch; 80% still allows a player in up to 80% of lineups and cannot guarantee one injury will not affect results.
+                  </p>
                   <div className="space-y-1.5">
                     {exposureTracking.slice(0, 20).map((ep) => (
                       <div key={ep.playerId} className="flex items-center gap-2" data-testid={`exposure-row-${ep.playerId}`}>

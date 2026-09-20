@@ -26,3 +26,9 @@ Exposure feasibility depends on candidate generation as well as final portfolio 
 **Why:** A realistic full-slate check produced a valid unrestricted batch but failed with an 80% exposure cap: projection jitter alone can keep selecting the same high-value players. The selector cannot choose alternatives that were never generated.
 
 **How to apply:** Generate deliberate alternatives for overrepresented players and minimum-exposure targets, while preserving locks. Distinguish an exhausted search budget from proven infeasibility; never relax hard exposures silently.
+
+Exposure maxima are final-batch invariants, not candidate-ranking preferences.
+
+**Why:** Legacy fill-to-count and minimum-exposure replacement passes could undo an earlier valid selection, producing more than the configured maximum. Source-preserving Resim clones can also make all-saved exposure differ from the newly generated batch.
+
+**How to apply:** Validate the final returned/saved set against its actual count after every selection stage; neither player overrides nor locks may silently loosen a global maximum. Distinguish batch exposure from historical saved-lineup exposure in reports.

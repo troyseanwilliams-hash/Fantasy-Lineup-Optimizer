@@ -117,6 +117,13 @@ for (const mode of ["standard", "pro"] as const) {
     await expect(controls.getByTestId(`${visibleControlsId}-TE`)).not.toBeChecked();
     await expect(controls.getByTestId(`${visibleControlsId}-RB`)).toBeDisabled();
 
+    if (mode === "pro") {
+      const exposureSlider = page.locator('[data-testid="slider-global-exposure"]:visible, [data-testid="slider-global-exposure-mobile"]:visible').first().getByRole("slider");
+      await exposureSlider.focus();
+      await exposureSlider.press("End");
+      for (let i = 0; i < 4; i++) await exposureSlider.press("ArrowLeft");
+    }
+
     if (mode === "standard" && await page.getByTestId("mobile-tab-lineup").isVisible()) {
       await page.getByTestId("mobile-tab-lineup").click();
     }
@@ -134,7 +141,8 @@ for (const mode of ["standard", "pro"] as const) {
       await page.getByTestId("button-generate").click();
       await expect.poll(() => requests.length).toBe(2);
       expect(requests[1].path).toContain("/api/optimize/sim");
-      expect(requests[1].body).toMatchObject({ flexAllowedPositions: ["RB"] });
+      expect(requests[0].body).toMatchObject({ flexAllowedPositions: ["RB"], globalMaxExposure: 80 });
+      expect(requests[1].body).toMatchObject({ flexAllowedPositions: ["RB"], globalMaxExposure: 80 });
     }
 
     await page.getByTestId(mode === "standard" ? "reset-btn" : "button-reset").click();

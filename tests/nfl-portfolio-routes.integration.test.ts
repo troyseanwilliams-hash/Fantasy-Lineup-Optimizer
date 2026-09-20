@@ -42,6 +42,8 @@ test("all four handlers propagate enabled strategy and simulation scoring; OFF n
   let closedTarget = false;
   let failSecondGroup = false;
   let closeDuringGeneration = false;
+  let cokerAppearances: number | undefined;
+  let failLegacyExposureGroup = false;
   const identity = (p: any) => p;
   mock("../server/db.ts", { db: { update: () => ({ set: (payload: any) => ({ where: async () => { writes.push(payload); } }) }) }, pool: {} });
   mock("../server/replit_integrations/auth/index.ts", { setupAuth: async () => {}, registerAuthRoutes: () => {} });
@@ -54,7 +56,8 @@ test("all four handlers propagate enabled strategy and simulation scoring; OFF n
     getPlayersBySlate: async () => players,
     getUser: async () => ({ isAdmin: true }),
     getSubscription: async () => ({ tier: "pro" }),
-    getPlayerOverrides: async () => [],
+    getPlayerOverrides: async (_userId: string, slateId: number) => failLegacyExposureGroup && slateId === 78
+      ? [{ playerId: 99999, minExposure: 100, maxExposure: 100 }] : [],
     getZeroPointPlayerNames: async () => [],
     getLineup: async (id: number) => ({ id, slateId: id === 4 ? 78 : 77, userId: id === 999 ? "other" : "owner", sport: "NFL", platform: "draftkings" }),
   } });
@@ -74,7 +77,14 @@ test("all four handlers propagate enabled strategy and simulation scoring; OFF n
       calls.push(options);
       if (options.baseConstraints.slateId === 78 && failSecondGroup) throw new Error("Second target hard validation failed");
       if (options.baseConstraints.slateId === 78 && closeDuringGeneration) closedTarget = true;
-      const lineups = Array.from({ length: options.count }, (_, i) => {
+       const lineups = Array.from({ length: options.count }, (_, i) => {
+         if (cokerAppearances !== undefined) {
+           const lineup = players.slice(0, 9).map((p, slot) => ({
+             ...p, id: slot === 4 && i < cokerAppearances ? 1 : 1000 + i * 9 + slot,
+             name: slot === 4 && i < cokerAppearances ? "Coker" : p.name,
+           }));
+           return { lineup, totalSalary: 45000, totalProjectedPoints: 180 };
+         }
         const lineup = players.slice(0, 9);
         if (i) lineup[4] = players[9];
         return { lineup, totalSalary: 45000, totalProjectedPoints: 180 };
@@ -176,6 +186,39 @@ test("all four handlers propagate enabled strategy and simulation scoring; OFF n
     closeDuringGeneration = closedTarget = false;
     const unavailableEv = await invoke("/api/optimize/sim", { ...common, numSims: 50, lineupCount: 1, sortMetric: "ev" }, 400);
     assert.match(unavailableEv.message, /EV portfolio scoring requires complete/);
+    // Real HTTP final boundary regression: 13/15 (rounded 87%) must never save.
+    cokerAppearances = 13;
+    const requestedIds = Array.from({ length: 15 }, (_, i) => 101 + i);
+    const beforeExposureFailure = writes.length;
+    for (const path of ["/api/optimize/pro", "/api/optimize/sim", "/api/lineups/sim-regenerate"]) {
+      const rejected = await invoke(path, { ...common, ids: requestedIds, lineupCount: 15, numSims: 50, globalMaxExposure: 80 }, 400);
+      assert.match(rejected.message, /exposure/i);
+      assert.equal(writes.length, beforeExposureFailure);
+    }
+    cokerAppearances = 12;
+    const expectedKeys = Array.from({ length: 15 }, (_, i) =>
+      Array.from({ length: 9 }, (_, slot) => slot === 4 && i < 12 ? 1 : 1000 + i * 9 + slot).sort((a, b) => a - b).join(",")).sort();
+    for (const path of ["/api/optimize/pro", "/api/optimize/sim"]) {
+      const accepted = await invoke(path, { ...common, lineupCount: 15, numSims: 50, globalMaxExposure: 80 });
+      assert.equal(accepted.lineups.length, 15, "the accepted engine set must not be trimmed");
+      assert.equal(accepted.lineups.filter((c: any) => c.lineup.some((p: any) => p.id === 1)).length, 12);
+      assert.deepEqual(accepted.lineups.map((c: any) => c.lineup.map((p: any) => p.id).sort((a: number, b: number) => a - b).join(",")).sort(), expectedKeys);
+    }
+    const validRegen = await invoke("/api/lineups/sim-regenerate", { ...common, ids: requestedIds, globalMaxExposure: 80 });
+    assert.equal(validRegen.updated, 15);
+    const savedBatch = writes.slice(beforeExposureFailure);
+    assert.equal(savedBatch.length, 15);
+    assert.equal(savedBatch.filter(c => c.playerIds.includes(1)).length, 12);
+    assert.deepEqual(savedBatch.map(c => [...c.playerIds].sort((a: number, b: number) => a - b).join(",")).sort(), expectedKeys);
+    for (const invalid of [-1, 101, "80", null]) {
+      await invoke("/api/lineups/sim-regenerate", { ...common, ids: [1], globalMaxExposure: invalid }, 400);
+      assert.equal(writes.length, beforeExposureFailure + 15);
+    }
+    cokerAppearances = undefined;
+    failLegacyExposureGroup = true;
+    const beforeLegacyFailure = writes.length;
+    await invoke("/api/lineups/sim-regenerate", { ids: [1, 4], globalMaxExposure: 100 }, 400);
+    assert.equal(writes.length, beforeLegacyFailure, "legacy exposure-constrained groups must all validate before any saves");
   } finally {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     for (const [id, previous] of saved) {

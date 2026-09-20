@@ -1,6 +1,7 @@
 import type { Express, Request } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
+import { selectExposureLineups, assertLineupExposures, validateExposureBounds, mergeExposureMinimums, mergeExposureMaximums } from "./lineup-exposure";
 import { db } from "./db";
 import { users, subscriptions, slates, lineups as lineupsTable, signupEvents, supportTickets, draftTeams, type FavoriteStack } from "@shared/schema";
 import { eq, and, lt, sql, desc, gte, inArray } from "drizzle-orm";
@@ -1769,6 +1770,7 @@ export async function registerRoutes(
     const bulkSolveDeadline = bulkStartTime + 26_000;
     let bulkTimedOut = false;
     const results: { id: number; status: string; error?: string }[] = [];
+    const pendingBulk: Array<{ slateId: number; playerIds: number[]; persist: () => Promise<void> }> = [];
 
     const slateCache = new Map<number, { slate: any; pool: Player[]; allPlayers: Player[]; baseExcluded: number[]; platform: Platform; lockedOverrideIds: number[]; overrideExposure: Record<string, { min?: number; max?: number }> }>();
     const usedLineupKeys = new Set<string>();
@@ -1776,6 +1778,15 @@ export async function registerRoutes(
     const totalCount = ids.length;
     const globalMaxExposure = typeof req.body.globalMaxExposure === "number" ? req.body.globalMaxExposure : 80;
     const globalMinExposureBulk = typeof req.body.globalMinExposure === "number" ? req.body.globalMinExposure : undefined;
+    try {
+      validateExposureBounds({
+        globalMaxExposure: req.body.globalMaxExposure ?? globalMaxExposure,
+        globalMinExposure: req.body.globalMinExposure,
+        exposureLimits: req.body.exposureLimits, minExposureLimits: req.body.minExposureLimits,
+      });
+    } catch (error) {
+      return res.status(400).json({ message: error instanceof z.ZodError ? error.errors[0].message : "Invalid exposure settings" });
+    }
     const projFloor = typeof req.body.projFloor === "number" && req.body.projFloor > 0 ? req.body.projFloor : null;
     const minSalary = typeof req.body.minSalary === "number" ? req.body.minSalary : undefined;
     const maxSalary = typeof req.body.maxSalary === "number" ? req.body.maxSalary : undefined;
@@ -1924,7 +1935,7 @@ export async function registerRoutes(
       }
 
       const { slate, pool, baseExcluded, platform, lockedOverrideIds, overrideExposure } = cached;
-      const iteration = results.filter(r => r.status === "updated").length;
+      const iteration = pendingBulk.length;
       const maxAttempts = 10;
       let updated = false;
 
@@ -1946,7 +1957,7 @@ export async function registerRoutes(
             const appearances = playerAppearances[p.id] || 0;
             const currentExposure = totalCount > 0 ? (appearances / totalCount) * 100 : 0;
             const playerMaxExp = overrideExposure[p.id.toString()]?.max;
-            const effectiveMax = playerMaxExp ?? globalMaxExposure;
+            const effectiveMax = Math.min(playerMaxExp ?? 100, globalMaxExposure);
             if (currentExposure >= effectiveMax) {
               iterationExcluded.push(p.id);
             }
@@ -2033,6 +2044,7 @@ export async function registerRoutes(
           playerSnapshot,
         };
         const targetSlateId = effectiveSlateId;
+        const persist = async () => {
         if (shouldCloneRegeneratedLineup(
           lineup.slateId,
           targetSlateId,
@@ -2050,6 +2062,8 @@ export async function registerRoutes(
           await storage.updateLineup(Number(id), updatePayload);
           results.push({ id: Number(id), status: "updated" });
         }
+        };
+        pendingBulk.push({ slateId: targetSlateId, playerIds, persist });
         updated = true;
       }
 
@@ -2058,6 +2072,20 @@ export async function registerRoutes(
       }
     }
 
+    try {
+      for (const [slateId, cached] of slateCache) {
+        const batch = pendingBulk.filter(c => c.slateId === slateId);
+        if (!batch.length) continue;
+        assertLineupExposures(batch, c => c.playerIds, {
+          globalMaxExposure, globalMinExposure: globalMinExposureBulk, lockedPlayerIds: cached.lockedOverrideIds,
+          exposureLimits: mergeExposureMaximums(Object.fromEntries(Object.entries(cached.overrideExposure).filter(([, v]) => v.max != null).map(([id, v]) => [id, v.max!])), req.body.exposureLimits),
+          minExposureLimits: mergeExposureMinimums(Object.fromEntries(Object.entries(cached.overrideExposure).filter(([, v]) => v.min != null).map(([id, v]) => [id, v.min!])), req.body.minExposureLimits),
+        });
+      }
+    } catch (error) {
+      return res.status(400).json({ message: error instanceof z.ZodError ? error.errors[0].message : "Final batch failed exposure validation. No lineups were saved." });
+    }
+    for (const candidate of pendingBulk) await candidate.persist();
     const updatedCount = results.filter(r => r.status === "updated").length;
     const clonedCount = results.filter(r => r.status === "cloned").length;
     const newLineupIds = results
@@ -2196,6 +2224,17 @@ export async function registerRoutes(
       });
     }
     const { ids, sortBy, useBoosts, ceilingMode, leverageMode, outperformerMode, contestType: rawContestType, globalMaxExposure, globalMinExposure, minExposureLimits, projFloor, minSalary, maxSalary, slateId: bodySlateId, draftGroupId: bodyDraftGroupId } = req.body;
+    try {
+      const exposureInput = z.object({
+        globalMaxExposure: z.number().finite().min(0).max(100).optional(),
+        globalMinExposure: z.number().finite().min(0).max(100).optional(),
+        minExposureLimits: z.record(z.number().finite().min(0).max(100)).optional(),
+        exposureLimits: z.record(z.number().finite().min(0).max(100)).optional(),
+      }).parse(req.body);
+      validateExposureBounds(exposureInput);
+    } catch (error) {
+      return res.status(400).json({ message: error instanceof z.ZodError ? error.errors[0].message : "Invalid exposure settings" });
+    }
     const simContestType = rawContestType === "gpp" ? "gpp" : "cash";
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "No lineup IDs provided" });
     const overrideSlateId = typeof bodySlateId === "number" ? bodySlateId : null;
@@ -2252,6 +2291,10 @@ export async function registerRoutes(
       const origSlatePerSimGroup = new Map<number, number>();
       const nflPortfolioReports: Array<{ slateId: number; report: NflPortfolioReport }> = [];
       const pendingPortfolioWrites: Array<() => Promise<void>> = [];
+      let hasConstrainedResim = !!restrictionInput.data.nflPortfolio?.enabled ||
+        (globalMaxExposure ?? 100) < 100 || (globalMinExposure ?? 0) > 0 ||
+        Object.values(req.body.exposureLimits || {}).some(value => Number(value) < 100) ||
+        Object.values(minExposureLimits || {}).some(value => Number(value) > 0);
 
       const results: { id: number; status: string; error?: string }[] = [];
 
@@ -2347,6 +2390,12 @@ export async function registerRoutes(
         const scoutMap = buildScoutMap(slate.sport);
 
         const { overrideMap: simRegenOverrideMap, excluded: simRegenExcluded, locked: simRegenLocked, exposureMap: simRegenOverrideExposure } = await loadOverridesWithCrossRef(userId, slateId, overrideSlateId ? (origSlatePerSimGroup.get(slateId) ?? null) : null, allPlayers);
+        hasConstrainedResim ||= Object.values(simRegenOverrideExposure).some(value => (value.max ?? 100) < 100 || (value.min ?? 0) > 0);
+        validateExposureBounds({
+          globalMaxExposure, globalMinExposure, lockedPlayerIds: [...simRegenLocked],
+          exposureLimits: mergeExposureMaximums(Object.fromEntries(Object.entries(simRegenOverrideExposure).filter(([, v]) => v.max != null).map(([id, v]) => [id, v.max!])), req.body.exposureLimits),
+          minExposureLimits: mergeExposureMinimums(Object.fromEntries(Object.entries(simRegenOverrideExposure).filter(([, v]) => v.min != null).map(([id, v]) => [id, v.min!])), minExposureLimits),
+        });
 
         let pool = allPlayers
           .filter(p => !simRegenExcluded.has(p.id))
@@ -2514,8 +2563,8 @@ export async function registerRoutes(
             baseConstraints: {
               ...simRegenConstraints([...simRegenLocked]),
               globalMaxExposure, globalMinExposure, projectedPointsFloor: simProjFloor || undefined,
-              exposureLimits: Object.fromEntries(Object.entries(simRegenOverrideExposure).filter(([, v]) => v.max != null).map(([id, v]) => [id, v.max!])),
-              minExposureLimits: { ...Object.fromEntries(Object.entries(simRegenOverrideExposure).filter(([, v]) => v.min != null).map(([id, v]) => [id, v.min!])), ...minExposureLimits },
+              exposureLimits: mergeExposureMaximums(Object.fromEntries(Object.entries(simRegenOverrideExposure).filter(([, v]) => v.max != null).map(([id, v]) => [id, v.max!])), req.body.exposureLimits),
+              minExposureLimits: mergeExposureMinimums(Object.fromEntries(Object.entries(simRegenOverrideExposure).filter(([, v]) => v.min != null).map(([id, v]) => [id, v.min!])), minExposureLimits),
             },
             ownershipMap, vegasGames: vegasContext ? [...vegasContext.games.values()].filter(game => game.source !== "fallback") : undefined,
             deadline: solverDeadline,
@@ -2665,7 +2714,7 @@ export async function registerRoutes(
 
         const candidateLimit = Math.max(lineupIds.length * 5, 60);
         let candidateEntries = Array.from(lineupMap.entries());
-        if (candidateEntries.length > candidateLimit) {
+        if (!preset && candidateEntries.length > candidateLimit) {
           candidateEntries.sort((a, b) => b[1].frequency - a[1].frequency);
           candidateEntries = candidateEntries.slice(0, candidateLimit);
         }
@@ -2734,80 +2783,11 @@ export async function registerRoutes(
         const origMap = new Map(allPlayers.map(op => [op.id, op]));
         const boostedMap = new Map(pool.map(bp => [bp.id, bp]));
 
-        const selectedCandidates: typeof scoredCandidates = [];
-        const playerAppearances: Record<number, number> = {};
-        const targetCount = Math.min(lineupIds.length, scoredCandidates.length);
-
-        for (const candidate of scoredCandidates) {
-          if (selectedCandidates.length >= targetCount) break;
-
-          let violatesExposure = false;
-          if (selectedCandidates.length > 0) {
-            for (const p of candidate.lineup) {
-              const appearances = (playerAppearances[p.id] || 0) + 1;
-              const pct = (appearances / targetCount) * 100;
-              const playerMaxExp = simRegenOverrideExposure?.[p.id.toString()]?.max;
-              const effectiveMax = playerMaxExp ?? globalMaxExposure;
-              if (effectiveMax !== undefined && effectiveMax !== null && pct > effectiveMax) { violatesExposure = true; break; }
-            }
-          }
-          if (violatesExposure) continue;
-
-          selectedCandidates.push(candidate);
-          for (const p of candidate.lineup) {
-            playerAppearances[p.id] = (playerAppearances[p.id] || 0) + 1;
-          }
-        }
-
-        if (selectedCandidates.length < targetCount) {
-          for (const candidate of scoredCandidates) {
-            if (selectedCandidates.length >= targetCount) break;
-            if (!selectedCandidates.find(s => s.key === candidate.key)) {
-              selectedCandidates.push(candidate);
-            }
-          }
-        }
-
-        const hasMinExp = (globalMinExposure !== undefined && globalMinExposure !== null) || (minExposureLimits && Object.keys(minExposureLimits).length > 0) || Object.values(simRegenOverrideExposure).some(v => v.min != null && v.min > 0);
-        if (hasMinExp && selectedCandidates.length > 1) {
-          const finalApp: Record<number, number> = {};
-          for (const c of selectedCandidates) for (const p of c.lineup) finalApp[p.id] = (finalApp[p.id] || 0) + 1;
-          const selectedPids = new Set(Object.keys(finalApp).map(Number));
-          for (const pid of Object.keys(simRegenOverrideExposure).map(Number)) selectedPids.add(pid);
-          const underExposed: { id: number; needed: number }[] = [];
-          for (const pid of selectedPids) {
-            const pMin = minExposureLimits?.[pid.toString()] ?? simRegenOverrideExposure[pid.toString()]?.min;
-            const effMin = typeof pMin === "number" ? pMin : (typeof globalMinExposure === "number" && (finalApp[pid] || 0) > 0 ? globalMinExposure : undefined);
-            if (effMin !== undefined && effMin > 0) {
-              const needed = Math.ceil((effMin / 100) * selectedCandidates.length);
-              if ((finalApp[pid] || 0) < needed) {
-                underExposed.push({ id: pid, needed: needed - (finalApp[pid] || 0) });
-              }
-            }
-          }
-          const sortKey2 = { composite: "compositeScore", p90: "p90Score", p75: "p75Score", median: "medianScore", avg: "avgSimScore" }[sortBy || "composite"] || "compositeScore";
-          underExposed.sort((a, b) => b.needed - a.needed);
-          for (const { id: uid, needed: n } of underExposed.slice(0, 10)) {
-            let rem = n;
-            const replacements = scoredCandidates.filter(c =>
-              !selectedCandidates.find(s => s.key === c.key) && c.lineup.some(p => p.id === uid)
-            );
-            for (const rep of replacements) {
-              if (rem <= 0) break;
-              const worstIdx = selectedCandidates.reduce((w, s, i) => {
-                if (s.lineup.some(p => p.id === uid)) return w;
-                if (w === -1) return i;
-                return ((s as any)[sortKey2] ?? 0) < ((selectedCandidates[w] as any)[sortKey2] ?? 0) ? i : w;
-              }, -1);
-              if (worstIdx === -1) break;
-              const old = selectedCandidates[worstIdx];
-              for (const p of old.lineup) finalApp[p.id] = (finalApp[p.id] || 0) - 1;
-              selectedCandidates[worstIdx] = rep;
-              for (const p of rep.lineup) finalApp[p.id] = (finalApp[p.id] || 0) + 1;
-              rem--;
-            }
-          }
-        }
+        const selectedCandidates = selectExposureLineups(scoredCandidates, c => c.lineup.map(p => p.id), {
+          globalMaxExposure, globalMinExposure, lockedPlayerIds: Array.from(simRegenLocked),
+          exposureLimits: mergeExposureMaximums(Object.fromEntries(Object.entries(simRegenOverrideExposure).filter(([, v]) => v.max != null).map(([id, v]) => [id, v.max!])), req.body.exposureLimits),
+          minExposureLimits: mergeExposureMinimums(Object.fromEntries(Object.entries(simRegenOverrideExposure).filter(([, v]) => v.min != null).map(([id, v]) => [id, v.min!])), minExposureLimits),
+        }, { count: lineupIds.length, deadline: solverDeadline + 2000, requireFull: hasConstrainedResim, preservePortfolio: !!preset });
 
         for (let i = 0; i < lineupIds.length && i < selectedCandidates.length; i++) {
           const candidate = selectedCandidates[i];
@@ -2858,8 +2838,7 @@ export async function registerRoutes(
             results.push({ id: lineupId, status: "updated" });
           }
           };
-          if (preset) pendingPortfolioWrites.push(persist);
-          else await persist();
+          pendingPortfolioWrites.push(persist);
         }
 
         for (let i = selectedCandidates.length; i < lineupIds.length; i++) {
@@ -2869,7 +2848,10 @@ export async function registerRoutes(
 
       // Nothing is written until every target has generated and validated its
       // candidates. Recheck all target kickoffs immediately before committing.
-      if (restrictionInput.data.nflPortfolio?.enabled) {
+      {
+        if (hasConstrainedResim && (simRegenTimedOut || results.some(r => r.status === "skipped" && r.error !== "Not found or not yours"))) {
+          return res.status(400).json({ message: "Regeneration could not fill every requested lineup. No regenerated lineups were saved." });
+        }
         for (const slateId of slateGroups.keys()) {
           const target = await storage.getSlate(slateId);
           if (!target || target.isActive === false || new Date(target.startTime).getTime() <= Date.now()) {
@@ -5257,13 +5239,13 @@ export async function registerRoutes(
 
       for (const o of proUserOverrides) {
         const pid = o.playerId.toString();
-        if (o.maxExposure != null && !constraints.exposureLimits?.[pid]) {
+        if (o.maxExposure != null) {
           if (!constraints.exposureLimits) constraints.exposureLimits = {};
-          constraints.exposureLimits[pid] = o.maxExposure;
+          constraints.exposureLimits[pid] = Math.min(constraints.exposureLimits[pid] ?? 100, o.maxExposure);
         }
-        if (o.minExposure != null && !constraints.minExposureLimits?.[pid]) {
+        if (o.minExposure != null) {
           if (!constraints.minExposureLimits) constraints.minExposureLimits = {};
-          constraints.minExposureLimits[pid] = o.minExposure;
+          constraints.minExposureLimits[pid] = Math.max(constraints.minExposureLimits[pid] ?? 0, o.minExposure);
         }
       }
 
@@ -5394,6 +5376,7 @@ export async function registerRoutes(
       }
 
       const maxAttempts = constraints.lineupCount * 10;
+      validateExposureBounds(constraints);
       let nflPortfolioReport: NflPortfolioReport | undefined;
       if (constraints.nflPortfolio?.enabled) {
         const ownershipMap = await portfolioOwnership(pool, constraints.nflPortfolio);
@@ -5412,7 +5395,9 @@ export async function registerRoutes(
       const playerAppearances: Record<number, number> = {};
       const candidateLineups: { result: any; correlationScore: number }[] = [];
 
-      while (!constraints.nflPortfolio?.enabled && lineupResults.length < constraints.lineupCount && attempts < maxAttempts) {
+      const proCandidateTarget = constraints.globalMaxExposure !== undefined || constraints.globalMinExposure !== undefined || constraints.exposureLimits || constraints.minExposureLimits
+        ? constraints.lineupCount * 3 : constraints.lineupCount;
+      while (!constraints.nflPortfolio?.enabled && lineupResults.length < proCandidateTarget && attempts < maxAttempts) {
         if (Date.now() >= proSolveDeadline) {
           proTimedOut = true;
           console.log(`[ProOptimizer] Timeout after ${attempts} attempts, ${lineupResults.length} lineups found`);
@@ -5438,7 +5423,7 @@ export async function registerRoutes(
             const appearances = playerAppearances[p.id] || 0;
             const currentExposure = (appearances / constraints.lineupCount) * 100;
             const playerLimit = constraints.exposureLimits?.[p.id.toString()];
-            const effectiveLimit = playerLimit ?? constraints.globalMaxExposure;
+            const effectiveLimit = Math.min(playerLimit ?? 100, constraints.globalMaxExposure ?? 100);
             if (effectiveLimit !== undefined && currentExposure >= effectiveLimit) {
               iterationExcluded.push(p.id);
             }
@@ -5527,6 +5512,11 @@ export async function registerRoutes(
         return (b.correlationScore || 0) - (a.correlationScore || 0);
       });
 
+      const finalProLineups = selectExposureLineups(lineupResults, c => c.lineup.map((p: Player) => p.id), constraints, {
+        count: constraints.lineupCount, deadline: proSolveDeadline + 2000, preservePortfolio: !!nflPortfolioReport,
+      });
+      lineupResults.splice(0, lineupResults.length, ...finalProLineups);
+
       const boostsSummary = allPlayers
         .filter(p => p.boostScore && Number(p.boostScore) !== 0)
         .map(p => ({
@@ -5547,15 +5537,15 @@ export async function registerRoutes(
           detail: p.injuryDetail || "",
         }));
 
-      const partialResults = proTimedOut || Date.now() >= proSolveDeadline;
+      const partialResults = lineupResults.length < constraints.lineupCount || proTimedOut || Date.now() >= proSolveDeadline;
       const message = lineupResults.length === 0
         ? constraints.projectedPointsFloor
           ? `No lineups could reach the ${constraints.projectedPointsFloor}-point floor. Try lowering it or relaxing other constraints.`
-          : partialResults
+          : proTimedOut || Date.now() >= proSolveDeadline
             ? "Solver time budget reached before a validated lineup was generated."
             : "Could not generate any feasible lineups with the current constraints."
         : partialResults
-          ? `Partial results: generated ${lineupResults.length} of ${constraints.lineupCount} requested lineups before the solver time budget was reached.`
+          ? `Partial results: generated ${lineupResults.length} of ${constraints.lineupCount} requested lineups within the candidate/search budget and hard exposure limits. All percentages use the returned batch size.`
           : undefined;
 
       res.json({ lineups: lineupResults, boostsSummary, injurySummary, message, partial: partialResults || !!nflPortfolioReport?.partial, ...(nflPortfolioReport ? { nflPortfolioReport } : {}) });
@@ -5583,9 +5573,10 @@ export async function registerRoutes(
     playerMaxSalary:      z.number().optional(),
     lineupCount:          z.number().min(1).max(2000).default(20),
     numSims:              z.number().min(50).max(1000).default(200),
-    globalMaxExposure:    z.number().min(1).max(100).optional(),
-    globalMinExposure:    z.number().min(1).max(100).optional(),
-    minExposureLimits:    z.record(z.string(), z.number()).optional(),
+    globalMaxExposure:    z.number().finite().min(0).max(100).optional(),
+    globalMinExposure:    z.number().finite().min(0).max(100).optional(),
+    minExposureLimits:    z.record(z.string(), z.number().finite().min(0).max(100)).optional(),
+    exposureLimits:       z.record(z.string(), z.number().finite().min(0).max(100)).optional(),
     enforceGameStack:     z.boolean().default(false),
     minStackSize:         z.number().min(2).max(5).default(2),
     stackGameKey:         z.string().optional(),
@@ -5719,6 +5710,12 @@ export async function registerRoutes(
         }
       }
 
+      validateExposureBounds({
+        globalMaxExposure: input.globalMaxExposure, globalMinExposure: input.globalMinExposure,
+        lockedPlayerIds: input.lockedPlayerIds,
+        exposureLimits: mergeExposureMaximums(Object.fromEntries(Object.entries(simOverrideExposure).filter(([, v]) => v.max != null).map(([id, v]) => [id, v.max!])), input.exposureLimits),
+        minExposureLimits: mergeExposureMinimums(Object.fromEntries(Object.entries(simOverrideExposure).filter(([, v]) => v.min != null).map(([id, v]) => [id, v.min!])), input.minExposureLimits),
+      });
       const simMinProjectionInput = applyExplicitProjections(
         allPlayers,
         input.playerProjections,
@@ -5999,8 +5996,8 @@ export async function registerRoutes(
           pool, settings: input.nflPortfolio, count: input.lineupCount,
           baseConstraints: { ...simConstraintsBase, minProjection: undefined,
             stackGameKeys: stackAlternatives.some(choice => choice.kind === "players") ? [] : stackGameKeys,
-            exposureLimits: Object.fromEntries(Object.entries(simOverrideExposure).filter(([, v]) => v.max != null).map(([id, v]) => [id, v.max!])),
-            minExposureLimits: { ...Object.fromEntries(Object.entries(simOverrideExposure).filter(([, v]) => v.min != null).map(([id, v]) => [id, v.min!])), ...input.minExposureLimits },
+            exposureLimits: mergeExposureMaximums(Object.fromEntries(Object.entries(simOverrideExposure).filter(([, v]) => v.max != null).map(([id, v]) => [id, v.max!])), input.exposureLimits),
+            minExposureLimits: mergeExposureMinimums(Object.fromEntries(Object.entries(simOverrideExposure).filter(([, v]) => v.min != null).map(([id, v]) => [id, v.min!])), input.minExposureLimits),
           },
           ownershipMap, vegasGames: vegasContext ? [...vegasContext.games.values()].filter(game => game.source !== "fallback") : undefined,
           deadline: solverDeadline,
@@ -6269,86 +6266,16 @@ export async function registerRoutes(
       uniqueLineups.sort((a, b) =>
         (((b as any)[metricKey] ?? b.compositeScore) as number) - (((a as any)[metricKey] ?? a.compositeScore) as number));
 
-      const playerAppearances: Record<number, number> = {};
-      const selected: typeof uniqueLineups = [];
-      const targetCount = Math.min(input.lineupCount, uniqueLineups.length);
-
-      for (const lu of uniqueLineups) {
-        if (selected.length >= targetCount) break;
-
-        let violatesExposure = false;
-        if (selected.length > 0) {
-          for (const p of lu.lineup) {
-            const appearances = (playerAppearances[p.id] || 0) + 1;
-            const pct = (appearances / targetCount) * 100;
-            const playerMaxExp = simOverrideExposure[p.id.toString()]?.max;
-            const effectiveMax = playerMaxExp ?? input.globalMaxExposure;
-            if (effectiveMax !== undefined && pct > effectiveMax) { violatesExposure = true; break; }
-          }
-        }
-        if (violatesExposure) continue;
-
-        selected.push(lu);
-        for (const p of lu.lineup) {
-          playerAppearances[p.id] = (playerAppearances[p.id] || 0) + 1;
-        }
-      }
-
-      if (selected.length < targetCount) {
-        for (const lu of uniqueLineups) {
-          if (selected.length >= targetCount) break;
-          if (!selected.find(s => s.key === lu.key)) selected.push(lu);
-        }
-      }
-
-      const hasMinExposure = (input.globalMinExposure !== undefined) || (input.minExposureLimits && Object.keys(input.minExposureLimits).length > 0) || Object.values(simOverrideExposure).some(v => v.min != null && v.min > 0);
-      if (hasMinExposure && selected.length > 1) {
-        const finalAppearances: Record<number, number> = {};
-        for (const lu of selected) {
-          for (const p of lu.lineup) {
-            finalAppearances[p.id] = (finalAppearances[p.id] || 0) + 1;
-          }
-        }
-        const underExposedIds: { id: number; needed: number }[] = [];
-        const selectedPlayerIds = new Set(Object.keys(finalAppearances).map(Number));
-        for (const pid of Object.keys(simOverrideExposure).map(Number)) selectedPlayerIds.add(pid);
-        for (const pid of selectedPlayerIds) {
-          const playerMin = input.minExposureLimits?.[pid.toString()] ?? simOverrideExposure[pid.toString()]?.min;
-          const effectiveMin = playerMin ?? (input.globalMinExposure !== undefined && (finalAppearances[pid] || 0) > 0 ? input.globalMinExposure : undefined);
-          if (effectiveMin !== undefined && effectiveMin > 0) {
-            const needed = Math.ceil((effectiveMin / 100) * selected.length);
-            if ((finalAppearances[pid] || 0) < needed) {
-              underExposedIds.push({ id: pid, needed: needed - (finalAppearances[pid] || 0) });
-            }
-          }
-        }
-        underExposedIds.sort((a, b) => b.needed - a.needed);
-        for (const { id: underId, needed } of underExposedIds.slice(0, 10)) {
-          let swapsNeeded = needed;
-          const candidatesWithPlayer = uniqueLineups.filter(c =>
-            !selected.find(s => s.key === c.key) && c.lineup.some(p => p.id === underId)
-          );
-          for (const replacement of candidatesWithPlayer) {
-            if (swapsNeeded <= 0) break;
-            const worstIdx = selected.reduce((worst, s, idx) => {
-              if (s.lineup.some(p => p.id === underId)) return worst;
-              if (worst === -1) return idx;
-              return (s[metricKey] as number) < (selected[worst][metricKey] as number) ? idx : worst;
-            }, -1);
-            if (worstIdx === -1) break;
-            const removed = selected[worstIdx];
-            for (const p of removed.lineup) finalAppearances[p.id] = (finalAppearances[p.id] || 0) - 1;
-            selected[worstIdx] = replacement;
-            for (const p of replacement.lineup) finalAppearances[p.id] = (finalAppearances[p.id] || 0) + 1;
-            swapsNeeded--;
-          }
-        }
-      }
-
+      const selected = selectExposureLineups(uniqueLineups, c => c.lineup.map(p => p.id), {
+        globalMaxExposure: input.globalMaxExposure, globalMinExposure: input.globalMinExposure,
+        lockedPlayerIds: input.lockedPlayerIds,
+        exposureLimits: mergeExposureMaximums(Object.fromEntries(Object.entries(simOverrideExposure).filter(([, v]) => v.max != null).map(([id, v]) => [id, v.max!])), input.exposureLimits),
+        minExposureLimits: mergeExposureMinimums(Object.fromEntries(Object.entries(simOverrideExposure).filter(([, v]) => v.min != null).map(([id, v]) => [id, v.min!])), input.minExposureLimits),
+      }, { count: input.lineupCount, deadline: solverDeadline + 2000, preservePortfolio: !!nflPortfolioReport });
       const elapsedMs = Date.now() - startTime;
-      const partial = simTimedOut || Date.now() >= solverDeadline || !!nflPortfolioReport?.partial;
+      const partial = selected.length < input.lineupCount || simTimedOut || Date.now() >= solverDeadline || !!nflPortfolioReport?.partial;
       const partialMessage = partial
-        ? `Partial results: generated ${selected.length} of ${input.lineupCount} requested lineups before the solver time budget was reached.`
+        ? `Partial results: generated ${selected.length} of ${input.lineupCount} requested lineups within the candidate/search budget and hard exposure limits. All percentages use the returned batch size.`
         : undefined;
 
       const ownershipMap: Record<number, number> = {};
