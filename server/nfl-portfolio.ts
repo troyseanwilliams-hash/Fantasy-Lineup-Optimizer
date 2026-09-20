@@ -2,6 +2,8 @@ import type { Player } from "@shared/schema";
 import { DEFAULT_NFL_PORTFOLIO, OWNERSHIP_TARGETS, type NflPortfolioSettings, type NflPortfolioReport, type NflPortfolioLineupPolicy } from "@shared/nfl-portfolio";
 import { parseGameInfo } from "@shared/game-info";
 import { stackGameKey } from "./sim-game-stacks";
+import { normalizeNFLTeam } from "./nfl-team";
+import type { VegasGameOdds } from "./vegas-client";
 import solver from "javascript-lp-solver";
 import { validatedIntegralResult } from "./solver-guard";
 import { spawn } from "node:child_process";
@@ -160,7 +162,7 @@ export async function generateNflPortfolio(options: {
   ownershipMap?: Map<number, number>;
   /** Required to trust external map values in provided mode. Overrides are always provided. */
   ownershipProvenance?: "estimated" | "provided";
-  vegasGames?: Array<{ gameKey: string; homeTeam: string; awayTeam: string; total: number; homeImplied: number; awayImplied: number }>;
+  vegasGames?: VegasGameOdds[];
   deadline?: number; solve: (pool: Player[], constraints: any) => any;
   scoreCandidates?: (lineups: any[]) => Promise<number[]> | number[];
   strictStructure?: boolean;
@@ -197,7 +199,15 @@ export async function generateNflPortfolio(options: {
   const minGames = Math.min(s.minGames, gamesAvailable);
   if (minGames < s.minGames) warnings.push(`Game-diversity soft minimum adapted from ${s.minGames} to ${minGames} for this slate.`);
   if (!s.nakedQbIds.length && s.stackMix.naked > 0) warnings.push("Naked-QB target unavailable: no manually eligible quarterback IDs were supplied.");
-  if (!options.vegasGames?.length) warnings.push("Verified Vegas data unavailable; home-favorite DST and game-total preferences cannot be verified.");
+  const totalGames = options.vegasGames?.filter(game => Number.isFinite(game.total) && game.total > 0) ?? [];
+  const favoriteGames = options.vegasGames?.filter(game =>
+    !!game.favoriteTeam && (game.source === "odds_api" || (Number.isFinite(game.spread) && game.spread! > 0)),
+  ) ?? [];
+  if (!totalGames.length && !favoriteGames.length) warnings.push("Verified Vegas data unavailable; home-favorite DST and game-total preferences cannot be verified.");
+  else {
+    if (!favoriteGames.length && s.preferHomeFavoriteDst) warnings.push("Verified game totals are available, but favorite/spread data is unavailable; home-favorite DST preference was not applied.");
+    if (!totalGames.length && s.preferLowTotalGames) warnings.push("Verified favorite/spread data is available, but game totals are unavailable; low-total preference was not applied.");
+  }
   const allowedFlex: string[] = base.flexAllowedPositions || ["RB", "WR", "TE"];
   const flexWeight = Object.entries(s.flexMix).reduce((n, [k, v]) => n + (allowedFlex.includes(k) ? v : 0), 0);
   const flexMix = Object.fromEntries(Object.entries(s.flexMix).map(([k, v]) => [k, allowedFlex.includes(k) ? (flexWeight ? v / flexWeight * 100 : 100 / allowedFlex.length) : 0]));
@@ -445,8 +455,8 @@ export async function generateNflPortfolio(options: {
       if (s.preferValueWr) v.utility += candidate.lineup.filter((p: Player) => pos(p, ["WR"]) && p.salary < 4500).length * 0.03;
       if (s.preferHomeTe) v.utility += candidate.lineup.filter((p: Player) => pos(p, ["TE"]) && parseGameInfo(p.gameInfo).home?.toUpperCase() === team(p)).length * 0.03;
       v.utility += f.secondaryQuality * 0.03;
-      if (s.preferHomeFavoriteDst) v.utility += Number(candidate.lineup.some((p: Player) => pos(p, ["DST"]) && options.vegasGames?.some(g => g.homeTeam.toUpperCase() === team(p) && g.homeImplied > g.awayImplied))) * 0.06;
-      if (s.preferLowTotalGames) v.utility += Number(options.vegasGames?.some(g => g.gameKey === stackGameKey(f.qb?.gameInfo) && g.total < s.gameTotalThreshold)) * 0.06;
+      if (s.preferHomeFavoriteDst) v.utility += Number(candidate.lineup.some((p: Player) => pos(p, ["DST"]) && favoriteGames.some(g => normalizeNFLTeam(g.homeTeam) === normalizeNFLTeam(team(p)) && g.favoriteTeam === g.homeTeam))) * 0.06;
+      if (s.preferLowTotalGames) v.utility += Number(totalGames.some(g => g.gameKey === stackGameKey(f.qb?.gameInfo) && g.total < s.gameTotalThreshold)) * 0.06;
       if (s.preferFourXUpside) v.utility += candidate.lineup.filter((p: Player) => {
         const actual = (p as any).upside ?? (p as any).ceiling;
         return actual != null && Number.isFinite(Number(actual)) && Number(actual) >= p.salary / 1000 * 4;
@@ -706,7 +716,16 @@ export async function generateNflPortfolio(options: {
     normalFormulaCount, fallbackCount,
     fallbackMode: fallbackCount > 0 ? ownership ? "projection_low_ownership" : "projection_only" : undefined,
     adjustedTargets: fallbackCount > 0 ? adjustedTargets : [],
-    dataSources: { ownership: s.ownershipMode, vegas: options.vegasGames?.length ? "verified" : "unavailable", rushing: "manual" },
+    dataSources: {
+      ownership: s.ownershipMode,
+      vegas: options.vegasGames?.[0]?.source === "espn" ? "espn" : options.vegasGames?.[0]?.source === "odds_api" ? "odds_api" : "unavailable",
+      ...(options.vegasGames?.[0]?.provider ? { vegasProvider: options.vegasGames[0].provider } : {}),
+      ...(options.vegasGames?.[0]?.fetchedAt ? { vegasFetchedAt: options.vegasGames[0].fetchedAt } : {}),
+      ...(options.vegasGames?.some(game => game.eventTime)
+        ? { vegasEventTimes: Array.from(new Set(options.vegasGames.map(game => game.eventTime))).sort() }
+        : {}),
+      rushing: "manual",
+    },
   };
   const metric = (key: string, label: string, target: number | null, value: number | null, unit: "lineups" | "percent" | "points" | "games" = "lineups", detail?: string) => {
     const structural = options.strictStructure && (key.startsWith("stack_") || key.startsWith("flex_") || key.startsWith("qb_") || ["bringBack", "secondary"].includes(key));
@@ -729,8 +748,8 @@ export async function generateNflPortfolio(options: {
   preference("valueWr", "Lineups with WR below $4,500", s.preferValueWr, p => pos(p, ["WR"]) && p.salary < 4500);
   preference("homeTe", "Lineups with home TE", s.preferHomeTe, p => pos(p, ["TE"]) && parseGameInfo(p.gameInfo).home?.toUpperCase() === team(p), eligible.some(p => !!parseGameInfo(p.gameInfo).home));
   preference("lowOwnedWr", "Lineups with low-owned WR", s.preferLowOwnedWr, p => pos(p, ["WR"]) && ownership!.get(p.id)! < s.lowOwnershipThreshold, !!ownership);
-  preference("homeFavoriteDst", "Lineups with verified home-favorite DST", s.preferHomeFavoriteDst, p => pos(p, ["DST", "DEF"]) && !!options.vegasGames?.some(g => g.homeTeam.toUpperCase() === team(p) && g.homeImplied > g.awayImplied), !!options.vegasGames?.length);
-  preference("lowTotalGames", `QB stacked games below ${s.gameTotalThreshold}`, s.preferLowTotalGames, p => pos(p, ["QB"]) && !!options.vegasGames?.some(g => g.gameKey === stackGameKey(p.gameInfo) && g.total < s.gameTotalThreshold), !!options.vegasGames?.length);
+  preference("homeFavoriteDst", "Lineups with verified home-favorite DST", s.preferHomeFavoriteDst, p => pos(p, ["DST", "DEF"]) && favoriteGames.some(g => normalizeNFLTeam(g.homeTeam) === normalizeNFLTeam(team(p)) && g.favoriteTeam === g.homeTeam), favoriteGames.length > 0);
+  preference("lowTotalGames", `QB stacked games below ${s.gameTotalThreshold}`, s.preferLowTotalGames, p => pos(p, ["QB"]) && totalGames.some(g => g.gameKey === stackGameKey(p.gameInfo) && g.total < s.gameTotalThreshold), totalGames.length > 0);
   const upside = (p: Player) => {
     const value = (p as any).upside ?? (p as any).ceiling;
     return value == null || value === "" ? NaN : Number(value);

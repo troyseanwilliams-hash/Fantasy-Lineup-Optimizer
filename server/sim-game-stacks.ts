@@ -1,11 +1,10 @@
 import type { Player } from "@shared/schema";
 import { parseGameInfo } from "@shared/game-info";
+import { nflGameKey } from "./nfl-team";
 
 export function stackGameKey(gameInfo: string | null | undefined): string {
   const parsed = parseGameInfo(gameInfo);
-  return parsed.away && parsed.home
-    ? [parsed.away, parsed.home].map(team => team.toUpperCase()).sort().join("-")
-    : "";
+  return nflGameKey(parsed.away, parsed.home);
 }
 
 export interface SimStackAlternative {

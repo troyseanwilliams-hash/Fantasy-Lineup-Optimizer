@@ -57,28 +57,8 @@ const ESPN_TEAM_IDS: Record<string, string> = {
   WAS: "28",
 };
 
-/**
- * Normalize provider team abbreviations without making team matching global.
- * In particular, LA/LAR and WSH/WAS are common DK/ESPN pairs.
- */
-const TEAM_ALIASES: Record<string, string> = {
-  LA: "LAR",
-  LAR: "LAR",
-  STL: "LAR",
-  WSH: "WAS",
-  WAS: "WAS",
-  JAX: "JAX",
-  JAC: "JAX",
-  OAK: "LV",
-  LV: "LV",
-  SD: "LAC",
-  LAC: "LAC",
-};
-
-export function normalizeNFLTeam(team: string | null | undefined): string {
-  const value = String(team || "").trim().toUpperCase();
-  return TEAM_ALIASES[value] || value;
-}
+export { normalizeNFLTeam } from "./nfl-team";
+import { normalizeNFLTeam } from "./nfl-team";
 
 /**
  * Name normalization deliberately keeps suffix tokens.  We only use the

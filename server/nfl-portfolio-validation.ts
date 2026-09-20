@@ -80,6 +80,12 @@ const vegasGameSchema = z.object({
   homeImplied: z.number().finite(),
   awayImplied: z.number().finite(),
   source: z.enum(["odds_api", "espn", "fallback"]),
+  provider: z.string().min(1),
+  eventTime: isoTimestamp,
+  fetchedAt: isoTimestamp,
+  updatedAt: isoTimestamp.nullable(),
+  favoriteTeam: z.string().nullable(),
+  spread: z.number().finite().positive().nullable(),
 }).strict();
 
 export const nflPortfolioValidationSnapshotSchema = z.object({

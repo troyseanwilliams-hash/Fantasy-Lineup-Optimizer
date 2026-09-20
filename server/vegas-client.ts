@@ -15,6 +15,7 @@
  */
 
 import { parseGameInfo } from "@shared/game-info";
+import { nflGameKey, normalizeNFLTeam } from "./nfl-team";
 
 const ODDS_API_KEY = process.env.ODDS_API_KEY || "";
 const ODDS_BASE    = "https://api.the-odds-api.com/v4/sports";
@@ -92,6 +93,12 @@ export interface VegasGameOdds {
   homeImplied: number;
   awayImplied: number;
   source:      "odds_api" | "espn" | "fallback";
+  provider:    string;
+  eventTime:   string;
+  fetchedAt:   string;
+  updatedAt:   string | null;
+  favoriteTeam: string | null;
+  spread:      number | null;
 }
 
 export interface VegasContext {
@@ -101,6 +108,8 @@ export interface VegasContext {
   slateAvgImplied: number;
   sport:           string;
   source:          "odds_api" | "espn" | "none";
+  provider:        string | null;
+  fetchedAt:       string | null;
 }
 
 const _cache = new Map<string, { data: VegasGameOdds[]; expires: number }>();
@@ -146,14 +155,13 @@ async function fetchOddsAPI(sport: string): Promise<VegasGameOdds[] | null> {
 
   const url = `${ODDS_BASE}/${sportKey}/odds/?apiKey=${ODDS_API_KEY}&regions=us&markets=totals,h2h&oddsFormat=american`;
 
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 2500);
   try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 8000);
     const res = await fetch(url, {
       headers: { "Accept": "application/json" },
       signal: ctrl.signal,
     });
-    clearTimeout(t);
 
     const remaining = res.headers.get("x-requests-remaining");
     const used      = res.headers.get("x-requests-used");
@@ -170,6 +178,7 @@ async function fetchOddsAPI(sport: string): Promise<VegasGameOdds[] | null> {
 
     const games: any[] = await res.json();
     const result: VegasGameOdds[] = [];
+    const fetchedAt = new Date().toISOString();
 
     for (const g of games) {
       const homeAbbr = teamNameToAbbr(g.home_team);
@@ -188,11 +197,20 @@ async function fetchOddsAPI(sport: string): Promise<VegasGameOdds[] | null> {
 
       const homeML = h2hMarket?.outcomes?.find((o: any) => o.name === g.home_team)?.price ?? null;
       const awayML = h2hMarket?.outcomes?.find((o: any) => o.name === g.away_team)?.price ?? null;
+      const favoriteTeam = Number.isFinite(Number(homeML)) && Number.isFinite(Number(awayML))
+        ? Number(homeML) < Number(awayML) ? homeAbbr : Number(awayML) < Number(homeML) ? awayAbbr : null
+        : null;
 
       const { homeImplied, awayImplied } = impliedTotals(total, homeML, awayML);
       const gameKey = [homeAbbr, awayAbbr].sort().join("-");
 
-      result.push({ gameKey, homeTeam: homeAbbr, awayTeam: awayAbbr, total, homeImplied, awayImplied, source: "odds_api" });
+      result.push({
+        gameKey, homeTeam: homeAbbr, awayTeam: awayAbbr, total, homeImplied, awayImplied,
+        source: "odds_api", provider: bm.title || bm.key || "The Odds API",
+        eventTime: new Date(g.commence_time).toISOString(), fetchedAt,
+        updatedAt: bm.last_update && Number.isFinite(Date.parse(bm.last_update)) ? new Date(bm.last_update).toISOString() : null,
+        favoriteTeam, spread: null,
+      });
     }
 
     console.log(`[VegasClient] Odds API: ${result.length} games for ${sport}`);
@@ -200,63 +218,104 @@ async function fetchOddsAPI(sport: string): Promise<VegasGameOdds[] | null> {
   } catch (err: any) {
     console.warn(`[VegasClient] Odds API fetch failed: ${err.message}`);
     return null;
+  } finally {
+    clearTimeout(t);
   }
+}
+
+function finiteNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function parseESPNOdds(json: any, sport: string, fetchedAt = new Date().toISOString()): VegasGameOdds[] {
+  const result: VegasGameOdds[] = [];
+  const fetchedMs = Date.parse(fetchedAt);
+  for (const event of (json?.events || [])) {
+    const comp = event.competitions?.[0];
+    const state = event.status?.type?.state ?? comp?.status?.type?.state;
+    const eventMs = Date.parse(event.date ?? comp?.date ?? "");
+    if (!comp || state !== "pre" || !Number.isFinite(eventMs) || eventMs <= fetchedMs) continue;
+
+    const homeComp = comp.competitors?.find((c: any) => c.homeAway === "home");
+    const awayComp = comp.competitors?.find((c: any) => c.homeAway === "away");
+    const normalize = sport.toUpperCase() === "NFL" ? normalizeNFLTeam : (value: string) => String(value || "").trim().toUpperCase();
+    const homeAbbr = normalize(homeComp?.team?.abbreviation);
+    const awayAbbr = normalize(awayComp?.team?.abbreviation);
+    if (!homeAbbr || !awayAbbr) continue;
+
+    for (const odds of (comp.odds || [])) {
+      const total = finiteNumber(odds?.overUnder);
+      if (total === null || total <= 0) continue;
+      const provider = String(odds.provider?.name || odds.provider?.displayName || odds.provider?.id || "").trim();
+      if (!provider) continue;
+
+      const details = String(odds.details || "").trim().toUpperCase();
+      const detailMatch = details.match(/^([A-Z]{2,4})\s+([+-]?\d+(?:\.\d+)?)$/);
+      const detailTeam = detailMatch ? normalize(detailMatch[1]) : null;
+      const detailSpread = detailMatch ? finiteNumber(detailMatch[2]) : null;
+      const homeFavorite = odds.homeTeamOdds?.favorite === true;
+      const awayFavorite = odds.awayTeamOdds?.favorite === true;
+      const favoriteTeam = homeFavorite !== awayFavorite
+        ? (homeFavorite ? homeAbbr : awayAbbr)
+        : detailTeam === homeAbbr || detailTeam === awayAbbr ? detailTeam : null;
+      const spread = detailSpread !== null && favoriteTeam ? Math.abs(detailSpread) : null;
+      const homeImplied = spread !== null && favoriteTeam
+        ? Math.round(((total + (favoriteTeam === homeAbbr ? spread : -spread)) / 2) * 10) / 10
+        : total / 2;
+      const awayImplied = Math.round((total - homeImplied) * 10) / 10;
+      const updatedRaw = odds.lastUpdated || odds.lastUpdate || odds.updatedAt;
+      const updatedAt = updatedRaw && Number.isFinite(Date.parse(updatedRaw)) ? new Date(updatedRaw).toISOString() : null;
+
+      result.push({
+        gameKey: sport.toUpperCase() === "NFL" ? nflGameKey(awayAbbr, homeAbbr) : [homeAbbr, awayAbbr].sort().join("-"),
+        homeTeam: homeAbbr, awayTeam: awayAbbr, total, homeImplied, awayImplied,
+        source: "espn", provider, eventTime: new Date(eventMs).toISOString(),
+        fetchedAt: new Date(fetchedMs).toISOString(), updatedAt, favoriteTeam, spread,
+      });
+      break;
+    }
+  }
+  return result;
 }
 
 async function fetchESPNOdds(sport: string): Promise<VegasGameOdds[]> {
   const url = ESPN_SCOREBOARD[sport.toUpperCase()];
   if (!url) return [];
 
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 5000);
   try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 8000);
     const res = await fetch(url, {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; EliteLineupBot/1.0)" },
       signal: ctrl.signal,
     });
-    clearTimeout(t);
     if (!res.ok) return [];
 
     const json: any = await res.json();
-    const result: VegasGameOdds[] = [];
-
-    for (const event of (json.events || [])) {
-      const comp = event.competitions?.[0];
-      if (!comp) continue;
-
-      const homeComp = comp.competitors?.find((c: any) => c.homeAway === "home");
-      const awayComp = comp.competitors?.find((c: any) => c.homeAway === "away");
-      const homeAbbr = homeComp?.team?.abbreviation?.toUpperCase();
-      const awayAbbr = awayComp?.team?.abbreviation?.toUpperCase();
-      if (!homeAbbr || !awayAbbr) continue;
-
-      const odds = comp.odds?.find((o: any) => o.provider?.id === "23") ?? comp.odds?.[0];
-      if (!odds?.overUnder) continue;
-
-      const total   = Number(odds.overUnder);
-      const homeML  = odds.homeTeamOdds?.moneyLine ?? null;
-      const awayML  = odds.awayTeamOdds?.moneyLine ?? null;
-
-      const { homeImplied, awayImplied } = impliedTotals(total, homeML, awayML);
-      const gameKey = [homeAbbr, awayAbbr].sort().join("-");
-
-      result.push({ gameKey, homeTeam: homeAbbr, awayTeam: awayAbbr, total, homeImplied, awayImplied, source: "espn" });
-    }
+    const result = parseESPNOdds(json, sport);
 
     console.log(`[VegasClient] ESPN fallback: ${result.length} games with odds for ${sport}`);
     return result;
   } catch (err: any) {
     console.warn(`[VegasClient] ESPN odds fetch failed: ${err.message}`);
     return [];
+  } finally {
+    clearTimeout(t);
   }
 }
 
 function extractGameKey(gameInfo: string): { home: string; away: string; key: string } | null {
   const parsed = parseGameInfo(gameInfo);
   if (!parsed.away || !parsed.home) return null;
-  const away = parsed.away.toUpperCase();
-  const home = parsed.home.toUpperCase();
-  return { away, home, key: [away, home].sort().join("-") };
+  const away = normalizeNFLTeam(parsed.away);
+  const home = normalizeNFLTeam(parsed.home);
+  return { away, home, key: sportSafeGameKey(away, home) };
+}
+
+function sportSafeGameKey(away: string, home: string): string {
+  return nflGameKey(away, home);
 }
 
 export async function buildVegasContext(
@@ -315,7 +374,11 @@ function assembleContext(
   const slateAvgTotal   = totals.length   > 0 ? totals.reduce((a, b) => a + b, 0)   / totals.length   : 0;
   const slateAvgImplied = implieds.length > 0 ? implieds.reduce((a, b) => a + b, 0) / implieds.length : 0;
 
-  return { games, teamImplied, slateAvgTotal, slateAvgImplied, sport, source };
+  return {
+    games, teamImplied, slateAvgTotal, slateAvgImplied, sport, source,
+    provider: gameOdds[0]?.provider ?? null,
+    fetchedAt: gameOdds.map(game => game.fetchedAt).filter(Boolean).sort().at(-1) ?? null,
+  };
 }
 
 export function clearVegasCache(): void {

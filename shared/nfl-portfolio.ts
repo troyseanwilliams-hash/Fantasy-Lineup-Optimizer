@@ -81,7 +81,10 @@ export interface NflPortfolioReport {
   warnings: string[];
   dataSources: {
     ownership: "off" | "estimated" | "provided" | "unavailable";
-    vegas: "verified" | "unavailable";
+    vegas: "odds_api" | "espn" | "unavailable";
+    vegasProvider?: string;
+    vegasFetchedAt?: string;
+    vegasEventTimes?: string[];
     rushing: "manual";
   };
   partial: boolean;

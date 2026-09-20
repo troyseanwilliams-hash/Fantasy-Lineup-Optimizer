@@ -2087,7 +2087,7 @@ export async function registerRoutes(
 
           const opponentMap = buildOpponentMap(pool);
           const [vegasContext, dvpContext] = await Promise.all([
-            Promise.race([buildVegasContext(pool, slate.sport), new Promise<null>(r => setTimeout(() => r(null), 3000))]),
+            Promise.race([buildVegasContext(pool, slate.sport), new Promise<null>(r => setTimeout(() => r(null), 8000))]),
             Promise.race([buildDvPContext(opponentMap, slate.sport), new Promise<null>(r => setTimeout(() => r(null), 3000))]),
           ]);
 
@@ -2417,7 +2417,7 @@ export async function registerRoutes(
 
         const opponentMap = buildOpponentMap(pool);
         const [vegasContext, dvpContext] = await Promise.all([
-          Promise.race([buildVegasContext(pool, slate.sport), new Promise<null>(r => setTimeout(() => r(null), 3000))]),
+          Promise.race([buildVegasContext(pool, slate.sport), new Promise<null>(r => setTimeout(() => r(null), 8000))]),
           Promise.race([buildDvPContext(opponentMap, slate.sport), new Promise<null>(r => setTimeout(() => r(null), 3000))]),
         ]);
 
@@ -5923,7 +5923,7 @@ export async function registerRoutes(
       const [vegasContext, dvpContext] = await Promise.all([
         Promise.race([
           buildVegasContext(pool, sport),
-          new Promise<null>(r => setTimeout(() => r(null), 3000)),
+          new Promise<null>(r => setTimeout(() => r(null), 8000)),
         ]),
         Promise.race([
           buildDvPContext(opponentMap, sport),
