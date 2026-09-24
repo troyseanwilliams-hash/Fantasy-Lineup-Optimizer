@@ -14,6 +14,7 @@
 - [Playwright post-merge setup](playwright-post-merge.md) — validation workflows need Chromium provisioned by the post-merge hook before Playwright tests can launch.
 - [Sim count UX](sim-count-ux.md) — Sim uses its own count selector; Normal Qty must be hidden and ignored in Sim Mode.
 - [Projection cutoff semantics](projection-cutoff-semantics.md) — input eligibility stays separate from automatic scoring and simulation; manual boosts affect the cutoff.
+- [Research-station projection CSVs](nfl-research-station-csv.md) — use the first DKProj/FDProj columns; repeated later headers are prop projections.
 - [Stack alternatives](stack-alternative-semantics.md) — favorites are alternative requirements; unselected stacks must not impose dependent constraints.
 - [Sport-specific slate selection](draftkings-sport-selection.md) — NFL ranking changes need MLB Classic/Showdown regression coverage and live contest-type verification.
 - [Player configuration scope](player-configuration-scope.md) — saved settings belong to an exact user/slate; stale requests cannot loosen caps and Resim must not inherit another slate's settings.
