@@ -2719,7 +2719,7 @@ export default function ProOptimizer() {
         </div>
 
         {/* RIGHT: Results & Summary Panels */}
-        <div className={`w-full xl:w-[400px] 2xl:w-[440px] flex-col bg-slate-900/30 xl:overflow-hidden ${playerFocus ? "hidden" : mobileView !== "lineup" ? "hidden xl:flex" : "flex"}`}>
+        <div className={`w-full xl:w-[360px] 2xl:w-[440px] flex-col bg-slate-900/30 xl:overflow-hidden ${playerFocus ? "hidden" : mobileView !== "lineup" ? "hidden xl:flex" : "flex"}`}>
           <div className="min-h-0 flex-1 overflow-auto p-4 space-y-4 xl:max-h-[75dvh]" data-testid="pro-lineup-scroll">
             {/* GOLF Tournament Analysis */}
             {isGolf && golfAnalysis && (

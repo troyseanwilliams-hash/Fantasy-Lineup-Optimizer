@@ -37,6 +37,17 @@ test(`${pro ? "Pro" : "Standard"} optimizer expands the player pool`, async ({ p
     ? page.getByTestId(pro ? "pro-player-pool-scroll" : "player-pool-scroll")
     : page.getByTestId(pro ? "pro-mobile-player-pool-scroll" : "mobile-player-pool-scroll");
   await expect(playerViewport).toBeVisible();
+  if (testInfo.project.name === "desktop") {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const dimensions = await playerViewport.evaluate(element => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+    }));
+    expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+    expect(dimensions.documentWidth).toBeLessThanOrEqual(dimensions.viewportWidth + 1);
+  }
   const lastPlayer = playerViewport.getByText("Fixture Player 30", { exact: true });
   await lastPlayer.scrollIntoViewIfNeeded();
   await expect(lastPlayer).toBeInViewport();
