@@ -1157,7 +1157,7 @@ export default function Optimizer() {
 
         {/* Player Table - Desktop */}
         <div className={`hidden overflow-auto md:block ${playerFocus ? "min-h-0 flex-1" : "h-[60dvh] shrink-0"}`} data-testid="player-pool-scroll">
-          <table className="w-full text-left border-collapse min-w-[680px]">
+          <table className="optimizer-data-table w-full text-left border-collapse min-w-[680px]">
             <thead className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800">
               <tr className="text-slate-400">
                 {activeSwapSlot ? (
@@ -1171,10 +1171,10 @@ export default function Optimizer() {
                 <SortHeader label="Pos" field="position" />
                 <SortHeader label="Player" field="name" />
                 <SortHeader label="Team" field="team" />
-                <SortHeader label="Opp" field="team" className="hidden lg:table-cell" />
+                <SortHeader label="Opp" field="team" className="hidden 2xl:table-cell" />
                 <SortHeader label="Salary" field="salary" />
                 <SortHeader label="FPPG" field="fppg" />
-                <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-cyan-400 hidden lg:table-cell">Avg</th>
+                <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-cyan-400 hidden 2xl:table-cell">Avg</th>
                 <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400">My Proj</th>
                 <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-amber-400 text-center">
                   <div className="flex items-center justify-center gap-1">
@@ -1278,7 +1278,7 @@ export default function Optimizer() {
                       <div className="text-xs text-slate-400 font-medium">{sanitizeGameInfo(player.gameInfo)}</div>
                     </td>
                     <td className="px-3 py-2.5 text-xs font-bold text-slate-400 uppercase">{player.team}</td>
-                    <td className="px-3 py-2 text-xs text-slate-400 uppercase hidden lg:table-cell">{player.opponent}</td>
+                    <td className="px-3 py-2 text-xs text-slate-400 uppercase hidden 2xl:table-cell">{player.opponent}</td>
                     <td className="px-3 py-2.5 font-mono text-[15px] font-bold text-white">
                       ${player.salary.toLocaleString()}
                       {isEligibleReplacement && (
@@ -1288,7 +1288,7 @@ export default function Optimizer() {
                       )}
                     </td>
                     <td className="px-3 py-2 font-mono text-xs text-slate-400">{player.fppg}</td>
-                    <td className="px-3 py-2 hidden lg:table-cell">
+                    <td className="px-3 py-2 hidden 2xl:table-cell">
                       {(player as any).recentActualAvg != null ? (
                         <div className="flex flex-col items-end">
                           <span className="font-mono text-xs font-bold text-cyan-400" data-testid={`actual-avg-${player.id}`}>{(player as any).recentActualAvg}</span>

@@ -2173,7 +2173,7 @@ export default function ProOptimizer() {
 
           {/* Player Table - Desktop */}
           <div className={`hidden overflow-auto md:block ${playerFocus ? "min-h-0 flex-1" : "h-[60dvh] shrink-0"}`} data-testid="pro-player-pool-scroll">
-            <table className="w-full text-left border-collapse min-w-[900px]">
+            <table className="optimizer-data-table w-full text-left border-collapse min-w-[900px]">
               <thead className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800">
                 <tr className="text-slate-400">
                   <th className="px-3 py-3 w-10 text-center text-[11px] font-black uppercase">Lock</th>
@@ -2182,7 +2182,7 @@ export default function ProOptimizer() {
                   <SortHeader label="Player" field="name" />
                   <SortHeader label="Team" field="team" />
                   <SortHeader label="Salary" field="salary" />
-                  <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-cyan-400 hidden lg:table-cell">Avg</th>
+                  <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-cyan-400 hidden 2xl:table-cell">Avg</th>
                   <SortHeader label="Base Proj" field="projectedPoints" />
                   <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-emerald-400 text-center">My Proj</th>
                   <SortHeader label="Boosted Proj" field="boostedProj" />
@@ -2222,7 +2222,7 @@ export default function ProOptimizer() {
                       </div>
                     </th>
                   )}
-                  <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400">Rating</th>
+                  <th className="px-3 py-3 text-[11px] font-black uppercase tracking-widest text-slate-400 hidden 2xl:table-cell">Rating</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/50">
@@ -2306,7 +2306,7 @@ export default function ProOptimizer() {
                       </td>
                       <td className="px-3 py-2.5 text-xs font-bold text-slate-400 uppercase" data-testid={`text-team-${player.id}`}>{player.team}</td>
                       <td className="px-3 py-2.5 font-mono text-[15px] font-bold text-white" data-testid={`text-salary-${player.id}`}>{platform === "yahoo" ? `$${player.salary}` : `$${player.salary.toLocaleString()}`}</td>
-                      <td className="px-3 py-2 hidden lg:table-cell">
+                      <td className="px-3 py-2 hidden 2xl:table-cell">
                         {(player as any).recentActualAvg != null ? (
                           <div className="flex flex-col items-end">
                             <span className="font-mono text-xs font-bold text-cyan-400" data-testid={`pro-actual-avg-${player.id}`}>{(player as any).recentActualAvg}</span>
@@ -2469,7 +2469,7 @@ export default function ProOptimizer() {
                           </div>
                         </td>
                       )}
-                      <td className="px-3 py-2" data-testid={`star-rating-${player.id}`}>
+                      <td className="px-3 py-2 hidden 2xl:table-cell" data-testid={`star-rating-${player.id}`}>
                         <PlayerStarRating stars={getPlayerStarCount(player.boostedProj)} />
                       </td>
                     </tr>

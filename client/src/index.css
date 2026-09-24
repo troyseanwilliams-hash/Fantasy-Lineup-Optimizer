@@ -47,6 +47,13 @@
 }
 
 @layer components {
+  @media (min-width: 1280px) {
+    .optimizer-data-table th,
+    .optimizer-data-table td {
+      padding-left: 0.375rem;
+      padding-right: 0.375rem;
+    }
+  }
   .btn-primary {
     @apply bg-[#10B981] text-white hover:bg-[#059669] transition-all duration-200 shadow-lg shadow-emerald-500/10;
   }
