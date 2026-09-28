@@ -4,6 +4,7 @@ import connectPg from "connect-pg-simple";
 import bcrypt from "bcryptjs";
 import { authStorage } from "./storage";
 import { recordFunnelEvent } from "../../funnel";
+import { PUBLIC_SIGNUP_ENABLED } from "@shared/platform-config";
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000;
@@ -33,6 +34,10 @@ export async function setupAuth(app: Express) {
   app.use(getSession());
 
   app.post("/api/auth/register", async (req, res) => {
+    if (!PUBLIC_SIGNUP_ENABLED) {
+      return res.status(403).json({ message: "New account registration is temporarily closed." });
+    }
+
     try {
       const { email, password, firstName, lastName, phone, smsConsent, emailConsent } = req.body;
       recordFunnelEvent("signup_attempt", { email, req });

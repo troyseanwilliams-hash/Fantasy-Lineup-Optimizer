@@ -31,28 +31,27 @@ test("keeps the compact banner and login form visible without horizontal overflo
   expect(dimensions.documentWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
 });
 
-test("preserves login and registration selectors", async ({ page }) => {
-  await expect(page.getByTestId("input-email")).toBeAttached();
-  await expect(page.getByTestId("input-password")).toBeAttached();
-  await expect(page.getByTestId("toggle-password-visibility")).toBeAttached();
-  await expect(page.getByTestId("btn-submit-login")).toBeAttached();
-  await expect(page.getByTestId("btn-toggle-auth-mode")).toBeAttached();
-  await expect(page.getByTestId("badge-free-trial")).toBeAttached();
+test("keeps sign-in available while public registration is closed", async ({ page }) => {
+  await expect(page.getByTestId("input-email")).toBeVisible();
+  await expect(page.getByTestId("input-password")).toBeVisible();
+  await expect(page.getByTestId("toggle-password-visibility")).toBeVisible();
+  await expect(page.getByTestId("btn-submit-login")).toBeVisible();
+  await expect(page.getByTestId("signup-closed-notice")).toBeVisible();
+  await expect(page.getByTestId("btn-toggle-auth-mode")).toHaveCount(0);
+  await expect(page.getByTestId("input-first-name")).toHaveCount(0);
+  await expect(page.getByTestId("input-phone")).toHaveCount(0);
+});
 
-  await page.getByTestId("btn-toggle-auth-mode").click();
+test("rejects direct registration API requests", async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const response = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "signup-block-test@example.com", password: "ValidPassword123!" }),
+    });
+    return { status: response.status, body: await response.json() };
+  });
 
-  for (const testId of [
-    "input-first-name",
-    "input-last-name",
-    "input-email",
-    "input-password",
-    "input-phone",
-    "checkbox-sms-consent",
-    "checkbox-email-consent",
-    "badge-free-trial",
-    "btn-submit-login",
-    "btn-toggle-auth-mode",
-  ]) {
-    await expect(page.getByTestId(testId)).toBeAttached();
-  }
+  expect(result.status).toBe(403);
+  expect(result.body.message).toBe("New account registration is temporarily closed.");
 });

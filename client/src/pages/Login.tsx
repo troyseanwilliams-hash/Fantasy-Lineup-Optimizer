@@ -12,7 +12,7 @@ import {
   Zap, TrendingUp, Trophy, Target, Bell, BarChart3, Sparkles, ShieldCheck,
 } from "lucide-react";
 import { LogoBanner } from "@/components/Logo";
-import { FEATURE_VISIBILITY } from "@shared/platform-config";
+import { FEATURE_VISIBILITY, PUBLIC_SIGNUP_ENABLED } from "@shared/platform-config";
 
 // Marketing panel content — shown beside the form so every visitor sees what
 // the product does before they type a character.
@@ -44,7 +44,13 @@ function TrialBadge() {
 }
 
 export default function Login() {
-  usePageMeta({ title: "Sign In", description: "Sign in or create an account on EliteLineup AI to access DFS lineup optimization tools.", path: "/login" });
+  usePageMeta({
+    title: "Sign In",
+    description: PUBLIC_SIGNUP_ENABLED
+      ? "Sign in or create an account on EliteLineup AI to access DFS lineup optimization tools."
+      : "Sign in to your EliteLineup AI account to access DFS lineup optimization tools.",
+    path: "/login",
+  });
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -315,21 +321,27 @@ export default function Login() {
             </form>
 
             <div className="mt-5 pt-5 border-t border-slate-800 text-center">
-              <p className="text-slate-400 text-sm">
-                {isRegister ? "Already have an account?" : "Don't have an account?"}{" "}
-                <button
-                  type="button"
-                  onClick={() => { setIsRegister(!isRegister); setEmail(""); setPassword(""); setFirstName(""); setLastName(""); setPhone(""); setSmsConsent(false); setEmailConsent(false); }}
-                  className="text-emerald-400 hover:text-emerald-300 font-semibold"
-                  data-testid="btn-toggle-auth-mode"
-                >
-                  {isRegister ? "Sign In" : "Sign Up"}
-                </button>
-              </p>
+              {PUBLIC_SIGNUP_ENABLED ? (
+                <p className="text-slate-400 text-sm">
+                  {isRegister ? "Already have an account?" : "Don't have an account?"}{" "}
+                  <button
+                    type="button"
+                    onClick={() => { setIsRegister(!isRegister); setEmail(""); setPassword(""); setFirstName(""); setLastName(""); setPhone(""); setSmsConsent(false); setEmailConsent(false); }}
+                    className="text-emerald-400 hover:text-emerald-300 font-semibold"
+                    data-testid="btn-toggle-auth-mode"
+                  >
+                    {isRegister ? "Sign In" : "Sign Up"}
+                  </button>
+                </p>
+              ) : (
+                <p className="text-slate-400 text-sm" data-testid="signup-closed-notice">
+                  New account registration is temporarily closed. Existing users can sign in above.
+                </p>
+              )}
             </div>
           </div>
 
-          {!isRegister && (
+          {!isRegister && PUBLIC_SIGNUP_ENABLED && (
             <div className="mt-4">
               <TrialBadge />
             </div>
