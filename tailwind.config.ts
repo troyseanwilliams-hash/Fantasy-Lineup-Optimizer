@@ -6,9 +6,11 @@ export default {
   theme: {
     extend: {
       borderRadius: {
-        lg: ".5625rem", /* 9px */
-        md: ".375rem", /* 6px */
-        sm: ".1875rem", /* 3px */
+        lg: "1rem", /* 16px */
+        md: "0.75rem", /* 12px */
+        sm: "0.5rem", /* 8px */
+        xl: "1.25rem", /* 20px */
+        "2xl": "1.5rem", /* 24px */
       },
       colors: {
         // Flat / base colors (regular buttons)
@@ -39,7 +41,7 @@ export default {
         muted: {
           DEFAULT: "hsl(var(--muted) / <alpha-value>)",
           foreground: "hsl(var(--muted-foreground) / <alpha-value>)",
-          border: "var(--muted-border)",
+          border: "hsl(var(--muted-border) / <alpha-value>)",
         },
         accent: {
           DEFAULT: "hsl(var(--accent) / <alpha-value>)",
@@ -81,11 +83,18 @@ export default {
           busy: "rgb(239 68 68)",
           offline: "rgb(156 163 175)",
         },
+        ink: {
+          950: "#070B14",
+          900: "#0C1222",
+          800: "#131B31",
+          700: "#1B2540",
+        },
       },
       fontFamily: {
-        sans: ["var(--font-sans)"],
+        sans: ["Inter", "ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
+        display: ["Space Grotesk", "Inter", "ui-sans-serif", "system-ui", "sans-serif"],
         serif: ["var(--font-serif)"],
-        mono: ["var(--font-mono)"],
+        mono: ["JetBrains Mono", "Geist Mono", "ui-monospace", "monospace"],
       },
       keyframes: {
         "accordion-down": {
@@ -96,10 +105,26 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "fade-up": {
+          from: { opacity: "0", transform: "translateY(18px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-12px)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "fade-up": "fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both",
+        float: "float 7s ease-in-out infinite",
+      },
+      boxShadow: {
+        "glow-green": "0 0 24px rgba(16, 185, 129, 0.35), 0 0 70px rgba(16, 185, 129, 0.12)",
+        "glow-gold": "0 0 24px rgba(245, 158, 11, 0.35), 0 0 70px rgba(245, 158, 11, 0.12)",
+        "card": "0 20px 45px -20px rgba(0, 0, 0, 0.6)",
+        "lift": "0 24px 55px -20px rgba(0, 0, 0, 0.7)",
       },
     },
   },
