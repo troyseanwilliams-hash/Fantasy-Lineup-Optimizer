@@ -234,11 +234,11 @@ function HeroBanner({ firstName, tier }: { firstName: string; tier: string }) {
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <Zap className="w-5 h-5 text-emerald-400 fill-current" />
-              <span className="text-emerald-400 text-sm font-black uppercase tracking-widest">EliteLineup AI</span>
+              <Zap className="w-5 h-5 text-volt-400 fill-current" />
+              <span className="text-volt-400 text-sm font-black uppercase tracking-widest">EliteLineup AI</span>
             </div>
             <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight leading-tight">
-              Welcome back, <span className="text-emerald-400">{firstName}</span>
+              Welcome back, <span className="text-volt-400">{firstName}</span>
             </h1>
             <p className="text-slate-300 text-sm mt-2 font-bold">
               {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
@@ -250,12 +250,12 @@ function HeroBanner({ firstName, tier }: { firstName: string; tier: string }) {
                 <Crown className="w-4 h-4" /> Champion Member
               </Badge>
             ) : tier === "star" ? (
-              <Badge className="bg-emerald-500/30 text-emerald-300 border-emerald-500/40 text-sm font-black px-4 py-1.5 gap-1.5 backdrop-blur-sm">
+              <Badge className="bg-volt-500/30 text-volt-300 border-volt-500/40 text-sm font-black px-4 py-1.5 gap-1.5 backdrop-blur-sm">
                 <Trophy className="w-4 h-4" /> Sharpshooter Member
               </Badge>
             ) : (
               <Link href="/pricing">
-                <Button size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold gap-1.5 shadow-lg shadow-emerald-500/20" data-testid="dashboard-upgrade-btn">
+                <Button size="sm" className="bg-volt-500 hover:bg-volt-600 text-white font-bold gap-1.5 shadow-lg shadow-volt-500/20" data-testid="dashboard-upgrade-btn">
                   <Sparkles className="w-4 h-4" /> Upgrade Plan
                 </Button>
               </Link>
@@ -339,21 +339,21 @@ function AIInsightsBanner({ players, matchups, sport }: { players: DashboardPlay
 
   const stats = [
     { label: "Players Analyzed", value: totalPlayers.toString(), icon: Target, color: "text-cyan-400" },
-    { label: "Avg Projection", value: `${avgProj} pts`, icon: Activity, color: "text-emerald-400" },
+    { label: "Avg Projection", value: `${avgProj} pts`, icon: Activity, color: "text-volt-400" },
     { label: "Best Value Score", value: `${topValue}x`, icon: TrendingUp, color: "text-amber-400" },
     { label: "Games on Slate", value: totalGames.toString(), icon: Swords, color: "text-purple-400" },
   ];
 
   return (
     <div className="relative rounded-xl overflow-hidden mb-8" data-testid="ai-insights-banner">
-      <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/80 via-slate-900/90 to-purple-950/70" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-500/10 via-transparent to-purple-500/10" />
+      <div className="absolute inset-0 bg-gradient-to-r from-volt-950/80 via-slate-900/90 to-purple-950/70" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-volt-500/10 via-transparent to-purple-500/10" />
       <div className="relative z-10 px-6 py-5">
         <div className="flex items-center gap-2 mb-4">
-          <div className="w-6 h-6 rounded-md bg-emerald-500/30 flex items-center justify-center">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+          <div className="w-6 h-6 rounded-md bg-volt-500/30 flex items-center justify-center">
+            <Sparkles className="w-3.5 h-3.5 text-volt-400" />
           </div>
-          <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">AI Analysis • {sport}</span>
+          <span className="text-xs font-black text-volt-400 uppercase tracking-widest">AI Analysis • {sport}</span>
           <div className="flex-1" />
           <span className="text-[10px] text-slate-500 font-bold flex items-center gap-1">
             <Clock className="w-3 h-3" /> Updated {new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
@@ -397,14 +397,14 @@ function TopScorersSection({ players, slateId, sport }: { players: DashboardPlay
         </div>
         {slateId && (
           <Link href={`/optimizer/${slateId}`}>
-            <Button variant="ghost" size="sm" className="text-emerald-400 font-bold gap-1 text-xs" data-testid="optimize-from-scorers">
+            <Button variant="ghost" size="sm" className="text-volt-400 font-bold gap-1 text-xs" data-testid="optimize-from-scorers">
               Build Lineup <ArrowRight className="w-3.5 h-3.5" />
             </Button>
           </Link>
         )}
       </div>
 
-      <div className="relative rounded-xl overflow-hidden mb-4 p-5 bg-gradient-to-r from-amber-950/40 via-slate-900/60 to-emerald-950/30 border border-amber-800/20" data-testid={`top-scorer-hero-${hero.id}`}>
+      <div className="relative rounded-xl overflow-hidden mb-4 p-5 bg-gradient-to-r from-amber-950/40 via-slate-900/60 to-volt-950/30 border border-amber-800/20" data-testid={`top-scorer-hero-${hero.id}`}>
         <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-amber-500/10 to-transparent rounded-bl-full" />
         <div className="relative z-10 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-4">
@@ -417,7 +417,7 @@ function TopScorersSection({ players, slateId, sport }: { players: DashboardPlay
             <div>
               <div className="flex items-center gap-2 mb-0.5">
                 <span className="text-xs font-black text-amber-400 uppercase tracking-wider">#1 AI Pick</span>
-                <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px] font-black px-1.5 py-0" data-testid="hero-value-badge">{heroValue}x value</Badge>
+                <Badge className="bg-volt-500/20 text-volt-400 border-volt-500/30 text-[10px] font-black px-1.5 py-0" data-testid="hero-value-badge">{heroValue}x value</Badge>
               </div>
               <p className="text-xl font-black text-white">{hero.name}</p>
               <p className="text-xs text-slate-400 font-bold">{hero.position} • {hero.team} vs {hero.opponent}</p>
@@ -425,7 +425,7 @@ function TopScorersSection({ players, slateId, sport }: { players: DashboardPlay
           </div>
           <div className="flex items-center gap-6">
             <div className="text-center">
-              <p className="text-3xl font-black text-emerald-400" data-testid="hero-proj-points">{parseFloat(hero.projectedPoints).toFixed(1)}</p>
+              <p className="text-3xl font-black text-volt-400" data-testid="hero-proj-points">{parseFloat(hero.projectedPoints).toFixed(1)}</p>
               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Proj Points</p>
             </div>
             <div className="text-center">
@@ -451,7 +451,7 @@ function TopScorersSection({ players, slateId, sport }: { players: DashboardPlay
               className="bg-slate-800/40 border-border p-4 relative overflow-hidden"
               data-testid={`top-scorer-${player.id}`}
             >
-              <div className="absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-emerald-500/60 to-emerald-500/0" style={{ width: `${projPct}%` }} />
+              <div className="absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-volt-500/60 to-volt-500/0" style={{ width: `${projPct}%` }} />
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <span className="text-lg font-black text-slate-600 w-5 text-center shrink-0">#{idx + 2}</span>
@@ -462,7 +462,7 @@ function TopScorersSection({ players, slateId, sport }: { players: DashboardPlay
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-lg font-black text-emerald-400">{parseFloat(player.projectedPoints).toFixed(1)}</p>
+                  <p className="text-lg font-black text-volt-400">{parseFloat(player.projectedPoints).toFixed(1)}</p>
                   <p className="text-[10px] text-slate-500 font-bold">${(player.salary / 1000).toFixed(1)}K • {val}x</p>
                 </div>
               </div>
@@ -485,8 +485,8 @@ function TrendingSection({ players, sport }: { players: TrendingPlayer[]; sport:
   return (
     <div data-testid="trending-section">
       <div className="flex items-center gap-2.5 mb-5">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500/30 to-cyan-500/20 flex items-center justify-center">
-          <TrendingUp className="w-4 h-4 text-emerald-400" />
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-volt-500/30 to-cyan-500/20 flex items-center justify-center">
+          <TrendingUp className="w-4 h-4 text-volt-400" />
         </div>
         <div>
           <h2 className="text-lg font-black text-white tracking-tight">AI Value Radar</h2>
@@ -495,12 +495,12 @@ function TrendingSection({ players, sport }: { players: TrendingPlayer[]; sport:
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="relative rounded-xl overflow-hidden border border-emerald-800/20 bg-gradient-to-b from-emerald-950/30 to-slate-900/50 p-4">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-emerald-500/0" />
+        <div className="relative rounded-xl overflow-hidden border border-volt-800/20 bg-gradient-to-b from-volt-950/30 to-slate-900/50 p-4">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-volt-500 to-volt-500/0" />
           <div className="flex items-center gap-2 mb-4">
-            <ArrowUpRight className="w-4 h-4 text-emerald-400" />
-            <span className="text-sm font-black text-emerald-400 uppercase tracking-wider">Smash Plays</span>
-            <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px] font-black px-1.5 py-0 ml-auto" data-testid="smash-count">{trendingUp.length} picks</Badge>
+            <ArrowUpRight className="w-4 h-4 text-volt-400" />
+            <span className="text-sm font-black text-volt-400 uppercase tracking-wider">Smash Plays</span>
+            <Badge className="bg-volt-500/20 text-volt-400 border-volt-500/30 text-[10px] font-black px-1.5 py-0 ml-auto" data-testid="smash-count">{trendingUp.length} picks</Badge>
           </div>
           <div className="space-y-3">
             {trendingUp.map(player => {
@@ -516,12 +516,12 @@ function TrendingSection({ players, sport }: { players: TrendingPlayer[]; sport:
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <span className="text-sm font-black text-emerald-400">{player.valueScore}x</span>
+                      <span className="text-sm font-black text-volt-400">{player.valueScore}x</span>
                       <p className="text-[10px] text-slate-500 font-bold">{parseFloat(player.projectedPoints).toFixed(1)} pts • ${(player.salary / 1000).toFixed(1)}K</p>
                     </div>
                   </div>
                   <div className="h-1.5 bg-slate-800/60 rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-700" style={{ width: `${valuePct}%` }} />
+                    <div className="h-full bg-gradient-to-r from-volt-500 to-volt-400 rounded-full transition-all duration-700" style={{ width: `${valuePct}%` }} />
                   </div>
                 </div>
               );
@@ -702,21 +702,21 @@ function DailyPicksCompact() {
           {visibleProps.map(prop => {
             const isOver = prop.pick.toLowerCase().includes("over") || prop.pick.toLowerCase().includes("more");
             const confVal = getConfidenceValue(prop.confidence);
-            const dotClass = prop.confidence === "high" ? "bg-emerald-400" : prop.confidence === "medium" ? "bg-amber-400" : "bg-slate-400";
-            const textClass = prop.confidence === "high" ? "text-emerald-400" : prop.confidence === "medium" ? "text-amber-400" : "text-slate-400";
-            const barClass = prop.confidence === "high" ? "from-emerald-500 to-emerald-400" : prop.confidence === "medium" ? "from-amber-500 to-amber-400" : "from-slate-500 to-slate-400";
+            const dotClass = prop.confidence === "high" ? "bg-volt-400" : prop.confidence === "medium" ? "bg-amber-400" : "bg-slate-400";
+            const textClass = prop.confidence === "high" ? "text-volt-400" : prop.confidence === "medium" ? "text-amber-400" : "text-slate-400";
+            const barClass = prop.confidence === "high" ? "from-volt-500 to-volt-400" : prop.confidence === "medium" ? "from-amber-500 to-amber-400" : "from-slate-500 to-slate-400";
             return (
               <Card
                 key={prop.id}
                 className={`relative overflow-hidden p-4 ${
                   prop.confidence === "high"
-                    ? "bg-gradient-to-br from-emerald-950/30 to-slate-900/50 border-emerald-800/20"
+                    ? "bg-gradient-to-br from-volt-950/30 to-slate-900/50 border-volt-800/20"
                     : "bg-slate-800/40 border-border"
                 }`}
                 data-testid={`daily-pick-${prop.id}`}
               >
                 {prop.confidence === "high" && (
-                  <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-emerald-500 to-emerald-500/0" />
+                  <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-volt-500 to-volt-500/0" />
                 )}
                 <div className="flex items-center justify-between gap-2 mb-2.5">
                   <Badge className="bg-slate-700/50 text-slate-300 border-slate-600/50 text-[10px] font-black px-1.5 py-0">{prop.sport}</Badge>
@@ -741,8 +741,8 @@ function DailyPicksCompact() {
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] text-slate-500 font-bold truncate">{prop.propType}</span>
                   <div className="flex items-center gap-1 shrink-0">
-                    {isOver ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" /> : <ArrowDownRight className="w-3.5 h-3.5 text-red-400" />}
-                    <span className={`text-sm font-black ${isOver ? "text-emerald-400" : "text-red-400"}`}>{prop.pick} {prop.line}</span>
+                    {isOver ? <ArrowUpRight className="w-3.5 h-3.5 text-volt-400" /> : <ArrowDownRight className="w-3.5 h-3.5 text-red-400" />}
+                    <span className={`text-sm font-black ${isOver ? "text-volt-400" : "text-red-400"}`}>{prop.pick} {prop.line}</span>
                   </div>
                 </div>
               </Card>
@@ -826,7 +826,7 @@ function NewsCompact({ sport }: { sport: string }) {
                     <Clock className="w-3 h-3" /> {timeAgo(article.published)}
                   </span>
                 )}
-                <ExternalLink className="w-3 h-3 text-slate-600 group-hover:text-emerald-400 transition-colors" />
+                <ExternalLink className="w-3 h-3 text-slate-600 group-hover:text-volt-400 transition-colors" />
               </div>
             </div>
           </a>
@@ -852,13 +852,13 @@ interface LiveGameScore {
 }
 
 function getStatusColor(status: string) {
-  if (status === "in") return "text-emerald-400";
+  if (status === "in") return "text-volt-400";
   if (status === "post") return "text-slate-500";
   return "text-amber-400";
 }
 
 function getStatusBg(status: string) {
-  if (status === "in") return "bg-emerald-500/20 border-emerald-500/30";
+  if (status === "in") return "bg-volt-500/20 border-volt-500/30";
   if (status === "post") return "bg-slate-700/40 border-slate-600/30";
   return "bg-amber-500/15 border-amber-500/20";
 }
@@ -881,8 +881,8 @@ function LiveScoresSection({ sport }: { sport: string }) {
     return (
       <div data-testid="live-scores-section" className="mb-6">
         <div className="flex items-center gap-2.5 mb-4">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-            <Radio className="w-4 h-4 text-emerald-400" />
+          <div className="w-8 h-8 rounded-lg bg-volt-500/20 flex items-center justify-center">
+            <Radio className="w-4 h-4 text-volt-400" />
           </div>
           <h2 className="text-lg font-black text-white tracking-tight">Live Scores</h2>
         </div>
@@ -903,8 +903,8 @@ function LiveScoresSection({ sport }: { sport: string }) {
     return (
       <div data-testid="live-scores-section" className="mb-6">
         <div className="flex items-center gap-2.5 mb-4">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-            <Radio className="w-4 h-4 text-emerald-400" />
+          <div className="w-8 h-8 rounded-lg bg-volt-500/20 flex items-center justify-center">
+            <Radio className="w-4 h-4 text-volt-400" />
           </div>
           <h2 className="text-lg font-black text-white tracking-tight">Live Scores</h2>
         </div>
@@ -933,7 +933,7 @@ function LiveScoresSection({ sport }: { sport: string }) {
             <h2 className="text-lg font-black text-white tracking-tight">{tournament.tournamentName || "Tournament"}</h2>
           </div>
           {tournament.status === "in" && (
-            <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[11px] font-black px-2 py-0.5 gap-1 animate-pulse" data-testid="live-indicator">
+            <Badge className="bg-volt-500/20 text-volt-400 border-volt-500/30 text-[11px] font-black px-2 py-0.5 gap-1 animate-pulse" data-testid="live-indicator">
               <Circle className="w-2 h-2 fill-current" /> LIVE
             </Badge>
           )}
@@ -955,7 +955,7 @@ function LiveScoresSection({ sport }: { sport: string }) {
                 {player.thru && (
                   <span className="text-[11px] text-slate-500 font-bold">Thru {player.thru}</span>
                 )}
-                <span className={`text-sm font-black ${player.score.startsWith("-") ? "text-emerald-400" : player.score === "E" ? "text-slate-300" : "text-red-400"}`}>
+                <span className={`text-sm font-black ${player.score.startsWith("-") ? "text-volt-400" : player.score === "E" ? "text-slate-300" : "text-red-400"}`}>
                   {player.score}
                 </span>
               </div>
@@ -970,13 +970,13 @@ function LiveScoresSection({ sport }: { sport: string }) {
     <div data-testid="live-scores-section" className="mb-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-            <Radio className="w-4 h-4 text-emerald-400" />
+          <div className="w-8 h-8 rounded-lg bg-volt-500/20 flex items-center justify-center">
+            <Radio className="w-4 h-4 text-volt-400" />
           </div>
           <h2 className="text-lg font-black text-white tracking-tight">Live Scores</h2>
         </div>
         {hasLive && (
-          <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[11px] font-black px-2 py-0.5 gap-1 animate-pulse" data-testid="live-indicator">
+          <Badge className="bg-volt-500/20 text-volt-400 border-volt-500/30 text-[11px] font-black px-2 py-0.5 gap-1 animate-pulse" data-testid="live-indicator">
             <Circle className="w-2 h-2 fill-current" /> {liveGames.length} LIVE
           </Badge>
         )}
@@ -990,7 +990,7 @@ function LiveScoresSection({ sport }: { sport: string }) {
             <Card
               key={game.id}
               className={`min-w-[240px] shrink-0 p-4 transition-all ${
-                isLive ? "bg-emerald-950/30 border-emerald-800/30 ring-1 ring-emerald-500/20" :
+                isLive ? "bg-volt-950/30 border-volt-800/30 ring-1 ring-volt-500/20" :
                 isFinal ? "bg-slate-800/30 border-slate-700/40" :
                 "bg-slate-800/40 border-border"
               }`}
@@ -1001,7 +1001,7 @@ function LiveScoresSection({ sport }: { sport: string }) {
                   {isLive ? (game.shortDetail || "LIVE") : isFinal ? "FINAL" : formatGameTime(game.startTime)}
                 </Badge>
                 {isLive && game.clock && (
-                  <span className="text-[10px] text-emerald-400/70 font-bold" data-testid={`game-clock-${game.id}`}>{game.clock}</span>
+                  <span className="text-[10px] text-volt-400/70 font-bold" data-testid={`game-clock-${game.id}`}>{game.clock}</span>
                 )}
               </div>
 
@@ -1014,7 +1014,7 @@ function LiveScoresSection({ sport }: { sport: string }) {
                     </span>
                   </div>
                   <span className={`text-lg font-black tabular-nums ${
-                    isLive ? "text-emerald-400" :
+                    isLive ? "text-volt-400" :
                     isFinal && parseInt(game.awayTeam.score) > parseInt(game.homeTeam.score) ? "text-white" :
                     isFinal ? "text-slate-500" : "text-slate-300"
                   }`} data-testid={`away-score-${game.id}`}>
@@ -1030,7 +1030,7 @@ function LiveScoresSection({ sport }: { sport: string }) {
                     </span>
                   </div>
                   <span className={`text-lg font-black tabular-nums ${
-                    isLive ? "text-emerald-400" :
+                    isLive ? "text-volt-400" :
                     isFinal && parseInt(game.homeTeam.score) > parseInt(game.awayTeam.score) ? "text-white" :
                     isFinal ? "text-slate-500" : "text-slate-300"
                   }`} data-testid={`home-score-${game.id}`}>
@@ -1052,7 +1052,7 @@ function QuickActions({ slateId, tier }: { slateId: number | null; tier: string 
       {slateId && (
         <>
           <Link href={`/optimizer/${slateId}`}>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2 shadow-lg shadow-emerald-600/20" data-testid="quick-action-optimize">
+            <Button className="bg-volt-600 hover:bg-volt-700 text-white font-bold gap-2 shadow-lg shadow-volt-600/20" data-testid="quick-action-optimize">
               <Zap className="w-4 h-4 fill-current" /> Build Lineup
             </Button>
           </Link>
@@ -1065,7 +1065,7 @@ function QuickActions({ slateId, tier }: { slateId: number | null; tier: string 
           )}
           {tier === "pro" && (
             <Link href={`/optimizer-pro/${slateId}`}>
-              <Button variant="outline" className="border-emerald-700/50 text-emerald-400 hover:bg-emerald-900/20 font-bold gap-2" data-testid="quick-action-pro-builder">
+              <Button variant="outline" className="border-volt-700/50 text-volt-400 hover:bg-volt-900/20 font-bold gap-2" data-testid="quick-action-pro-builder">
                 <Crown className="w-4 h-4" /> Champion Builder
               </Button>
             </Link>
@@ -1113,7 +1113,7 @@ function AuthenticatedDashboard() {
         <div className="flex-1" />
         <button
           onClick={startTutorial}
-          className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-emerald-400 transition-colors"
+          className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-volt-400 transition-colors"
           data-testid="btn-replay-tutorial"
         >
           <HelpCircle className="w-3.5 h-3.5" />
@@ -1174,7 +1174,7 @@ function AuthenticatedDashboard() {
       </div>
 
       <div className="mt-8 text-center">
-        <p className="text-[11px] text-slate-600">News powered by <a href="https://www.espn.com" target="_blank" rel="noopener noreferrer" className="text-emerald-500/50 hover:text-emerald-400">ESPN</a></p>
+        <p className="text-[11px] text-slate-600">News powered by <a href="https://www.espn.com" target="_blank" rel="noopener noreferrer" className="text-volt-500/50 hover:text-volt-400">ESPN</a></p>
       </div>
     </div>
   );
@@ -1331,8 +1331,8 @@ function LandingTopPlays() {
   return (
     <div className="max-w-5xl mx-auto mb-16" data-testid="landing-top-plays">
       <div className="flex items-center justify-center gap-2 mb-2">
-        <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
-        <span className="text-emerald-400 text-sm font-bold uppercase tracking-wider">Live Projections</span>
+        <Radio className="w-4 h-4 text-volt-400 animate-pulse" />
+        <span className="text-volt-400 text-sm font-bold uppercase tracking-wider">Live Projections</span>
         <span className="text-slate-500 text-xs">{todayStr}</span>
       </div>
       <h2 className="text-2xl font-black text-white text-center mb-1">Today's Top Plays</h2>
@@ -1351,7 +1351,7 @@ function LandingTopPlays() {
               onClick={() => setActiveSport(sport)}
               className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-bold transition-all ${
                 isActive
-                  ? "bg-emerald-500/20 border border-emerald-500/40 text-emerald-400"
+                  ? "bg-volt-500/20 border border-volt-500/40 text-volt-400"
                   : "bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:border-white/20"
               }`}
               data-testid={`landing-sport-${sport.toLowerCase()}`}
@@ -1378,7 +1378,7 @@ function LandingTopPlays() {
             return (
               <div
                 key={player.name}
-                className={`bg-white/5 border rounded-xl p-4 backdrop-blur-sm text-left hover:border-emerald-500/30 transition-colors ${
+                className={`bg-white/5 border rounded-xl p-4 backdrop-blur-sm text-left hover:border-volt-500/30 transition-colors ${
                   idx === 0 ? "border-amber-500/30" : "border-white/10"
                 }`}
                 data-testid={`landing-player-${idx}`}
@@ -1392,15 +1392,15 @@ function LandingTopPlays() {
                   <TeamLogo team={player.team} sport={currentSport} size={18} />
                   <span className="text-[10px] text-slate-500 font-bold">{player.position}</span>
                   {value >= 5.0 && (
-                    <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">VALUE</span>
+                    <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-volt-500/20 text-volt-400 font-bold">VALUE</span>
                   )}
                 </div>
                 <p className="text-sm font-black text-white truncate" title={player.name}>{player.name}</p>
                 <div className="flex items-center justify-between mt-1.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-emerald-400 font-black text-lg">{boosted.toFixed(1)}</span>
+                    <span className="text-volt-400 font-black text-lg">{boosted.toFixed(1)}</span>
                     {hasBoost && (
-                      <span className={`text-[10px] font-bold ${diff > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      <span className={`text-[10px] font-bold ${diff > 0 ? "text-volt-400" : "text-red-400"}`}>
                         {diff > 0 ? "+" : ""}{diff.toFixed(1)}
                       </span>
                     )}
@@ -1451,7 +1451,7 @@ export default function Home() {
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-[#0F172A]" />
         <div className="relative z-10 flex flex-col items-center min-h-[calc(100vh-80px)]">
           <div className="text-center px-4 max-w-4xl pt-16 md:pt-24">
-            <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-bold mb-8 backdrop-blur-sm">
+            <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-volt-500/10 border border-volt-500/20 text-volt-400 text-sm font-bold mb-8 backdrop-blur-sm">
               <Zap className="w-4 h-4 mr-2 fill-current" />
               AI-Powered DFS Optimizer
             </div>
@@ -1476,7 +1476,7 @@ export default function Home() {
                 const meta = SPORT_META[sport];
                 const Icon = meta?.icon || Zap;
                 return (
-                  <Badge key={sport} className="bg-emerald-500/10 text-emerald-300 border-emerald-500/25 font-bold text-sm px-3 py-1.5 backdrop-blur-sm gap-1.5" data-testid={`unauth-sport-${sport.toLowerCase()}`}>
+                  <Badge key={sport} className="bg-volt-500/10 text-volt-300 border-volt-500/25 font-bold text-sm px-3 py-1.5 backdrop-blur-sm gap-1.5" data-testid={`unauth-sport-${sport.toLowerCase()}`}>
                     <Icon className="w-3.5 h-3.5" />
                     {sport === "SOCCER" ? "World Cup" : sport}
                     {sport === "SOCCER" && <Circle className="w-1.5 h-1.5 fill-current animate-pulse ml-0.5" />}
@@ -1489,7 +1489,7 @@ export default function Home() {
             </div>
             <Button
               onClick={() => (window.location.href = "/login")}
-              className="h-16 px-12 text-xl font-black bg-emerald-500 hover:bg-emerald-600 text-white shadow-2xl shadow-emerald-500/30 mb-12"
+              className="h-16 px-12 text-xl font-black bg-volt-500 hover:bg-volt-600 text-white shadow-2xl shadow-volt-500/30 mb-12"
               data-testid="login-btn"
             >
               Get Started Free
@@ -1502,10 +1502,10 @@ export default function Home() {
             <NFLFallTeaser />
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-12 max-w-5xl mx-auto">
-              <div className="bg-white/5 border border-emerald-500/20 rounded-xl p-5 backdrop-blur-sm text-left" data-testid="unauth-card-dk">
+              <div className="bg-white/5 border border-volt-500/20 rounded-xl p-5 backdrop-blur-sm text-left" data-testid="unauth-card-dk">
                 <div className="flex items-center gap-2.5 mb-2">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                    <Zap className="w-4 h-4 text-emerald-400 fill-current" />
+                  <div className="w-8 h-8 rounded-lg bg-volt-500/20 flex items-center justify-center">
+                    <Zap className="w-4 h-4 text-volt-400 fill-current" />
                   </div>
                   <h3 className="text-base font-black text-white">DraftKings</h3>
                 </div>
@@ -1592,10 +1592,10 @@ export default function Home() {
                   </p>
                 </div>
 
-                <div className="bg-white/5 border border-emerald-500/20 rounded-xl p-6 backdrop-blur-sm" data-testid="feature-pro-optimizer">
+                <div className="bg-white/5 border border-volt-500/20 rounded-xl p-6 backdrop-blur-sm" data-testid="feature-pro-optimizer">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                      <Layers className="w-5 h-5 text-emerald-400" />
+                    <div className="w-10 h-10 rounded-lg bg-volt-500/20 flex items-center justify-center">
+                      <Layers className="w-5 h-5 text-volt-400" />
                     </div>
                     <h3 className="text-lg font-black text-white">Pro Optimizer</h3>
                   </div>
