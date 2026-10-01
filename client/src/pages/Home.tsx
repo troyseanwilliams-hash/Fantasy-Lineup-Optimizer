@@ -227,18 +227,22 @@ function timeAgo(dateStr: string): string {
 
 function HeroBanner({ firstName, tier }: { firstName: string; tier: string }) {
   return (
-    <div className="relative rounded-2xl overflow-hidden mb-8" data-testid="dashboard-hero">
+    <div className="relative rounded-2xl overflow-hidden mb-8 hero-glow animate-fade-up" data-testid="dashboard-hero">
       <img src={heroBg} alt="" className="absolute inset-0 w-full h-full object-cover" />
-      <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/55 to-transparent" />
+      <div className="aurora-orb w-72 h-72 bg-emerald-500/20 -top-20 -left-16" />
+      <div className="aurora-orb w-60 h-60 bg-blue-500/15 top-10 right-10" />
       <div className="relative z-10 px-8 py-10 md:py-14">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Zap className="w-5 h-5 text-emerald-400 fill-current" />
-              <span className="text-emerald-400 text-sm font-black uppercase tracking-widest">EliteLineup AI</span>
+            <div className="flex items-center gap-2 mb-3 animate-fade-up-1">
+              <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-500/30">
+                <Zap className="w-4 h-4 text-[#052E22] fill-current" />
+              </span>
+              <span className="text-gradient text-sm font-black uppercase tracking-[0.2em]">EliteLineup AI</span>
             </div>
-            <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight leading-tight">
-              Welcome back, <span className="text-emerald-400">{firstName}</span>
+            <h1 className="font-display text-3xl md:text-[2.75rem] font-bold text-white leading-[1.1] animate-fade-up-2">
+              Welcome back, <span className="text-gradient">{firstName}</span>
             </h1>
             <p className="text-slate-300 text-sm mt-2 font-bold">
               {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
@@ -255,7 +259,7 @@ function HeroBanner({ firstName, tier }: { firstName: string; tier: string }) {
               </Badge>
             ) : (
               <Link href="/pricing">
-                <Button size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold gap-1.5 shadow-lg shadow-emerald-500/20" data-testid="dashboard-upgrade-btn">
+                <Button size="sm" className="font-bold gap-1.5 animate-fade-up-3" data-testid="dashboard-upgrade-btn">
                   <Sparkles className="w-4 h-4" /> Upgrade Plan
                 </Button>
               </Link>
@@ -291,7 +295,7 @@ function DraftSeasonBanner() {
               </p>
             </div>
           </div>
-          <Button className="bg-amber-500 hover:bg-amber-600 text-black font-black gap-1.5 shadow-lg shadow-amber-500/20 shrink-0" data-testid="draft-season-cta">
+          <Button variant="gold" className="font-black gap-1.5 shrink-0" data-testid="draft-season-cta">
             <Sparkles className="w-4 h-4" /> Open Draft Hub
           </Button>
         </div>

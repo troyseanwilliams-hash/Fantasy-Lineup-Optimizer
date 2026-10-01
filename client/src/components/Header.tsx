@@ -87,9 +87,9 @@ export function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-[#0F172A] border-b border-[#1E293B]">
+    <header className="sticky top-0 z-50 glass-strong border-b border-white/[0.07] shadow-[0_8px_30px_-12px_rgba(0,0,0,0.8)]">
       {/* World Cup announcement strip */}
-      <div className="bg-gradient-to-r from-emerald-950 via-teal-950 to-emerald-950 border-b border-emerald-800/40 py-1.5 px-4">
+      <div className="relative bg-gradient-to-r from-emerald-950/90 via-[#0A1F1A] to-emerald-950/90 border-b border-emerald-500/20 py-1.5 px-4">
         <div className="container mx-auto flex items-center justify-center gap-3 text-center">
           <div className="flex items-center gap-1.5 shrink-0">
             <Circle className="w-2.5 h-2.5 text-emerald-400 fill-current animate-pulse" />
@@ -127,7 +127,7 @@ export function Header() {
                     <ChevronDown className="w-3 h-3 opacity-50" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-72 bg-[#1E293B] border-border">
+                <DropdownMenuContent align="start" className="w-72 glass-strong border-white/10 rounded-xl p-1.5">
                   {ACTIVE_SPORTS.map((sport, idx) => {
                     const meta = SPORT_META[sport] || { icon: Dribbble, color: "text-slate-400", bgColor: "bg-slate-500/20" };
                     const Icon = meta.icon;
