@@ -734,9 +734,9 @@ export default function Optimizer() {
   };
 
   return (
-    <div className={`flex flex-col xl:flex-row ${playerFocus ? "fixed inset-0 z-50 h-[100dvh] overflow-hidden bg-slate-950" : "min-h-full overflow-visible"}`}>
+    <div className={`flex flex-col 2xl:flex-row ${playerFocus ? "fixed inset-0 z-50 h-[100dvh] overflow-hidden bg-slate-950" : "min-h-full overflow-visible"}`}>
       {/* Mobile Tab Toggle */}
-      {!playerFocus && <div className="xl:hidden flex border-b border-slate-800 bg-slate-900/80 sticky top-0 z-20">
+      {!playerFocus && <div className="2xl:hidden flex border-b border-slate-800 bg-slate-900/80 sticky top-0 z-20">
         <button
           onClick={() => setMobileView("players")}
           data-testid="mobile-tab-players"
@@ -763,6 +763,16 @@ export default function Optimizer() {
           {currentLineup && mobileView !== "lineup" && (
             <span className={`absolute top-1 right-2 w-2 h-2 rounded-full animate-pulse ${pColors.bg}`} />
           )}
+        </button>
+        <button
+          type="button"
+          onClick={togglePlayerFocus}
+          aria-label="Expand player pool"
+          title="Expand player pool"
+          data-testid="button-player-focus-mobile"
+          className="inline-flex w-11 shrink-0 items-center justify-center border-l border-slate-800 text-slate-400 hover:text-white"
+        >
+          <Maximize2 className="h-4 w-4" />
         </button>
       </div>}
 
@@ -809,7 +819,7 @@ export default function Optimizer() {
       </div>}
 
       {/* LEFT: Player Pool */}
-      <div ref={playerPoolRef} className={`flex min-w-0 flex-1 flex-col border-r border-slate-800 xl:overflow-hidden ${playerFocus ? "w-full min-h-0 overflow-hidden" : ""} ${!playerFocus && mobileView !== "players" ? "hidden xl:flex" : ""}`}>
+      <div ref={playerPoolRef} className={`flex min-w-0 flex-1 flex-col border-r border-slate-800 2xl:overflow-hidden ${playerFocus ? "w-full min-h-0 overflow-hidden" : ""} ${!playerFocus && mobileView !== "players" ? "hidden 2xl:flex" : ""}`}>
         {/* Top Bar */}
         {!playerFocus && <div className="relative border-b border-slate-800 overflow-hidden">
           <div className="absolute inset-0">
@@ -1532,7 +1542,7 @@ export default function Optimizer() {
       </div>
 
       {/* RIGHT: Lineup Builder */}
-      <div className={`w-full xl:w-[360px] 2xl:w-[400px] flex-col bg-slate-900/30 border-l border-slate-800 xl:overflow-hidden ${playerFocus ? "hidden" : mobileView !== "lineup" ? "hidden xl:flex" : "flex"}`}>
+      <div className={`w-full 2xl:w-[400px] flex-col bg-slate-900/30 border-l border-slate-800 2xl:overflow-hidden ${playerFocus ? "hidden" : mobileView !== "lineup" ? "hidden 2xl:flex" : "flex"}`}>
         <div className="p-2 space-y-2 max-h-[60vh] overflow-auto">
           <NflPortfolioControls settings={portfolio.settings} onChange={portfolio.setSettings} supported={portfolioSupported} players={players || []} single />
           <NflPortfolioReportView report={portfolio.report} target={`Slate ${slateId}`} />

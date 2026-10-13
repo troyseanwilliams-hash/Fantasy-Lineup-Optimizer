@@ -1236,12 +1236,47 @@ export default function ProOptimizer() {
 
   return (
     <div className={`flex flex-col ${playerFocus ? "fixed inset-0 z-50 h-[100dvh] overflow-hidden bg-slate-950" : "min-h-full overflow-visible"}`} data-testid="pro-optimizer-page">
+      {/* Mobile and laptop view switch stays above the long setup controls. */}
+      {!playerFocus && <div className="2xl:hidden flex border-b border-slate-800 bg-slate-900/80 sticky top-0 z-20">
+        <button
+          onClick={() => setMobileView("players")}
+          data-testid="pro-mobile-tab-players"
+          className={`flex-1 px-4 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${
+            mobileView === "players"
+              ? "text-amber-400 border-b-2 border-amber-400 bg-slate-800/50"
+              : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          Players {filteredPlayers.length > 0 && `(${filteredPlayers.length})`}
+        </button>
+        <button
+          onClick={() => setMobileView("lineup")}
+          data-testid="pro-mobile-tab-lineup"
+          className={`flex-1 px-4 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${
+            mobileView === "lineup"
+              ? "text-amber-400 border-b-2 border-amber-400 bg-slate-800/50"
+              : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          Lineups {optimizeMutation.data ? `(${optimizeMutation.data.lineups?.length || 0})` : ""}
+        </button>
+        <button
+          type="button"
+          onClick={togglePlayerFocus}
+          aria-label="Expand player pool"
+          title="Expand player pool"
+          data-testid="button-player-focus-mobile"
+          className="inline-flex w-11 shrink-0 items-center justify-center border-l border-slate-800 text-slate-400 hover:text-white"
+        >
+          <Maximize2 className="h-4 w-4" />
+        </button>
+      </div>}
       {/* Top Controls Bar */}
-      {!playerFocus && <div className="p-2 space-y-2 max-h-[60vh] overflow-auto">
+      {!playerFocus && <div className={`${mobileView === "players" ? "hidden 2xl:block" : ""} p-2 space-y-2 max-h-[60vh] overflow-auto`}>
         <NflPortfolioControls settings={portfolio.settings} onChange={portfolio.setSettings} supported={portfolioSupported} players={players || []} />
         <NflPortfolioReportView report={portfolio.report} target={`Slate ${slateId} · ${simMode ? "Sim" : "Pro"}`} />
       </div>}
-      {!playerFocus && <div className="border-b border-slate-800 bg-slate-900/60 px-4 py-2">
+      {!playerFocus && <div className={`${mobileView === "players" ? "hidden 2xl:block" : ""} border-b border-slate-800 bg-slate-900/60 px-4 py-2`}>
         <div className="flex flex-col gap-2 md:gap-0">
           {/* Row 1: Slate info + selector */}
           <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide">
@@ -1960,35 +1995,9 @@ export default function ProOptimizer() {
         </div>
       </div>}
 
-      {/* Mobile Tab Toggle */}
-      {!playerFocus && <div className="xl:hidden flex border-b border-slate-800 bg-slate-900/80">
-        <button
-          onClick={() => setMobileView("players")}
-          data-testid="pro-mobile-tab-players"
-          className={`flex-1 px-4 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${
-            mobileView === "players"
-              ? "text-amber-400 border-b-2 border-amber-400 bg-slate-800/50"
-              : "text-slate-500 hover:text-slate-300"
-          }`}
-        >
-          Players {filteredPlayers.length > 0 && `(${filteredPlayers.length})`}
-        </button>
-        <button
-          onClick={() => setMobileView("lineup")}
-          data-testid="pro-mobile-tab-lineup"
-          className={`flex-1 px-4 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${
-            mobileView === "lineup"
-              ? "text-amber-400 border-b-2 border-amber-400 bg-slate-800/50"
-              : "text-slate-500 hover:text-slate-300"
-          }`}
-        >
-          Lineups {optimizeMutation.data ? `(${optimizeMutation.data.lineups?.length || 0})` : ""}
-        </button>
-      </div>}
-
-      <div className="flex min-h-0 flex-1 flex-col xl:flex-row xl:overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col 2xl:flex-row 2xl:overflow-hidden">
         {/* LEFT: Player Pool */}
-        <div ref={playerPoolRef} className={`flex min-w-0 flex-1 flex-col border-r border-slate-800 xl:overflow-hidden ${playerFocus ? "w-full min-h-0 overflow-hidden" : ""} ${!playerFocus && mobileView !== "players" ? "hidden xl:flex" : ""}`}>
+        <div ref={playerPoolRef} className={`flex min-w-0 flex-1 flex-col border-r border-slate-800 2xl:overflow-hidden ${playerFocus ? "w-full min-h-0 overflow-hidden" : ""} ${!playerFocus && mobileView !== "players" ? "hidden 2xl:flex" : ""}`}>
           {/* AI Scout Panel */}
           {!playerFocus && <div className="px-3 sm:px-4 pt-2">
             <ScoutPanel
@@ -2719,7 +2728,7 @@ export default function ProOptimizer() {
         </div>
 
         {/* RIGHT: Results & Summary Panels */}
-        <div className={`w-full xl:w-[360px] 2xl:w-[440px] flex-col bg-slate-900/30 xl:overflow-hidden ${playerFocus ? "hidden" : mobileView !== "lineup" ? "hidden xl:flex" : "flex"}`}>
+        <div className={`w-full 2xl:w-[440px] flex-col bg-slate-900/30 2xl:overflow-hidden ${playerFocus ? "hidden" : mobileView !== "lineup" ? "hidden 2xl:flex" : "flex"}`}>
           <div className="min-h-0 flex-1 overflow-auto p-4 space-y-4 xl:max-h-[75dvh]" data-testid="pro-lineup-scroll">
             {/* GOLF Tournament Analysis */}
             {isGolf && golfAnalysis && (

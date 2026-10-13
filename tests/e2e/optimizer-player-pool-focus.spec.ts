@@ -38,7 +38,7 @@ test(`${pro ? "Pro" : "Standard"} optimizer expands the player pool`, async ({ p
     : page.getByTestId(pro ? "pro-mobile-player-pool-scroll" : "mobile-player-pool-scroll");
   await expect(playerViewport).toBeVisible();
   if (testInfo.project.name === "desktop") {
-    for (const width of [1280, 1440, 1536]) {
+    for (const width of [1024, 1280, 1440, 1536]) {
       await page.setViewportSize({ width, height: 800 });
       const dimensions = await playerViewport.evaluate(element => ({
         clientWidth: element.clientWidth,
@@ -48,8 +48,25 @@ test(`${pro ? "Pro" : "Standard"} optimizer expands the player pool`, async ({ p
       }));
       expect(dimensions.scrollWidth, `player table overflows at ${width}px`).toBeLessThanOrEqual(dimensions.clientWidth + 1);
       expect(dimensions.documentWidth, `page overflows at ${width}px`).toBeLessThanOrEqual(dimensions.viewportWidth + 1);
+      if (width < 1536) {
+        await expect(page.getByTestId(pro ? "pro-mobile-tab-players" : "mobile-tab-players")).toBeVisible();
+      } else {
+        await expect(page.getByTestId(pro ? "pro-mobile-tab-players" : "mobile-tab-players")).toBeHidden();
+      }
     }
     await page.setViewportSize({ width: 1280, height: 800 });
+  } else {
+    await expect(page.getByTestId("button-player-focus-mobile")).toBeVisible();
+    await page.getByTestId("button-player-focus-mobile").click();
+    await expect(page.getByTestId("button-player-focus")).toHaveAttribute("aria-pressed", "true");
+    await expect(playerViewport.getByText("Fixture Player 1", { exact: true })).toBeInViewport();
+    await page.getByTestId("button-player-focus").click();
+    await expect(page.getByTestId("button-player-focus")).toHaveAttribute("aria-pressed", "false");
+    const dimensions = await page.evaluate(() => ({
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+    }));
+    expect(dimensions.documentWidth, "phone layout overflows horizontally").toBeLessThanOrEqual(dimensions.viewportWidth + 1);
   }
   const lastPlayer = playerViewport.getByText("Fixture Player 30", { exact: true });
   await lastPlayer.scrollIntoViewIfNeeded();
@@ -57,6 +74,7 @@ test(`${pro ? "Pro" : "Standard"} optimizer expands the player pool`, async ({ p
   await playerViewport.evaluate(element => { element.scrollTop = 0; });
   await expect(page.getByTestId("nfl-rookie-filter-helper")).toHaveCount(0);
   if (pro) {
+  await page.getByTestId("pro-mobile-tab-lineup").click();
   await page.getByTestId("btn-sim-mode-toggle").click();
   await expect(page.getByTestId("button-toggle-sim-settings")).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByTestId("btn-stack-game-BUF-HOU")).toBeVisible();
@@ -68,6 +86,7 @@ test(`${pro ? "Pro" : "Standard"} optimizer expands the player pool`, async ({ p
   await page.getByTestId("btn-stack-game-BUF-HOU").click();
   await expect(page.getByTestId("btn-stack-game-BUF-HOU")).toHaveAttribute("aria-pressed", "true");
   await page.screenshot({ path: `screenshots/pro-optimizer-player-pool-expanded-${testInfo.project.name}.png`, fullPage: false });
+  await page.getByTestId("pro-mobile-tab-players").click();
   }
 
   await page.getByTestId("button-player-focus").click();
