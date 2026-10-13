@@ -25,6 +25,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import multer from "multer";
 import cron from "node-cron";
+import { DATA_LOADERS_ENABLED } from "@shared/platform-config";
 import { storage } from "../storage";
 import { ingestFanDuelSlate, ingestAllFanDuelSlates, type FDSport } from "../fanduel-ingest";
 import { ingestYahooSlate, ingestAllYahooSlates, ingestYahooCSV, type YahooSport } from "../yahoo-ingest";
@@ -223,6 +224,11 @@ async function runFullIngest(label: string) {
 }
 
 export function startIngestScheduler() {
+  if (!DATA_LOADERS_ENABLED) {
+    console.log("[Ingest Cron] Automatic ingestion paused by configuration");
+    return;
+  }
+
   cron.schedule("0 5 * * *", () => runFullIngest("Ingest Cron"), {
     timezone: "America/New_York",
   });

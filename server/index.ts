@@ -4,6 +4,7 @@ import { registerRoutes, seedDatabase, generateDailyProps, refreshPlayerStatuses
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import cron from "node-cron";
+import { DATA_LOADERS_ENABLED } from "@shared/platform-config";
 import { storage } from "./storage";
 import { getEasternToday } from "./balldontlie";
 import { fetchPrizePicksProjections, getSupportedPPSports } from "./prizepicks";
@@ -426,6 +427,11 @@ app.use((req, res, next) => {
       log(`serving on port ${port}`);
 
       (async () => {
+        if (!DATA_LOADERS_ENABLED) {
+          log("Startup data loading and seeding paused", "cron");
+          return;
+        }
+
         try {
           await seedDefaultUser();
 
@@ -628,6 +634,7 @@ app.use((req, res, next) => {
       })();
 
       cron.schedule("30 * * * *", async () => {
+        if (!DATA_LOADERS_ENABLED) return;
         try {
           log("Starting scheduled seed data refresh", "cron");
           const expiredCount = await storage.deleteExpiredLineups();
@@ -694,11 +701,13 @@ app.use((req, res, next) => {
       log("Scheduled hourly seed refresh at :30 past each hour (EST)", "cron");
 
       cron.schedule("0 * * * *", async () => {
-        try {
-          const updated = await refreshPlayerStatuses();
-          if (updated && updated > 0) log(`Hourly status refresh: updated ${updated} player(s)`, "cron");
-        } catch (err) {
-          console.error("Hourly status refresh failed:", err);
+        if (DATA_LOADERS_ENABLED) {
+          try {
+            const updated = await refreshPlayerStatuses();
+            if (updated && updated > 0) log(`Hourly status refresh: updated ${updated} player(s)`, "cron");
+          } catch (err) {
+            console.error("Hourly status refresh failed:", err);
+          }
         }
         try {
           const deactivated = await deactivateExpiredSlates(SLATE_GRACE_HOURS);
@@ -712,6 +721,7 @@ app.use((req, res, next) => {
       log("Scheduled hourly player status/injury refresh at :00 past each hour (EST)", "cron");
 
       cron.schedule("*/5 * * * *", async () => {
+        if (!DATA_LOADERS_ENABLED) return;
         try {
           const now = new Date();
           const allSlates = await storage.getSlates();
@@ -798,6 +808,7 @@ app.use((req, res, next) => {
       log("Scheduled 2 AM ET vault reset cron job", "cron");
 
       cron.schedule("30 3 * * *", async () => {
+        if (!DATA_LOADERS_ENABLED) return;
         try {
           log("Starting winning lineup analysis", "cron");
           const results = await runNightlyAnalysis();
@@ -811,6 +822,7 @@ app.use((req, res, next) => {
       log("Scheduled 3:30 AM ET winning lineup analysis cron job", "cron");
 
       cron.schedule("15 3 * * *", async () => {
+        if (!DATA_LOADERS_ENABLED) return;
         try {
           log("Starting actual points backfill (7 days)", "cron");
           const { backfillActualPointsForHistory } = await import("./actual-points");
@@ -828,6 +840,7 @@ app.use((req, res, next) => {
       log("Scheduled 3:15 AM ET actual points backfill cron job", "cron");
 
       cron.schedule("0 9,15,21 * * *", async () => {
+        if (!DATA_LOADERS_ENABLED) return;
         try {
           log("Starting gap-fill scan for actual points (14 days)", "cron");
           const { fillActualPointsGaps } = await import("./actual-points");
@@ -857,6 +870,7 @@ app.use((req, res, next) => {
       log("Scheduled 4 AM ET player history cleanup cron job", "cron");
 
       cron.schedule("30 4 * * *", async () => {
+        if (!DATA_LOADERS_ENABLED) return;
         try {
           log("Starting nightly DK winning lineup backfill (14 days)", "cron");
           const { runNightlyDKBackfill } = await import("./winning-lineup-agent");
@@ -872,6 +886,7 @@ app.use((req, res, next) => {
       log("Scheduled 4:30 AM ET nightly DK winning lineup backfill (14 days)", "cron");
 
       cron.schedule("0 1 * * *", async () => {
+        if (!DATA_LOADERS_ENABLED) return;
         try {
           log("Starting nightly fantasy draft rankings refresh", "cron");
           const { getDraftRankings } = await import("./nfl-draft");

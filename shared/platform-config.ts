@@ -21,6 +21,8 @@ export const FEATURE_VISIBILITY = {
 } as const;
 /** Keep false to block public account creation while existing users can sign in. */
 export const PUBLIC_SIGNUP_ENABLED = false;
+/** Keep false to pause automatic startup and scheduled external data loads. */
+export const DATA_LOADERS_ENABLED = false;
 
 export interface PlatformConfig {
   platform: Platform;
