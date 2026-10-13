@@ -48,7 +48,7 @@ test(`${pro ? "Pro" : "Standard"} optimizer expands the player pool`, async ({ p
       }));
       expect(dimensions.scrollWidth, `player table overflows at ${width}px`).toBeLessThanOrEqual(dimensions.clientWidth + 1);
       expect(dimensions.documentWidth, `page overflows at ${width}px`).toBeLessThanOrEqual(dimensions.viewportWidth + 1);
-      if (width < 1536) {
+      if (width < (pro ? 1536 : 1280)) {
         await expect(page.getByTestId(pro ? "pro-mobile-tab-players" : "mobile-tab-players")).toBeVisible();
       } else {
         await expect(page.getByTestId(pro ? "pro-mobile-tab-players" : "mobile-tab-players")).toBeHidden();
@@ -67,6 +67,14 @@ test(`${pro ? "Pro" : "Standard"} optimizer expands the player pool`, async ({ p
       viewportWidth: window.innerWidth,
     }));
     expect(dimensions.documentWidth, "phone layout overflows horizontally").toBeLessThanOrEqual(dimensions.viewportWidth + 1);
+  }
+  if (pro) {
+    // Setup must remain available on the default Players tab at every width.
+    await expect(page.getByTestId("btn-sim-mode-toggle")).toBeVisible();
+    await expect(page.getByTestId("button-generate")).toBeVisible();
+    await expect(page.getByTestId("badge-platform")).toBeVisible();
+  } else if (testInfo.project.name === "desktop") {
+    await expect(page.getByTestId("salary-remaining")).toBeVisible();
   }
   const lastPlayer = playerViewport.getByText("Fixture Player 30", { exact: true });
   await lastPlayer.scrollIntoViewIfNeeded();

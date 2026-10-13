@@ -1272,11 +1272,11 @@ export default function ProOptimizer() {
         </button>
       </div>}
       {/* Top Controls Bar */}
-      {!playerFocus && <div className={`${mobileView === "players" ? "hidden 2xl:block" : ""} p-2 space-y-2 max-h-[60vh] overflow-auto`}>
+      {!playerFocus && <div className="p-2 space-y-2 max-h-[60vh] overflow-auto">
         <NflPortfolioControls settings={portfolio.settings} onChange={portfolio.setSettings} supported={portfolioSupported} players={players || []} />
         <NflPortfolioReportView report={portfolio.report} target={`Slate ${slateId} · ${simMode ? "Sim" : "Pro"}`} />
       </div>}
-      {!playerFocus && <div className={`${mobileView === "players" ? "hidden 2xl:block" : ""} border-b border-slate-800 bg-slate-900/60 px-4 py-2`}>
+      {!playerFocus && <div className="border-b border-slate-800 bg-slate-900/60 px-4 py-2">
         <div className="flex flex-col gap-2 md:gap-0">
           {/* Row 1: Slate info + selector */}
           <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide">
