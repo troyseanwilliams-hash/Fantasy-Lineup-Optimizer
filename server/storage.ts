@@ -462,7 +462,7 @@ export class DatabaseStorage implements IStorage {
     if (activeSlateIds.length === 0) return [];
     const ids = activeSlateIds.map(s => s.id);
     return await db.select().from(lineups).where(
-      and(eq(lineups.userId, userId), inArray(lineups.slateId, ids), inArray(lineups.status, ["active", "review"]))
+      and(eq(lineups.userId, userId), inArray(lineups.slateId, ids), eq(lineups.status, "active"))
     );
   }
 
@@ -562,7 +562,7 @@ export class DatabaseStorage implements IStorage {
   async getReviewLineups(userId: string): Promise<Lineup[]> {
     return await db.select().from(lineups).where(
       and(eq(lineups.userId, userId), eq(lineups.status, "review"))
-    );
+    ).orderBy(desc(lineups.createdAt));
   }
 
   async getLineupsForScoring(): Promise<Lineup[]> {

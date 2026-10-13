@@ -1876,7 +1876,7 @@ export default function SavedLineups() {
             className={activeTab === "review" ? "" : "text-slate-400"}
             data-testid="tab-review"
           >
-            <History className="w-4 h-4 mr-2" /> Review
+            <History className="w-4 h-4 mr-2" /> History
             {!isPaid && <Lock className="w-3 h-3 ml-1" />}
           </Button>
         </div>
@@ -1884,7 +1884,7 @@ export default function SavedLineups() {
         {activeTab === "review" && isPaid ? (
           reviewError && !reviewLineups ? (
             <div role="alert" className="rounded-xl border border-amber-500/40 p-6 text-slate-200">
-              <p>Review lineups could not be loaded. Your saved lineups have not been deleted.</p>
+              <p>Lineup history could not be loaded. Your saved lineups have not been deleted.</p>
               <Button className="mt-4" onClick={() => void refreshReview()} disabled={refreshingReview}>Retry</Button>
             </div>
           ) :
@@ -2248,7 +2248,7 @@ function ReviewTabContent({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/lineups/review"] });
-      toast({ title: "All review lineups cleared" });
+      toast({ title: "Lineup history cleared" });
     },
   });
 
@@ -2266,10 +2266,9 @@ function ReviewTabContent({
         <div className="w-20 h-20 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-6">
           <History className="w-10 h-10 text-amber-500/40" />
         </div>
-        <h5 className="text-xl font-black text-white mb-2" data-testid="no-review-lineups">No Review Lineups</h5>
+        <h5 className="text-xl font-black text-white mb-2" data-testid="no-review-lineups">No Lineup History Yet</h5>
         <p className="text-slate-400 max-w-sm mx-auto">
-          {/* Fixed: was "2 AM ET" — must match the actual 3 AM ET nightly reset */}
-          Expired lineups are moved here at 3 AM ET for review. They are kept for 24 hours before being removed.
+          Expired lineups are archived here during the nightly 2 AM Eastern cleanup. They are kept indefinitely unless you delete them.
         </p>
       </div>
     );
@@ -2282,8 +2281,8 @@ function ReviewTabContent({
           <div className="flex items-center gap-3">
             <Eye className="w-5 h-5 text-amber-400 flex-shrink-0" />
             <div>
-              <p className="text-sm font-bold text-white">Review Mode</p>
-              <p className="text-xs text-slate-400">These lineups have expired and are read-only. Compare your lineups against contest winners to learn and improve.</p>
+              <p className="text-sm font-bold text-white">Lineup History</p>
+              <p className="text-xs text-slate-400">Archived lineups are read-only and kept indefinitely unless you delete them. Compare them against contest winners to learn and improve.</p>
             </div>
           </div>
           <Button

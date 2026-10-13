@@ -18,7 +18,7 @@ import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { users } from "@shared/models/auth";
 import { subscriptions, slates } from "@shared/schema";
-import { eq, and, ne, isNull, isNotNull, lt, sql } from "drizzle-orm";
+import { eq, and, ne, isNull, isNotNull, sql } from "drizzle-orm";
 import { showdownRouter } from "./showdown-route";
 import { ingestRouter, startIngestScheduler } from "./routes/ingest";
 import { teamHypeRouter } from "./team-hype";
@@ -429,19 +429,7 @@ app.use((req, res, next) => {
         try {
           await seedDefaultUser();
 
-          try {
-            const cutoff = new Date(Date.now() - 3 * 60 * 60 * 1000);
-            const staleReview = await db.select({ id: lineupsTable.id }).from(lineupsTable)
-              .where(and(eq(lineupsTable.status, "review"), lt(lineupsTable.reviewedAt, cutoff)));
-            if (staleReview.length > 0) {
-              for (const row of staleReview) {
-                await storage.deleteLineup(row.id);
-              }
-              log(`Startup cleanup: deleted ${staleReview.length} stale review lineup(s)`, "cron");
-            }
-          } catch (cleanupErr) {
-            console.error("Startup review lineup cleanup failed:", cleanupErr);
-          }
+          // Retain saved/review lineups indefinitely for historical analysis.
 
           const unpaidSubs = await storage.getUnpaidPremiumSubscriptions();
           if (unpaidSubs.length > 0) {
@@ -779,9 +767,7 @@ app.use((req, res, next) => {
             const moved = await storage.moveLineupsToReview(expiredSlateIds);
             if (moved > 0) log(`Moved ${moved} expired lineup(s) to review status`, "cron");
           }
-          const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-          const deleted = await storage.deleteOldReviewLineups(cutoff);
-          if (deleted > 0) log(`Deleted ${deleted} review lineup(s) older than 24 hours`, "cron");
+          // Moving to Review archives lineups; it must not delete historical records.
           try {
             const ppCleared = await storage.deleteAllPrizePicksEntries();
             if (ppCleared > 0) log(`Cleared ${ppCleared} PrizePicks vault entries`, "cron");
@@ -844,17 +830,7 @@ app.use((req, res, next) => {
       });
       log("Scheduled actual points gap-fill cron (9 AM, 3 PM, 9 PM ET)", "cron");
 
-      cron.schedule("0 4 * * *", async () => {
-        try {
-          const cleaned = await storage.cleanOldPlayerHistory(14);
-          if (cleaned > 0) log(`Cleaned ${cleaned} player history records older than 14 days`, "cron");
-        } catch (err) {
-          console.error("Player history cleanup failed:", err);
-        }
-      }, {
-        timezone: "America/New_York",
-      });
-      log("Scheduled 4 AM ET player history cleanup cron job", "cron");
+      // Player history is retained indefinitely; backfill windows only limit collection.
 
       cron.schedule("30 4 * * *", async () => {
         try {

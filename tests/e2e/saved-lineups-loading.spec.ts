@@ -431,9 +431,9 @@ test("review GET errors show Retry and recover on the next request", async ({ pa
 
   await gotoLineups(page);
   await expect(page.getByTestId("vault-title")).toBeVisible();
-  await page.getByTestId("tab-review").click();
+  await page.getByRole("button", { name: "History", exact: true }).click();
 
-  await expect(page.getByRole("alert")).toContainText("Review lineups could not be loaded");
+  await expect(page.getByRole("alert")).toContainText("Lineup history could not be loaded");
   const retryButton = page.getByRole("button", { name: "Retry" });
   await expect(retryButton).toBeVisible();
   expect(api.reviewBeforeAuth).toBe(0);
@@ -442,4 +442,8 @@ test("review GET errors show Retry and recover on the next request", async ({ pa
   await retryButton.click();
   await expect(page.getByTestId("review-lineups-list")).toBeVisible();
   await expect(page.getByTestId("review-lineup-card-94001")).toContainText("Review Fixture Lineup");
+  await expect(page.getByTestId("review-lineups-list")).toContainText("kept indefinitely");
+  await page.screenshot({ path: `screenshots/lineup-history-${test.info().project.name}.png` });
+  await page.getByTestId("tab-active").click();
+  await expect(page.getByTestId("review-lineups-list")).toBeHidden();
 });
