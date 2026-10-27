@@ -379,7 +379,7 @@ export default function LiveScoreTracker() {
   const [selectedSport, setSelectedSport] = useState<string>(defaultSport);
 
   // ── Scoreboard query (public, no auth needed, refetch every 30s)
-  const { data: scoreboardData, isLoading: boardLoading, dataUpdatedAt, refetch: refetchScoreboard } = useQuery<ScoreData[]>({
+  const { data: scoreboardData, isLoading: boardLoading, isError: boardError, dataUpdatedAt, refetch: refetchScoreboard } = useQuery<ScoreData[]>({
     queryKey: [`/api/scores/${selectedSport}`],
     queryFn: async () => {
       const res = await fetch(`/api/scores/${selectedSport}`);
@@ -537,9 +537,9 @@ export default function LiveScoreTracker() {
           ) : sortedScores.length === 0 ? (
             <div className="bg-[#1E293B] border border-slate-700/50 rounded-xl p-10 text-center">
               <Calendar className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-              <h3 className="text-white font-bold mb-1">No games today</h3>
+              <h3 className="text-white font-bold mb-1">{boardError ? "Game schedule is temporarily unavailable" : "No games today"}</h3>
               <p className="text-slate-500 text-sm">
-                Check back on game days — scores update automatically.
+                {boardError ? "Please try refreshing the scores." : "Check back on game days — scores update automatically."}
               </p>
             </div>
           ) : selectedSport === "GOLF" ? (

@@ -1,4 +1,5 @@
 const ESPN_SCOREBOARD_URLS: Record<string, string> = {
+  NBA: "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard",
   NHL: "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard",
   MLB: "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard",
   NFL: "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard",
@@ -135,8 +136,7 @@ async function fetchScoresFromESPN(sport: string): Promise<ScoreData[]> {
 
   const response = await fetch(url);
   if (!response.ok) {
-    console.error(`[ESPN] Failed to fetch ${sport} scores: ${response.status}`);
-    return [];
+    throw new Error(`[ESPN] Failed to fetch ${sport} scores: ${response.status}`);
   }
 
   const data = await response.json();
@@ -162,7 +162,7 @@ export async function getLiveScores(sport: string): Promise<ScoreData[]> {
     console.error(`[ESPN] Error fetching ${sport} scores:`, err);
     const cached = scoreCache.get(sport);
     if (cached) return cached.data;
-    return [];
+    throw err;
   }
 }
 

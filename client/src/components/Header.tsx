@@ -273,15 +273,6 @@ export function Header() {
               </div>
             </Link>}
 
-            <Link href="/mma-optimizer">
-              <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                currentPath === "/mma-optimizer" ? "text-emerald-400" : "text-slate-400 hover:text-white"
-              }`} data-testid="nav-mma-optimizer">
-                <Swords className="w-4 h-4" />
-                <span>UFC / MMA</span>
-              </div>
-            </Link>
-
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -628,17 +619,6 @@ export function Header() {
             >
               <LayoutGrid className="w-5 h-5 shrink-0" />
               <span>Home</span>
-            </button>
-
-            <button
-              onClick={() => mobileNav("/mma-optimizer")}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                currentPath === "/mma-optimizer" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
-              }`}
-              data-testid="mobile-nav-mma-optimizer"
-            >
-              <Swords className="w-5 h-5 shrink-0" />
-              <span>UFC / MMA Optimizer</span>
             </button>
 
             {FEATURE_VISIBILITY.draftHub && <button

@@ -873,7 +873,7 @@ function formatGameTime(startTime?: string) {
 }
 
 function LiveScoresSection({ sport }: { sport: string }) {
-  const { data: games, isLoading } = useQuery<LiveGameScore[]>({
+  const { data: games, isLoading, isError, refetch } = useQuery<LiveGameScore[]>({
     queryKey: [`/api/scores/${sport}`],
     refetchInterval: 120000,
   });
@@ -911,7 +911,14 @@ function LiveScoresSection({ sport }: { sport: string }) {
         </div>
         <Card className="bg-slate-800/30 border-border p-6 text-center" data-testid="no-games-message">
           <Clock className="w-6 h-6 text-slate-600 mx-auto mb-2" />
-          <p className="text-sm text-slate-400 font-bold">No games scheduled today</p>
+          <p className="text-sm text-slate-400 font-bold">
+            {isError ? "Game schedule is temporarily unavailable" : "No games scheduled today"}
+          </p>
+          {isError && (
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => refetch()}>
+              Retry
+            </Button>
+          )}
         </Card>
       </div>
     );

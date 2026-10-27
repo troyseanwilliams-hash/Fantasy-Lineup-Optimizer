@@ -18,8 +18,10 @@ test("NBA menus expose the existing optimizer and simulation entry points", asyn
     await route.fulfill({ json: data });
   });
   await page.goto("/lineups");
+  await expect(page.getByTestId("nav-mma-optimizer")).toHaveCount(0);
   const desktop = testInfo.project.name === "desktop";
   await page.getByTestId(desktop ? "sport-selector" : "mobile-menu-btn").click();
+  await expect(page.getByTestId("mobile-nav-mma-optimizer")).toHaveCount(0);
   if (desktop) {
     await expect(page.getByTestId("sport-menu-nba-dk")).toBeEnabled();
     await expect(page.getByTestId("sport-menu-nba-dk").locator("..")).toHaveAttribute("href", "/optimizer/987001");

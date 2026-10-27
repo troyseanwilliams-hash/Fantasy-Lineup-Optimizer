@@ -4627,7 +4627,7 @@ export async function registerRoutes(
   app.get("/api/scores/:sport", async (req, res) => {
     try {
       const sport = req.params.sport.toUpperCase();
-      const validSports = ["NHL", "MLB", "NFL", "GOLF", "SOCCER"];
+      const validSports = ["NBA", "NHL", "MLB", "NFL", "GOLF", "SOCCER"];
       if (!validSports.includes(sport)) {
         return res.status(400).json({ error: `Invalid sport: ${sport}. Valid: ${validSports.join(", ")}` });
       }
