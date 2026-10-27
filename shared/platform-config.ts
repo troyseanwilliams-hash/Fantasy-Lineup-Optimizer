@@ -3,14 +3,12 @@ import { type Player } from "./schema";
 export type Platform = "draftkings" | "fanduel" | "yahoo";
 export type Sport = "NBA" | "NHL" | "MLB" | "NFL" | "GOLF" | "SOCCER";
 
-// Season focus (updated September 2026): NFL is live with active slates,
-// MLB is in season, and Golf remains active. NBA is returning soon while
-// NHL and Soccer are currently off-season.
-export const SPORT_ORDER: Sport[] = ["MLB", "NFL", "GOLF", "SOCCER", "NHL", "NBA"];
+// NBA is enabled and featured; retain the other active sports.
+export const SPORT_ORDER: Sport[] = ["NBA", "MLB", "NFL", "GOLF", "SOCCER", "NHL"];
 /** Sports currently in-season and available for DFS contests */
-export const ACTIVE_SPORTS: Sport[] = ["NFL", "MLB", "GOLF"];
+export const ACTIVE_SPORTS: Sport[] = ["NBA", "NFL", "MLB", "GOLF"];
 /** Sports off-season now but returning soon — shown in nav with a "Coming Soon" badge */
-export const COMING_SOON_SPORTS: Sport[] = ["NBA"];
+export const COMING_SOON_SPORTS: Sport[] = [];
 /** Sports fully off-season — hidden from nav and disabled */
 export const OFF_SEASON_SPORTS: Sport[] = ["NHL", "SOCCER"];
 /** World Cup-specific promotions, pages, and API responses are currently disabled. */

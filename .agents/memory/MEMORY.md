@@ -20,3 +20,4 @@
 - [Player configuration scope](player-configuration-scope.md) — saved settings belong to an exact user/slate; stale requests cannot loosen caps and Resim must not inherit another slate's settings.
 - [Optimizer control visibility](optimizer-control-visibility.md) — responsive visual changes must not hide existing setup controls behind new laptop tabs.
 - [Historical data retention](historical-data-retention.md) — saved lineups and player history must be retained indefinitely for analysis.
+- [NBA activation](nba-activation.md) — NBA should be active and highlighted on the landing page, not merely exposed in menus.

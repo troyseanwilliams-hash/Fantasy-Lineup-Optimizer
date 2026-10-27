@@ -7785,7 +7785,7 @@ export async function seedDatabase(forceRefresh = false) {
     console.error("[DK] Error fetching live data:", err);
   }
 
-  const sportSeeds = ["NHL", "MLB", "NFL", "GOLF", "SOCCER"].map(sport => {
+  const sportSeeds = ["NBA", "NHL", "MLB", "NFL", "GOLF", "SOCCER"].map(sport => {
     const live = liveData.get(sport);
     if (live && live.dkPlayers.length > 0) {
       return {

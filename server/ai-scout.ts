@@ -84,7 +84,7 @@ const HEADERS = {
 };
 
 const INTERVAL_SECS = 1800;
-const ACTIVE_SPORTS = ["NHL", "NFL", "MLB", "GOLF", "SOCCER"];
+const ACTIVE_SPORTS = ["NBA", "NHL", "NFL", "MLB", "GOLF", "SOCCER"];
 
 let _lastRun: number = 0;
 let _cachedSignals: Record<string, ScoutSignal[]> = {};

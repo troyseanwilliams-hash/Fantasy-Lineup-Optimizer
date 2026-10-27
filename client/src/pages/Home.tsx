@@ -1464,6 +1464,7 @@ export default function Home() {
               AI lineup optimizer for DraftKings & FanDuel. Monte Carlo simulation, ownership projections, prop picks, and multi-entry max tools — across all sports.
             </p>
             <div className="flex items-center justify-center gap-3 flex-wrap mb-6 text-sm text-slate-400 font-bold">
+              <span className="flex items-center gap-1.5 rounded-full border border-orange-400/40 bg-orange-500/15 px-3 py-1.5 text-orange-300" data-testid="landing-nba-highlight"><Dribbble className="w-4 h-4" /> NBA Optimizer &amp; Simulations Enabled</span>
               {FEATURE_VISIBILITY.draftHub && <><span className="flex items-center gap-1.5"><Circle className="w-2 h-2 text-amber-400 fill-current animate-pulse" /> NFL Draft Hub Live</span><span className="text-slate-700">·</span></>}
               <span className="flex items-center gap-1.5"><Target className="w-3.5 h-3.5 text-red-400" /> MLB In Season</span>
               <span className="text-slate-700">·</span>

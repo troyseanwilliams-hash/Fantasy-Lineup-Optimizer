@@ -12,6 +12,9 @@ test("NBA menus expose the existing optimizer and simulation entry points", asyn
       gameType: "Classic",
     }];
     else if (path === "/api/alerts") data = { alerts: [], unreadCount: 0 };
+    else if (path.endsWith("/players")) data = [];
+    else if (path.startsWith("/api/player-overrides/")) data = [];
+    else if (path.includes("/scout/signals")) data = { signals: [], count: 0 };
     await route.fulfill({ json: data });
   });
   await page.goto("/lineups");
@@ -26,4 +29,20 @@ test("NBA menus expose the existing optimizer and simulation entry points", asyn
     await expect(page.getByTestId("mobile-sport-nba-pro")).toBeEnabled();
   }
   await page.screenshot({ path: `screenshots/nba-menu-${testInfo.project.name}.png` });
+  await page.goto("/optimizer-pro/987001");
+  await expect(page.getByTestId("badge-platform")).toContainText("NBA");
+  await page.getByTestId("btn-sim-mode-toggle").click();
+  await expect(page.getByTestId("button-generate")).toContainText("Simulate");
+  await expect(page.getByTestId("btn-normal-mode")).toBeVisible();
+});
+
+test("the landing page highlights NBA as an active sport", async ({ page }, testInfo) => {
+  await page.route("**/api/**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    await route.fulfill({ json: path === "/api/auth/user" ? null : {} });
+  });
+  await page.goto("/");
+  await expect(page.getByTestId("unauth-sport-nba")).toBeVisible();
+  await expect(page.getByTestId("landing-nba-highlight")).toContainText("NBA Optimizer");
+  await page.screenshot({ path: `screenshots/nba-landing-${testInfo.project.name}.png` });
 });

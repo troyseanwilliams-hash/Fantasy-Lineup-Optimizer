@@ -699,7 +699,7 @@ export async function fetchLiveDKData(sport: string): Promise<LiveSlateData | nu
 export async function fetchAllSportsLiveData(): Promise<Map<string, LiveSlateData>> {
   const results = new Map<string, LiveSlateData>();
 
-  for (const sport of ["NHL", "MLB", "NFL", "GOLF", "SOCCER"]) {
+  for (const sport of ["NBA", "NHL", "MLB", "NFL", "GOLF", "SOCCER"]) {
     try {
       const data = await fetchLiveDKData(sport);
       if (data && data.dkPlayers.length >= 10) {

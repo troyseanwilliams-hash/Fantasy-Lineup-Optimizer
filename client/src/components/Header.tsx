@@ -18,9 +18,6 @@ import { ACTIVE_SPORTS, COMING_SOON_SPORTS, FEATURE_VISIBILITY } from "@shared/p
 import type { Slate } from "@shared/schema";
 import { LogoBanner } from "@/components/Logo";
 
-// Menu availability is separate from backend seasonal ingestion.
-const MENU_SPORTS = Array.from(new Set([...ACTIVE_SPORTS, "NBA"] as const));
-
 interface AlertItem {
   id: number;
   title: string;
@@ -115,7 +112,7 @@ export function Header() {
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-72 bg-[#1E293B] border-border">
-                  {MENU_SPORTS.map((sport, idx) => {
+                  {ACTIVE_SPORTS.map((sport, idx) => {
                     const meta = SPORT_META[sport] || { icon: Dribbble, color: "text-slate-400", bgColor: "bg-slate-500/20" };
                     const Icon = meta.icon;
                     const dkSlate = mainSlates.find(s => s.sport === sport && s.platform === "draftkings");
@@ -221,7 +218,7 @@ export function Header() {
                     );
                   })}
                   {/* Coming Soon sports */}
-                  {COMING_SOON_SPORTS.filter(sport => !MENU_SPORTS.includes(sport)).map((sport) => {
+                  {COMING_SOON_SPORTS.map((sport) => {
                     const meta = SPORT_META[sport] || { icon: Shield, color: "text-slate-400", bgColor: "bg-slate-500/20" };
                     const Icon = meta.icon;
                     return (
@@ -803,7 +800,7 @@ export function Header() {
                 <div className="border-t border-border my-2 pt-2">
                   <p className="px-3 py-1 text-[11px] font-black text-slate-400 uppercase tracking-wider">Sports</p>
                 </div>
-                {MENU_SPORTS.map(sport => {
+                {ACTIVE_SPORTS.map(sport => {
                   const meta = SPORT_META[sport] || { icon: Dribbble, color: "text-slate-400", bgColor: "bg-slate-500/20" };
                   const Icon = meta.icon;
                   const dkSlate = mainSlates.find(s => s.sport === sport && s.platform === "draftkings");
