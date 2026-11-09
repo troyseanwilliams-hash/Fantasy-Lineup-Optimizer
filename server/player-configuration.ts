@@ -95,10 +95,6 @@ export function registerPlayerConfiguration(app: Express, storage: Configuration
       }
       const old = overrides.find(o => o.playerId === player.id);
       const merged = { ...old, ...patch };
-      if (merged.isExcluded) {
-        merged.isLocked = false;
-        if ((merged.minExposure ?? 0) > 0) merged.minExposure = null;
-      }
       if ((merged.minExposure ?? 0) > (merged.maxExposure ?? 100) ||
           (merged.isLocked && (merged.isExcluded || (merged.maxExposure ?? 100) < 100)) ||
           (merged.isExcluded && (merged.minExposure ?? 0) > 0)) return res.status(400).json({ message: "Conflicting lock, exclusion, or exposure settings." });

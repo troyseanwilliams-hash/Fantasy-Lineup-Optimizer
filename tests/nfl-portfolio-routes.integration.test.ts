@@ -95,10 +95,6 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
     getSubscription: async () => ({ tier: "pro" }),
     getPlayerOverrides: async (_userId: string, slateId: number) => failLegacyExposureGroup && slateId === 78
       ? [{ playerId: 99999, minExposure: 100, maxExposure: 100 }] : slateId === 77 ? savedPlayerOverrides : [],
-    upsertPlayerOverride: async (data: any) => {
-      savedPlayerOverrides = [...savedPlayerOverrides.filter(o=>o.playerId!==data.playerId),data];
-      return data;
-    },
     getZeroPointPlayerNames: async () => [],
     getLineup: async (id: number) => ({ id, slateId: id === 4 ? 78 : 77, userId: id === 999 ? "other" : "owner", sport: "NFL", platform: "draftkings" }),
     createLineup: async (payload: any) => { writes.push(payload); return { id: 500, ...payload }; },
@@ -122,8 +118,7 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
     computeCorrelationBonus: () => 0,
   });
   mock("../server/market-projections.ts", { applyMarketProjectionBlend: identity });
-   mock("../server/variance-profiles.ts", { getEmpiricalCV: (_sport: string, _position: string, _projection: number, prior: number) => prior });
-   const simulationEngine = require("../server/simulation-engine.ts");
+  const simulationEngine = require("../server/simulation-engine.ts");
   mock("../server/simulation-engine.ts", {
     ...simulationEngine,
     runSimulations: (...args: any[]) => {
@@ -139,6 +134,7 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
   mock("../server/ai-scout.ts", { getCachedSignals: () => [] });
   mock("../server/espn-activity.ts", { getRecentlyPlayedCache: () => new Set(), normalizePlayerName: (s: string) => s });
   mock("../server/vegas-client.ts", { buildVegasContext: async () => null });
+  mock("../server/variance-profiles.ts", { getEmpiricalCV: (_sport: string, _position: string, _projection: number, prior: number) => prior });
   mock("../server/dvp-client.ts", { buildOpponentMap: () => new Map(), buildDvPContext: async () => null });
   mock("../server/balldontlie-stats.ts", { fetchBDLStats: async () => new Map() });
   mock("../server/ownership-engine.ts", {
@@ -177,8 +173,7 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
     },
   });
   const handlers = new Map<string, any>();
-   const putHandlers = new Map<string, any>();
-   const app = { set() {}, use() {}, get() {}, delete() {}, put(path: string, ...fns: any[]) { putHandlers.set(path, fns.at(-1)); }, patch() {}, post(path: string, ...fns: any[]) { handlers.set(path, fns.at(-1)); } };
+  const app = { set() {}, use() {}, get() {}, delete() {}, put() {}, patch() {}, post(path: string, ...fns: any[]) { handlers.set(path, fns.at(-1)); } };
   const httpApp = express();
   httpApp.use(express.json());
   httpApp.use((req, _res, next) => { (req as any).session = { userId: "owner" }; next(); });
@@ -197,30 +192,8 @@ test("explicit strategy propagates; NFL GPP Resim defaults to structure and neve
     assert.equal(routes.simRegenerationRuntimeMs(1_000), 90_000);
     await routes.registerRoutes({}, app);
     for (const [path, handler] of handlers) httpApp.post(path, handler);
-    for (const [path, handler] of putHandlers) httpApp.put(path, handler);
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-    if (process.env.EXCLUSION_REGRESSION === "1") {
-      savedPlayerOverrides = [{playerId:2,slateId:77,userId:"owner",isLocked:true,minExposure:100}];
-      const response = await fetch(`${baseUrl}/api/player-overrides/77/2`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({isExcluded:true})});
-      assert.equal(response.status,200);
-      const setting:any = await response.json();
-      assert.equal(setting.isExcluded,true);assert.equal(setting.isLocked,false);assert.equal(setting.minExposure,null);
-      for (const path of ["/api/optimize","/api/optimize/pro","/api/optimize/sim","/api/lineups/sim-regenerate"]) {
-        const before = writes.length;
-        const result = await invoke(path,{slateId:77,contestType:"cash",ids:[1],lineupCount:1,numSims:50,globalMaxExposure:100,useBoosts:false});
-        if(path.includes("regenerate")) {
-          assert.ok(writes.length>before,path);
-          assert.ok(writes.slice(before).every(w=>!w.playerIds.includes(2)),path);
-        } else {
-          const lineups = result.lineups ?? [result];
-          assert.ok(lineups.length>0,path);
-          assert.ok(lineups.every((l:any)=>l.lineup.length>0&&!l.lineup.some((p:any)=>p.id===2)),path);
-        }
-      }
-      console.log("Saved exclusion propagation verified for 4 routes");
-      return;
-    }
     const settings = nflPortfolioSettingsSchema.parse({ enabled: true });
     const common = { slateId: 77, contestType: "gpp", nflPortfolio: settings, nflPortfolioLineupPolicy: { catcherCount: 999, minLowOwnedPlayers: 999 } };
     const normal = await invoke("/api/optimize", common);
