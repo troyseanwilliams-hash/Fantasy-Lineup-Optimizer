@@ -84,7 +84,8 @@ export function NflPortfolioControls({ settings: s, onChange, supported, slateId
     refetchOnMount: "always",
   });
   const currentSlate = useRef(slateId); currentSlate.current = slateId;
-  const classic: ClassicLogic = s.classic ?? { projectionSource: "DFS Army", slateId, players: {}, anchors: {}, fullArchitecturePct: 34, doubleStackPct: 65, bringBackPct: 45, nakedPct: 3 };
+  const classic: ClassicLogic = s.classic ?? { projectionSource: "App data", slateId, players: {}, anchors: {}, fullArchitecturePct: 34, doubleStackPct: 65, bringBackPct: 45, nakedPct: 0 };
+  const appData = classic.projectionSource === "App data";
   const update = (next: ClassicLogic) => onChange({ ...s, enabled: true, classic: next });
   // Never use the visible optimizer pool: it omits unavailable players.
   const poolReady = !!user && inputPool.isSuccess && !inputPool.isFetching;
@@ -99,7 +100,9 @@ export function NflPortfolioControls({ settings: s, onChange, supported, slateId
   const parsed = classicLogicSchema.safeParse(classic);
   if (!supported) return null;
   return <details className="rounded-lg border border-amber-500/30 bg-slate-900 p-3 text-xs space-y-4" data-testid="nfl-portfolio-controls">
-    <summary className="cursor-pointer font-bold text-amber-300">NFL Classic Logic · Always enabled · DFS Army · Slate #{slateId} · {inputPool.isError ? "Full pool unavailable — retry required" : !poolReady ? "Verifying full pool" : evidenceError ? "Evidence mismatch — review required" : `Evidence ${covered.length}/${pool.length}`}</summary>
+    <summary className="cursor-pointer font-bold text-amber-300">NFL Classic Logic · Always enabled · {classic.projectionSource} · Slate #{slateId}</summary>
+    <p>{appData ? "No upload needed. Uses current slate projections, app ownership estimates and recorded injury statuses. Weather, injury-review freshness, role-based minimums and defensive matchup screens are not verified. Naked QBs are disabled; anchors are optional manual targets." : "Using imported DFS Army evidence. Fresh full-pool evidence and 2–3 verified anchors are required."}</p>
+    {!appData && <button type="button" className="rounded border border-slate-600 px-3 py-2" onClick={() => onChange({ ...s, enabled: true, classic: { ...classic, projectionSource: "App data", players: {}, anchors: {}, nakedPct: 0 } })}>Use current app data instead</button>}
     <p>Legacy Ceiling, Leverage, Outperformer, Simulation and settings controls remain available above this logic. Classic rules always apply to supported DraftKings Classic GPP builds.</p>
     <div className="rounded border border-slate-700 p-3 space-y-2">
       <p><strong>115%</strong> total lineup ownership cap · <strong>4 points</strong> minimum skill-player projection · <strong>3 uniques</strong> between lineups.</p>
@@ -117,7 +120,7 @@ export function NflPortfolioControls({ settings: s, onChange, supported, slateId
       ["bringBackPct", "Bring-back %", 35, 55],
       ["nakedPct", "Verified rushing naked %", 0, 10],
     ] as const).map(([key, label, min, max]) => <label key={key} className="flex items-center justify-between gap-2">{label}<input className="w-20 rounded bg-slate-950 border border-slate-700 p-2" type="number" aria-label={label} min={min} max={max} value={classic[key]} onChange={e => update({ ...classic, [key]: e.target.value === "" ? NaN : Number(e.target.value) })} /></label>)}</fieldset>
-    <label className="block space-y-2 font-semibold">Import Classic formula evidence CSV / JSON
+    <label className="block space-y-2 font-semibold">Optional: switch to strict imported evidence CSV / JSON
       <input className="block w-full text-xs" type="file" accept=".csv,.json,text/csv,application/json" disabled={busy || !poolReady || !pool.length} onChange={async e => {
         const file = e.target.files?.[0]; e.target.value = ""; if (!file) return;
         const importingSlate = slateId; setBusy(true); setImportError("");
@@ -131,19 +134,19 @@ export function NflPortfolioControls({ settings: s, onChange, supported, slateId
     {busy && <p role="status" className="animate-pulse">Validating exact player matches and evidence…</p>}
     {importError && <p role="alert" className="text-red-300">{importError} Select a corrected file to retry.</p>}
     {poolReady && <p role="status">Full-pool imported coverage (including OUT / IR / PUP): {covered.length} / {pool.length} players · Missing evidence: {pool.length - covered.length} · Recent 2–3 games: {covered.filter(p => classic.players[String(p.id)].recent.length >= 2).length} · Role-qualified: {covered.filter(p => hasRole(classic.players[String(p.id)])).length} · Verified rushing QBs: {covered.filter(p => p.position.includes("QB") && rushingQualified(classic.players[String(p.id)])).length}</p>}
-    {poolReady && !evidenceError && !Object.keys(classic.players).length && <p className="rounded border border-amber-500/30 p-3 text-amber-200">No evidence imported. Classic Logic is still sent; the backend will report required inputs. Projections, ownership, availability, role, injury and weather evidence are never guessed.</p>}
+    {appData && <p className="rounded border border-amber-500/30 p-3 text-amber-200">App data is refreshed on each generation request. No separate Classic file is required. Missing review evidence is reported, not fabricated.</p>}
     <ClassicInputGuide />
     <details className="space-y-3"><summary className="cursor-pointer font-bold">Weekly anchors · {anchors.length} / 2–3 selected</summary>
-      <p>Select 2–3 anchors, each at 35–45% (default 40%). This explicitly overrides the normal position cap; any anchor facing a top defense (TopDefense), at any position, is trimmed to 30%. Imported evidence is required. These are exposure targets, not lineup locks.</p>
+      <p>{appData ? "Optional: select up to 3 manual anchors at 35–45%. These override position caps but do not certify recent workload or role." : "Select 2–3 role-verified anchors at 35–45%. Imported evidence is required; top-defense matchups trim exposure to 30%."} These are exposure targets, not lineup locks.</p>
       <fieldset disabled={!poolReady || !!evidenceError} className="max-h-56 overflow-auto space-y-2">{pool.map(p => {
         const id = String(p.id), selected = anchors.includes(id), evidence = classic.players[id];
         return <div key={id} className="flex flex-wrap items-center gap-2 border-b border-slate-800 py-1">
-          <label className="flex flex-1 gap-2"><input type="checkbox" checked={selected} disabled={!selected && (anchors.length >= 3 || !evidence)} onChange={e => { const next = { ...classic.anchors }; if (e.target.checked) next[id] = 40; else delete next[id]; update({ ...classic, anchors: next }); }} />{p.name} · {p.position} / {p.team} · #{id}{p.injuryStatus ? ` · ${p.injuryStatus}` : ""}</label>
+          <label className="flex flex-1 gap-2"><input type="checkbox" checked={selected} disabled={!selected && (anchors.length >= 3 || (!appData && !evidence))} onChange={e => { const next = { ...classic.anchors }; if (e.target.checked) next[id] = 40; else delete next[id]; update({ ...classic, anchors: next }); }} />{p.name} · {p.position} / {p.team} · #{id}{p.injuryStatus ? ` · ${p.injuryStatus}` : ""}</label>
           {selected && <input aria-label={`Anchor exposure ${p.name}`} className="w-20 rounded border border-slate-700 bg-slate-950 p-2" type="number" min={35} max={45} value={classic.anchors[id]} onChange={e => update({ ...classic, anchors: { ...classic.anchors, [id]: Number(e.target.value) } })} />}
           {selected && evidence?.topDefense && <span className="text-amber-300">Top-defense matchup · Effective max 30%</span>}
         </div>;
       })}</fieldset>
-      {anchors.length !== 2 && anchors.length !== 3 && <p className="text-amber-200">Choose 2–3 weekly anchors to complete the portfolio setup.</p>}
+      {!appData && anchors.length !== 2 && anchors.length !== 3 && <p className="text-amber-200">Choose 2–3 weekly anchors to complete the portfolio setup.</p>}
     </details>
     <button type="button" className="rounded border border-slate-600 px-3 py-2" onClick={() => { onChange({ ...s, enabled: true, classic: undefined }); setImportError(""); }}>Clear Classic evidence and anchors</button>
     {!parsed.success && <p role="alert" className="text-red-300">{parsed.error.issues.map(i => i.message).join(" ")}</p>}
@@ -168,7 +171,7 @@ export function NflPortfolioReportView({ report, target }: { report?: NflPortfol
     <p>{report.partial || report.generatedCount < report.requestedCount ? "Partial portfolio" : "Portfolio generated"}: {report.generatedCount} / {report.requestedCount} lineups · {report.candidateCount} candidates · seed {report.seed}</p>
     {(report.fallbackCount ?? 0) > 0 && <p className="text-amber-200"><strong>Adjusted formula:</strong> {report.normalFormulaCount ?? report.generatedCount - report.fallbackCount!} standard target lineups + {report.fallbackCount} {report.fallbackMode === "projection_low_ownership" ? "high-projection, low-ownership" : "projection-ranked"} fallback lineups.</p>}
     {!!report.adjustedTargets?.length && <div><strong>Softened portfolio targets</strong><ul className="list-disc pl-5">{report.adjustedTargets.map((item, i) => <li key={i}>{item}</li>)}</ul></div>}
-    {classic ? <p>Sources: DFS Army projections and imported per-player ownership / availability / role / weather evidence. Missing evidence is not estimated. Review evidence warnings below; final review before DraftKings upload is required.</p> : <p>Sources: ownership {report.dataSources?.ownership === "estimated" ? "model estimates" : report.dataSources?.ownership ?? "unavailable"} · Vegas {vegasSource}{report.dataSources?.vegasProvider ? ` (${report.dataSources.vegasProvider}${vegasTime})` : vegasTime}{eventTimes} · rushing role manual (not verified)</p>}
+    {classic ? <p>Sources: {report.dataSources?.ownership === "estimated" ? "current app projections, estimated ownership and recorded injury statuses. Additional checks are unverified; see warnings below." : "DFS Army projections and imported evidence."} Final review before DraftKings upload is required.</p> : <p>Sources: ownership {report.dataSources?.ownership === "estimated" ? "model estimates" : report.dataSources?.ownership ?? "unavailable"} · Vegas {vegasSource}{report.dataSources?.vegasProvider ? ` (${report.dataSources.vegasProvider}${vegasTime})` : vegasTime}{eventTimes} · rushing role manual (not verified)</p>}
     <QualitySearchDiagnostics
       diagnostics={report.searchDiagnostics}
       partial={report.partial}

@@ -6,6 +6,7 @@ import { stackGameKey } from "./sim-game-stacks";
 import { solvePortfolioModelIsolated } from "./nfl-portfolio";
 import { validatedIntegralResult } from "./solver-guard";
 import { qualityFloor } from "./lineup-quality";
+import { APP_CLASSIC_WARNINGS } from "./nfl-classic-app-data";
 
 type Candidate = { lineup: Player[]; totalSalary: number; totalProjectedPoints: number; [key: string]: any };
 export function classicArchitecture(lineup: Player[]) {
@@ -57,15 +58,16 @@ export async function generateClassicPortfolio(options: {
   const defs = pool.filter(p => classicPos(p) === "DST").sort((a, b) => {
     const score = (p: Player) => {
       const e = c.players[String(p.id)];
+      if (c.projectionSource === "App data") return e.projection;
       return (21 - e.opponentImpliedTotal!) * 2 + e.opponentSackRate! + e.opponentFumbleRate! + e.opponentIntRate! + e.projection;
     };
     return score(b) - score(a);
   });
-  if (defs.length < 4) throw new Error("Classic needs at least four defenses that pass the opponent ≤21 implied-total screen and salary/turnover rules.");
+  if (defs.length < 4) throw new Error("Classic position caps need at least four eligible defenses. Broaden the slate or remove conflicting exclusions.");
   const defenses = defs.slice(0, 6);
   const leverageDst = defs.find(p => ownership.get(p.id)! < 10 && c.players[String(p.id)].eliteTurnoverMatchup);
   if (leverageDst && !defenses.includes(leverageDst)) defenses[defenses.length - 1] = leverageDst;
-  for (const p of defenses.slice(0, 2)) minimum.set(p.id, Math.max(minimum.get(p.id) || 0, 25));
+  if (c.projectionSource !== "App data") for (const p of defenses.slice(0, 2)) minimum.set(p.id, Math.max(minimum.get(p.id) || 0, 25));
   if (leverageDst) minimum.set(leverageDst.id, Math.max(minimum.get(leverageDst.id) || 0, 10));
   const allowedDst = new Set(defenses.map(p => p.id));
   const eligible = pool.filter(p => classicPos(p) !== "DST" || allowedDst.has(p.id));
@@ -190,10 +192,11 @@ export async function generateClassicPortfolio(options: {
   const lineups = qualified.filter((_,i)=>valid[`l${i}`]>.5).sort((a,b)=>b.totalProjectedPoints-a.totalProjectedPoints);
   if (lineups.length !== count || lineups.some(l=>classicLineupErrors(l.lineup,s,nakedQbIds).length)) throw new Error("Final Classic audit failed; no lineups saved.");
   const warnings = [
-    "Uses DFS Army inputs. Sim controls rank eligible candidates; hard Classic rules remain enforced.",
+    `Uses ${c.projectionSource} inputs. Sim controls rank eligible candidates; ownership, exposure and structure rules remain enforced.`,
     "Final injury/inactive and weather review plus explicit approval are required before uploading. Weather is not an automatic veto.",
     "Anchor shares explicitly override position caps; a top-defense matchup trims the anchor toward 30%.",
   ];
+  if (c.projectionSource === "App data") warnings.unshift(...APP_CLASSIC_WARNINGS);
   const metrics: NflPortfolioReport["metrics"] = [];
   const metric = (key:string,label:string,target:number,achieved:number,unit:"percent"|"lineups", detail?:string) =>
     metrics.push({key,label,target,achieved,unit,status:Math.abs(target-achieved)<=1?"met":"info",detail});
@@ -217,5 +220,5 @@ export async function generateClassicPortfolio(options: {
     warnings.push(`Flagship ${i+1}: review FLEX candidates ${choices.map(p=>`${p.name}${c.players[String(p.id)].ceiling == null ? " (ceiling missing)" : ` (ceiling ${c.players[String(p.id)].ceiling})`}`).join(", ")} before entry.`);
   }
   return {lineups,report:{classicLogic:true,requestedCount:count,generatedCount:count,candidateCount:qualified.length,seed:s.seed,metrics,warnings,partial:false,
-    dataSources:{ownership:"provided",vegas:"unavailable",rushing:"manual"},selectionStatus:"full"}};
+    dataSources:{ownership:c.projectionSource === "App data" ? "estimated" : "provided",vegas:"unavailable",rushing:"manual"},selectionStatus:"full"}};
 }

@@ -19,6 +19,8 @@ test("Classic inputs coexist with legacy Sim controls",async({page})=>{
   await expect(panel).toBeVisible();
   await panel.locator("summary").first().click();
   await expect(panel).toContainText("115");
+  await expect(panel).toContainText("No upload needed");
+  await expect(panel).toContainText("App data");
   await expect(panel).toContainText("35");
   await expect(panel.locator('input[type="file"]')).toBeEnabled();
   await page.getByTestId("btn-sim-mode-toggle").click();

@@ -9,6 +9,28 @@ import { addNflPortfolioConstraints } from "../server/nfl-portfolio";
 import { solveWithBudget, validatedIntegralResult } from "../server/solver-guard";
 import { auditClassicUpload } from "../shared/nfl-classic-audit";
 import { parseClassicInputs, classicInputHeaderCsv } from "../shared/nfl-classic-inputs";
+import { buildAppClassicInputs } from "../server/nfl-classic-app-data";
+
+test("app inputs need no import, never fabricate reviews, and preserve caps", async () => {
+  const { pool, settings } = fixture();
+  settings.classic = buildAppClassicInputs(pool, 77, new Map(pool.map(p => [p.id, 8])));
+  assert.deepEqual(settings.classic.anchors, {});
+  assert.equal(settings.classic.players["1"].statusCheckedAt, undefined);
+  assert.equal(settings.classic.players["1"].weatherCheckedAt, undefined);
+  assert.equal(settings.classic.players["1"].recent.length, 0);
+  assert.equal(validateClassicEvidence(pool, settings.classic, 77).length, pool.length);
+  assert.throws(() => buildAppClassicInputs(pool, 77, new Map()), /unavailable/);
+  assert.throws(() => validateClassicEvidence(pool, settings.classic, 78), /different slate/);
+  const injured = pool.map((p, i) => i === 0 ? { ...p, injuryStatus: "OUT" } : p);
+  assert.equal(validateClassicEvidence(injured, settings.classic).length, pool.length - 1);
+  const result = await generateClassicPortfolio({ pool, settings, count: 20, baseConstraints: {},
+    deadline: Date.now() + 28000, solve });
+  assert.equal(result.lineups.length, 20);
+  assert.equal(result.report.dataSources?.ownership, "estimated");
+  assert.ok(result.report.warnings.some(w => w.includes("Not verified")));
+  for (const p of pool) assert.ok(result.lineups.filter(l => l.lineup.some(q => q.id === p.id)).length <= Math.floor(CLASSIC_POSITION_CAPS[p.position] * 20 / 100));
+  for (const l of result.lineups) assert.deepEqual(classicLineupErrors(l.lineup, settings, []), []);
+});
 
 function fixture() {
   const teams = ["A","B","C","D","E","F","G","H","I","J"];

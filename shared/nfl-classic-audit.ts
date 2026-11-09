@@ -5,6 +5,7 @@ import { parseGameInfo } from "./game-info";
 export function auditClassicUpload(upload: ClassicUpload, official: OfficialPlayer[], excludedIds: string[], evidence?: ClassicLogic): ClassicAudit {
   if (!evidence) throw new Error("Import current Classic formula evidence before auditing. The old 25%/20% caps have been superseded.");
   const classic = classicLogicSchema.parse(evidence);
+  if (classic.projectionSource !== "DFS Army") throw new Error("Offline upload certification requires strict imported evidence. App-data generation reports its unverified checks separately.");
   if (!upload.entries.length || upload.entries.length > 150) throw new Error("Audit supports 1–150 populated Classic entries.");
   if (official.some(p => p.cptId)) throw new Error("Classic audit cannot use a Showdown salary template.");
   const byId = new Map(official.map(p => [p.flexId, p]));
@@ -16,8 +17,8 @@ export function auditClassicUpload(upload: ClassicUpload, official: OfficialPlay
     const e = classic.players[p.flexId];
     if (!e) throw new Error(`Full-list review missing for ${p.name}. Include inactive players in the evidence.`);
     for (const date of [e.statusCheckedAt, e.weatherCheckedAt]) {
-      const age = Date.now() - Date.parse(date);
-      if (age < -300000 || age > 6 * 3600000) throw new Error(`${p.name}: refresh injury and weather evidence (six-hour limit).`);
+      const age = Date.now() - Date.parse(date ?? "");
+      if (!Number.isFinite(age) || age < -300000 || age > 6 * 3600000) throw new Error(`${p.name}: refresh injury and weather evidence (six-hour limit).`);
     }
   }
   const eligible = (p: OfficialPlayer) => {

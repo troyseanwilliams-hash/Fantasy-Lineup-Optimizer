@@ -6,11 +6,11 @@ export const CLASSIC_SKILL_FLOOR = 4;
 export const classicPlayerEvidenceSchema = z.object({
   projection: z.number().finite().min(0),
   ownership: z.number().finite().min(0).max(100),
-  status: z.enum(["ACTIVE", "QUESTIONABLE", "OUT", "INACTIVE", "IR", "PUP", "EXEMPT", "SUSPENDED", "DOUBTFUL"]),
-  statusCheckedAt: z.string().datetime(),
-  depthChartNotes: z.string().trim().min(1),
-  weatherNotes: z.string().trim().min(1),
-  weatherCheckedAt: z.string().datetime(),
+  status: z.enum(["UNKNOWN", "ACTIVE", "QUESTIONABLE", "OUT", "INACTIVE", "IR", "PUP", "EXEMPT", "SUSPENDED", "DOUBTFUL"]),
+  statusCheckedAt: z.string().datetime().optional(),
+  depthChartNotes: z.string().trim().min(1).optional(),
+  weatherNotes: z.string().trim().min(1).optional(),
+  weatherCheckedAt: z.string().datetime().optional(),
   recent: z.array(z.object({
     targets: z.number().nonnegative().optional(),
     carries: z.number().nonnegative().optional(),
@@ -34,7 +34,7 @@ export const classicPlayerEvidenceSchema = z.object({
   ceiling: z.number().finite().nonnegative().optional(),
 });
 export const classicLogicSchema = z.object({
-  projectionSource: z.literal("DFS Army"),
+  projectionSource: z.enum(["DFS Army", "App data"]),
   slateId: z.number().int().positive(),
   players: z.record(z.string(), classicPlayerEvidenceSchema),
   anchors: z.record(z.string(), z.number().min(35).max(45)).default({}),
@@ -45,6 +45,9 @@ export const classicLogicSchema = z.object({
   nakedPct: z.number().min(0).max(10).default(3),
 }).refine(s => s.fullArchitecturePct <= s.bringBackPct && s.fullArchitecturePct <= s.doubleStackPct, {
   message: "Full architecture target cannot exceed double-stack or bring-back targets.",
+}).refine(s => s.projectionSource === "App data" || Object.values(s.players).every(p =>
+  p.status !== "UNKNOWN" && p.statusCheckedAt && p.weatherCheckedAt && p.depthChartNotes && p.weatherNotes), {
+  message: "Strict imported evidence requires status, review timestamps, depth-chart notes and weather notes for every player.",
 });
 export type ClassicEvidence = z.infer<typeof classicPlayerEvidenceSchema>;
 export type ClassicLogic = z.infer<typeof classicLogicSchema>;
