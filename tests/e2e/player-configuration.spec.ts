@@ -1,4 +1,23 @@
 import { expect, test, type Page } from "@playwright/test";
+test.setTimeout(90_000);
+
+test.beforeEach(async ({ page, baseURL }) => {
+  // Third-party font/payment scripts are not part of configuration persistence.
+  await page.route("**/*", route => {
+    const url = new URL(route.request().url());
+    if (url.hostname === "js.stripe.com") return route.fulfill({contentType:"application/javascript",body:"window.Stripe = function () { return {}; };"});
+    return url.origin === new URL(baseURL!).origin ? route.fallback() : route.abort();
+  });
+});
+
+async function saveAlpha(page: Page) {
+  // Exercise keyboard activation as well as switch clicks. Chromium mobile
+  // emulation can pan its visual viewport independently after a wide table scroll.
+  const save = page.getByRole("button", {name:"Save Alpha Guard",exact:true});
+  await expect(save).toBeEnabled();
+  await save.focus();
+  await save.press("Enter");
+}
 
 const slates = [
   { id: 901, sport: "NBA", platform: "draftkings", name: "Thursday Main", startTime: "2099-10-04T23:00:00Z", isActive: true, isMain: true, gameCount: 4 },
@@ -113,15 +132,47 @@ test("filters existing saved exposure by the current slate denominator and repor
   await page.getByText("Above saved cap").click();
   await expect(page.getByText("Alpha Guard", { exact: true })).toBeVisible();
   await expect(page.getByText("Bravo Wing")).toHaveCount(0);
-  await page.getByLabel("Alpha Guard excluded").click();
-  await page.getByLabel("Alpha Guard minimum exposure").fill("10");
+  await page.getByLabel("Alpha Guard minimum exposure").fill("90");
   await page.getByRole("button", { name: "Save Alpha Guard" }).click();
-  await expect(page.getByRole("alert")).toContainText("excluded player cannot have a positive minimum exposure");
+  await expect(page.getByRole("alert")).toContainText("Minimum exposure cannot exceed maximum exposure");
   await page.reload();
   await page.getByLabel("Alpha Guard notes").fill("try server error");
   api.failSave();
   await page.getByRole("button", { name: "Save Alpha Guard" }).click();
   await expect(page.getByRole("alert")).toContainText("Database write declined");
+});
+
+test("exclusion clears prior conflicts, survives reload, and unexclude does not restore them", async ({page}) => {
+  const api = await installConfigurationMock(page);
+  api.store[901] = {9011:{playerId:9011,isLocked:true,minExposure:50,isExcluded:false}};
+  await page.goto("/player-config?slateId=901", {waitUntil:"domcontentloaded"});
+  await expect(page.getByRole("columnheader",{name:"Exclusion",exact:true})).toBeVisible();
+  await page.getByLabel("Alpha Guard Exclusion").click();
+  await expect(page.getByLabel("Alpha Guard locked")).not.toBeChecked();
+  await expect(page.getByLabel("Alpha Guard minimum exposure")).toHaveValue("");
+  await expect(page.getByRole("status").filter({hasText:"unsaved changes"})).toBeVisible();
+  api.failSave();
+  await saveAlpha(page);
+  await expect(page.getByRole("alert")).toContainText("Database write declined");
+  await expect(page.getByLabel("Alpha Guard Exclusion")).toBeChecked();
+  await saveAlpha(page);
+  await expect.poll(()=>api.writes.length).toBe(1);
+  expect(api.writes[0].body).toMatchObject({isExcluded:true,isLocked:false,minExposure:null});
+  await page.reload({waitUntil:"domcontentloaded"});
+  await expect(page.getByLabel("Alpha Guard Exclusion")).toBeChecked();
+  await page.goto("/player-config?slateId=902", {waitUntil:"domcontentloaded"});
+  await expect(page.getByLabel("Alpha Guard Exclusion")).not.toBeChecked();
+  await page.goto("/player-config?slateId=901", {waitUntil:"domcontentloaded"});
+  await page.getByLabel("Alpha Guard Exclusion").click();
+  await saveAlpha(page);
+  await expect.poll(()=>api.writes.length).toBe(2);
+  expect(api.writes[1].body).toMatchObject({isExcluded:false,isLocked:false,minExposure:null});
+  await page.reload({waitUntil:"domcontentloaded"});
+  await expect(page.getByLabel("Alpha Guard Exclusion")).not.toBeChecked();
+  await expect(page.getByLabel("Alpha Guard locked")).not.toBeChecked();
+  await page.goto("/player-config?slateId=903", {waitUntil:"domcontentloaded"});
+  await expect(page.getByLabel("Alpha Guard Exclusion")).toBeDisabled();
+  await page.screenshot({path:`/tmp/player-exclusion-${test.info().project.name}.png`});
 });
 
 test("preserves exact inactive slates as read-only and contextual links retain the selected slate", async ({ page }) => {

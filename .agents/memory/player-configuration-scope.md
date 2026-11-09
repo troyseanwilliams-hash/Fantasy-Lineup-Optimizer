@@ -14,3 +14,9 @@ Saved player caps are authoritative across generation modes, and must combine wi
 **Why:** A stale optimizer tab or a different Resim screen must not undo a cap the user just saved. Saved-lineup exposure is historical reporting; changing a cap does not itself rewrite those lineups.
 
 **How to apply:** Apply saved attributes server-side and enforce caps on the actual generated batch. Make reset explicit, distinguish historical exposure from new-batch limits, and preserve unsaved edits to other players when saving one row.
+
+Exclusion wins over a lock or positive minimum exposure, including partial updates. Clearing exclusion must not restore those old conflicting settings.
+
+**Why:** Excluding a player must be one action rather than requiring the user to find and clear hidden conflicts first.
+
+**How to apply:** Normalize both interactive edits and merged server updates while retaining unrelated caps, projections and notes.

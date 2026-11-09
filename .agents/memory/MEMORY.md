@@ -18,6 +18,7 @@
 - [Stack alternatives](stack-alternative-semantics.md) — favorites are alternative requirements; unselected stacks must not impose dependent constraints.
 - [Sport-specific slate selection](draftkings-sport-selection.md) — NFL ranking changes need MLB Classic/Showdown regression coverage and live contest-type verification.
 - [Player configuration scope](player-configuration-scope.md) — saved settings belong to an exact user/slate; stale requests cannot loosen caps and Resim must not inherit another slate's settings.
+- [Player configuration browser checks](player-configuration-browser-checks.md) — mobile viewport panning can misdirect automated clicks; retain keyboard and explicit touch coverage.
 - [Optimizer control visibility](optimizer-control-visibility.md) — responsive visual changes must not hide existing setup controls behind new laptop tabs.
 - [Historical data retention](historical-data-retention.md) — saved lineups and player history must be retained indefinitely for analysis.
 - [NBA activation](nba-activation.md) — NBA should be active and highlighted on the landing page, not merely exposed in menus.

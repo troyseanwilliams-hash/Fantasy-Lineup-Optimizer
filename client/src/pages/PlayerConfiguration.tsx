@@ -70,7 +70,7 @@ export default function PlayerConfiguration() {
   const [sort, setSort] = useState<Sort>("name");
   const [error, setError] = useState<string | null>(null);
   const [undo, setUndo] = useState<{ player: Player; override: Override } | null>(null);
-  const initializedSlateRef = useRef<number | null>(null);
+  const initializedSlateRef = useRef<string | null>(null);
   const baselineRef = useRef<Record<number, Draft>>({});
   baselineRef.current = baseline;
 
@@ -79,7 +79,7 @@ export default function PlayerConfiguration() {
   }, [slates, slateId]);
 
   const configQuery = useQuery<Configuration>({
-    queryKey: ["/api/player-configuration", slateId],
+    queryKey: ["/api/player-configuration", user?.id, slateId],
     queryFn: async () => {
       const res = await fetch(`/api/player-configuration/${slateId}`, { credentials: "include" });
       if (!res.ok) {
@@ -92,7 +92,7 @@ export default function PlayerConfiguration() {
       }
       return res.json();
     },
-    enabled: slateId > 0,
+    enabled: !!user && slateId > 0,
   });
   const config = configQuery.data;
   const isReadOnly = !!config?.isExpired;
@@ -101,8 +101,9 @@ export default function PlayerConfiguration() {
     if (!config) return;
     const next: Record<number, Draft> = {};
     config.players.forEach(player => { next[player.id] = cleanDraft(player.id, config.overrides.find(o => o.playerId === player.id)); });
-    if (initializedSlateRef.current !== config.slate.id) {
-      initializedSlateRef.current = config.slate.id;
+    const scope = `${user?.id}:${config.slate.id}`;
+    if (initializedSlateRef.current !== scope) {
+      initializedSlateRef.current = scope;
       baselineRef.current = next;
       setDrafts(next); setBaseline(next); setError(null); setUndo(null);
       return;
@@ -117,10 +118,17 @@ export default function PlayerConfiguration() {
       const wasUntouched = JSON.stringify(currentDraft) === JSON.stringify(previous[player.id]);
       return [player.id, wasUntouched ? next[player.id] : currentDraft];
     })));
-  }, [config]);
+  }, [config, user?.id]);
 
   const dirtyIds = useMemo(() => Object.keys(drafts).map(Number).filter(id => JSON.stringify(drafts[id]) !== JSON.stringify(baseline[id])), [drafts, baseline]);
-  const setDraft = (id: number, updates: Partial<Draft>) => setDrafts(current => ({ ...current, [id]: { ...(current[id] ?? cleanDraft(id)), ...updates } }));
+  const setDraft = (id: number, updates: Partial<Draft>) => setDrafts(current => {
+    const next = { ...(current[id] ?? cleanDraft(id)), ...updates };
+    if (next.isExcluded) {
+      next.isLocked = false;
+      if ((next.minExposure ?? 0) > 0) next.minExposure = null;
+    }
+    return { ...current, [id]: next };
+  });
   const selectSlate = (id: number) => {
     if (id === slateId) return;
     if (dirtyIds.length && !window.confirm("Discard unsaved player changes and switch slates?")) return;
@@ -209,7 +217,7 @@ export default function PlayerConfiguration() {
   }
   if (!config) return null;
 
-  return <div className="min-h-[100dvh] bg-[#0F172A] text-slate-100">
+  return <div className="min-h-[100dvh] w-full min-w-0 max-w-[100vw] overflow-x-hidden bg-[#0F172A] text-slate-100">
     <div className="mx-auto max-w-[1500px] px-3 py-5 sm:px-6 lg:py-8">
       <header className="rounded-2xl border border-slate-700/80 bg-slate-900/70 p-5 shadow-2xl shadow-slate-950/20">
         <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
@@ -230,17 +238,23 @@ export default function PlayerConfiguration() {
             <select aria-label="Filter team" value={team} onChange={e => setTeam(e.target.value)} className="h-10 rounded-md border border-slate-700 bg-slate-950 px-3 text-sm"><option>ALL</option>{teams.map(value => <option key={value}>{value}</option>)}</select></div>
           <div className="flex items-center gap-3"><label className="flex items-center gap-2 whitespace-nowrap text-xs font-bold text-slate-400"><Switch checked={overCapOnly} onCheckedChange={setOverCapOnly} />Above saved cap</label><Button variant="outline" size="sm" onClick={() => setSort(sort === "name" ? "exposure" : "name")}><Filter className="mr-1 h-3.5 w-3.5" />Sort: {sort}</Button>{!isReadOnly && <Button variant="outline" size="sm" onClick={() => { if (window.confirm("Clear all personal player settings for this slate?")) clearMutation.mutate(slateId); }} disabled={clearMutation.isPending}><RotateCcw className="mr-1 h-3.5 w-3.5" />Clear slate</Button>}</div>
         </div>
-        <div className="overflow-x-auto"><table className="w-full min-w-[1120px] text-left"><thead className="bg-slate-950/60 text-[10px] uppercase tracking-wider text-slate-500"><tr><th className="px-4 py-3">Player</th><th>Saved exposure</th><th>Projection</th><th>Boost</th><th>Min / Max per batch</th><th>Include</th><th>Lock</th><th>Notes</th><th className="pr-4 text-right">Actions</th></tr></thead>
+        {!isReadOnly && dirtyIds.length > 0 && <div className="space-y-2 border-b border-amber-500/30 p-3">
+          <p role="status" className="text-sm text-amber-200">{dirtyIds.length} player(s) have unsaved changes. Exclusion clears locks and positive minimum exposure.</p>
+          <div className="flex flex-wrap gap-2">{config.players.filter(p => dirtyIds.includes(p.id)).map(player =>
+            <Button key={player.id} size="sm" disabled={saveMutation.isPending} onClick={() => savePlayer(player)}>Save {player.name}</Button>
+          )}</div>
+        </div>}
+        <div className="overflow-x-auto"><table className="w-full min-w-[1120px] text-left"><thead className="bg-slate-950/60 text-[10px] uppercase tracking-wider text-slate-500"><tr><th className="px-4 py-3">Player</th><th>Saved exposure</th><th>Projection</th><th>Boost</th><th>Min / Max per batch</th><th>Exclusion</th><th>Lock</th><th>Notes</th><th className="pr-4 text-right">Actions</th></tr></thead>
           <tbody className="divide-y divide-slate-800">{rows.map(player => { const draft = drafts[player.id] ?? cleanDraft(player.id); const exposure = config.exposures[String(player.id)]; const over = draft.maxExposure !== null && (exposure?.pct ?? 0) > draft.maxExposure; const field = (key: "minExposure" | "maxExposure") => ({ value: draft[key] ?? "", onChange: (e: ChangeEvent<HTMLInputElement>) => setDraft(player.id, { [key]: inputNumber(e.target.value) }) }); return <tr key={player.id} className={over ? "bg-amber-500/[.045]" : ""}>
             <td className="px-4 py-3"><div className="font-bold text-slate-100">{player.name}</div><div className="mt-0.5 text-xs text-slate-500">{player.position} · {player.team} · ${player.salary.toLocaleString()}</div></td>
             <td className="py-3"><div className={over ? "font-black text-amber-300" : "font-bold text-slate-300"}>{exposure ? formatExposurePct(exposure.pct) : "—"}</div><div className="text-[11px] text-slate-500">{exposure ? `${exposure.count} of ${config.lineupCount}` : "No saved exposure"}</div></td>
             <td><Input aria-label={`${player.name} custom projection`} disabled={isReadOnly} type="number" min="0" max="500" step="0.1" value={draft.customProjection ?? ""} onChange={e => setDraft(player.id, { customProjection: inputNumber(e.target.value) })} placeholder={String(player.projectedPoints)} className="h-8 w-20 border-slate-700 bg-slate-950 px-2 text-xs" /></td>
             <td><select aria-label={`${player.name} boost`} disabled={isReadOnly} value={draft.boostPercent} onChange={e => setDraft(player.id, { boostPercent: Number(e.target.value) as 0 | 5 | 10 | 15 | 20 })} className="h-8 rounded border border-slate-700 bg-slate-950 px-1 text-xs">{[0,5,10,15,20].map(v => <option key={v} value={v}>{v}%</option>)}</select></td>
             <td><div className="flex items-center gap-1"><Input aria-label={`${player.name} minimum exposure`} disabled={isReadOnly} type="number" min="0" max="100" {...field("minExposure")} className="h-8 w-14 border-slate-700 bg-slate-950 px-2 text-xs" /><span className="text-slate-600">/</span><Input aria-label={`${player.name} maximum exposure`} disabled={isReadOnly} type="number" min="0" max="100" {...field("maxExposure")} className="h-8 w-14 border-slate-700 bg-slate-950 px-2 text-xs" /></div></td>
-            <td><Switch aria-label={`${player.name} excluded`} disabled={isReadOnly} checked={draft.isExcluded} onCheckedChange={checked => setDraft(player.id, { isExcluded: checked, ...(checked ? { isLocked: false } : {}) })} /></td>
+            <td><Switch aria-label={`${player.name} Exclusion`} disabled={isReadOnly} checked={draft.isExcluded} onCheckedChange={checked => setDraft(player.id, { isExcluded: checked })} /><div className={`text-xs ${draft.isExcluded ? "text-amber-300" : "text-slate-400"}`}>{draft.isExcluded ? "Excluded" : "Eligible"}</div></td>
             <td><Switch aria-label={`${player.name} locked`} disabled={isReadOnly} checked={draft.isLocked} onCheckedChange={checked => setDraft(player.id, { isLocked: checked })} /></td>
             <td><Input aria-label={`${player.name} notes`} disabled={isReadOnly} maxLength={200} value={draft.notes ?? ""} onChange={e => setDraft(player.id, { notes: e.target.value || null })} className="h-8 w-40 border-slate-700 bg-slate-950 px-2 text-xs" /></td>
-            <td className="pr-4 text-right"><div className="flex justify-end gap-1">{!isReadOnly && <Button size="sm" className="h-8 px-2" disabled={!dirtyIds.includes(player.id) || saveMutation.isPending} onClick={() => savePlayer(player)}><Save className="h-3.5 w-3.5" /><span className="sr-only">Save {player.name}</span></Button>}{!isReadOnly && baseline[player.id] && <Button variant="ghost" size="sm" className="h-8 px-2 text-slate-400" disabled={resetMutation.isPending} onClick={() => resetMutation.mutate({ playerId: player.id, targetSlateId: slateId })}><RotateCcw className="h-3.5 w-3.5" /><span className="sr-only">Reset {player.name}</span></Button>}</div></td>
+            <td className="pr-4 text-right"><div className="flex justify-end gap-1">{!isReadOnly && <Button aria-label={`Save row for ${player.name}`} size="sm" className="h-8 px-2" disabled={!dirtyIds.includes(player.id) || saveMutation.isPending} onClick={() => savePlayer(player)}><Save className="mr-1 h-3.5 w-3.5" />Save</Button>}{!isReadOnly && baseline[player.id] && <Button variant="ghost" size="sm" className="h-8 px-2 text-slate-400" disabled={resetMutation.isPending} onClick={() => resetMutation.mutate({ playerId: player.id, targetSlateId: slateId })}><RotateCcw className="h-3.5 w-3.5" /><span className="sr-only">Reset {player.name}</span></Button>}</div></td>
           </tr>; })}</tbody></table></div>
         {rows.length === 0 && <div className="p-12 text-center text-sm text-slate-500">No players match these view filters.</div>}
       </section>
