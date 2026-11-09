@@ -100,21 +100,14 @@ export function classicFixture() {
   const upload = parseClassicUpload(csvText([["Entry ID",...slots], ...Array.from({length:20},(_,i)=>[String(9000+i),...base])]),official);
   return {official,upload};
 }
-test("Classic audit proposes safe capped swaps without mutating original entries", () => {
+test("Classic legacy audit input cannot bypass new evidence requirements", () => {
   const {official,upload} = classicFixture(), before=JSON.stringify(upload);
   const excluded = [upload.entries[0].playerIds[0]];
-  const audit = auditClassicUpload(upload, official, excluded);
-  assert.ok(audit.proposals.length > 0); assert.equal(audit.unresolved.length,0);
+  assert.throws(()=>auditClassicUpload(upload, official, excluded),/evidence/);
   assert.equal(JSON.stringify(upload),before);
-  assert.ok(audit.revised.entries.every(e=>!e.playerIds.includes(excluded[0])));
-  const check = auditClassicUpload(audit.revised,official,excluded);
-  assert.equal(check.violations.length,0);
-  assert.equal(readCsv(exportClassicUpload(audit.revised))[1][0],"9000");
 });
 test("Classic small sets and missing alternatives report unresolved rather than relaxing caps", () => {
   const {official,upload} = classicFixture();
   upload.entries=upload.entries.slice(0,2);
-  const audit=auditClassicUpload(upload,official,[]);
-  assert.ok(audit.unresolved.length>0);
-  assert.ok(audit.warnings.some(w=>w.includes("zero")));
+  assert.throws(()=>auditClassicUpload(upload,official,[]),/superseded/);
 });

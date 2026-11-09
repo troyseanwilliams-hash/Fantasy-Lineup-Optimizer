@@ -418,7 +418,7 @@ function getStatColor(statType: string): string {
 }
 
 export default function PropBets() {
-  usePageMeta({ title: "Prop Bets - Player Prop Analysis", description: "Analyze player prop bets across MLB, Golf, and NHL with AI-powered confidence ratings.", path: "/props" });
+  usePageMeta({ title: "Prop Bets - Player Prop Analysis", description: "Analyze player prop bets for active sports with AI-powered confidence ratings.", path: "/props" });
   const searchString = useSearch();
   const sportParam = new URLSearchParams(searchString).get("sport")?.toUpperCase() || null;
   const [ppSport, setPpSport] = useState<string>(ACTIVE_SPORTS[0]);

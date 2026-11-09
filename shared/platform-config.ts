@@ -6,11 +6,11 @@ export type Sport = "NBA" | "NHL" | "MLB" | "NFL" | "GOLF" | "SOCCER";
 // NBA is enabled and featured; retain the other active sports.
 export const SPORT_ORDER: Sport[] = ["NBA", "MLB", "NFL", "GOLF", "SOCCER", "NHL"];
 /** Sports currently in-season and available for DFS contests */
-export const ACTIVE_SPORTS: Sport[] = ["NBA", "NFL", "MLB", "GOLF"];
+export const ACTIVE_SPORTS: Sport[] = ["NBA", "NFL", "GOLF"];
 /** Sports off-season now but returning soon — shown in nav with a "Coming Soon" badge */
 export const COMING_SOON_SPORTS: Sport[] = [];
 /** Sports fully off-season — hidden from nav and disabled */
-export const OFF_SEASON_SPORTS: Sport[] = ["NHL", "SOCCER"];
+export const OFF_SEASON_SPORTS: Sport[] = ["MLB", "NHL", "SOCCER"];
 /** World Cup-specific promotions, pages, and API responses are currently disabled. */
 export const WORLD_CUP_ENABLED = false;
 /** User-facing product promotion visibility. Routes and entitlements remain available when hidden. */

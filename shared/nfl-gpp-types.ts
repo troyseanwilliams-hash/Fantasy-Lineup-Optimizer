@@ -34,6 +34,7 @@ export interface StrategyResult {
   summary: string;
 }
 export interface OfficialPlayer {
+  gameInfo?: string;
   name: string;
   team: string;
   pos: string;

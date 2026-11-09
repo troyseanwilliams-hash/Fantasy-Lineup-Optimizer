@@ -2,11 +2,11 @@
 name: NFL sheet strategy scope
 description: Scope and safety decisions for the uploaded Showdown build specification and separate Classic audit.
 ---
-The user chose “Both, kept separate”: apply the sheet-driven Showdown strategy and provide the separate Classic final-upload exposure audit, without applying captain rules to Classic or replacing its existing generation strategy.
+The user chose “Both, kept separate.” The later CLASSIC_LOGIC document supersedes the original Classic audit-only scope and its 25%/20% caps: apply the new Classic formulas to live NFL DraftKings Classic GPP generation and refresh, while keeping Showdown separate.
 
-**Why:** The supplied specification primarily describes captain-mode construction; its Classic section instead calls for 25% player caps, 20% QB/DST caps, and user approval of proposed changes.
+**Why:** The user subsequently supplied a dedicated Classic specification and said “Implement and use only the data needed for these formulas. Then clean up the rest to simplify.” They explicitly clarified “Keep Legacy Sim controls on top of this logic.”
 
-**How to apply:** Preserve that distinction and clearly identify sheet-based results versus live generation/simulation. Do not imply the workbench automatically changes the existing optimizer or saved entries.
+**How to apply:** Preserve Ceiling, Leverage, Outperformer, simulation count and sort controls; layer ranking over the hard Classic eligibility, exposure, ownership and structure rules. Do not let a legacy preset bypass current rules. Retain explicit approval for final-upload changes and all saved history.
 
 Keep the Showdown minimum two-roster-spot difference strict.
 

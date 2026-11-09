@@ -104,7 +104,7 @@ export function parseOfficialTemplate(text: string): OfficialPlayer[] {
     const salary = numeric(get(row, header, ["salary"]), `${name} official salary`, 50000);
     if (salary <= 0) throw new Error(`${name} has no published salary.`);
     const k = `${nameKey(name)}|${team}`;
-    const p = records.get(k) || { name, team, pos, flexId: "", flexSalary: 0 };
+    const p = records.get(k) || { name, team, pos, flexId: "", flexSalary: 0, gameInfo: get(row, header, ["gameinfo", "game"]) };
     if (slot === "CPT") {
       if (p.cptId) throw new Error(`Ambiguous captain ID for ${name}.`);
       p.cptId = id; p.cptSalary = salary;
