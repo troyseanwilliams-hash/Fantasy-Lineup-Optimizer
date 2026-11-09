@@ -32,6 +32,7 @@ import NotificationPreferences from "@/pages/NotificationPreferences";
 import PerformanceDashboard from "@/pages/PerformanceDashboard";
 import TrackRecord from "@/pages/TrackRecord";
 import ShowdownBuilder from "@/pages/ShowdownBuilder";
+import NFLGppWorkbench from "@/pages/NFLGppWorkbench";
 import ScoutDashboard from "@/pages/ScoutDashboard";
 import SimGuide from "@/pages/SimGuide";
 import NFLMMEOptimizer from "@/pages/NFLMMEOptimizer";
@@ -103,6 +104,7 @@ function Router() {
           <Route path="/performance" component={PerformanceDashboard} />
           <Route path="/track-record" component={TrackRecord} />
           <Route path="/showdown" component={ShowdownBuilder} />
+          <Route path="/nfl-gpp" component={NFLGppWorkbench} />
           <Route path="/scout" component={ScoutDashboard} />
           <Route path="/admin" component={Admin} />
           <Route path="/sim-guide" component={SimGuide} />

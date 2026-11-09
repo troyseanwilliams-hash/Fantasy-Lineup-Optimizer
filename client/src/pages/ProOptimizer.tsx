@@ -1236,6 +1236,12 @@ export default function ProOptimizer() {
 
   return (
     <div className={`flex flex-col ${playerFocus ? "fixed inset-0 z-50 h-[100dvh] overflow-hidden bg-slate-950" : "min-h-full overflow-visible"}`} data-testid="pro-optimizer-page">
+      {!playerFocus && isNflClassic && platform === "draftkings" && (
+        <Link href="/nfl-gpp?tab=classic" className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-emerald-300">
+          <span className="font-bold text-sm">Audit your final NFL Classic upload</span>
+          <span className="text-xs">25% player / 20% QB & DST caps · review swaps before approval →</span>
+        </Link>
+      )}
       {/* Mobile and laptop view switch stays above the long setup controls. */}
       {!playerFocus && <div className="2xl:hidden flex border-b border-slate-800 bg-slate-900/80 sticky top-0 z-20">
         <button

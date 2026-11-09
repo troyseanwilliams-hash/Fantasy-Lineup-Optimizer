@@ -22,3 +22,4 @@
 - [Historical data retention](historical-data-retention.md) — saved lineups and player history must be retained indefinitely for analysis.
 - [NBA activation](nba-activation.md) — NBA should be active and highlighted on the landing page, not merely exposed in menus.
 - [UFC MMA visibility](ufc-mma-visibility.md) — keep UFC/MMA hidden from desktop and phone navigation.
+- [NFL sheet strategy scope](nfl-sheet-strategy-scope.md) — Showdown sheet strategy and Classic approval-based audit stay separate; strict uniqueness is never relaxed.
