@@ -28,6 +28,12 @@ Sim may return fewer than the requested maximum, but only as a newly validated c
 
 **How to apply:** Recalculate all exposure and architecture counts for the returned Sim batch, preserve the original quality floor, and disclose the shortfall. Never truncate a portfolio or treat a passing synthetic fixture as evidence that the current slate is fixed.
 
+Strict small portfolios need joint roster search, not only more independently generated candidates. Reuse the production roster constraints and explicitly enable GPP when compiling them.
+
+**Why:** Individually strong candidates repeatedly had no valid combination on the current slate; a joint solve found a valid five-roster portfolio. Missing contest mode also silently omitted the intended stack policy in direct/Sim calls.
+
+**How to apply:** Keep a killable, bounded solver with independent final validation. Verify against current-slate data and the real roster compiler; simplified test solvers can miss mode-dependent constraints.
+
 **Why:** The document calls it a hard constraint but later suggests relaxing it; silently relaxing would misrepresent the final audit. The user was told the stricter interpretation would be used.
 
 **How to apply:** Report bounded search exhaustion rather than returning a weaker or partial set. Use supplied CPT/FLEX ownership, not invented substitutes.

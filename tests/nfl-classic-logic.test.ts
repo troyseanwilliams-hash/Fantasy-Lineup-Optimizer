@@ -11,6 +11,40 @@ import { auditClassicUpload } from "../shared/nfl-classic-audit";
 import { parseClassicInputs, classicInputHeaderCsv } from "../shared/nfl-classic-inputs";
 import { buildAppClassicInputs } from "../server/nfl-classic-app-data";
 import { classicCapacityIssue } from "../server/nfl-classic-capacity";
+import { jointClassicSearch } from "../server/classic-joint-search";
+import { solveClassicModel } from "../server/classic-mip-solver";
+import { solveLineup } from "../server/routes";
+
+test("joint search uses the production roster model, GPP stacks and strict five-lineup caps", async () => {
+  const {pool,settings}=fixture();
+  const ownership=new Map(pool.map(p=>[p.id,8]));
+  settings.classic=buildAppClassicInputs(pool,77,ownership);
+  const bounds=classicExposureBounds(pool,settings,{});
+  const deadline=Date.now()+20000;
+  const result=await jointClassicSearch({pool,count:5,floor:120,...bounds,base:{excludedPlayerIds:[2],flexAllowedPositions:["WR"]},
+    settings,ownership,deadline,solve:(ps,cs)=>solveLineup(ps,cs,"NFL","draftkings",cs.ownershipMap,{deadline})});
+  assert.ok(result);
+  assert.equal(result.length,5);
+  assert.equal(new Set(result.flatMap(l=>l.map(p=>p.id))).size,45);
+  assert.ok(result.every(l=>!l.some(p=>p.id===2)));
+  assert.ok(result.every(l=>l.filter(p=>p.position==="WR").length===4));
+  assert.equal(result.filter(l=>classicArchitecture(l).catchers>=2).length,3);
+  assert.equal(result.filter(l=>classicArchitecture(l).bringBack).length,2);
+  assert.ok(result.filter(l=>classicArchitecture(l).full).length>=2);
+  for(const lineup of result) assert.deepEqual(classicLineupErrors(lineup,settings,[]),[]);
+});
+
+test("Classic MIP adapter preserves bounds and rejects infeasible portfolios", async () => {
+  const model:any={optimize:"points",opType:"max",variables:{a:{points:3,size:1},b:{points:2,size:1}},
+    constraints:{size:{equal:1}},ints:{a:1,b:1}};
+  const solved=await solveClassicModel(model,5000);
+  const valid=validatedIntegralResult(solved.result,model);
+  assert.ok(valid);
+  assert.equal(valid.a,1);
+  model.constraints.size.equal=-1;
+  const impossible=await solveClassicModel(model,5000);
+  assert.equal(validatedIntegralResult(impossible.result,model),null);
+});
 
 test("five-lineup batches keep rounded-down caps and find complementary rosters", async () => {
   const { pool, settings } = fixture();

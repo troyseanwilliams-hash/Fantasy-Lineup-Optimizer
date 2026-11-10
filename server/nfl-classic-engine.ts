@@ -3,12 +3,13 @@ import type { NflPortfolioSettings, NflPortfolioReport, NflPortfolioLineupPolicy
 import { CLASSIC_OWNERSHIP_CAP, hasRole } from "@shared/nfl-classic-logic";
 import { classicExposureBounds, classicPos, validateClassicEvidence } from "./nfl-classic-readiness";
 import { stackGameKey } from "./sim-game-stacks";
-import { solvePortfolioModelIsolated } from "./nfl-portfolio";
+import { solveClassicModel as solvePortfolioModelIsolated } from "./classic-mip-solver";
 import { validatedIntegralResult } from "./solver-guard";
 import { qualityFloor } from "./lineup-quality";
 import { APP_CLASSIC_WARNINGS } from "./nfl-classic-app-data";
 import { classicCapacityIssue, classicMaxUses } from "./nfl-classic-capacity";
 import { searchSmallClassic } from "./classic-small-search";
+import { jointClassicSearch } from "./classic-joint-search";
 
 type Candidate = { lineup: Player[]; totalSalary: number; totalProjectedPoints: number; [key: string]: any };
 export function classicArchitecture(lineup: Player[]) {
@@ -86,11 +87,12 @@ export async function generateClassicPortfolio(options: {
   let seed = s.seed >>> 0;
   const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
   const candidates: Candidate[] = [], seen = new Set<string>(), usage = new Map<number, number>();
-  const maxCandidates = Math.min(1200, Math.max(120, count * 7));
-  const generationDeadline = deadline - Math.min(8000, Math.max(2500, (deadline - Date.now()) * .35));
+  const maxCandidates = Math.min(1200, Math.max(1000, count * 7));
+  const generationDeadline = Math.min(Date.now() + (count <= 5 ? 6000 : 15000),
+    deadline - Math.min(count <= 5 ? 20000 : 8000, Math.max(2500, (deadline - Date.now()) * (count <= 5 ? .75 : .35))));
   const targetPlayers = eligible.filter(p => minimum.get(p.id)! > 0);
   const batchUsage = new Map<number, number>();
-  for (let attempt = 0; attempt < Math.max(400, count * 25) && candidates.length < maxCandidates && Date.now() < generationDeadline; attempt++) {
+  for (let attempt = 0; attempt < Math.max(4000, count * 25) && candidates.length < maxCandidates && Date.now() < generationDeadline; attempt++) {
     await new Promise<void>(resolve => setImmediate(resolve));
     // Alternate ordinary exploration with complementary small-batch searches.
     // The old marginal usage heuristic generated many individually good
@@ -134,7 +136,7 @@ export async function generateClassicPortfolio(options: {
     }
     const pressured = eligible.filter(p => !attemptLocks.includes(p.id) && candidates.length > 10 &&
       (usage.get(p.id) || 0) / candidates.length * 100 > maximum.get(p.id)!);
-    const excludedAttempt = [...excluded, ...exhausted, ...pressured.filter(() => !complementary && random() < .45).map(p => p.id)];
+    const excludedAttempt = [...excluded, ...Array.from(exhausted), ...pressured.filter(() => !complementary && random() < .45).map(p => p.id)];
     const jittered = eligible.filter(p => classicPos(p) !== "QB" || p.id === qb.id).map(p => {
       const catcher = p.team === qb.team && ["WR", "TE"].includes(classicPos(p));
       const runback = p.team !== qb.team && stackGameKey(p.gameInfo) === stackGameKey(qb.gameInfo) && ["RB", "WR", "TE"].includes(classicPos(p));
@@ -142,7 +144,7 @@ export async function generateClassicPortfolio(options: {
       return { ...p, projectedPoints: String(score) };
     });
     const solved = await options.solve(jittered, {
-      ...base, minProjection: undefined, projectedPointsFloor: undefined, deterministicObjective: true,
+      ...base, contestType: "gpp", minProjection: undefined, projectedPointsFloor: undefined, deterministicObjective: true,
       lockedPlayerIds: Array.from(new Set([...locks, ...attemptLocks])), excludedPlayerIds: excludedAttempt,
       nflPortfolio: s, nflPortfolioLineupPolicy: policy, ownershipMap: ownership,
     });
@@ -162,6 +164,14 @@ export async function generateClassicPortfolio(options: {
   const qualityIssue = classicCapacityIssue(eligible, maximum, count, floor);
   if (qualityIssue && !options.allowReducedCount) throw new Error(qualityIssue);
   const qualified = candidates.filter(l=>l.totalProjectedPoints >= floor);
+  if ((count <= 5 || options.allowReducedCount) && deadline - Date.now() > 1500) {
+    const joint = await jointClassicSearch({pool:eligible,count:Math.min(count,5),floor,maximum,minimum,base,settings:s,ownership,
+      solve:options.solve,deadline:deadline-Math.min(8000,(deadline-Date.now())*.15)});
+    if(joint) for(const lineup of joint) {
+      if(classicLineupErrors(lineup,s,nakedQbIds).length) continue;
+      qualified.push({lineup,totalSalary:lineup.reduce((n,p)=>n+p.salary,0),totalProjectedPoints:lineup.reduce((n,p)=>n+Number(p.projectedPoints),0)});
+    }
+  }
   if (qualified.length < (options.allowReducedCount ? 4 : count)) throw new Error("Insufficient high-quality candidates under the Classic rules. The projection floor will not be lowered to fill the set.");
   const scores = options.scoreCandidates ? await options.scoreCandidates(qualified) : qualified.map(l=>l.totalProjectedPoints);
   if (scores.length !== qualified.length || scores.some(v=>!Number.isFinite(v))) throw new Error("The selected Sim scoring mode failed; no unadjusted fallback was used.");
@@ -237,7 +247,7 @@ export async function generateClassicPortfolio(options: {
   return feasibleResult;
   };
   const sizes = options.allowReducedCount
-    ? [...new Set([count, Math.min(count - 1, qualified.length, 100), 20, 5])].filter(n => n >= 4 && n <= requestedCount && n <= qualified.length && (n < 150 || qbs.length >= 12))
+    ? Array.from(new Set([count, Math.min(count - 1, qualified.length, 100), 20, 5])).filter(n => n >= 4 && n <= requestedCount && n <= qualified.length && (n < 150 || qbs.length >= 12))
     : [count];
   let valid: ReturnType<typeof validatedIntegralResult> = undefined;
   for (let i = 0; i < sizes.length; i++) {

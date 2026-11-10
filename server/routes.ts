@@ -5312,7 +5312,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/optimize/pro", async (req, res) => {
-    const proSolveDeadline = Date.now() + 26_000;
+    let proSolveDeadline = Date.now() + 26_000;
     try {
       if (!isLoggedIn(req)) return res.sendStatus(401);
       const userId = getSessionUserId(req)!;
@@ -5347,6 +5347,7 @@ export async function registerRoutes(
       }
 
       allPlayers = await prepareClassicInputs(allPlayers, constraints.nflPortfolio, slate);
+      if (constraints.nflPortfolio?.classic) proSolveDeadline = Date.now() + 110_000;
       const proUserOverrides = resolveConfigurationOverrides(await storage.getPlayerOverrides(userId, constraints.slateId), allPlayers);
       if (configurationExpiry(slate, allPlayers).isExpired) return res.status(409).json({ message: "This slate has expired." });
       constraints.playerProjections = {
@@ -5759,7 +5760,7 @@ export async function registerRoutes(
     // solve cannot be cancelled from outside the solver, so every attempt
     // also receives the remaining absolute deadline below.
     const RESPONSE_RESERVE_MS = 4_000;
-    const solverDeadline = startTime + MAX_RUNTIME_MS - RESPONSE_RESERVE_MS;
+    let solverDeadline = startTime + MAX_RUNTIME_MS - RESPONSE_RESERVE_MS;
     let simTimedOut = false;
 
     try {
@@ -5854,6 +5855,7 @@ export async function registerRoutes(
       }
 
       allPlayers = await prepareClassicInputs(allPlayers, input.nflPortfolio, slate);
+      if (input.nflPortfolio?.classic) solverDeadline = Date.now() + 110_000;
       const proScoutMap = buildScoutMap(slate.sport);
       const applyBoosts = input.useBoosts !== false;
       const useCeilingMode = input.ceilingMode === true;
@@ -7736,6 +7738,12 @@ export function solveLineup(
     }
   }
 
+  // Internal Classic joint search reuses the exact roster model rather than
+  // maintaining a second version of salary, FLEX and favorite constraints.
+  if (typeof (constraints as any).captureModel === "function") {
+    (constraints as any).captureModel(model);
+    return { lineup: [], totalSalary: 0, totalProjectedPoints: 0 };
+  }
   const guardedSolve = solveWithBudget(model, solverBudget);
   const result = validatedIntegralResult(guardedSolve.result, model);
   let solveTimedOut = guardedSolve.timedOut;
