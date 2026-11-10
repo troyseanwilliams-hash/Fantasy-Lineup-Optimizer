@@ -6186,6 +6186,7 @@ export async function registerRoutes(
         const ownershipMap = await portfolioOwnership(pool, input.nflPortfolio);
         const portfolio = await generateNflPortfolio({
           pool, settings: input.nflPortfolio, count: input.lineupCount,
+          allowReducedCount: true,
           baseConstraints: { ...simConstraintsBase, minProjection: undefined,
             stackGameKeys: stackAlternatives.some(choice => choice.kind === "players") ? [] : stackGameKeys,
             exposureLimits: mergeExposureMaximums(Object.fromEntries(Object.entries(simOverrideExposure).filter(([, v]) => v.max != null).map(([id, v]) => [id, v.max!])), input.exposureLimits),
@@ -6470,7 +6471,7 @@ export async function registerRoutes(
         lockedPlayerIds: input.lockedPlayerIds,
         exposureLimits: mergeExposureMaximums(Object.fromEntries(Object.entries(simOverrideExposure).filter(([, v]) => v.max != null).map(([id, v]) => [id, v.max!])), input.exposureLimits),
         minExposureLimits: mergeExposureMinimums(Object.fromEntries(Object.entries(simOverrideExposure).filter(([, v]) => v.min != null).map(([id, v]) => [id, v.min!])), input.minExposureLimits),
-      }, { count: input.lineupCount, deadline: solverDeadline + 2000, preservePortfolio: !!nflPortfolioReport, requireFull: !!input.nflPortfolio?.classic });
+      }, { count: nflPortfolioReport?.generatedCount ?? input.lineupCount, deadline: solverDeadline + 2000, preservePortfolio: !!nflPortfolioReport, requireFull: !!input.nflPortfolio?.classic });
       const elapsedMs = Date.now() - startTime;
       const partial = selected.length < input.lineupCount || simTimedOut || Date.now() >= solverDeadline || !!nflPortfolioReport?.partial;
       const partialMessage = partial

@@ -34,6 +34,32 @@ test("capacity diagnostics distinguish proven shortages from an unproven search 
   assert.equal(classicCapacityIssue(pool, max, 5, 100), undefined);
 });
 
+test("Sim may return a smaller complete portfolio, with caps on the actual size", async () => {
+  const { pool, settings } = fixture();
+  settings.classic = buildAppClassicInputs(pool, 77, new Map(pool.map(p => [p.id, 8])));
+  const result = await generateClassicPortfolio({ pool, settings, count: 500, allowReducedCount: true,
+    baseConstraints: {}, deadline: Date.now() + 28000, solve,
+    scoreCandidates: candidates => candidates.map((_, i) => i) });
+  const count = result.lineups.length;
+  assert.ok(count >= 4 && count < 500);
+  assert.equal(result.report.requestedCount, 500);
+  assert.equal(result.report.generatedCount, count);
+  assert.equal(result.report.partial, true);
+  for (const p of pool) assert.ok(result.lineups.filter(l => l.lineup.some(q => q.id === p.id)).length <= Math.floor(CLASSIC_POSITION_CAPS[p.position] * count / 100));
+  for (let i = 0; i < count; i++) {
+    assert.deepEqual(classicLineupErrors(result.lineups[i].lineup, settings, []), []);
+    for (let j = 0; j < i; j++) assert.ok(result.lineups[i].lineup.filter(p => result.lineups[j].lineup.some(q => q.id === p.id)).length <= 6);
+  }
+  assert.ok(result.lineups.filter(l => classicArchitecture(l.lineup).full).length >= Math.round(count * .34));
+});
+
+test("Normal mode never silently reduces the requested batch", async () => {
+  const { pool, settings } = fixture();
+  settings.classic = buildAppClassicInputs(pool, 77, new Map(pool.map(p => [p.id, 8])));
+  await assert.rejects(generateClassicPortfolio({ pool, settings, count: 500,
+    baseConstraints: {}, deadline: Date.now() + 2000, solve }), /12 eligible QBs/);
+});
+
 test("app inputs need no import, never fabricate reviews, and preserve caps", async () => {
   const { pool, settings } = fixture();
   // Real feed regression: Kyle Allen's -0.2 projection is valid, but ineligible.

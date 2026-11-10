@@ -177,6 +177,7 @@ export async function generateNflPortfolio(options: {
   scoreCandidates?: (lineups: any[]) => Promise<number[]> | number[];
   strictStructure?: boolean;
   structureOnly?: boolean;
+  allowReducedCount?: boolean;
 }): Promise<{ lineups: any[]; report: NflPortfolioReport }> {
   if (options.settings.classic) return generateClassicPortfolio(options);
   const { settings: s, count, baseConstraints: base } = options;

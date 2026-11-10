@@ -8,6 +8,7 @@ import { validatedIntegralResult } from "./solver-guard";
 import { qualityFloor } from "./lineup-quality";
 import { APP_CLASSIC_WARNINGS } from "./nfl-classic-app-data";
 import { classicCapacityIssue, classicMaxUses } from "./nfl-classic-capacity";
+import { searchSmallClassic } from "./classic-small-search";
 
 type Candidate = { lineup: Player[]; totalSalary: number; totalProjectedPoints: number; [key: string]: any };
 export function classicArchitecture(lineup: Player[]) {
@@ -43,8 +44,12 @@ export async function generateClassicPortfolio(options: {
   pool: Player[]; settings: NflPortfolioSettings; count: number; baseConstraints: any; deadline?: number;
   solve: (pool: Player[], constraints: any) => any;
   scoreCandidates?: (lineups: Candidate[]) => Promise<number[]> | number[];
+  /** Sim only: retry smaller complete portfolios, never truncate an audited set. */
+  allowReducedCount?: boolean;
 }): Promise<{ lineups: Candidate[]; report: NflPortfolioReport }> {
-  const { settings: s, count, baseConstraints: base } = options, c = s.classic!;
+  const { settings: s, baseConstraints: base } = options, c = s.classic!;
+  const requestedCount = options.count;
+  let count = requestedCount;
   if (count < 4) throw new Error("Classic position caps require a portfolio of at least four lineups. Use the Pro batch builder or set Sim quantity to four or more.");
   const deadline = options.deadline ?? Date.now() + 30_000;
   const locks: number[] = base.lockedPlayerIds || [], excluded: number[] = base.excludedPlayerIds || [];
@@ -73,11 +78,11 @@ export async function generateClassicPortfolio(options: {
   const allowedDst = new Set(defenses.map(p => p.id));
   const eligible = pool.filter(p => classicPos(p) !== "DST" || allowedDst.has(p.id));
   for (const p of pool) if ((minimum.get(p.id) || 0) > 0 && !eligible.includes(p)) throw new Error(`${p.name}: minimum conflicts with the six-defense script pool.`);
-  for (const p of eligible) if (Math.ceil(count * minimum.get(p.id)! / 100 - 1e-8) > Math.floor(count * maximum.get(p.id)! / 100 + 1e-8)) throw new Error(`${p.name}: rounded minimum exceeds maximum for ${count} lineups. Increase count or adjust the conflicting settings.`);
+  for (const p of eligible) if (!options.allowReducedCount && Math.ceil(count * minimum.get(p.id)! / 100 - 1e-8) > Math.floor(count * maximum.get(p.id)! / 100 + 1e-8)) throw new Error(`${p.name}: rounded minimum exceeds maximum for ${count} lineups. Increase count or adjust the conflicting settings.`);
   const capacityIssue = classicCapacityIssue(eligible, maximum, count);
   if (capacityIssue) throw new Error(capacityIssue);
   const qbs = eligible.filter(p => classicPos(p) === "QB" && maximum.get(p.id)! > 0);
-  if (count >= 150 && qbs.length < 12) throw new Error("The 150-lineup identity needs at least 12 eligible QBs. Expand the QB pool or request a smaller set.");
+  if (!options.allowReducedCount && count >= 150 && qbs.length < 12) throw new Error("The 150-lineup identity needs at least 12 eligible QBs. Expand the QB pool or request a smaller set.");
   let seed = s.seed >>> 0;
   const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
   const candidates: Candidate[] = [], seen = new Set<string>(), usage = new Map<number, number>();
@@ -108,6 +113,13 @@ export async function generateClassicPortfolio(options: {
       stackGameKeys: base.stackGameKeys || [], classicOwnershipCap: 115,
     };
     const attemptLocks = [qb.id];
+    // Small strict batches need different defenses, not just different QBs.
+    // Explore every eligible defense rather than repeatedly optimizing the top one.
+    if (count <= 10 && attempt % 3 === 1) {
+      const availableDst = defenses.filter(p => !exhausted.has(p.id));
+      const dst = availableDst[Math.floor(attempt / 3) % availableDst.length];
+      if (dst) attemptLocks.push(dst.id);
+    }
     if (targetPlayers.length && attempt % 3 === 0) {
       const targets = targetPlayers.filter(p => !exhausted.has(p.id) && classicPos(p) !== "QB" && (!naked || p.team !== qb.team));
       const forced = targets.sort((a, b) => (usage.get(a.id) || 0) / Math.max(1, minimum.get(a.id)!) - (usage.get(b.id) || 0) / Math.max(1, minimum.get(b.id)!))[0];
@@ -145,14 +157,19 @@ export async function generateClassicPortfolio(options: {
     candidates.push({ ...solved, lineup, totalSalary: lineup.reduce((n,p)=>n+p.salary,0), totalProjectedPoints: lineup.reduce((n,p)=>n+Number(p.projectedPoints),0) });
     for (const p of lineup) usage.set(p.id, (usage.get(p.id) || 0) + 1);
   }
-  if (candidates.length < count) throw new Error(`Classic search produced ${candidates.length} candidates for ${count} requested lineups. No saved changes; broaden eligible inputs or adjust conflicting controls.`);
+  if (candidates.length < (options.allowReducedCount ? 4 : count)) throw new Error(`Classic search produced ${candidates.length} candidates for ${count} requested lineups. No saved changes; broaden eligible inputs or adjust conflicting controls.`);
   const floor = qualityFloor(Math.max(...candidates.map(l=>l.totalProjectedPoints)), base.projectedPointsFloor);
   const qualityIssue = classicCapacityIssue(eligible, maximum, count, floor);
-  if (qualityIssue) throw new Error(qualityIssue);
+  if (qualityIssue && !options.allowReducedCount) throw new Error(qualityIssue);
   const qualified = candidates.filter(l=>l.totalProjectedPoints >= floor);
-  if (qualified.length < count) throw new Error("Insufficient high-quality candidates under the Classic rules. The projection floor will not be lowered to fill the set.");
+  if (qualified.length < (options.allowReducedCount ? 4 : count)) throw new Error("Insufficient high-quality candidates under the Classic rules. The projection floor will not be lowered to fill the set.");
   const scores = options.scoreCandidates ? await options.scoreCandidates(qualified) : qualified.map(l=>l.totalProjectedPoints);
   if (scores.length !== qualified.length || scores.some(v=>!Number.isFinite(v))) throw new Error("The selected Sim scoring mode failed; no unadjusted fallback was used.");
+  const select = async (count: number, budget: number) => {
+  const selectionDeadline = Math.min(deadline, Date.now() + budget);
+  if (qualified.length < count || (count >= 150 && qbs.length < 12) ||
+      classicCapacityIssue(eligible, maximum, count, floor) ||
+      eligible.some(p => Math.ceil(minimum.get(p.id)! * count / 100 - 1e-8) > classicMaxUses(maximum.get(p.id)!, count))) return undefined;
   const model: any = { optimize: "score", opType: "max", constraints: { count: { equal: count } }, variables: {}, ints: {} };
   for (const p of eligible) model.constraints[`ex_${p.id}`] = {
     min: Math.ceil(minimum.get(p.id)! * count / 100 - 1e-8),
@@ -199,20 +216,49 @@ export async function generateClassicPortfolio(options: {
       qualified.forEach((l,i)=> { if (l.lineup.some(p=>p.id===qb.id)) { model.variables[`l${i}`][link]=1; model.variables[`l${i}`][used]=1; } });
     }
   }
-  const budget = deadline - Date.now();
-  if (budget <= 100) throw new Error("Classic candidate search exhausted the request budget before final selection. No changes were saved.");
-  const solved = await solvePortfolioModelIsolated(model, budget);
-  const valid = validatedIntegralResult(solved.result, model);
+  if (budget <= 100) return undefined;
+  const small = validatedIntegralResult(searchSmallClassic(model, count, Math.min(deadline, Date.now() + budget * .5)), model);
+  if (small) return small;
+  // Find feasibility first. Maximizing a weighted integer objective can spend
+  // the entire budget proving optimality even when a valid batch exists.
+  const feasible = { ...model, variables: Object.fromEntries(Object.entries(model.variables).map(([key, value]) =>
+    [key, { ...(value as any), score: 0 }])) };
+  const solved = await solvePortfolioModelIsolated(feasible, Math.max(1, (selectionDeadline - Date.now()) * .6));
+  const feasibleResult = validatedIntegralResult(solved.result, model);
+  if (!feasibleResult) return undefined;
+  // Keep the Sim objective active, but never lose a valid set while trying to
+  // prove that a higher-scoring one is optimal.
+  const remaining = selectionDeadline - Date.now();
+  if (remaining > 100) {
+    const ranked = await solvePortfolioModelIsolated(model, remaining);
+    const optimized = validatedIntegralResult(ranked.result, model);
+    if (optimized) return optimized;
+  }
+  return feasibleResult;
+  };
+  const sizes = options.allowReducedCount
+    ? [...new Set([count, Math.min(count - 1, qualified.length, 100), 20, 5])].filter(n => n >= 4 && n <= requestedCount && n <= qualified.length && (n < 150 || qbs.length >= 12))
+    : [count];
+  let valid: ReturnType<typeof validatedIntegralResult> = undefined;
+  for (let i = 0; i < sizes.length; i++) {
+    const budget = (deadline - Date.now()) / (sizes.length - i);
+    count = sizes[i];
+    valid = await select(sizes[i], budget);
+    if (valid) { count = sizes[i]; break; }
+  }
+  const doubleCount = Math.round(c.doubleStackPct / 100 * count);
+  const backCount = Math.round(c.bringBackPct / 100 * count);
   if (!valid) {
     const candidatePool = eligible.filter(p => qualified.some(l => l.lineup.some(q => q.id === p.id)));
     const coverageIssue = classicCapacityIssue(candidatePool, maximum, count);
     const detail = coverageIssue ? ` Candidate coverage: ${coverageIssue}` : "";
-    throw new Error(`Classic ${count}-lineup search ${solved.timedOut ? "timed out" : "found no valid combination"} among ${qualified.length} quality-qualified candidates (floor ${floor.toFixed(2)} pts; double stacks ${doubleCount}–${Math.min(count, doubleCount + 1)}; full architecture at least ${Math.round(c.fullArchitecturePct / 100 * count)}).${detail} This is a bounded-search result, not proof the full slate is impossible. Broaden exclusions or try a larger batch. No caps, quality or uniqueness rules were relaxed; no lineups saved.`);
+    throw new Error(`Classic ${requestedCount}-lineup search found no validated combination${options.allowReducedCount ? " at the requested or smaller trial sizes" : ""} among ${qualified.length} quality-qualified candidates (floor ${floor.toFixed(2)} pts; double stacks ${doubleCount}–${Math.min(count, doubleCount + 1)}; full architecture at least ${Math.round(c.fullArchitecturePct / 100 * count)}).${detail} This is a bounded-search result, not proof the full slate is impossible. Broaden exclusions or try a larger batch. No caps, quality or uniqueness rules were relaxed; no lineups saved.`);
   }
   const lineups = qualified.filter((_,i)=>valid[`l${i}`]>.5).sort((a,b)=>b.totalProjectedPoints-a.totalProjectedPoints);
   if (lineups.length !== count || lineups.some(l=>classicLineupErrors(l.lineup,s,nakedQbIds).length)) throw new Error("Final Classic audit failed; no lineups saved.");
   const warnings = [
     `Uses ${c.projectionSource} inputs. Sim controls rank eligible candidates; ownership, exposure and structure rules remain enforced.`,
+    "Selection is bounded: a validated feasible set may be returned without proving the highest possible Sim score.",
     "Final injury/inactive and weather review plus explicit approval are required before uploading. Weather is not an automatic veto.",
     "Anchor shares explicitly override position caps; a top-defense matchup trims the anchor toward 30%.",
   ];
@@ -239,6 +285,7 @@ export async function generateClassicPortfolio(options: {
     const choices = l.lineup.filter(p=>classicPos(p)===flexPosition).sort((a,b)=>(c.players[String(b.id)].ceiling??0)-(c.players[String(a.id)].ceiling??0));
     warnings.push(`Flagship ${i+1}: review FLEX candidates ${choices.map(p=>`${p.name}${c.players[String(p.id)].ceiling == null ? " (ceiling missing)" : ` (ceiling ${c.players[String(p.id)].ceiling})`}`).join(", ")} before entry.`);
   }
-  return {lineups,report:{classicLogic:true,requestedCount:count,generatedCount:count,candidateCount:qualified.length,seed:s.seed,metrics,warnings,partial:false,
-    dataSources:{ownership:c.projectionSource === "App data" ? "estimated" : "provided",vegas:"unavailable",rushing:"manual"},selectionStatus:"full"}};
+  if (count < requestedCount) warnings.unshift(`Returned ${count} of up to ${requestedCount} requested Sim lineups. All caps and structure targets were recalculated and validated for the returned batch; the quality floor was unchanged. This is not a maximum-size proof.`);
+  return {lineups,report:{classicLogic:true,requestedCount,generatedCount:count,candidateCount:qualified.length,seed:s.seed,metrics,warnings,partial:count < requestedCount,
+    dataSources:{ownership:c.projectionSource === "App data" ? "estimated" : "provided",vegas:"unavailable",rushing:"manual"},selectionStatus:count < requestedCount ? "partial" : "full"}};
 }

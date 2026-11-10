@@ -22,6 +22,12 @@ Keep exposure caps strict even for small batches; do not round them up.
 
 **How to apply:** Improve candidate diversity and explain proven capacity conflicts separately from search exhaustion. Never silently weaken exposure or quality rules to fill a batch.
 
+Sim may return fewer than the requested maximum, but only as a newly validated complete portfolio at the actual returned size. Normal mode remains exact-count.
+
+**Why:** The user approved fewer Sim lineups when 500 cannot be built, while explicitly pointing out that five-lineup Normal generation also needs fixing.
+
+**How to apply:** Recalculate all exposure and architecture counts for the returned Sim batch, preserve the original quality floor, and disclose the shortfall. Never truncate a portfolio or treat a passing synthetic fixture as evidence that the current slate is fixed.
+
 **Why:** The document calls it a hard constraint but later suggests relaxing it; silently relaxing would misrepresent the final audit. The user was told the stricter interpretation would be used.
 
 **How to apply:** Report bounded search exhaustion rather than returning a weaker or partial set. Use supplied CPT/FLEX ownership, not invented substitutes.
