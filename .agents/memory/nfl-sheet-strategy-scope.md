@@ -16,6 +16,12 @@ NFL Classic uses existing app data by default; a separate DFS Army evidence impo
 
 **How to apply:** Keep legacy Sim controls and implementable Classic caps/structure rules. Report unavailable weather, freshness, role and matchup checks as unverified; never invent evidence to satisfy them. Imported strict evidence remains an optional mode.
 
+Keep exposure caps strict even for small batches; do not round them up.
+
+**Why:** After a five-lineup search failed, the user explicitly chose “Keep strict caps” instead of rounded small-batch caps.
+
+**How to apply:** Improve candidate diversity and explain proven capacity conflicts separately from search exhaustion. Never silently weaken exposure or quality rules to fill a batch.
+
 **Why:** The document calls it a hard constraint but later suggests relaxing it; silently relaxing would misrepresent the final audit. The user was told the stricter interpretation would be used.
 
 **How to apply:** Report bounded search exhaustion rather than returning a weaker or partial set. Use supplied CPT/FLEX ownership, not invented substitutes.

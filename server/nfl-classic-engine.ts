@@ -7,6 +7,7 @@ import { solvePortfolioModelIsolated } from "./nfl-portfolio";
 import { validatedIntegralResult } from "./solver-guard";
 import { qualityFloor } from "./lineup-quality";
 import { APP_CLASSIC_WARNINGS } from "./nfl-classic-app-data";
+import { classicCapacityIssue, classicMaxUses } from "./nfl-classic-capacity";
 
 type Candidate = { lineup: Player[]; totalSalary: number; totalProjectedPoints: number; [key: string]: any };
 export function classicArchitecture(lineup: Player[]) {
@@ -73,6 +74,8 @@ export async function generateClassicPortfolio(options: {
   const eligible = pool.filter(p => classicPos(p) !== "DST" || allowedDst.has(p.id));
   for (const p of pool) if ((minimum.get(p.id) || 0) > 0 && !eligible.includes(p)) throw new Error(`${p.name}: minimum conflicts with the six-defense script pool.`);
   for (const p of eligible) if (Math.ceil(count * minimum.get(p.id)! / 100 - 1e-8) > Math.floor(count * maximum.get(p.id)! / 100 + 1e-8)) throw new Error(`${p.name}: rounded minimum exceeds maximum for ${count} lineups. Increase count or adjust the conflicting settings.`);
+  const capacityIssue = classicCapacityIssue(eligible, maximum, count);
+  if (capacityIssue) throw new Error(capacityIssue);
   const qbs = eligible.filter(p => classicPos(p) === "QB" && maximum.get(p.id)! > 0);
   if (count >= 150 && qbs.length < 12) throw new Error("The 150-lineup identity needs at least 12 eligible QBs. Expand the QB pool or request a smaller set.");
   let seed = s.seed >>> 0;
@@ -81,10 +84,19 @@ export async function generateClassicPortfolio(options: {
   const maxCandidates = Math.min(1200, Math.max(120, count * 7));
   const generationDeadline = deadline - Math.min(8000, Math.max(2500, (deadline - Date.now()) * .35));
   const targetPlayers = eligible.filter(p => minimum.get(p.id)! > 0);
+  const batchUsage = new Map<number, number>();
   for (let attempt = 0; attempt < Math.max(400, count * 25) && candidates.length < maxCandidates && Date.now() < generationDeadline; attempt++) {
     await new Promise<void>(resolve => setImmediate(resolve));
-    const qb = qbs[attempt % qbs.length];
-    if (!qb) break;
+    // Alternate ordinary exploration with complementary small-batch searches.
+    // The old marginal usage heuristic generated many individually good
+    // candidates that all needed the same once-per-batch players.
+    const complementary = count <= 10 && Math.floor(attempt / count) % 2 === 1;
+    if (attempt % count === 0) batchUsage.clear();
+    const exhausted = new Set(eligible.filter(p => complementary &&
+      (batchUsage.get(p.id) || 0) >= classicMaxUses(maximum.get(p.id)!, count)).map(p => p.id));
+    const availableQbs = qbs.filter(p => !exhausted.has(p.id));
+    const qb = availableQbs[attempt % availableQbs.length];
+    if (!qb) continue;
     const phase = (attempt * 37) % 100;
     const full = phase < c.fullArchitecturePct;
     const double = full || phase < c.doubleStackPct;
@@ -97,12 +109,12 @@ export async function generateClassicPortfolio(options: {
     };
     const attemptLocks = [qb.id];
     if (targetPlayers.length && attempt % 3 === 0) {
-      const targets = targetPlayers.filter(p => classicPos(p) !== "QB" && (!naked || p.team !== qb.team));
+      const targets = targetPlayers.filter(p => !exhausted.has(p.id) && classicPos(p) !== "QB" && (!naked || p.team !== qb.team));
       const forced = targets.sort((a, b) => (usage.get(a.id) || 0) / Math.max(1, minimum.get(a.id)!) - (usage.get(b.id) || 0) / Math.max(1, minimum.get(b.id)!))[0];
       if (forced) attemptLocks.push(forced.id);
     }
     if (full) {
-      const other = eligible.filter(p => ["RB", "WR", "TE"].includes(classicPos(p)) && stackGameKey(p.gameInfo) !== stackGameKey(qb.gameInfo));
+      const other = eligible.filter(p => !exhausted.has(p.id) && ["RB", "WR", "TE"].includes(classicPos(p)) && stackGameKey(p.gameInfo) !== stackGameKey(qb.gameInfo));
       const a = other[Math.floor(random() * other.length)];
       const alternatives = a && other.filter(p => p.id !== a.id && stackGameKey(p.gameInfo) === stackGameKey(a.gameInfo));
       if (!a || !alternatives?.length) continue;
@@ -110,7 +122,7 @@ export async function generateClassicPortfolio(options: {
     }
     const pressured = eligible.filter(p => !attemptLocks.includes(p.id) && candidates.length > 10 &&
       (usage.get(p.id) || 0) / candidates.length * 100 > maximum.get(p.id)!);
-    const excludedAttempt = [...excluded, ...pressured.filter(() => random() < .45).map(p => p.id)];
+    const excludedAttempt = [...excluded, ...exhausted, ...pressured.filter(() => !complementary && random() < .45).map(p => p.id)];
     const jittered = eligible.filter(p => classicPos(p) !== "QB" || p.id === qb.id).map(p => {
       const catcher = p.team === qb.team && ["WR", "TE"].includes(classicPos(p));
       const runback = p.team !== qb.team && stackGameKey(p.gameInfo) === stackGameKey(qb.gameInfo) && ["RB", "WR", "TE"].includes(classicPos(p));
@@ -126,6 +138,7 @@ export async function generateClassicPortfolio(options: {
     const lineup: Player[] = solved.lineup.map((p: Player) => originals.get(p.id)).filter(Boolean);
     if (classicLineupErrors(lineup, s, nakedQbIds).length) continue;
     if (full && !classicArchitecture(lineup).full) continue;
+    for (const p of lineup) batchUsage.set(p.id, (batchUsage.get(p.id) || 0) + 1);
     const key = lineup.map(p => p.id).sort((a,b) => a-b).join(",");
     if (seen.has(key)) continue;
     seen.add(key);
@@ -134,6 +147,8 @@ export async function generateClassicPortfolio(options: {
   }
   if (candidates.length < count) throw new Error(`Classic search produced ${candidates.length} candidates for ${count} requested lineups. No saved changes; broaden eligible inputs or adjust conflicting controls.`);
   const floor = qualityFloor(Math.max(...candidates.map(l=>l.totalProjectedPoints)), base.projectedPointsFloor);
+  const qualityIssue = classicCapacityIssue(eligible, maximum, count, floor);
+  if (qualityIssue) throw new Error(qualityIssue);
   const qualified = candidates.filter(l=>l.totalProjectedPoints >= floor);
   if (qualified.length < count) throw new Error("Insufficient high-quality candidates under the Classic rules. The projection floor will not be lowered to fill the set.");
   const scores = options.scoreCandidates ? await options.scoreCandidates(qualified) : qualified.map(l=>l.totalProjectedPoints);
@@ -188,7 +203,12 @@ export async function generateClassicPortfolio(options: {
   if (budget <= 100) throw new Error("Classic candidate search exhausted the request budget before final selection. No changes were saved.");
   const solved = await solvePortfolioModelIsolated(model, budget);
   const valid = validatedIntegralResult(solved.result, model);
-  if (!valid) throw new Error(`Classic portfolio ${solved.timedOut ? "selection timed out" : "could not satisfy all caps, architecture and uniqueness constraints"}. No rules were relaxed and no lineups saved.`);
+  if (!valid) {
+    const candidatePool = eligible.filter(p => qualified.some(l => l.lineup.some(q => q.id === p.id)));
+    const coverageIssue = classicCapacityIssue(candidatePool, maximum, count);
+    const detail = coverageIssue ? ` Candidate coverage: ${coverageIssue}` : "";
+    throw new Error(`Classic ${count}-lineup search ${solved.timedOut ? "timed out" : "found no valid combination"} among ${qualified.length} quality-qualified candidates (floor ${floor.toFixed(2)} pts; double stacks ${doubleCount}–${Math.min(count, doubleCount + 1)}; full architecture at least ${Math.round(c.fullArchitecturePct / 100 * count)}).${detail} This is a bounded-search result, not proof the full slate is impossible. Broaden exclusions or try a larger batch. No caps, quality or uniqueness rules were relaxed; no lineups saved.`);
+  }
   const lineups = qualified.filter((_,i)=>valid[`l${i}`]>.5).sort((a,b)=>b.totalProjectedPoints-a.totalProjectedPoints);
   if (lineups.length !== count || lineups.some(l=>classicLineupErrors(l.lineup,s,nakedQbIds).length)) throw new Error("Final Classic audit failed; no lineups saved.");
   const warnings = [

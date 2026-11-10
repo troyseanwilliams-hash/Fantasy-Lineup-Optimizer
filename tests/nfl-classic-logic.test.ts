@@ -10,6 +10,29 @@ import { solveWithBudget, validatedIntegralResult } from "../server/solver-guard
 import { auditClassicUpload } from "../shared/nfl-classic-audit";
 import { parseClassicInputs, classicInputHeaderCsv } from "../shared/nfl-classic-inputs";
 import { buildAppClassicInputs } from "../server/nfl-classic-app-data";
+import { classicCapacityIssue } from "../server/nfl-classic-capacity";
+
+test("five-lineup batches keep rounded-down caps and find complementary rosters", async () => {
+  const { pool, settings } = fixture();
+  settings.classic = buildAppClassicInputs(pool, 77, new Map(pool.map(p => [p.id, 8])));
+  const result = await generateClassicPortfolio({ pool, settings, count: 5, baseConstraints: {},
+    deadline: Date.now() + 28000, solve });
+  assert.equal(result.lineups.length, 5);
+  const used = result.lineups.flatMap(l => l.lineup.map(p => p.id));
+  assert.equal(new Set(used).size, 45, "each unanchored player may appear only once");
+  assert.ok(result.lineups.filter(l => classicArchitecture(l.lineup).full).length >= 2);
+  for (const l of result.lineups) assert.deepEqual(classicLineupErrors(l.lineup, settings, []), []);
+});
+
+test("capacity diagnostics distinguish proven shortages from an unproven search failure", () => {
+  const { pool } = fixture();
+  const max = new Map(pool.map(p => [p.id, CLASSIC_POSITION_CAPS[p.position]]));
+  assert.equal(classicCapacityIssue(pool, max, 5), undefined);
+  const limited = pool.filter(p => p.position !== "QB" || p.id <= 28);
+  assert.match(classicCapacityIssue(limited, max, 5)!, /QB exposure capacity is 4.*require at least 5/);
+  assert.match(classicCapacityIssue(pool, max, 5, 200)!, /below the required 200/);
+  assert.equal(classicCapacityIssue(pool, max, 5, 100), undefined);
+});
 
 test("app inputs need no import, never fabricate reviews, and preserve caps", async () => {
   const { pool, settings } = fixture();
