@@ -8,8 +8,9 @@ import solver from "javascript-lp-solver";
 import { validatedIntegralResult } from "./solver-guard";
 import { spawn } from "node:child_process";
 import { qualityFloor, qualityReport, createQualityConvergence } from "./lineup-quality";
+import { generateClassicPortfolio } from "./nfl-classic-engine";
 
-async function solvePortfolioModelIsolated(model: any, timeoutMs: number): Promise<{ result?: any; timedOut: boolean }> {
+export async function solvePortfolioModelIsolated(model: any, timeoutMs: number): Promise<{ result?: any; timedOut: boolean }> {
   const script = [
     "let input='';",
     "process.stdin.setEncoding('utf8');",
@@ -91,6 +92,14 @@ export function scoreNflFallbackCandidates(
 /** Additive constraints: never deletes a caller's locks, favorite players, or bounds. */
 export function addNflPortfolioConstraints(model: any, pool: Player[], policy: NflPortfolioLineupPolicy, ownershipMap?: Map<number, number>): void {
   const available = pool.filter(p => model.variables[`p${p.id}`]);
+  if (policy.classicOwnershipCap !== undefined) {
+    model.constraints.classic_ownership_cap = { max: policy.classicOwnershipCap };
+    for (const p of available) {
+      const ownership = ownershipMap?.get(p.id);
+      if (!Number.isFinite(ownership)) throw new Error("Classic requires supplied ownership for every eligible player.");
+      model.variables[`p${p.id}`].classic_ownership_cap = ownership!;
+    }
+  }
   const forbid = (p: Player) => {
     const key = `nfl_portfolio_forbid_${p.id}`;
     model.constraints[key] = { equal: 0 };
@@ -169,6 +178,7 @@ export async function generateNflPortfolio(options: {
   strictStructure?: boolean;
   structureOnly?: boolean;
 }): Promise<{ lineups: any[]; report: NflPortfolioReport }> {
+  if (options.settings.classic) return generateClassicPortfolio(options);
   const { settings: s, count, baseConstraints: base } = options;
   if (!Number.isInteger(count) || count < 1) throw new Error("NFL portfolio count must be a positive integer.");
   const locks: number[] = base.lockedPlayerIds || [];

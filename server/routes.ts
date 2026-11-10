@@ -38,6 +38,7 @@ import { runSimulations, detectStack, scoreLineupsAcrossSims } from "./simulatio
 import { addSimGameStacks, addSimStackAlternatives, stackGameKey as getStackGameKey, type SimStackAlternative } from "./sim-game-stacks";
 import { addNFLQuarterbackStacks } from "./nfl-qb-stacks";
 import { generateNflPortfolio as generateNflPortfolioEngine, addNflPortfolioConstraints, regenerationNflSettings } from "./nfl-portfolio";
+import { validateClassicEvidence } from "./nfl-classic-readiness";
 import { nflPortfolioSettingsSchema, type NflPortfolioSettings, type NflPortfolioLineupPolicy, type NflPortfolioReport } from "@shared/nfl-portfolio";
 import { buildVegasContext } from "./vegas-client";
 import { buildDvPContext, applyDvPToProjections, buildOpponentMap } from "./dvp-client";
@@ -166,10 +167,32 @@ function isClassicSlate(slate: Slate): boolean {
   return (slate.gameType || "Classic").trim().toLowerCase() === "classic";
 }
 
+import { buildAppClassicInputs } from "./nfl-classic-app-data";
+import { classicLogicSchema } from "@shared/nfl-classic-logic";
+
 export function validateNflPortfolioContext(settings: NflPortfolioSettings | undefined, slate: Slate, platform: string, contestType: string): void {
+  const classic = slate.sport.toUpperCase() === "NFL" && platform === "draftkings" && slate.platform === "draftkings" && isClassicSlate(slate) && contestType === "gpp";
+  if (classic && settings?.enabled && !settings.classic) {
+    settings.classic = classicLogicSchema.parse({ projectionSource: "App data", slateId: slate.id, players: {} });
+  }
+  if (classic && (!settings?.enabled || settings.classic?.slateId !== slate.id)) {
+    throw new z.ZodError([{ code: "custom", path: ["nflPortfolio", "classic"], message: "Enable NFL Classic strategy for this slate. App data is used automatically; no import is required." }]);
+  }
   if (settings?.enabled && (slate.sport.toUpperCase() !== "NFL" || platform !== "draftkings" || slate.platform !== "draftkings" || !isClassicSlate(slate) || contestType !== "gpp")) {
     throw new z.ZodError([{ code: "custom", path: ["nflPortfolio"], message: "NFL portfolio strategy requires NFL DraftKings Classic GPP." }]);
   }
+}
+
+async function prepareClassicInputs(pool: Player[], settings: NflPortfolioSettings | undefined, slate: Slate): Promise<Player[]> {
+  if (!settings?.classic) return pool;
+  try {
+    if (settings.classic.projectionSource === "App data") {
+      const estimates = await calculateOwnership(pool, "NFL", "gpp_large");
+      settings.classic = buildAppClassicInputs(pool, slate.id, new Map(estimates.map(p => [p.playerId, p.projectedOwnership])), settings.classic);
+    }
+    return validateClassicEvidence(pool, settings.classic, slate.id, new Date(slate.startTime));
+  }
+  catch (error) { throw new z.ZodError([{ code: "custom", path: ["nflPortfolio", "classic"], message: error instanceof Error ? error.message : "Classic data validation failed." }]); }
 }
 
 async function generateNflPortfolio(options: Parameters<typeof generateNflPortfolioEngine>[0]) {
@@ -181,6 +204,7 @@ async function generateNflPortfolio(options: Parameters<typeof generateNflPortfo
 }
 
 async function portfolioOwnership(pool: Player[], settings: NflPortfolioSettings, automaticScoringOnly = false): Promise<Map<number, number> | undefined> {
+  if (settings.classic) return new Map(pool.map(p => [p.id, settings.classic!.players[String(p.id)]?.ownership]));
   if (settings.ownershipMode === "off" && !automaticScoringOnly) return undefined;
   if (settings.ownershipMode === "provided") return new Map(Object.entries(settings.ownershipOverrides).map(([id, pct]) => [Number(id), pct]));
   try {
@@ -348,6 +372,30 @@ export async function registerRoutes(
 ): Promise<Server> {
   await setupAuth(app);
   registerAuthRoutes(app);
+  // Seasonal availability is reversible; keep historical records and scoring intact.
+  app.use("/api", async (req, res, next) => {
+    if (ACTIVE_SPORTS.includes("MLB")) return next();
+    const unavailable = () => res.status(403).json({ message: "MLB is disabled for the off-season. Saved lineups and history remain available." });
+    const requestedSport = String(req.body?.sport || req.query.sport || "").toUpperCase();
+    if (requestedSport === "MLB" || /\/(?:news|scores|props|prizepicks|scout)\/mlb(?:\/|$)/i.test(req.path)) return unavailable();
+    try {
+      const building = req.method === "POST" && /optimiz|generat|showdown/i.test(req.path);
+      const slatePath = req.path.match(/^\/slates\/(\d+)(?:\/|$)/);
+      const slateId = Number(req.body?.slateId || req.body?.overrideSlateId || slatePath?.[1]);
+      if ((building || slatePath) && Number.isSafeInteger(slateId) && slateId > 0) {
+        const slate = await storage.getSlate(slateId);
+        if (slate?.sport === "MLB") return unavailable();
+      }
+      if (building && Array.isArray(req.body?.ids)) {
+        for (const id of req.body.ids) {
+          if (!Number.isSafeInteger(Number(id))) continue;
+          const lineup = await storage.getLineup(Number(id));
+          if (lineup?.sport === "MLB") return unavailable();
+        }
+      }
+      next();
+    } catch (error) { next(error); }
+  });
   registerPlayerConfiguration(app, storage);
 
   const SITE_URL = "https://fantasy-lineup-optimizer.replit.app";
@@ -400,7 +448,7 @@ export async function registerRoutes(
       const allSlates = await storage.getSlates();
       const graceCutoff = new Date(Date.now() - 3 * 60 * 60 * 1000);
       const active = allSlates
-        .filter(s => s.isActive !== false)
+        .filter(s => s.isActive !== false && (s.sport !== "MLB" || ACTIVE_SPORTS.includes("MLB")))
         .sort((a, b) => {
           if (a.sport === b.sport && a.platform === b.platform) {
             if (a.isMain && !b.isMain) return -1;
@@ -1026,6 +1074,7 @@ export async function registerRoutes(
         allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
       }
 
+      allPlayers = await prepareClassicInputs(allPlayers, constraints.nflPortfolio, slate);
       let userOverrides: any[] = [];
       if (isLoggedIn(req)) {
         const overrideUserId = getSessionUserId(req)!;
@@ -1115,9 +1164,11 @@ export async function registerRoutes(
         return { ...p, projectedPoints: proj.toString() };
       });
 
-      pool = await applyActualAdjustedProjections(pool, slate.sport);
-      pool = await applyMarketProjectionBlend(pool, slate.sport);
-      pool = await applyWinningLineupAdjustment(pool, slate.sport);
+      if (!constraints.nflPortfolio?.classic) {
+        pool = await applyActualAdjustedProjections(pool, slate.sport);
+        pool = await applyMarketProjectionBlend(pool, slate.sport);
+        pool = await applyWinningLineupAdjustment(pool, slate.sport);
+      }
 
       if (constraints.outperformerMode) {
         pool = await applyOutperformerMode(pool, slate.sport);
@@ -1768,6 +1819,10 @@ export async function registerRoutes(
     for (const source of bulkSourceLineups.values()) {
       if (!source || source.userId !== userId) continue;
       const target = overrideSlateId || source.slateId;
+      const targetSlate = requestedTargetSlate ?? await storage.getSlate(target);
+      if (source.contestType === "gpp" && targetSlate?.sport === "NFL" && targetSlate.platform === "draftkings" && isClassicSlate(targetSlate)) {
+        return res.status(400).json({ message: "NFL Classic GPP refresh now uses the Classic formula portfolio. Choose ReSim and import current inputs; the legacy one-at-a-time refresh cannot certify the required portfolio caps." });
+      }
       bulkRequestedBySlate.set(target, (bulkRequestedBySlate.get(target) ?? 0) + 1);
     }
 
@@ -1848,16 +1903,18 @@ export async function registerRoutes(
           return { ...p, projectedPoints: pts.toString() };
         });
 
-        pool = await applyActualAdjustedProjections(pool, slate.sport);
-      pool = await applyMarketProjectionBlend(pool, slate.sport);
-        pool = await applyWinningLineupAdjustment(pool, slate.sport);
+        if (!simRegenRestrictions.nflPortfolio?.classic) {
+          pool = await applyActualAdjustedProjections(pool, slate.sport);
+          pool = await applyMarketProjectionBlend(pool, slate.sport);
+          pool = await applyWinningLineupAdjustment(pool, slate.sport);
+        }
 
         if (req.body.outperformerMode === true) {
           pool = await applyOutperformerMode(pool, slate.sport);
         }
 
-        const regenProfile = await getHistoricalProfile(slate.sport);
-        if (regenProfile.ready) {
+        const regenProfile = simRegenRestrictions.nflPortfolio?.classic ? null : await getHistoricalProfile(slate.sport);
+        if (regenProfile?.ready) {
           pool = applyHistoricalAdjustments(pool, regenProfile);
         }
 
@@ -2330,7 +2387,7 @@ export async function registerRoutes(
         const targetInput = automaticStructure
           ? { ...restrictionInput.data, nflPortfolio: {
               ...(restrictionInput.data.nflPortfolio?.enabled ? restrictionInput.data.nflPortfolio : regenerationNflSettings(players)),
-              rbMinSalary: Math.max(4500, restrictionInput.data.nflPortfolio?.enabled ? restrictionInput.data.nflPortfolio.rbMinSalary : 4500),
+              rbMinSalary: 0,
               allowLockedCheapRb: false,
             } } : restrictionInput.data;
         hasConstrainedResim ||= automaticStructure;
@@ -2338,7 +2395,7 @@ export async function registerRoutes(
           return res.status(400).json({ message: "NFL portfolio target has no available player pool.", slateId });
         }
         try {
-          validateNflPortfolioContext(restrictionInput.data.nflPortfolio, slate, lineupOwnership.get(lineupIds[0])?.platform || "draftkings", simContestType);
+          validateNflPortfolioContext(targetInput.nflPortfolio, slate, lineupOwnership.get(lineupIds[0])?.platform || "draftkings", simContestType);
           preflightTargets.set(slateId, {
             slate,
             players,
@@ -2362,9 +2419,9 @@ export async function registerRoutes(
         }
 
         const platform = (lineupOwnership.get(lineupIds[0])?.platform || "draftkings") as Platform;
-        validateNflPortfolioContext(restrictionInput.data.nflPortfolio, slate, platform, simContestType);
         const simRegenRestrictions: ReturnType<typeof validateSimRegenerateRestrictions> = preflightTarget?.restrictions ??
           validateSimRegenerateRestrictions(restrictionInput.data, slate, []);
+        validateNflPortfolioContext(simRegenRestrictions.nflPortfolio, slate, platform, simContestType);
         let allPlayers = preflightTarget?.players ?? await storage.getPlayersBySlate(slateId);
         if (allPlayers.length === 0) {
           console.log(`[SimRegen] Slate ${slateId} has no players — likely refreshed. Skipping ${lineupIds.length} lineups.`);
@@ -2376,6 +2433,7 @@ export async function registerRoutes(
           allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
         }
 
+        allPlayers = await prepareClassicInputs(allPlayers, simRegenRestrictions.nflPortfolio, slate);
         const applyBoosts = useBoosts !== false;
         const useCeilingMode = ceilingMode === true;
         const useLeverageMode = leverageMode === true;
@@ -2439,9 +2497,10 @@ export async function registerRoutes(
 
         if (useLeverageMode) {
           try {
-            const bdlStats = await fetchBDLStats(slate.sport);
-            const ownershipResults = await calculateOwnership(pool, slate.sport, "gpp_large", bdlStats);
-            const playersWithOwnership = computeOwnershipForPlayers(pool, ownershipResults);
+            const classic = simRegenRestrictions.nflPortfolio?.classic;
+            const playersWithOwnership = classic
+              ? pool.map(p => ({ ...p, ownershipProjection: classic.players[String(p.id)].ownership }))
+              : computeOwnershipForPlayers(pool, await calculateOwnership(pool, slate.sport, "gpp_large", await fetchBDLStats(slate.sport)));
             pool = applyLeverageMode(playersWithOwnership);
           } catch (levErr: any) {
             throw new z.ZodError([{ code: "custom", path: ["leverageMode"], message:
@@ -2811,7 +2870,7 @@ export async function registerRoutes(
           globalMaxExposure, globalMinExposure, lockedPlayerIds: Array.from(simRegenLocked),
           exposureLimits: mergeExposureMaximums(Object.fromEntries(Object.entries(simRegenOverrideExposure).filter(([, v]) => v.max != null).map(([id, v]) => [id, v.max!])), req.body.exposureLimits),
           minExposureLimits: mergeExposureMinimums(Object.fromEntries(Object.entries(simRegenOverrideExposure).filter(([, v]) => v.min != null).map(([id, v]) => [id, v.min!])), minExposureLimits),
-        }, { count: lineupIds.length, deadline: solverDeadline + 2000, preservePortfolio: !!preset });
+        }, { count: lineupIds.length, deadline: solverDeadline + 2000, preservePortfolio: !!preset, requireFull: !!preset?.classic });
         searchReports.push({ slateId, report: {
           ...qualityReport(scoredCandidates.map(c => c.deterministicProjectedPoints),
             Math.max(baselineTotal, ...candidateEntries.map(([, c]) => projectionTotal(c.lineup, pool))),
@@ -4614,6 +4673,19 @@ export async function registerRoutes(
   const NEWS_CACHE_TTL_MS = 5 * 60 * 1000;
 
 
+  app.get("/api/nfl/classic-input-pool/:slateId", async (req, res) => {
+    if (!isLoggedIn(req)) return res.sendStatus(401);
+    const slateId = Number(req.params.slateId);
+    if (!Number.isSafeInteger(slateId) || slateId <= 0) return res.status(400).json({ message: "Invalid slate." });
+    const slate = await storage.getSlate(slateId);
+    if (!slate || slate.sport !== "NFL" || slate.platform !== "draftkings" || !isClassicSlate(slate)) return res.status(400).json({ message: "Select an NFL DraftKings Classic slate." });
+    const players = await storage.getPlayersBySlate(slateId);
+    res.json(players.filter(p => !/no longer listed|retired/i.test(p.injuryDetail || "")).map(p => ({
+      id: p.id, slateId: p.slateId, name: p.name, team: p.team, position: p.position,
+      salary: p.salary, injuryStatus: p.injuryStatus,
+    })));
+  });
+
   app.get("/api/scores", async (_req, res) => {
     try {
       const scores = await getAllLiveScores();
@@ -5274,6 +5346,7 @@ export async function registerRoutes(
         allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
       }
 
+      allPlayers = await prepareClassicInputs(allPlayers, constraints.nflPortfolio, slate);
       const proUserOverrides = resolveConfigurationOverrides(await storage.getPlayerOverrides(userId, constraints.slateId), allPlayers);
       if (configurationExpiry(slate, allPlayers).isExpired) return res.status(409).json({ message: "This slate has expired." });
       constraints.playerProjections = {
@@ -5349,9 +5422,11 @@ export async function registerRoutes(
         return { ...p, projectedPoints: boostedPoints.toString() };
       });
 
-      pool = await applyActualAdjustedProjections(pool, slate.sport);
-      pool = await applyMarketProjectionBlend(pool, slate.sport);
-      pool = await applyWinningLineupAdjustment(pool, slate.sport);
+      if (!constraints.nflPortfolio?.classic) {
+        pool = await applyActualAdjustedProjections(pool, slate.sport);
+        pool = await applyMarketProjectionBlend(pool, slate.sport);
+        pool = await applyWinningLineupAdjustment(pool, slate.sport);
+      }
 
       if (constraints.outperformerMode) {
         pool = await applyOutperformerMode(pool, slate.sport);
@@ -5359,8 +5434,8 @@ export async function registerRoutes(
       }
       pool = pool.map(p => protectGolfMissedCutMarker(p, slate.draftGroupId));
 
-      const historicalProfile = await getHistoricalProfile(slate.sport);
-      if (historicalProfile.ready) {
+      const historicalProfile = constraints.nflPortfolio?.classic ? null : await getHistoricalProfile(slate.sport);
+      if (historicalProfile?.ready) {
         pool = applyHistoricalAdjustments(pool, historicalProfile);
         console.log(`[ProOptimizer] Applied historical adjustments from ${historicalProfile.slatesAnalyzed} analyzed slates for ${slate.sport}`);
       }
@@ -5382,9 +5457,11 @@ export async function registerRoutes(
       console.log(`[ProOptimizer] Starting for ${slate.sport}, ${allPlayers.length} players (${allPlayers.filter(p => isPlayerOut(p.injuryStatus) || p.injuryStatus === "Questionable" || p.injuryStatus === "GTD").length} OUT/Q excluded), ${constraints.lineupCount} lineups requested`);
       const proStartTime = Date.now();
 
-      const bdlStats = await fetchBDLStats(slate.sport);
+      const bdlStats = constraints.nflPortfolio?.classic ? undefined : await fetchBDLStats(slate.sport);
       console.log(`[ProOptimizer] BDL fetch completed in ${Date.now() - proStartTime}ms`);
-      const proOwnershipResults = await calculateOwnership(pool, slate.sport, "gpp_large", bdlStats);
+      const proOwnershipResults = constraints.nflPortfolio?.classic
+        ? pool.map(p => ({ playerId: p.id, projectedOwnership: constraints.nflPortfolio!.classic!.players[String(p.id)].ownership, ownershipSource: "supplied" as const })) as any
+        : await calculateOwnership(pool, slate.sport, "gpp_large", bdlStats);
       const playersWithOwnership = computeOwnershipForPlayers(pool, proOwnershipResults);
 
       if (constraints.leverageMode) {
@@ -5590,7 +5667,7 @@ export async function registerRoutes(
       const proQualityFloor = qualityFloor(Math.max(proBaselineProjection, ...lineupResults.map(c => c.totalProjectedPoints)), constraints.projectedPointsFloor);
       const proQualifiedCount = lineupResults.filter(c => c.totalProjectedPoints >= proQualityFloor).length;
       const finalProLineups = selectExposureLineups(lineupResults.filter(c => c.totalProjectedPoints >= proQualityFloor), c => c.lineup.map((p: Player) => p.id), constraints, {
-        count: constraints.lineupCount, deadline: proSolveDeadline + 2000, preservePortfolio: !!nflPortfolioReport,
+        count: constraints.lineupCount, deadline: proSolveDeadline + 2000, preservePortfolio: !!nflPortfolioReport, requireFull: !!constraints.nflPortfolio?.classic,
       });
       lineupResults.splice(0, lineupResults.length, ...finalProLineups);
 
@@ -5776,6 +5853,7 @@ export async function registerRoutes(
         allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
       }
 
+      allPlayers = await prepareClassicInputs(allPlayers, input.nflPortfolio, slate);
       const proScoutMap = buildScoutMap(slate.sport);
       const applyBoosts = input.useBoosts !== false;
       const useCeilingMode = input.ceilingMode === true;
@@ -5850,21 +5928,24 @@ export async function registerRoutes(
         return { ...p, projectedPoints: boostedPoints.toString() };
       });
 
-      pool = await applyActualAdjustedProjections(pool, slate.sport);
-      pool = await applyMarketProjectionBlend(pool, slate.sport);
-      pool = await applyWinningLineupAdjustment(pool, slate.sport);
+      if (!input.nflPortfolio?.classic) {
+        pool = await applyActualAdjustedProjections(pool, slate.sport);
+        pool = await applyMarketProjectionBlend(pool, slate.sport);
+        pool = await applyWinningLineupAdjustment(pool, slate.sport);
+      }
 
       if (useOutperformerMode) {
         try {
           pool = await applyOutperformerMode(pool, slate.sport);
         } catch (opErr: any) {
+          if (input.nflPortfolio?.classic) throw new z.ZodError([{ code: "custom", path: ["outperformerMode"], message: `Outperformer mode failed: ${opErr.message}. No unadjusted Classic result was substituted.` }]);
           console.warn(`[SimOptimizer] Outperformer mode failed, skipping: ${opErr.message}`);
         }
       }
       pool = pool.map(p => protectGolfMissedCutMarker(p, slate.draftGroupId));
 
-      const simProfile = await getHistoricalProfile(slate.sport);
-      if (simProfile.ready) {
+      const simProfile = input.nflPortfolio?.classic ? null : await getHistoricalProfile(slate.sport);
+      if (simProfile?.ready) {
         pool = applyHistoricalAdjustments(pool, simProfile);
       }
 
@@ -5872,17 +5953,20 @@ export async function registerRoutes(
         try {
           pool = applyCeilingMode(pool, slate.sport);
         } catch (ceilErr: any) {
+          if (input.nflPortfolio?.classic) throw new z.ZodError([{ code: "custom", path: ["ceilingMode"], message: `Ceiling mode failed: ${ceilErr.message}. No unadjusted Classic result was substituted.` }]);
           console.warn(`[SimOptimizer] Ceiling mode failed, skipping: ${ceilErr.message}`);
         }
       }
 
       if (useLeverageMode) {
         try {
-          const bdlStats = await fetchBDLStats(slate.sport);
-          const ownershipResults = await calculateOwnership(pool, slate.sport, "gpp_large", bdlStats);
-          const playersWithOwnership = computeOwnershipForPlayers(pool, ownershipResults);
+          const classic = input.nflPortfolio?.classic;
+          const playersWithOwnership = classic
+            ? pool.map(p => ({ ...p, ownershipProjection: classic.players[String(p.id)].ownership }))
+            : computeOwnershipForPlayers(pool, await calculateOwnership(pool, slate.sport, "gpp_large", await fetchBDLStats(slate.sport)));
           pool = applyLeverageMode(playersWithOwnership);
         } catch (levErr: any) {
+          if (input.nflPortfolio?.classic) throw new z.ZodError([{ code: "custom", path: ["leverageMode"], message: `Leverage mode failed: ${levErr.message}. No unadjusted Classic result was substituted.` }]);
           console.warn(`[SimOptimizer] Leverage mode failed, skipping: ${levErr.message}`);
         }
       }
@@ -6386,7 +6470,7 @@ export async function registerRoutes(
         lockedPlayerIds: input.lockedPlayerIds,
         exposureLimits: mergeExposureMaximums(Object.fromEntries(Object.entries(simOverrideExposure).filter(([, v]) => v.max != null).map(([id, v]) => [id, v.max!])), input.exposureLimits),
         minExposureLimits: mergeExposureMinimums(Object.fromEntries(Object.entries(simOverrideExposure).filter(([, v]) => v.min != null).map(([id, v]) => [id, v.min!])), input.minExposureLimits),
-      }, { count: input.lineupCount, deadline: solverDeadline + 2000, preservePortfolio: !!nflPortfolioReport });
+      }, { count: input.lineupCount, deadline: solverDeadline + 2000, preservePortfolio: !!nflPortfolioReport, requireFull: !!input.nflPortfolio?.classic });
       const elapsedMs = Date.now() - startTime;
       const partial = selected.length < input.lineupCount || simTimedOut || Date.now() >= solverDeadline || !!nflPortfolioReport?.partial;
       const partialMessage = partial

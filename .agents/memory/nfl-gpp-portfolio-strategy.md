@@ -3,6 +3,10 @@ name: NFL GPP portfolio strategy
 description: How to apply the user's 2022–2025 large-field NFL top-100 lineup research.
 ---
 
+The later dedicated CLASSIC_LOGIC specification supersedes historical Classic distribution defaults, the old unconditional $4,500 RB floor, and optional-preset behavior below. See [current scope](nfl-sheet-strategy-scope.md). Preserve legacy Sim controls and hard quality/no-save protections.
+
+**Why:** The user supplied replacement Classic formulas and explicitly requested keeping legacy Sim controls on top.
+
 Use the historical data as portfolio-level targets rather than universal hard constraints. The core mix is about 10% naked QB, 49% QB+1, 38% QB+2, and 3% QB+3; roughly half should include a skill-position bring-back.
 
 Prioritize at least two sub-10%-owned WRs, five to six games represented, and a secondary two-player correlation in roughly two-thirds of GPP lineups. The preferred secondary pairing is RB plus an opposing WR.

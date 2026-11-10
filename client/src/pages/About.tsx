@@ -34,7 +34,6 @@ const FEATURES = [
 const SPORTS = [
   { name: "NBA", icon: Dribbble, color: "text-orange-400", bg: "bg-orange-500/15" },
   { name: "NHL", icon: Activity, color: "text-cyan-400", bg: "bg-cyan-500/15" },
-  { name: "MLB", icon: Target, color: "text-red-400", bg: "bg-red-500/15" },
   { name: "NFL", icon: Shield, color: "text-green-400", bg: "bg-green-500/15" },
   { name: "GOLF", icon: Flag, color: "text-lime-400", bg: "bg-lime-500/15" },
 ];

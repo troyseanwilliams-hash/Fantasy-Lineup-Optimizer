@@ -1,0 +1,34 @@
+import {test,expect} from "@playwright/test";
+test("Classic inputs coexist with legacy Sim controls",async({page})=>{
+  const slate={id:979001,name:"NFL Classic test",sport:"NFL",platform:"draftkings",gameType:"Classic",startTime:"2099-09-13T17:00:00Z",isActive:true,isMain:true,draftGroupId:879001};
+  const players=["QB","RB","RB","WR","WR","WR","TE","DST"].map((position,i)=>({id:i+1,slateId:slate.id,name:`Test ${position} ${i}`,position,team:"BUF",opponent:"HOU",gameInfo:"BUF @ HOU",salary:5000,projectedPoints:"20",fppg:"20"}));
+  await page.route("**/api/**",async route=>{
+    const path=new URL(route.request().url()).pathname;
+    let data:any=[];
+    if(path==="/api/auth/user") data={id:"classic-test",isAdmin:true};
+    else if(path==="/api/subscription") data={tier:"pro",status:"active"};
+    else if(path==="/api/slates") data=[slate];
+    else if(path===`/api/slates/${slate.id}`) data=slate;
+    else if(path.includes("/players")||path.includes("classic-input-pool")) data=players;
+    else if(path.includes("signals")) data={signals:[]};
+    else if(path==="/api/alerts") data={alerts:[]};
+    await route.fulfill({json:data});
+  });
+  await page.goto(`/optimizer-pro/${slate.id}`);
+  const panel=page.getByTestId("nfl-portfolio-controls");
+  await expect(panel).toBeVisible();
+  await panel.locator("summary").first().click();
+  await expect(panel).toContainText("115");
+  await expect(panel).toContainText("No upload needed");
+  await expect(panel).toContainText("App data");
+  await expect(panel).toContainText("35");
+  await expect(panel.locator('input[type="file"]')).toBeEnabled();
+  await page.getByTestId("btn-sim-mode-toggle").click();
+  await expect(page.getByTestId("button-generate")).toBeVisible();
+  await expect(page.getByText("Ceiling",{exact:false}).first()).toBeVisible();
+  const leverage=page.locator('[data-testid="toggle-leverage"]:visible, [data-testid="toggle-leverage-mobile"]:visible');
+  await expect(leverage).toBeVisible();
+  await leverage.click();
+  await expect(leverage).toHaveAttribute("aria-checked","true");
+  await page.screenshot({path:`/tmp/classic-ui-${test.info().project.name}.png`,fullPage:true});
+});

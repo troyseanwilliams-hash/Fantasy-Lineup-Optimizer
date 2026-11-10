@@ -21,4 +21,6 @@
 - [Optimizer control visibility](optimizer-control-visibility.md) — responsive visual changes must not hide existing setup controls behind new laptop tabs.
 - [Historical data retention](historical-data-retention.md) — saved lineups and player history must be retained indefinitely for analysis.
 - [NBA activation](nba-activation.md) — NBA should be active and highlighted on the landing page, not merely exposed in menus.
+- [MLB off-season](mlb-offseason.md) — hide MLB throughout active features until baseball season; preserve history and reactivation support.
 - [UFC MMA visibility](ufc-mma-visibility.md) — keep UFC/MMA hidden from desktop and phone navigation.
+- [NFL sheet strategy scope](nfl-sheet-strategy-scope.md) — dedicated Classic logic supersedes old research/audit rules; preserve legacy Sim controls and keep Showdown separate.

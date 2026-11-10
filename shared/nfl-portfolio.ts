@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { classicLogicSchema } from "./nfl-classic-logic";
 
 const percentage = z.number().finite().min(0).max(100);
 const mixSchema = z.object({
@@ -11,6 +12,7 @@ const mixSchema = z.object({
 });
 
 export const nflPortfolioSettingsSchema = z.object({
+  classic: classicLogicSchema.optional(),
   enabled: z.boolean().default(false),
   stackMix: mixSchema.default({ naked: 10, single: 49, double: 38, triple: 3 }),
   bringBackPct: percentage.default(50),
@@ -73,6 +75,7 @@ export interface NflPortfolioMetric {
 }
 
 export interface NflPortfolioReport {
+  classicLogic?: boolean;
   requestedCount: number;
   generatedCount: number;
   candidateCount: number;
@@ -112,6 +115,7 @@ export interface NflPortfolioReport {
 
 // Internal, per-candidate solver policy. Never trust a client-supplied value.
 export interface NflPortfolioLineupPolicy {
+  classicOwnershipCap?: number;
   secondary?: boolean;
   catcherCount: 0 | 1 | 2 | 3;
   bringBack: boolean;

@@ -149,7 +149,7 @@ export default function Optimizer() {
   const [projectedPointsFloor, setProjectedPointsFloor] = useState<number | null>(null);
   const [flexAllowedPositions, setFlexAllowedPositions] = useState<NflFlexPosition[]>([...NFL_FLEX_POSITIONS]);
   const [contestType, setContestType] = useState<"cash" | "gpp">("cash");
-  const portfolio = useNflPortfolio();
+  const portfolio = useNflPortfolio(userId, slateId);
   const [outperformerMode, setOutperformerMode] = useState(false);
   const [mobileView, setMobileView] = useState<"players" | "lineup">("players");
   const [playerFocus, setPlayerFocus] = useState(false);
@@ -262,7 +262,7 @@ export default function Optimizer() {
 
   useEffect(() => {
     optimizeMutation.reset();
-    portfolio.reset();
+    portfolio.setReport(undefined);
     setRemovedSlots(new Set());
     setActiveSwapSlot(null);
     setManualReplacements({});
@@ -492,7 +492,7 @@ export default function Optimizer() {
       minProjection: minProjection ?? undefined,
       projectedPointsFloor: projectedPointsFloor ?? undefined,
       contestType,
-      ...(portfolioSupported && portfolio.settings.enabled ? { nflPortfolio: portfolio.settings } : {}),
+      ...(portfolioSupported ? { nflPortfolio: { ...portfolio.settings, enabled: true } } : {}),
       outperformerMode,
       ...(isNflClassic ? { flexAllowedPositions } : {}),
     });
@@ -587,7 +587,6 @@ export default function Optimizer() {
   }, [activeSwapSlot, players, activeLineupPlayers, excludedIds, sport, remainingSalary, swapBudget]);
 
   const handleSlateChange = (newSlateId: string) => {
-    handleReset();
     setLocation(optimizerSlatePath("standard", newSlateId));
   };
 
@@ -1544,7 +1543,7 @@ export default function Optimizer() {
       {/* RIGHT: Lineup Builder */}
       <div className={`w-full xl:w-[360px] 2xl:w-[400px] flex-col bg-slate-900/30 border-l border-slate-800 xl:overflow-hidden ${playerFocus ? "hidden" : mobileView !== "lineup" ? "hidden xl:flex" : "flex"}`}>
         <div className="p-2 space-y-2 max-h-[60vh] overflow-auto">
-          <NflPortfolioControls settings={portfolio.settings} onChange={portfolio.setSettings} supported={portfolioSupported} players={players || []} single />
+          <NflPortfolioControls key={`${userId}:${slateId}`} settings={portfolio.settings} onChange={portfolio.setSettings} supported={portfolioSupported} players={players || []} slateId={slateId} single />
           <NflPortfolioReportView report={portfolio.report} target={`Slate ${slateId}`} />
           {!portfolio.report?.searchDiagnostics && (
             <QualitySearchDiagnostics
