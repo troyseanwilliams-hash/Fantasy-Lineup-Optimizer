@@ -22,7 +22,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import type { Slate, Player } from "@shared/schema";
 import { usePageMeta } from "@/hooks/use-page-meta";
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { useSessionPlayerQuery } from "@/hooks/use-session-player-query";
 import {
   csvEscape,
@@ -1020,12 +1020,6 @@ export default function ShowdownBuilder() {
         </div>
 
         {/* ── Top Controls ── */}
-        {sport === "NFL" && platform === "draftkings" && (
-          <Link href="/nfl-gpp?tab=showdown" className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 mb-4 text-sm text-emerald-300">
-            <span className="font-bold">NFL GPP sheet workbench</span>
-            <span className="text-xs">Build an offline Showdown portfolio from your CSV →</span>
-          </Link>
-        )}
         <div className="flex flex-col sm:flex-row gap-2 mb-4">
           <Select
             value={selectedSlateId?.toString() || ""}

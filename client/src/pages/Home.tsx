@@ -1448,7 +1448,7 @@ export default function Home() {
   const { user } = useAuth();
   usePageMeta({
     title: "EliteLineup AI - DFS Lineup Optimizer for DraftKings, FanDuel & Yahoo",
-    description: "AI-powered Daily Fantasy Sports lineup optimizer. Build winning lineups for NBA, NFL and Golf with Monte Carlo simulations, prop analysis, and ownership projections.",
+    description: "AI-powered Daily Fantasy Sports lineup optimizer. Build winning lineups for NBA, NFL, MLB, NHL, Golf & Soccer with Monte Carlo simulations, prop analysis, and ownership projections.",
     path: "/",
   });
 
@@ -1473,6 +1473,8 @@ export default function Home() {
             <div className="flex items-center justify-center gap-3 flex-wrap mb-6 text-sm text-slate-400 font-bold">
               <span className="flex items-center gap-1.5 rounded-full border border-orange-400/40 bg-orange-500/15 px-3 py-1.5 text-orange-300" data-testid="landing-nba-highlight"><Dribbble className="w-4 h-4" /> NBA Optimizer &amp; Simulations Enabled</span>
               {FEATURE_VISIBILITY.draftHub && <><span className="flex items-center gap-1.5"><Circle className="w-2 h-2 text-amber-400 fill-current animate-pulse" /> NFL Draft Hub Live</span><span className="text-slate-700">·</span></>}
+              <span className="flex items-center gap-1.5"><Target className="w-3.5 h-3.5 text-red-400" /> MLB In Season</span>
+              <span className="text-slate-700">·</span>
               <span className="flex items-center gap-1.5"><Flag className="w-3.5 h-3.5 text-lime-400" /> Golf Active</span>
               <span className="text-slate-700">·</span>
               <span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5 text-blue-400" /> NFL DFS Live</span>

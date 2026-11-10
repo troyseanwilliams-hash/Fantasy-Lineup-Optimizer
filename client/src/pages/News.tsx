@@ -512,8 +512,7 @@ function StandardNewsContent({ sport, meta }: { sport: string; meta: typeof SPOR
 export default function News() {
   usePageMeta({ title: "Sports News - Latest Updates", description: "Latest sports news, injury updates, and analysis for DFS players.", path: "/news" });
   const params = useParams<{ sport: string }>();
-  const requestedSport = (params.sport || "NBA").toUpperCase();
-  const sport = ACTIVE_SPORTS.includes(requestedSport as typeof ACTIVE_SPORTS[number]) ? requestedSport : ACTIVE_SPORTS[0];
+  const sport = (params.sport || "NBA").toUpperCase();
   const meta = SPORT_META[sport] || SPORT_META.NBA;
   const Icon = meta.icon;
   const isGolf = sport === "GOLF";

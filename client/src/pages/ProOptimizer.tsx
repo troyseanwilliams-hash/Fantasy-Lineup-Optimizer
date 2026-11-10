@@ -179,7 +179,7 @@ export default function ProOptimizer() {
   const [sortKey, setSortKey] = useState<SortKey>("projectedPoints");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [lineupCount, setLineupCount] = useState(5);
-  const portfolio = useNflPortfolio(userId, slateId);
+  const portfolio = useNflPortfolio();
   // useBoosts: pro users get boosts on by default; they can still toggle it off.
   // We use a separate userOverride flag so a pro user's explicit "off" is respected
   // even after subData refetches — without this, the useEffect would flip it back on.
@@ -406,7 +406,7 @@ export default function ProOptimizer() {
     // Previously fadedIds, lockedIds, excludedIds, exposureLimits, globalMaxExposure,
     // and useBoostsUserOverride were not cleared — stale player IDs from one slate
     // could match different players on the new slate.
-    handleReset(false);
+    handleReset();
   }, [slateId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -840,7 +840,7 @@ export default function ProOptimizer() {
     if (simMode) {
       // ── Simulation mode: Monte Carlo game-script optimization ──────────────
       simMutation.mutate({
-        ...(portfolioSupported ? { nflPortfolio: { ...portfolio.settings, enabled: true }, contestType: "gpp" } : {}),
+        ...(portfolioSupported && portfolio.settings.enabled ? { nflPortfolio: portfolio.settings, contestType: "gpp" } : {}),
         slateId,
         platform,
         lockedPlayerIds:  lockedIds,
@@ -864,7 +864,7 @@ export default function ProOptimizer() {
       });
     } else {
       optimizeMutation.mutate({
-        ...(portfolioSupported ? { nflPortfolio: { ...portfolio.settings, enabled: true }, contestType: "gpp" } : {}),
+        ...(portfolioSupported && portfolio.settings.enabled ? { nflPortfolio: portfolio.settings, contestType: "gpp" } : {}),
         slateId,
         platform,
         lockedPlayerIds: lockedIds,
@@ -1121,11 +1121,11 @@ export default function ProOptimizer() {
 
   const handleSlateChange = (newSlateId: string) => {
     setLocation(optimizerSlatePath("pro", newSlateId));
+    handleReset();
   };
 
-  const handleReset = (resetPortfolio = true) => {
-    if (resetPortfolio) portfolio.reset();
-    else portfolio.setReport(undefined);
+  const handleReset = () => {
+    portfolio.reset();
     setLockedIds([]);
     setExcludedIds([]);
     setFadedIds([]);
@@ -1236,12 +1236,6 @@ export default function ProOptimizer() {
 
   return (
     <div className={`flex flex-col ${playerFocus ? "fixed inset-0 z-50 h-[100dvh] overflow-hidden bg-slate-950" : "min-h-full overflow-visible"}`} data-testid="pro-optimizer-page">
-      {!playerFocus && isNflClassic && platform === "draftkings" && (
-        <Link href="/nfl-gpp?tab=classic" className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-emerald-300">
-          <span className="font-bold text-sm">Audit your final NFL Classic upload</span>
-          <span className="text-xs">Current Classic position caps · 115% ownership ceiling · review before approval →</span>
-        </Link>
-      )}
       {/* Mobile and laptop view switch stays above the long setup controls. */}
       {!playerFocus && <div className="2xl:hidden flex border-b border-slate-800 bg-slate-900/80 sticky top-0 z-20">
         <button
@@ -1278,6 +1272,10 @@ export default function ProOptimizer() {
         </button>
       </div>}
       {/* Top Controls Bar */}
+      {!playerFocus && <div className="p-2 space-y-2 max-h-[60vh] overflow-auto">
+        <NflPortfolioControls settings={portfolio.settings} onChange={portfolio.setSettings} supported={portfolioSupported} players={players || []} />
+        <NflPortfolioReportView report={portfolio.report} target={`Slate ${slateId} · ${simMode ? "Sim" : "Pro"}`} />
+      </div>}
       {!playerFocus && <div className="border-b border-slate-800 bg-slate-900/60 px-4 py-2">
         <div className="flex flex-col gap-2 md:gap-0">
           {/* Row 1: Slate info + selector */}
@@ -1990,17 +1988,13 @@ export default function ProOptimizer() {
               </>
             )}
 
-            <Button variant="ghost" size="sm" onClick={() => handleReset()} className="text-slate-400 font-bold text-xs" data-testid="button-reset">
+            <Button variant="ghost" size="sm" onClick={handleReset} className="text-slate-400 font-bold text-xs" data-testid="button-reset">
               Reset
             </Button>
           </div>
         </div>
       </div>}
 
-      {!playerFocus && portfolioSupported && <div className="shrink-0 p-2 space-y-2 max-h-[40dvh] overflow-auto">
-        <NflPortfolioControls key={`${userId}:${slateId}`} settings={portfolio.settings} onChange={portfolio.setSettings} supported={portfolioSupported} players={players || []} slateId={slateId} />
-        <NflPortfolioReportView report={portfolio.report} target={`Slate ${slateId} · ${simMode ? "Sim" : "Pro"}`} />
-      </div>}
       <div className="flex min-h-0 flex-1 flex-col 2xl:flex-row 2xl:overflow-hidden">
         {/* LEFT: Player Pool */}
         <div ref={playerPoolRef} className={`flex min-w-0 flex-1 flex-col border-r border-slate-800 2xl:overflow-hidden ${playerFocus ? "w-full min-h-0 overflow-hidden" : ""} ${!playerFocus && mobileView !== "players" ? "hidden 2xl:flex" : ""}`}>

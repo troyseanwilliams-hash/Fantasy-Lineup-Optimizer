@@ -478,6 +478,7 @@ export default function SavedLineups() {
   const [regenCeilingMode, setRegenCeilingMode] = useState(false);
   const [regenLeverageMode, setRegenLeverageMode] = useState(false);
   const [regenContestType, setRegenContestType] = useState<"cash" | "gpp">("gpp");
+  const portfolio = useNflPortfolio();
   const [portfolioReports, setPortfolioReports] = useState<Array<{ slateId: number; report: NflPortfolioReport; target: string }>>([]);
   const [qualitySearchReports, setQualitySearchReports] = useState<Array<{ slateId: number; report: QualitySearchDiagnosticsData; partial: boolean }>>([]);
   const [regenOutperformerMode, setRegenOutperformerMode] = useState(false);
@@ -684,7 +685,6 @@ export default function SavedLineups() {
   // An explicit target is authoritative. Without one, controls that depend on
   // a player pool are only safe when every selected lineup has one source slate.
   const effectiveSlateId = regenSlateId || (selectedSlateIds.length === 1 ? selectedSlateIds[0] : null);
-  const portfolio = useNflPortfolio(user?.id, effectiveSlateId);
   const effectiveSlate = useMemo(() => {
     if (!effectiveSlateId) return null;
     const listed = allSlates?.find(slate => Number(slate.id) === Number(effectiveSlateId));
@@ -731,7 +731,7 @@ export default function SavedLineups() {
 
   useEffect(() => {
     setRegenStackGameKeys([]);
-    portfolio.setReport(undefined);
+    portfolio.setSettings(previous => ({ ...previous, nakedQbIds: [], ownershipOverrides: {} }));
   }, [effectiveSlateId]);
 
   useEffect(() => {
@@ -910,7 +910,7 @@ export default function SavedLineups() {
       setQualitySearchReports([]);
       if (portfolioSupported && portfolio.error) throw new Error(portfolio.error);
       const res = await apiRequest("POST", "/api/lineups/sim-regenerate", { ...params, preserveSourceSlateId: true,
-        ...(portfolioSupported ? { nflPortfolio: { ...portfolio.settings, enabled: true } } : {}),
+        ...(portfolioSupported && portfolio.settings.enabled ? { nflPortfolio: portfolio.settings } : {}),
       });
       return res.json();
     },
@@ -1365,6 +1365,20 @@ export default function SavedLineups() {
 
         <div className="relative container mx-auto px-4 py-10">
           <div className="space-y-2 mb-3">
+            {selectedIds.size > 0 && <NflPortfolioControls settings={portfolio.settings} onChange={portfolio.setSettings} supported={portfolioSupported} players={effectiveSlatePlayers || []} />}
+            {selectedIds.size > 0 && portfolioSupported && !portfolio.settings.enabled && (
+              <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/30 p-3 text-sm text-slate-200" data-testid="regen-structure-targets">
+                <p className="font-semibold">NFL GPP regeneration: balanced portfolio targets</p>
+                <p>QB stacks: 10% naked, 49% single, 38% double, 3% triple. Bring-backs: 50%. Secondary correlations: 67%.</p>
+                <p>FLEX: 37.4% RB, 43.3% WR, 19.3% TE, adjusted to your allowed positions. Counts are rounded, with a whole-lineup tolerance of 2% of the batch, rounded down (at least one lineup); zero targets stay zero.</p>
+                <p className="text-slate-400">Your exposure caps and player restrictions remain hard limits. The custom portfolio preset above replaces these default targets.</p>
+              </div>
+            )}
+            {selectedIds.size > 0 && portfolioSupported && (
+              <p className="text-sm text-slate-300" data-testid="regen-rb-salary-floor">
+                RB minimum: $4,500, including RBs at FLEX. Locks and custom presets cannot bypass this minimum.
+              </p>
+            )}
             {portfolioReports.map((item, index) => <NflPortfolioReportView key={`${item.slateId}-${index}`} report={item.report} target={item.target} />)}
             {qualitySearchReports.map((item, index) => (
               <div key={`${item.slateId}-${index}`} className="space-y-1">
@@ -1806,7 +1820,6 @@ export default function SavedLineups() {
               })()}
             </div>
           )}
-          {selectedIds.size > 0 && <NflPortfolioControls key={`${user?.id}:${effectiveSlateId}`} settings={portfolio.settings} onChange={portfolio.setSettings} supported={portfolioSupported} players={effectiveSlatePlayers || []} slateId={effectiveSlateId || 0} />}
 
           {totalLineups > 0 && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
