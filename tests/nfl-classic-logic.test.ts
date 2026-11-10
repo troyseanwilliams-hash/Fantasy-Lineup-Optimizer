@@ -13,23 +13,41 @@ import { buildAppClassicInputs } from "../server/nfl-classic-app-data";
 
 test("app inputs need no import, never fabricate reviews, and preserve caps", async () => {
   const { pool, settings } = fixture();
+  // Real feed regression: Kyle Allen's -0.2 projection is valid, but ineligible.
+  pool.push({ ...pool[0], id: 999, name: "Kyle Allen", projectedPoints: "-0.2" });
   settings.classic = buildAppClassicInputs(pool, 77, new Map(pool.map(p => [p.id, 8])));
+  assert.equal(settings.classic.players["999"].projection, -0.2);
   assert.deepEqual(settings.classic.anchors, {});
   assert.equal(settings.classic.players["1"].statusCheckedAt, undefined);
   assert.equal(settings.classic.players["1"].weatherCheckedAt, undefined);
   assert.equal(settings.classic.players["1"].recent.length, 0);
-  assert.equal(validateClassicEvidence(pool, settings.classic, 77).length, pool.length);
+  assert.equal(validateClassicEvidence(pool, settings.classic, 77).length, pool.length - 1);
+  assert.ok(!validateClassicEvidence(pool, settings.classic, 77).some(p => p.id === 999));
   assert.throws(() => buildAppClassicInputs(pool, 77, new Map()), /unavailable/);
   assert.throws(() => validateClassicEvidence(pool, settings.classic, 78), /different slate/);
   const injured = pool.map((p, i) => i === 0 ? { ...p, injuryStatus: "OUT" } : p);
-  assert.equal(validateClassicEvidence(injured, settings.classic).length, pool.length - 1);
+  assert.equal(validateClassicEvidence(injured, settings.classic).length, pool.length - 2);
   const result = await generateClassicPortfolio({ pool, settings, count: 20, baseConstraints: {},
     deadline: Date.now() + 28000, solve });
   assert.equal(result.lineups.length, 20);
+  assert.ok(result.lineups.every(l => l.lineup.every(p => p.id !== 999)));
   assert.equal(result.report.dataSources?.ownership, "estimated");
   assert.ok(result.report.warnings.some(w => w.includes("Not verified")));
   for (const p of pool) assert.ok(result.lineups.filter(l => l.lineup.some(q => q.id === p.id)).length <= Math.floor(CLASSIC_POSITION_CAPS[p.position] * 20 / 100));
   for (const l of result.lineups) assert.deepEqual(classicLineupErrors(l.lineup, settings, []), []);
+});
+
+test("app inputs accept finite negative values but reject genuinely missing projections", () => {
+  const { pool } = fixture();
+  for (const value of ["-0.2", "0", "3.9", "4"]) {
+    const player = { ...pool[0], projectedPoints: value };
+    const classic = buildAppClassicInputs([player], 77, new Map([[player.id, 8]]));
+    assert.equal(validateClassicEvidence([player], classic).length, Number(value) >= 4 ? 1 : 0);
+  }
+  for (const value of ["", " ", "NaN", "Infinity", null, undefined]) {
+    const player = { ...pool[0], projectedPoints: value } as unknown as Player;
+    assert.throws(() => buildAppClassicInputs([player], 77, new Map([[player.id, 8]])), /unavailable/);
+  }
 });
 
 function fixture() {

@@ -4,7 +4,8 @@ export const CLASSIC_POSITION_CAPS: Record<string, number> = { QB: 27, RB: 35, W
 export const CLASSIC_OWNERSHIP_CAP = 115;
 export const CLASSIC_SKILL_FLOOR = 4;
 export const classicPlayerEvidenceSchema = z.object({
-  projection: z.number().finite().min(0),
+  // Negative fantasy projections are valid input; eligibility applies the floor.
+  projection: z.number().finite(),
   ownership: z.number().finite().min(0).max(100),
   status: z.enum(["UNKNOWN", "ACTIVE", "QUESTIONABLE", "OUT", "INACTIVE", "IR", "PUP", "EXEMPT", "SUSPENDED", "DOUBTFUL"]),
   statusCheckedAt: z.string().datetime().optional(),

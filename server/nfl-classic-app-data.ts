@@ -13,7 +13,7 @@ export function buildAppClassicInputs(pool: Player[], slateId: number, ownership
   const players: ClassicLogic["players"] = {};
   for (const p of pool) {
     const projection = Number(p.projectedPoints), own = ownership.get(p.id);
-    if (!Number.isFinite(projection) || projection < 0 || own === undefined || !Number.isFinite(own) || own < 0 || own > 100) {
+    if (p.projectedPoints == null || String(p.projectedPoints).trim() === "" || !Number.isFinite(projection) || own === undefined || !Number.isFinite(own) || own < 0 || own > 100) {
       throw new Error(`${p.name}: current projection or ownership estimate is unavailable. Refresh slate data before generating.`);
     }
     const status = classicPlayerEvidenceSchema.shape.status.safeParse((p.injuryStatus || "UNKNOWN").toUpperCase());
