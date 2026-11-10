@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -43,6 +43,32 @@ export function Header() {
   const [location, navigate] = useLocation();
   const currentPath = location.split("?")[0];
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const headerRef = useRef<HTMLElement>(null);
+  const mobileToggleRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location]);
+
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const closeOnDesktop = () => {
+      if (desktop.matches) setMobileMenuOpen(false);
+    };
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const closeOnOutsidePress = (event: PointerEvent) => {
+      if (event.target instanceof Node && !headerRef.current?.contains(event.target)) {
+        setMobileMenuOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePress);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePress);
+  }, [mobileMenuOpen]);
 
   const { data: subData } = useQuery<{ tier: string }>({
     queryKey: ["/api/subscription"],
@@ -83,22 +109,39 @@ export function Header() {
   };
 
   const mobileNav = (href: string) => {
-    navigate(href);
     setMobileMenuOpen(false);
+    mobileToggleRef.current?.focus();
+    navigate(href);
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-[#0F172A] border-b border-[#1E293B]">
-      <div className="container mx-auto px-4 h-20 lg:h-24 flex items-center justify-between">
-        <div className="flex items-center space-x-10 min-w-0">
-          <Link href="/">
+    <header
+      ref={headerRef}
+      className="elite-header sticky top-0 z-50 bg-[#0F172A] border-b border-[#1E293B]"
+      data-testid="site-header"
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && mobileMenuOpen) {
+          event.preventDefault();
+          setMobileMenuOpen(false);
+          mobileToggleRef.current?.focus();
+        }
+      }}
+      onBlur={(event) => {
+        if (event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) {
+          setMobileMenuOpen(false);
+        }
+      }}
+    >
+      <div className="elite-header-row">
+        <div className="elite-header-main">
+          <Link href="/" className="elite-header-brand" aria-label="EliteLineup home">
             <div className="flex items-center cursor-pointer group-hover:opacity-90 transition-opacity shrink-0">
               <LogoBanner height={29} className="lg:hidden" />
               <LogoBanner height={38} className="hidden lg:block" />
             </div>
           </Link>
 
-          <nav className="hidden lg:flex items-center space-x-6">
+          <nav className="elite-header-nav hidden lg:flex items-center" aria-label="Primary navigation">
             {user && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -111,7 +154,7 @@ export function Header() {
                     <ChevronDown className="w-3 h-3 opacity-50" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-72 bg-[#1E293B] border-border">
+                <DropdownMenuContent align="start" className="elite-header-menu w-72 bg-[#1E293B] border-border">
                   {ACTIVE_SPORTS.map((sport, idx) => {
                     const meta = SPORT_META[sport] || { icon: Dribbble, color: "text-slate-400", bgColor: "bg-slate-500/20" };
                     const Icon = meta.icon;
@@ -288,7 +331,7 @@ export function Header() {
                   <ChevronDown className="w-3 h-3 opacity-50" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56 bg-[#1E293B] border-border">
+              <DropdownMenuContent align="start" className="elite-header-menu w-56 bg-[#1E293B] border-border">
                 <Link href="/props">
                   <DropdownMenuItem className="cursor-pointer" data-testid="nav-props">
                     <TrendingUp className="w-4 h-4 mr-2 text-purple-400" />
@@ -357,7 +400,7 @@ export function Header() {
                     <ChevronDown className="w-3 h-3 opacity-50" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-56 bg-[#1E293B] border-border">
+                <DropdownMenuContent align="start" className="elite-header-menu w-56 bg-[#1E293B] border-border">
                   <Link href="/lineups">
                     <DropdownMenuItem className="cursor-pointer" data-testid="nav-vault">
                       <Archive className="w-4 h-4 mr-2 text-slate-400" />
@@ -426,12 +469,12 @@ export function Header() {
           </nav>
         </div>
 
-        <div className="flex items-center space-x-3 lg:space-x-6 shrink-0">
+        <div className="elite-header-actions flex items-center">
           {user ? (
-            <div className="hidden lg:flex items-center space-x-4">
+            <div className="elite-header-account hidden lg:flex items-center">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="relative p-2 rounded-lg hover:bg-slate-800 transition-colors" data-testid="alerts-bell">
+                  <button aria-label={unreadCount ? `Alerts, ${unreadCount} unread` : "Alerts"} className="relative p-2 min-w-11 min-h-11 rounded-lg hover:bg-slate-800 transition-colors" data-testid="alerts-bell">
                     <Bell className="w-5 h-5 text-slate-400" />
                     {unreadCount > 0 && (
                       <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-[11px] font-black text-white" data-testid="alerts-badge">
@@ -440,7 +483,7 @@ export function Header() {
                     )}
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-80 bg-[#1E293B] border-border max-h-96 overflow-y-auto">
+                <DropdownMenuContent align="end" className="elite-header-menu w-80 bg-[#1E293B] border-border">
                   <DropdownMenuLabel className="flex items-center justify-between">
                     <span className="text-xs font-black text-white uppercase tracking-wider">Alerts</span>
                     {unreadCount > 0 && (
@@ -488,7 +531,12 @@ export function Header() {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-3 hover:bg-slate-800/50 rounded-lg px-3 py-2 transition-colors cursor-pointer outline-none" data-testid="account-menu">
+                  <button
+                    className="elite-header-account-trigger flex items-center gap-2 hover:bg-slate-800/50 rounded-lg px-2 py-2 transition-colors cursor-pointer"
+                    aria-label={`Account for ${user.firstName || user.email?.split('@')[0]}`}
+                    title={user.firstName || user.email || "Account"}
+                    data-testid="account-menu"
+                  >
                     <div className="flex flex-col items-end">
                       <span className="text-sm font-bold text-white">{user.firstName || user.email?.split('@')[0]}</span>
                       {isPro ? (
@@ -506,7 +554,7 @@ export function Header() {
                     <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 bg-[#1E293B] border-border">
+                <DropdownMenuContent align="end" className="elite-header-menu w-56 bg-[#1E293B] border-border">
                   <DropdownMenuLabel className="text-slate-400 text-xs font-bold uppercase tracking-wider">Account</DropdownMenuLabel>
                   <DropdownMenuSeparator className="bg-slate-800" />
                   {!isPaid && (
@@ -550,19 +598,22 @@ export function Header() {
               </DropdownMenu>
             </div>
           ) : (
-            <Link href="/login">
-              <Button 
-                className="hidden lg:flex bg-[#10B981] text-white px-8 font-bold rounded-lg h-11"
-                data-testid="sign-in-btn"
-              >
-                Sign In
-              </Button>
-            </Link>
+            <Button asChild
+              className="hidden lg:flex bg-[#10B981] text-white px-8 font-bold rounded-lg h-11"
+              data-testid="sign-in-btn"
+            >
+              <Link href="/login">Sign In</Link>
+            </Button>
           )}
 
           <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-2 rounded-lg transition-colors hover:bg-slate-800"
+            ref={mobileToggleRef}
+            type="button"
+            aria-label={mobileMenuOpen ? "Close navigation" : "Open navigation"}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="elite-mobile-navigation"
+            onClick={() => setMobileMenuOpen(open => !open)}
+            className="elite-header-mobile-toggle lg:hidden p-2 rounded-lg transition-colors hover:bg-slate-800"
             data-testid="mobile-menu-btn"
           >
             {mobileMenuOpen ? (
@@ -575,7 +626,7 @@ export function Header() {
       </div>
 
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-border bg-[#0F172A] max-h-[calc(100dvh-7rem)] overflow-y-auto" data-testid="mobile-menu">
+        <nav id="elite-mobile-navigation" aria-label="Mobile navigation" className="elite-header-mobile lg:hidden border-t border-border bg-[#0F172A]" data-testid="mobile-menu">
           <div className="container mx-auto px-4 py-4 space-y-1">
             {user && (
               <div className="flex items-center gap-3 px-3 py-3 mb-3 rounded-lg bg-slate-800/50">
@@ -598,15 +649,14 @@ export function Header() {
             )}
 
             {!user && (
-              <Link href="/login">
-                <button
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="w-full flex items-center gap-3 px-3 py-3 rounded-lg bg-[#10B981] text-white font-bold text-sm mb-3"
-                  data-testid="mobile-sign-in-btn"
-                >
-                  <Zap className="w-5 h-5 fill-current" />
-                  <span>Sign In</span>
-                </button>
+              <Link
+                href="/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-lg bg-[#10B981] text-white font-bold text-sm mb-3"
+                data-testid="mobile-sign-in-btn"
+              >
+                <Zap className="w-5 h-5 fill-current" />
+                <span>Sign In</span>
               </Link>
             )}
 
@@ -909,7 +959,7 @@ export function Header() {
               </>
             )}
           </div>
-        </div>
+        </nav>
       )}
     </header>
   );
