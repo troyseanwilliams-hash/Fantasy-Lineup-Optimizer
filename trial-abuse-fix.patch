@@ -1,0 +1,30 @@
+diff --git a/server/stripe.ts b/server/stripe.ts
+index 33a90da..150b9c6 100644
+--- a/server/stripe.ts
++++ b/server/stripe.ts
+@@ -106,6 +106,14 @@ async function getOrCreateValidCustomer(
+   return customer.id;
+ }
+ 
++/** True when this Stripe customer already has (or had) a real subscription, so they
++ *  must not get another free trial. Abandoned checkouts leave "incomplete" subscriptions
++ *  behind (they carry a trial_start too), so those are ignored. */
++async function customerHasHadTrial(customerId: string): Promise<boolean> {
++  const subs = await stripe!.subscriptions.list({ customer: customerId, status: "all", limit: 100 });
++  return subs.data.some((s) => s.status !== "incomplete" && s.status !== "incomplete_expired");
++}
++
+ export async function createSubscriptionWithIntent(
+   userId: string,
+   email: string,
+@@ -119,7 +127,9 @@ export async function createSubscriptionWithIntent(
+   const sub = await storage.getSubscription(userId);
+   const customerId = await getOrCreateValidCustomer(userId, email, sub);
+ 
+-  const hasHadTrial = !!(sub?.stripeSubscriptionId && (sub.status === "active" || sub.status === "trialing" || sub.status === "past_due"));
++  const localHadTrial = !!(sub?.stripeSubscriptionId && (sub.status === "active" || sub.status === "trialing" || sub.status === "past_due"));
++  // Also ask Stripe, so someone who cancelled cannot restart a free trial every month.
++  const hasHadTrial = localHadTrial || (await customerHasHadTrial(customerId));
+ 
+   const subscriptionParams: Stripe.SubscriptionCreateParams = {
+     customer: customerId,

@@ -1,0 +1,119 @@
+diff --git a/server/auth-guards.ts b/server/auth-guards.ts
+new file mode 100644
+index 0000000..c142827
+--- /dev/null
++++ b/server/auth-guards.ts
+@@ -0,0 +1,50 @@
++import type { Request, Response, NextFunction } from "express";
++
++/** Lowercase + trim an email. Returns "" when the value is not a string. */
++export function normalizeEmail(value: unknown): string {
++  return typeof value === "string" ? value.trim().toLowerCase() : "";
++}
++
++/** Deliberately loose: one @, something on each side, a dot in the domain. */
++export function isPlausibleEmail(email: string): boolean {
++  return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
++}
++
++type Bucket = { count: number; resetAt: number };
++
++/**
++ * Tiny in-memory rate limiter (no dependency). Counts requests per key within
++ * a window and answers 429 once the limit is passed. Resets on server restart,
++ * which is fine for blocking password guessing and signup bots.
++ */
++export function rateLimit(opts: {
++  windowMs: number;
++  max: number;
++  key?: (req: Request) => string;
++  message?: string;
++}) {
++  const buckets = new Map<string, Bucket>();
++  const sweep = setInterval(() => {
++    const now = Date.now();
++    for (const [k, b] of buckets) if (b.resetAt <= now) buckets.delete(k);
++  }, 60_000);
++  sweep.unref?.();
++
++  return (req: Request, res: Response, next: NextFunction) => {
++    const key = opts.key ? opts.key(req) : req.ip || "unknown";
++    const now = Date.now();
++    let bucket = buckets.get(key);
++    if (!bucket || bucket.resetAt <= now) {
++      bucket = { count: 0, resetAt: now + opts.windowMs };
++      buckets.set(key, bucket);
++    }
++    bucket.count += 1;
++    if (bucket.count > opts.max) {
++      res.setHeader("Retry-After", String(Math.ceil((bucket.resetAt - now) / 1000)));
++      return res
++        .status(429)
++        .json({ message: opts.message || "Too many attempts. Please wait a few minutes and try again." });
++    }
++    next();
++  };
++}
+diff --git a/server/replit_integrations/auth/replitAuth.ts b/server/replit_integrations/auth/replitAuth.ts
+index ef26f54..e341a10 100644
+--- a/server/replit_integrations/auth/replitAuth.ts
++++ b/server/replit_integrations/auth/replitAuth.ts
+@@ -5,6 +5,15 @@ import bcrypt from "bcryptjs";
+ import { authStorage } from "./storage";
+ import { recordFunnelEvent } from "../../funnel";
+ import { PUBLIC_SIGNUP_ENABLED } from "@shared/platform-config";
++import { isPlausibleEmail, normalizeEmail, rateLimit } from "../../auth-guards";
++
++const registerLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 10 });
++const loginIpLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
++const loginEmailLimiter = rateLimit({
++  windowMs: 15 * 60 * 1000,
++  max: 8,
++  key: (req) => `email:${normalizeEmail(req.body?.email) || req.ip}`,
++});
+ 
+ export function getSession() {
+   const sessionTtl = 7 * 24 * 60 * 60 * 1000;
+@@ -33,19 +42,24 @@ export async function setupAuth(app: Express) {
+   app.set("trust proxy", 1);
+   app.use(getSession());
+ 
+-  app.post("/api/auth/register", async (req, res) => {
++  app.post("/api/auth/register", registerLimiter, async (req, res) => {
+     if (!PUBLIC_SIGNUP_ENABLED) {
+       return res.status(403).json({ message: "New account registration is temporarily closed." });
+     }
+ 
+     try {
+-      const { email, password, firstName, lastName, phone, smsConsent, emailConsent } = req.body;
++      const { email: rawEmail, password, firstName, lastName, phone, smsConsent, emailConsent } = req.body;
++      const email = normalizeEmail(rawEmail);
+       recordFunnelEvent("signup_attempt", { email, req });
+       if (!email || !password) {
+         recordFunnelEvent("signup_error", { email, errorReason: "missing email or password", req });
+         return res.status(400).json({ message: "Email and password are required." });
+       }
+-      if (password.length < 6) {
++      if (!isPlausibleEmail(email)) {
++        recordFunnelEvent("signup_error", { email, errorReason: "invalid email format", req });
++        return res.status(400).json({ message: "Please enter a valid email address." });
++      }
++      if (typeof password !== "string" || password.length < 6) {
+         recordFunnelEvent("signup_error", { email, errorReason: "password too short", req });
+         return res.status(400).json({ message: "Password must be at least 6 characters." });
+       }
+@@ -82,10 +96,11 @@ export async function setupAuth(app: Express) {
+     }
+   });
+ 
+-  app.post("/api/auth/login", async (req, res) => {
++  app.post("/api/auth/login", loginIpLimiter, loginEmailLimiter, async (req, res) => {
+     try {
+-      const { email, password } = req.body;
+-      if (!email || !password) {
++      const email = normalizeEmail(req.body?.email);
++      const password = req.body?.password;
++      if (!email || typeof password !== "string" || !password) {
+         return res.status(400).json({ message: "Email and password are required." });
+       }
+ 
