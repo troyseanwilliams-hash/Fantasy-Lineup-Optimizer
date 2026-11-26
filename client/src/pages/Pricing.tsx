@@ -92,13 +92,13 @@ export default function Pricing() {
     },
   });
 
-  const starPrice = isAdmin ? "$0" : billing === "monthly" ? "$19.99" : "$200";
+  const starPrice = isAdmin ? "$0" : billing === "monthly" ? "$19.99" : "$199.90";
   const starPeriod = isAdmin ? "/month" : billing === "monthly" ? "/month" : "/year";
-  const starSavings = !isAdmin && billing === "annual" ? "Save $39.88/yr" : null;
+  const starSavings = !isAdmin && billing === "annual" ? "Save $39.98/yr" : null;
 
-  const proPrice = isAdmin ? "$0" : billing === "monthly" ? "$39.99" : "$400";
+  const proPrice = isAdmin ? "$0" : billing === "monthly" ? "$39.99" : "$399.90";
   const proPeriod = isAdmin ? "/month" : billing === "monthly" ? "/month" : "/year";
-  const proSavings = !isAdmin && billing === "annual" ? "Save $79.88/yr" : null;
+  const proSavings = !isAdmin && billing === "annual" ? "Save $79.98/yr" : null;
 
   return (
     <div className="container mx-auto px-4 py-16 max-w-6xl relative">

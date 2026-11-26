@@ -1,0 +1,37 @@
+diff --git a/client/src/components/PaymentForm.tsx b/client/src/components/PaymentForm.tsx
+index 0d535e5..793e815 100644
+--- a/client/src/components/PaymentForm.tsx
++++ b/client/src/components/PaymentForm.tsx
+@@ -236,8 +236,8 @@ export function PaymentModal({ tier, billing, onSuccess, onCancel }: PaymentForm
+ 
+   const tierName = tier === "pro" ? "Champion" : "Sharpshooter";
+   const price = tier === "pro"
+-    ? (billing === "annual" ? "$400/year" : "$39.99/month")
+-    : (billing === "annual" ? "$200/year" : "$19.99/month");
++    ? (billing === "annual" ? "$399.90/year" : "$39.99/month")
++    : (billing === "annual" ? "$199.90/year" : "$19.99/month");
+   const isTrial = createIntentMutation.data?.isTrial ?? false;
+ 
+   return (
+diff --git a/client/src/pages/Pricing.tsx b/client/src/pages/Pricing.tsx
+index 88cb887..02acae9 100644
+--- a/client/src/pages/Pricing.tsx
++++ b/client/src/pages/Pricing.tsx
+@@ -92,13 +92,13 @@ export default function Pricing() {
+     },
+   });
+ 
+-  const starPrice = isAdmin ? "$0" : billing === "monthly" ? "$19.99" : "$200";
++  const starPrice = isAdmin ? "$0" : billing === "monthly" ? "$19.99" : "$199.90";
+   const starPeriod = isAdmin ? "/month" : billing === "monthly" ? "/month" : "/year";
+-  const starSavings = !isAdmin && billing === "annual" ? "Save $39.88/yr" : null;
++  const starSavings = !isAdmin && billing === "annual" ? "Save $39.98/yr" : null;
+ 
+-  const proPrice = isAdmin ? "$0" : billing === "monthly" ? "$39.99" : "$400";
++  const proPrice = isAdmin ? "$0" : billing === "monthly" ? "$39.99" : "$399.90";
+   const proPeriod = isAdmin ? "/month" : billing === "monthly" ? "/month" : "/year";
+-  const proSavings = !isAdmin && billing === "annual" ? "Save $79.88/yr" : null;
++  const proSavings = !isAdmin && billing === "annual" ? "Save $79.98/yr" : null;
+ 
+   return (
+     <div className="container mx-auto px-4 py-16 max-w-6xl relative">

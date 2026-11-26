@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
-import { ACTIVE_SPORTS, FEATURE_VISIBILITY } from "@shared/platform-config";
+import { ACTIVE_SPORTS, COMING_SOON_SPORTS, FEATURE_VISIBILITY, PUBLIC_SIGNUP_ENABLED } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 import { parseGameInfo, sanitizeGameInfo } from "@/lib/game-info";
 import { TutorialOverlay, useTutorial } from "@/components/TutorialOverlay";
@@ -1453,176 +1453,130 @@ export default function Home() {
   });
 
   if (!user) {
+    const features = [
+      { id: "pro-optimizer", icon: Layers, title: "Pro Optimizer", text: "Boost scoring, ceiling and leverage modes, correlation stacking, exposure management and batch lineup generation." },
+      { id: "monte-carlo", icon: Dice5, title: "Monte Carlo simulation", text: "Simulate whole games with player, team and game-level variance to find high-ceiling GPP lineups." },
+      { id: "ownership", icon: BarChart3, title: "Ownership heatmap", text: "See projected ownership by position across any slate. Spot the chalk and the contrarian pivots." },
+      { id: "dk-vault", icon: Upload, title: "DK Vault", text: "Import your DraftKings contest entries, edit rosters, bulk regenerate and export back to a DK-ready CSV." },
+      { id: "win-agent", icon: Brain, title: "Winning Lineup Agent", text: "Builds hindsight-optimal lineups from real box scores and tunes future projections from what it learns." },
+      { id: "props", icon: TrendingUp, title: "Props and PrizePicks", text: "Prop analysis and an entry builder with live projections and confidence ratings." },
+    ];
+    const platforms = [
+      { id: "dk", icon: Zap, name: "DraftKings", text: "Real salaries, LP-based optimization and instant lineup building." },
+      { id: "fd", icon: Swords, name: "FanDuel", text: "Platform-specific salary caps and positions, with contest-ready CSV export." },
+      { id: "yahoo", icon: Star, name: "Yahoo DFS", text: "Accurate salary data and lineup export formatted for Yahoo upload." },
+      { id: "pp", icon: TrendingUp, name: "PrizePicks", text: "Entry builder with live projections and smart pick combinations." },
+    ];
     return (
-      <div className="min-h-[calc(100vh-80px)] relative bg-[#0F172A]">
-        <img src={heroBg} alt="" className="absolute inset-0 w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-[#0F172A]" />
-        <div className="relative z-10 flex flex-col items-center min-h-[calc(100vh-80px)]">
-          <div className="text-center px-4 max-w-4xl pt-16 md:pt-24">
-            <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-volt-500/10 border border-volt-500/20 text-volt-400 text-sm font-bold mb-8 backdrop-blur-sm">
-              <Zap className="w-4 h-4 mr-2 fill-current" />
-              AI-Powered DFS Optimizer
+      <div className="relative bg-[#0B0F14] text-slate-100" data-testid="landing-page">
+        <img src={heroBg} alt="" className="absolute inset-x-0 top-0 w-full h-[640px] object-cover opacity-20" />
+        <div className="absolute inset-x-0 top-0 h-[640px] bg-gradient-to-b from-[#0B0F14]/40 via-[#0B0F14]/80 to-[#0B0F14]" />
+        <div className="relative z-10 max-w-6xl mx-auto px-6">
+
+          <section className="pt-16 md:pt-24 pb-14 max-w-3xl">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-volt-500/10 border border-volt-500/25 text-volt-400 text-sm font-semibold mb-6" data-testid="landing-nba-highlight">
+              <span className="w-2 h-2 rounded-full bg-volt-500" />
+              {ACTIVE_SPORTS.join(", ")} slates are live
             </div>
-            <h1 className="text-6xl md:text-8xl font-black text-white mb-6 leading-[1.05] tracking-tight drop-shadow-2xl">
-              Win More at<br />
-              <span className="text-gradient-green">DFS</span>
+            <h1 className="text-5xl md:text-7xl font-black text-white leading-[1.04] tracking-tight mb-5">
+              Build sharper DFS lineups for tonight&apos;s slate.
             </h1>
-            <p className="text-xl text-slate-300 mb-4 max-w-2xl mx-auto leading-relaxed">
-              AI lineup optimizer for DraftKings & FanDuel. Monte Carlo simulation, ownership projections, prop picks, and multi-entry max tools — across all sports.
+            <p className="text-lg md:text-xl text-slate-400 leading-relaxed mb-8 max-w-2xl">
+              AI lineup optimizer for DraftKings, FanDuel and Yahoo. Monte Carlo simulation, ownership projections, prop picks and multi-entry tools in one place.
             </p>
-            <div className="flex items-center justify-center gap-3 flex-wrap mb-6 text-sm text-slate-400 font-bold">
-              <span className="flex items-center gap-1.5 rounded-full border border-orange-400/40 bg-orange-500/15 px-3 py-1.5 text-orange-300" data-testid="landing-nba-highlight"><Dribbble className="w-4 h-4" /> NBA Optimizer &amp; Simulations Enabled</span>
-              {FEATURE_VISIBILITY.draftHub && <><span className="flex items-center gap-1.5"><Circle className="w-2 h-2 text-amber-400 fill-current animate-pulse" /> NFL Draft Hub Live</span><span className="text-slate-700">·</span></>}
-              <span className="flex items-center gap-1.5"><Flag className="w-3.5 h-3.5 text-lime-400" /> Golf Active</span>
-              <span className="text-slate-700">·</span>
-              <span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5 text-blue-400" /> NFL DFS Live</span>
+            <div className="flex items-center gap-3 flex-wrap mb-5">
+              <Button
+                onClick={() => (window.location.href = "/login")}
+                className="h-14 px-8 text-lg font-black bg-volt-500 hover:bg-volt-600 text-[#0B0F14]"
+                data-testid="login-btn"
+              >
+                {PUBLIC_SIGNUP_ENABLED ? "Get started free" : "Sign in"}
+              </Button>
+              <Link href="/pricing">
+                <Button variant="outline" className="h-14 px-7 text-lg font-semibold border-slate-600 text-slate-100 bg-transparent hover:bg-white/5">
+                  See plans
+                </Button>
+              </Link>
             </div>
-            <div className="flex items-center justify-center gap-3 flex-wrap mb-8">
+            <p className="text-sm text-slate-500 mb-6">Free plan includes 1 optimized lineup. Paid plans start with a 7-day free trial.</p>
+            <div className="flex items-center gap-2 flex-wrap">
               {ACTIVE_SPORTS.map(sport => {
                 const meta = SPORT_META[sport];
                 const Icon = meta?.icon || Zap;
                 return (
-                  <Badge key={sport} className="bg-volt-500/10 text-volt-300 border-volt-500/25 font-bold text-sm px-3 py-1.5 backdrop-blur-sm gap-1.5" data-testid={`unauth-sport-${sport.toLowerCase()}`}>
+                  <Badge key={sport} className="bg-white/5 text-slate-200 border-white/10 font-semibold text-sm px-3 py-1.5 gap-1.5" data-testid={`unauth-sport-${sport.toLowerCase()}`}>
                     <Icon className="w-3.5 h-3.5" />
                     {sport}
                   </Badge>
                 );
               })}
-              {FEATURE_VISIBILITY.draftHub && <Badge className="bg-amber-500/10 text-amber-300 border-amber-500/25 font-bold text-sm px-3 py-1.5 backdrop-blur-sm gap-1.5">
-                🏈 NFL Draft SZN
-              </Badge>}
+              {FEATURE_VISIBILITY.draftHub && <Badge className="bg-amber-500/10 text-amber-300 border-amber-500/25 font-semibold text-sm px-3 py-1.5">NFL Draft Hub</Badge>}
             </div>
-            <Button
-              onClick={() => (window.location.href = "/login")}
-              className="h-16 px-12 text-xl font-black bg-volt-500 hover:bg-volt-600 text-white shadow-2xl shadow-volt-500/30 mb-12"
-              data-testid="login-btn"
-            >
-              Get Started Free
-            </Button>
+          </section>
 
-            <DraftHubHero />
+          {FEATURE_VISIBILITY.draftHub && <DraftHubHero />}
+          <LandingTopPlays />
+          {COMING_SOON_SPORTS.includes("NFL") && <NFLFallTeaser />}
 
-            <LandingTopPlays />
-
-            <NFLFallTeaser />
-
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-12 max-w-5xl mx-auto">
-              <div className="bg-white/5 border border-volt-500/20 rounded-xl p-5 backdrop-blur-sm text-left" data-testid="unauth-card-dk">
-                <div className="flex items-center gap-2.5 mb-2">
-                  <div className="w-8 h-8 rounded-lg bg-volt-500/20 flex items-center justify-center">
-                    <Zap className="w-4 h-4 text-volt-400 fill-current" />
+          <section className="py-14" id="platforms">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {platforms.map(p => (
+                <div key={p.id} className="bg-[#121820] border border-slate-800 rounded-xl p-5" data-testid={`unauth-card-${p.id}`}>
+                  <div className="flex items-center gap-2.5 mb-2">
+                    <div className="w-8 h-8 rounded-lg bg-volt-500/15 flex items-center justify-center"><p.icon className="w-4 h-4 text-volt-400" /></div>
+                    <h3 className="text-base font-bold text-white">{p.name}</h3>
                   </div>
-                  <h3 className="text-base font-black text-white">DraftKings</h3>
+                  <p className="text-sm text-slate-400 leading-relaxed">{p.text}</p>
                 </div>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Optimized DFS lineups with real player salaries, LP-based optimization, and instant lineup building across all sports.
-                </p>
-              </div>
-              <div className="bg-white/5 border border-blue-500/20 rounded-xl p-5 backdrop-blur-sm text-left" data-testid="unauth-card-fd">
-                <div className="flex items-center gap-2.5 mb-2">
-                  <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                    <Swords className="w-4 h-4 text-blue-400" />
-                  </div>
-                  <h3 className="text-base font-black text-white">FanDuel</h3>
-                </div>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Full FanDuel slate support with platform-specific salary caps, position requirements, and contest-ready CSV export.
-                </p>
-              </div>
-              <div className="bg-white/5 border border-violet-500/20 rounded-xl p-5 backdrop-blur-sm text-left" data-testid="unauth-card-yahoo">
-                <div className="flex items-center gap-2.5 mb-2">
-                  <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
-                    <Star className="w-4 h-4 text-violet-400" />
-                  </div>
-                  <h3 className="text-base font-black text-white">Yahoo DFS</h3>
-                </div>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Yahoo DFS optimization with accurate salary data, multi-sport support, and lineup export formatted for Yahoo upload.
-                </p>
-              </div>
-              <div className="bg-white/5 border border-purple-500/20 rounded-xl p-5 backdrop-blur-sm text-left" data-testid="unauth-card-pp">
-                <div className="flex items-center gap-2.5 mb-2">
-                  <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                    <TrendingUp className="w-4 h-4 text-purple-400" />
-                  </div>
-                  <h3 className="text-base font-black text-white">PrizePicks</h3>
-                </div>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  AI-powered entry builder with live projections, confidence ratings, and smart pick combinations for max payouts.
-                </p>
-              </div>
+              ))}
             </div>
-            <p className="text-sm text-slate-400 mb-16">1 optimized lineup included. Upgrade for more.</p>
+          </section>
 
-            <div className="max-w-5xl mx-auto" data-testid="feature-showcase">
-              <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-bold mb-8 backdrop-blur-sm">
-                <Crown className="w-4 h-4 mr-2" />
-                Platform Features
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 text-left mb-10">
-                <div className="bg-white/5 border border-cyan-500/20 rounded-xl p-6 backdrop-blur-sm" data-testid="feature-dk-vault">
+          <section className="pb-14" data-testid="feature-showcase">
+            <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight mb-2">Everything you need before lock</h2>
+            <p className="text-slate-400 text-lg mb-8 max-w-2xl">One workflow from slate to upload, built around the tools serious players already use.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {features.map(f => (
+                <div key={f.id} className="bg-[#121820] border border-slate-800 rounded-xl p-6" data-testid={`feature-${f.id}`}>
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
-                      <Upload className="w-5 h-5 text-cyan-400" />
-                    </div>
-                    <h3 className="text-lg font-black text-white">DK Vault Integration</h3>
+                    <div className="w-10 h-10 rounded-lg bg-volt-500/15 flex items-center justify-center"><f.icon className="w-5 h-5 text-volt-400" /></div>
+                    <h3 className="text-lg font-bold text-white">{f.title}</h3>
                   </div>
-                  <p className="text-sm text-slate-400 leading-relaxed">
-                    Import your DraftKings contest entries directly into the Vault. Edit rosters, swap players, bulk regenerate with AI, and export back in DK-ready CSV format — all from one place.
-                  </p>
+                  <p className="text-sm text-slate-400 leading-relaxed">{f.text}</p>
                 </div>
-
-                <div className="bg-white/5 border border-amber-500/20 rounded-xl p-6 backdrop-blur-sm" data-testid="feature-win-agent">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
-                      <Brain className="w-5 h-5 text-amber-400" />
-                    </div>
-                    <h3 className="text-lg font-black text-white">Winning Lineup Agent</h3>
-                  </div>
-                  <p className="text-sm text-slate-400 leading-relaxed">
-                    Our AI analyzes every completed slate to build "perfect hindsight" lineups using actual box scores. It learns salary efficiency, projection accuracy, and value patterns — then auto-tunes future projections.
-                  </p>
-                </div>
-
-                <div className="bg-white/5 border border-violet-500/20 rounded-xl p-6 backdrop-blur-sm" data-testid="feature-monte-carlo">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-lg bg-violet-500/20 flex items-center justify-center">
-                      <Dice5 className="w-5 h-5 text-violet-400" />
-                    </div>
-                    <h3 className="text-lg font-black text-white">Monte Carlo Simulation</h3>
-                  </div>
-                  <p className="text-sm text-slate-400 leading-relaxed">
-                    Simulate entire games hundreds of times with realistic variance — player-level, team-level, and game-level randomness. NFL QB cascade drives natural stacking. Find lineups that are both high-ceiling and consistent for GPP tournaments.
-                  </p>
-                </div>
-
-                <div className="bg-white/5 border border-volt-500/20 rounded-xl p-6 backdrop-blur-sm" data-testid="feature-pro-optimizer">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-lg bg-volt-500/20 flex items-center justify-center">
-                      <Layers className="w-5 h-5 text-volt-400" />
-                    </div>
-                    <h3 className="text-lg font-black text-white">Pro Optimizer</h3>
-                  </div>
-                  <p className="text-sm text-slate-400 leading-relaxed">
-                    Advanced optimization with boost engine scoring, ceiling and leverage modes, correlation stacking, exposure management, and batch lineup generation up to 20 at once.
-                  </p>
-                </div>
-
-                <div className="bg-white/5 border border-purple-500/20 rounded-xl p-6 backdrop-blur-sm" data-testid="feature-ownership">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                      <BarChart3 className="w-5 h-5 text-purple-400" />
-                    </div>
-                    <h3 className="text-lg font-black text-white">Ownership Heatmap</h3>
-                  </div>
-                  <p className="text-sm text-slate-400 leading-relaxed">
-                    See projected ownership by position across any slate. Identify chalk plays and contrarian pivots for GPP tournaments with contest-type-specific projections.
-                  </p>
-                </div>
-              </div>
+              ))}
             </div>
-          </div>
+          </section>
+
+          <section className="pb-14">
+            <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight mb-8">How it works</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {[
+                ["1. Pick a slate", "Choose your sport, platform and contest from the day's slates."],
+                ["2. Tune and simulate", "Lock, exclude and boost players, then run simulations on your pool."],
+                ["3. Export and enter", "Download a CSV formatted for DraftKings, FanDuel or Yahoo."],
+              ].map(([t, d]) => (
+                <div key={t} className="border-t-2 border-volt-500 pt-4">
+                  <div className="font-bold text-volt-400 mb-1">{t}</div>
+                  <div className="text-sm text-slate-400 leading-relaxed">{d}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="mb-14 bg-[#121820] border border-slate-800 rounded-2xl p-8 md:p-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div>
+              <h2 className="text-2xl md:text-3xl font-black text-white mb-2">Start free. Upgrade when it pays for itself.</h2>
+              <p className="text-slate-400">Contender is free. Sharpshooter is $19.99 a month and Champion is $39.99, each with a 7-day free trial.</p>
+            </div>
+            <Link href="/pricing">
+              <Button className="h-14 px-8 text-lg font-black bg-volt-500 hover:bg-volt-600 text-[#0B0F14] shrink-0">Compare plans</Button>
+            </Link>
+          </section>
+
+          <footer className="border-t border-slate-800 py-8 text-sm text-slate-500">
+            EliteLineup AI. For entertainment and research. Daily fantasy sports involves risk; play responsibly.
+          </footer>
         </div>
       </div>
     );
