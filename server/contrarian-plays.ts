@@ -25,7 +25,9 @@ export interface ContrarianPlay {
   score: number;
 }
 
-const OUT = new Set(["OUT", "INJ", "O", "IR", "SUS", "NA", "DOUBTFUL"]);
+// Questionable / game-time players look low-owned only because the ownership model suppresses
+// them for injury risk, so they are not real contrarian plays.
+const OUT = new Set(["OUT", "INJ", "O", "IR", "SUS", "NA", "DOUBTFUL", "D", "QUESTIONABLE", "Q", "GTD"]);
 const MAX_OWNERSHIP = 10;       // never call a >10% player contrarian
 const MATCHUP_SNEAKY = 1.04;    // DvP multiplier that counts as a soft spot
 
