@@ -11,6 +11,19 @@ export default {
         sm: ".1875rem", /* 3px */
       },
       colors: {
+        volt: {
+          50: "#FAFFEB",
+          100: "#F4FFC9",
+          200: "#E9FF7A",
+          300: "#DFFF5C",
+          400: "#D7FF3E",
+          500: "#C4F82E",
+          600: "#A8D92A",
+          700: "#86B324",
+          800: "#5C7F1D",
+          900: "#3D5518",
+          950: "#222E0C",
+        },
         // Flat / base colors (regular buttons)
         background: "hsl(var(--background) / <alpha-value>)",
         foreground: "hsl(var(--foreground) / <alpha-value>)",
@@ -86,6 +99,8 @@ export default {
         sans: ["var(--font-sans)"],
         serif: ["var(--font-serif)"],
         mono: ["var(--font-mono)"],
+        archivo: ["Archivo", "Inter", "sans-serif"],
+        anton: ["Anton", "Archivo", "sans-serif"],
       },
       keyframes: {
         "accordion-down": {

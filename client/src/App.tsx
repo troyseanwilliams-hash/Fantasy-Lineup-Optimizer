@@ -58,8 +58,8 @@ function Router() {
 
   if (isLoading) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-[#0F172A]">
-        <Loader2 className="w-10 h-10 text-emerald-500 animate-spin" />
+      <div className="h-screen w-screen flex items-center justify-center bg-[#0A0A0C]">
+        <Loader2 className="w-10 h-10 text-volt-500 animate-spin" />
       </div>
     );
   }
@@ -73,7 +73,7 @@ function Router() {
   }
 
   return (
-    <div className={`flex flex-col ${isOptimizer ? "h-[100dvh] overflow-hidden" : isOnboarding || isLoginPage ? "" : "min-h-screen"} bg-[#0F172A]`}>
+    <div className={`flex flex-col ${isOptimizer ? "h-[100dvh] overflow-hidden" : isOnboarding || isLoginPage ? "" : "min-h-screen"} bg-[#0A0A0C]`}>
       {!isOnboarding && !isLoginPage && <Header />}
       <main className={isOptimizer ? "min-h-0 flex-1 overflow-y-auto" : "flex-grow"} data-testid={isOptimizer ? "optimizer-page-scroll" : undefined}>
         <Switch>

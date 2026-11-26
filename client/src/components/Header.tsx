@@ -117,7 +117,7 @@ export function Header() {
   return (
     <header
       ref={headerRef}
-      className="elite-header sticky top-0 z-50 bg-[#0F172A] border-b border-[#1E293B]"
+      className="elite-header sticky top-0 z-50 bg-[#0A0A0C] border-b border-white/10"
       data-testid="site-header"
       onKeyDown={(event) => {
         if (event.key === "Escape" && mobileMenuOpen) {
@@ -154,7 +154,7 @@ export function Header() {
                     <ChevronDown className="w-3 h-3 opacity-50" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="elite-header-menu w-72 bg-[#1E293B] border-border">
+                <DropdownMenuContent align="start" className="elite-header-menu w-72 bg-[#141416] border-border">
                   {ACTIVE_SPORTS.map((sport, idx) => {
                     const meta = SPORT_META[sport] || { icon: Dribbble, color: "text-slate-400", bgColor: "bg-slate-500/20" };
                     const Icon = meta.icon;
@@ -184,16 +184,16 @@ export function Header() {
                         {bestSlate ? (
                           <Link href={`/optimizer/${bestSlate.id}`}>
                             <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-dk`}>
-                              <div className="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center mr-2 shrink-0">
-                                <span className="text-emerald-400 font-black text-[11px]">DK</span>
+                              <div className="w-6 h-6 rounded bg-volt-500/20 flex items-center justify-center mr-2 shrink-0">
+                                <span className="text-volt-400 font-black text-[11px]">DK</span>
                               </div>
                               <span className="text-sm font-bold text-slate-300">{builderLabel}</span>
                             </DropdownMenuItem>
                           </Link>
                         ) : (
                           <DropdownMenuItem disabled className="opacity-50" data-testid={`sport-menu-${sport.toLowerCase()}-dk`}>
-                            <div className="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center mr-2 shrink-0">
-                              <span className="text-emerald-400 font-black text-[11px]">DK</span>
+                            <div className="w-6 h-6 rounded bg-volt-500/20 flex items-center justify-center mr-2 shrink-0">
+                              <span className="text-volt-400 font-black text-[11px]">DK</span>
                             </div>
                             <span className="text-sm font-bold text-slate-300">{sport} DK Builder</span>
                           </DropdownMenuItem>
@@ -201,21 +201,21 @@ export function Header() {
                         {isStar && bestSlate ? (
                           <Link href={`/optimizer-pro/${bestSlate.id}`}>
                             <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-star-dk`}>
-                              <div className="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center mr-2 shrink-0">
-                                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                              <div className="w-6 h-6 rounded bg-volt-500/20 flex items-center justify-center mr-2 shrink-0">
+                                <Sparkles className="w-3.5 h-3.5 text-volt-400" />
                               </div>
-                              <span className="text-sm font-bold text-emerald-300">{sport} Pro Optimizer</span>
-                              <Trophy className="w-3.5 h-3.5 text-emerald-400 ml-auto" />
+                              <span className="text-sm font-bold text-volt-300">{sport} Pro Optimizer</span>
+                              <Trophy className="w-3.5 h-3.5 text-volt-400 ml-auto" />
                             </DropdownMenuItem>
                           </Link>
                         ) : !isPro ? (
                           <Link href="/pricing">
                             <DropdownMenuItem className="cursor-pointer" data-testid={`sport-menu-${sport.toLowerCase()}-star-dk`}>
-                              <div className="w-6 h-6 rounded bg-emerald-500/10 flex items-center justify-center mr-2 shrink-0">
-                                <Lock className="w-3 h-3 text-emerald-500/50" />
+                              <div className="w-6 h-6 rounded bg-volt-500/10 flex items-center justify-center mr-2 shrink-0">
+                                <Lock className="w-3 h-3 text-volt-500/50" />
                               </div>
                               <span className="text-sm font-bold text-slate-500">{sport} Pro Optimizer</span>
-                              <Trophy className="w-3.5 h-3.5 text-emerald-500/40 ml-auto" />
+                              <Trophy className="w-3.5 h-3.5 text-volt-500/40 ml-auto" />
                             </DropdownMenuItem>
                           </Link>
                         ) : null}
@@ -321,7 +321,7 @@ export function Header() {
                 <button
                   className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer outline-none ${
                     ["/props", "/prizepicks", "/showdown", "/player-config", "/player-configuration", "/ownership", "/nfl-mme", "/top-stacks"].includes(currentPath)
-                      ? "text-[#10B981]"
+                      ? "text-[#D7FF3E]"
                       : "text-slate-400 hover:text-white"
                   }`}
                   data-testid="nav-tools"
@@ -331,7 +331,7 @@ export function Header() {
                   <ChevronDown className="w-3 h-3 opacity-50" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="elite-header-menu w-56 bg-[#1E293B] border-border">
+              <DropdownMenuContent align="start" className="elite-header-menu w-56 bg-[#141416] border-border">
                 <Link href="/props">
                   <DropdownMenuItem className="cursor-pointer" data-testid="nav-props">
                     <TrendingUp className="w-4 h-4 mr-2 text-purple-400" />
@@ -340,7 +340,7 @@ export function Header() {
                 </Link>
                 <Link href="/prizepicks">
                   <DropdownMenuItem className="cursor-pointer" data-testid="nav-prizepicks">
-                    <Zap className="w-4 h-4 mr-2 text-emerald-400" />
+                    <Zap className="w-4 h-4 mr-2 text-volt-400" />
                     <span className="text-sm font-bold text-slate-300">PrizePicks</span>
                   </DropdownMenuItem>
                 </Link>
@@ -352,7 +352,7 @@ export function Header() {
                 </Link>
                 <Link href="/top-stacks">
                   <DropdownMenuItem className="cursor-pointer" data-testid="nav-top-stacks">
-                    <GitBranch className="w-4 h-4 mr-2 text-emerald-400" />
+                    <GitBranch className="w-4 h-4 mr-2 text-volt-400" />
                     <span className="text-sm font-bold text-slate-300">Top Stacks</span>
                   </DropdownMenuItem>
                 </Link>
@@ -367,7 +367,7 @@ export function Header() {
                     </Link>
                     <Link href="/scout">
                       <DropdownMenuItem className="cursor-pointer" data-testid="nav-scout">
-                        <Sparkles className="w-4 h-4 mr-2 text-emerald-400" />
+                        <Sparkles className="w-4 h-4 mr-2 text-volt-400" />
                         <span className="text-sm font-bold text-slate-300">AI Scout</span>
                       </DropdownMenuItem>
                     </Link>
@@ -390,7 +390,7 @@ export function Header() {
                   <button
                     className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer outline-none ${
                       ["/lineups", "/live-scores", "/performance", "/track-record", "/winning-lineups"].includes(currentPath)
-                        ? "text-emerald-400"
+                        ? "text-volt-400"
                         : "text-slate-400 hover:text-white"
                     }`}
                     data-testid="nav-my-dfs"
@@ -400,7 +400,7 @@ export function Header() {
                     <ChevronDown className="w-3 h-3 opacity-50" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="elite-header-menu w-56 bg-[#1E293B] border-border">
+                <DropdownMenuContent align="start" className="elite-header-menu w-56 bg-[#141416] border-border">
                   <Link href="/lineups">
                     <DropdownMenuItem className="cursor-pointer" data-testid="nav-vault">
                       <Archive className="w-4 h-4 mr-2 text-slate-400" />
@@ -409,7 +409,7 @@ export function Header() {
                   </Link>
                   <Link href="/track-record">
                     <DropdownMenuItem className="cursor-pointer" data-testid="nav-track-record">
-                      <Award className="w-4 h-4 mr-2 text-emerald-400" />
+                      <Award className="w-4 h-4 mr-2 text-volt-400" />
                       <span className="text-sm font-bold text-slate-300">Track Record</span>
                     </DropdownMenuItem>
                   </Link>
@@ -418,13 +418,13 @@ export function Header() {
                       <DropdownMenuSeparator className="bg-slate-800" />
                       <Link href="/live-scores">
                         <DropdownMenuItem className="cursor-pointer" data-testid="nav-live-scores">
-                          <Activity className="w-4 h-4 mr-2 text-emerald-400" />
+                          <Activity className="w-4 h-4 mr-2 text-volt-400" />
                           <span className="text-sm font-bold text-slate-300">Live Scores</span>
                         </DropdownMenuItem>
                       </Link>
                       <Link href="/performance">
                         <DropdownMenuItem className="cursor-pointer" data-testid="nav-performance">
-                          <BarChart3 className="w-4 h-4 mr-2 text-emerald-400" />
+                          <BarChart3 className="w-4 h-4 mr-2 text-volt-400" />
                           <span className="text-sm font-bold text-slate-300">Performance</span>
                         </DropdownMenuItem>
                       </Link>
@@ -449,7 +449,7 @@ export function Header() {
             {!user && (
               <Link href="/pricing">
                 <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                  currentPath === "/pricing" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
+                  currentPath === "/pricing" ? "text-[#D7FF3E]" : "text-slate-400 hover:text-white"
                 }`} data-testid="nav-pricing">
                   <Crown className="w-4 h-4" />
                   <span>Pricing</span>
@@ -459,7 +459,7 @@ export function Header() {
             {user?.isAdmin && (
               <Link href="/admin">
                 <div className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer ${
-                  currentPath === "/admin" ? "text-[#10B981]" : "text-slate-400 hover:text-white"
+                  currentPath === "/admin" ? "text-[#D7FF3E]" : "text-slate-400 hover:text-white"
                 }`} data-testid="nav-admin">
                   <ShieldAlert className="w-4 h-4" />
                   <span>Admin</span>
@@ -483,13 +483,13 @@ export function Header() {
                     )}
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="elite-header-menu w-80 bg-[#1E293B] border-border">
+                <DropdownMenuContent align="end" className="elite-header-menu w-80 bg-[#141416] border-border">
                   <DropdownMenuLabel className="flex items-center justify-between">
                     <span className="text-xs font-black text-white uppercase tracking-wider">Alerts</span>
                     {unreadCount > 0 && (
                       <button
                         onClick={() => markAllReadMutation.mutate()}
-                        className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 cursor-pointer"
+                        className="text-[11px] font-bold text-volt-400 hover:text-volt-300 cursor-pointer"
                         data-testid="mark-all-read"
                       >
                         Mark all read
@@ -518,7 +518,7 @@ export function Header() {
                             <div className="flex items-center gap-2 mt-1">
                               <Badge className="text-[11px] font-bold bg-slate-800 text-slate-400 border-slate-700 px-1.5 py-0">{alert.sport}</Badge>
                               {!alert.isRead && (
-                                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                                <span className="w-2 h-2 rounded-full bg-volt-400"></span>
                               )}
                             </div>
                           </div>
@@ -544,7 +544,7 @@ export function Header() {
                           <Crown className="w-3 h-3 mr-0.5" /> CHAMPION
                         </Badge>
                       ) : subData?.tier === "star" ? (
-                        <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[11px] font-black px-1.5 py-0">
+                        <Badge className="bg-volt-500/20 text-volt-400 border-volt-500/30 text-[11px] font-black px-1.5 py-0">
                           <Trophy className="w-3 h-3 mr-0.5" /> SHARPSHOOTER
                         </Badge>
                       ) : (
@@ -554,7 +554,7 @@ export function Header() {
                     <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="elite-header-menu w-56 bg-[#1E293B] border-border">
+                <DropdownMenuContent align="end" className="elite-header-menu w-56 bg-[#141416] border-border">
                   <DropdownMenuLabel className="text-slate-400 text-xs font-bold uppercase tracking-wider">Account</DropdownMenuLabel>
                   <DropdownMenuSeparator className="bg-slate-800" />
                   {!isPaid && (
@@ -599,7 +599,7 @@ export function Header() {
             </div>
           ) : (
             <Button asChild
-              className="hidden lg:flex bg-[#10B981] text-white px-8 font-bold rounded-lg h-11"
+              className="hidden lg:flex bg-[#D7FF3E] text-[#0A0A0A] px-8 font-bold rounded-lg h-11"
               data-testid="sign-in-btn"
             >
               <Link href="/login">Sign In</Link>
@@ -626,7 +626,7 @@ export function Header() {
       </div>
 
       {mobileMenuOpen && (
-        <nav id="elite-mobile-navigation" aria-label="Mobile navigation" className="elite-header-mobile lg:hidden border-t border-border bg-[#0F172A]" data-testid="mobile-menu">
+        <nav id="elite-mobile-navigation" aria-label="Mobile navigation" className="elite-header-mobile lg:hidden border-t border-border bg-[#0A0A0C]" data-testid="mobile-menu">
           <div className="container mx-auto px-4 py-4 space-y-1">
             {user && (
               <div className="flex items-center gap-3 px-3 py-3 mb-3 rounded-lg bg-slate-800/50">
@@ -639,7 +639,7 @@ export function Header() {
                     <Crown className="w-3 h-3 mr-0.5" /> CHAMPION
                   </Badge>
                 ) : isStar ? (
-                  <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[11px] font-black px-1.5 py-0 shrink-0">
+                  <Badge className="bg-volt-500/20 text-volt-400 border-volt-500/30 text-[11px] font-black px-1.5 py-0 shrink-0">
                     <Trophy className="w-3 h-3 mr-0.5" /> SHARPSHOOTER
                   </Badge>
                 ) : (
@@ -652,7 +652,7 @@ export function Header() {
               <Link
                 href="/login"
                 onClick={() => setMobileMenuOpen(false)}
-                className="w-full flex items-center gap-3 px-3 py-3 rounded-lg bg-[#10B981] text-white font-bold text-sm mb-3"
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-lg bg-[#D7FF3E] text-[#0A0A0A] font-bold text-sm mb-3"
                 data-testid="mobile-sign-in-btn"
               >
                 <Zap className="w-5 h-5 fill-current" />
@@ -663,7 +663,7 @@ export function Header() {
             <button
               onClick={() => mobileNav("/")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                currentPath === "/" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                currentPath === "/" ? "bg-volt-500/10 text-volt-400" : "text-white hover:bg-slate-800"
               }`}
               data-testid="mobile-nav-home"
             >
@@ -686,7 +686,7 @@ export function Header() {
             <button
               onClick={() => mobileNav("/props")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                currentPath === "/props" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                currentPath === "/props" ? "bg-volt-500/10 text-volt-400" : "text-white hover:bg-slate-800"
               }`}
               data-testid="mobile-nav-props"
             >
@@ -697,7 +697,7 @@ export function Header() {
             <button
               onClick={() => mobileNav("/prizepicks")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                currentPath === "/prizepicks" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                currentPath === "/prizepicks" ? "bg-volt-500/10 text-volt-400" : "text-white hover:bg-slate-800"
               }`}
               data-testid="mobile-nav-prizepicks"
             >
@@ -720,18 +720,18 @@ export function Header() {
             <button
               onClick={() => mobileNav("/top-stacks")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                currentPath === "/top-stacks" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                currentPath === "/top-stacks" ? "bg-volt-500/10 text-volt-400" : "text-white hover:bg-slate-800"
               }`}
               data-testid="mobile-nav-top-stacks"
             >
-              <GitBranch className="w-5 h-5 shrink-0 text-emerald-400" />
+              <GitBranch className="w-5 h-5 shrink-0 text-volt-400" />
               <span>Top Stacks</span>
             </button>
 
             <button
               onClick={() => mobileNav("/lineups")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                currentPath === "/lineups" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                currentPath === "/lineups" ? "bg-volt-500/10 text-volt-400" : "text-white hover:bg-slate-800"
               }`}
               data-testid="mobile-nav-vault"
             >
@@ -769,7 +769,7 @@ export function Header() {
               <button
                 onClick={() => mobileNav("/live-scores")}
                 className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                  currentPath === "/live-scores" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                  currentPath === "/live-scores" ? "bg-volt-500/10 text-volt-400" : "text-white hover:bg-slate-800"
                 }`}
                 data-testid="mobile-nav-live-scores"
               >
@@ -781,7 +781,7 @@ export function Header() {
               <button
                 onClick={() => mobileNav("/performance")}
                 className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                  currentPath === "/performance" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                  currentPath === "/performance" ? "bg-volt-500/10 text-volt-400" : "text-white hover:bg-slate-800"
                 }`}
                 data-testid="mobile-nav-performance"
               >
@@ -793,7 +793,7 @@ export function Header() {
               <button
                 onClick={() => mobileNav("/track-record")}
                 className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                  currentPath === "/track-record" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                  currentPath === "/track-record" ? "bg-volt-500/10 text-volt-400" : "text-white hover:bg-slate-800"
                 }`}
                 data-testid="mobile-nav-track-record"
               >
@@ -805,7 +805,7 @@ export function Header() {
               <button
                 onClick={() => mobileNav("/notifications")}
                 className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                  currentPath === "/notifications" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                  currentPath === "/notifications" ? "bg-volt-500/10 text-volt-400" : "text-white hover:bg-slate-800"
                 }`}
                 data-testid="mobile-nav-notifications"
               >
@@ -817,7 +817,7 @@ export function Header() {
             <button
               onClick={() => mobileNav("/pricing")}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                currentPath === "/pricing" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                currentPath === "/pricing" ? "bg-volt-500/10 text-volt-400" : "text-white hover:bg-slate-800"
               }`}
               data-testid="mobile-nav-pricing"
             >
@@ -864,15 +864,15 @@ export function Header() {
                             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
                             data-testid={`mobile-sport-${sport.toLowerCase()}-dk`}
                           >
-                            <div className="w-5 h-5 rounded bg-emerald-500/20 flex items-center justify-center shrink-0">
-                              <span className="text-emerald-400 font-black text-[10px]">DK</span>
+                            <div className="w-5 h-5 rounded bg-volt-500/20 flex items-center justify-center shrink-0">
+                              <span className="text-volt-400 font-black text-[10px]">DK</span>
                             </div>
                             <span>{builderLabel}</span>
                           </button>
                         ) : (
                           <div className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-slate-600">
-                            <div className="w-5 h-5 rounded bg-emerald-500/10 flex items-center justify-center shrink-0">
-                              <span className="text-emerald-500/40 font-black text-[10px]">DK</span>
+                            <div className="w-5 h-5 rounded bg-volt-500/10 flex items-center justify-center shrink-0">
+                              <span className="text-volt-500/40 font-black text-[10px]">DK</span>
                             </div>
                             <span>DK Builder {sport}</span>
                           </div>
@@ -891,12 +891,12 @@ export function Header() {
                         ) : isStar && bestSlate ? (
                           <button
                             onClick={() => mobileNav(`/optimizer-pro/${bestSlate.id}`)}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-emerald-300 hover:bg-slate-800 transition-colors"
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm font-bold text-volt-300 hover:bg-slate-800 transition-colors"
                             data-testid={`mobile-sport-${sport.toLowerCase()}-star`}
                           >
-                            <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <Sparkles className="w-4 h-4 text-volt-400 shrink-0" />
                             <span>Pro Optimizer {sport}</span>
-                            <Trophy className="w-3.5 h-3.5 text-emerald-400 ml-auto" />
+                            <Trophy className="w-3.5 h-3.5 text-volt-400 ml-auto" />
                           </button>
                         ) : (
                           <button
@@ -935,7 +935,7 @@ export function Header() {
                 <button
                   onClick={() => mobileNav("/admin")}
                   className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
-                    currentPath === "/admin" ? "bg-emerald-500/10 text-emerald-400" : "text-white hover:bg-slate-800"
+                    currentPath === "/admin" ? "bg-volt-500/10 text-volt-400" : "text-white hover:bg-slate-800"
                   }`}
                   data-testid="mobile-nav-admin"
                 >

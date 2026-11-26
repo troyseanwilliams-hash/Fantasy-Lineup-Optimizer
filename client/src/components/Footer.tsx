@@ -16,7 +16,7 @@ export function Footer() {
             </p>
             <a
               href="mailto:support@elitelineupai.com"
-              className="inline-flex items-center gap-2 text-emerald-400 hover:text-emerald-300 text-sm font-semibold transition-colors"
+              className="inline-flex items-center gap-2 text-volt-400 hover:text-volt-300 text-sm font-semibold transition-colors"
               data-testid="footer-support-email"
             >
               <Mail className="w-4 h-4" />
