@@ -1,0 +1,340 @@
+From 9806a3b6c70b3e6f073b524037742a607b854220 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 26 Nov 2026 00:47:20 -0500
+Subject: [PATCH] Ownership: contrarian value plays by position (low-owned,
+ strong projection/value, soft matchups)
+
+New GET /api/ownership/:slateId/contrarian (Champion) and a panel on the Ownership Heatmap.
+Selection is per position: projects above the position median (or strong pts per $1k), owned at
+or below the position median (capped at 10%), ranked by projection x value / ownership, with the
+ESPN defense-vs-position multiplier flagging sneaky matchups.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Jw7aU3J2KgRx4m56V7Bypi
+---
+ client/src/pages/OwnershipHeatmap.tsx |  88 +++++++++++++++++
+ server/contrarian-plays.ts            | 132 ++++++++++++++++++++++++++
+ server/routes.ts                      |  48 ++++++++++
+ 3 files changed, 268 insertions(+)
+ create mode 100644 server/contrarian-plays.ts
+
+diff --git a/client/src/pages/OwnershipHeatmap.tsx b/client/src/pages/OwnershipHeatmap.tsx
+index 59c4f31..db6c454 100644
+--- a/client/src/pages/OwnershipHeatmap.tsx
++++ b/client/src/pages/OwnershipHeatmap.tsx
+@@ -24,6 +24,35 @@ interface OwnershipPlayer {
+   gameInfo: string;
+ }
+ 
++interface ContrarianPlay {
++  playerId: number;
++  name: string;
++  team: string;
++  opponent: string | null;
++  position: string;
++  salary: number;
++  projectedPoints: number;
++  adjustedPoints: number;
++  ownership: number;
++  value: number;
++  positionRank: number;
++  positionCount: number;
++  matchupMultiplier: number | null;
++  tag: "matchup" | "value" | "upside";
++  reason: string;
++}
++
++interface ContrarianData {
++  positions: Record<string, ContrarianPlay[]>;
++  matchupDataUsed?: boolean;
++}
++
++const CONTRARIAN_TAGS: Record<ContrarianPlay["tag"], { label: string; cls: string }> = {
++  matchup: { label: "Sneaky matchup", cls: "bg-purple-500/15 text-purple-300 border-purple-500/30" },
++  value: { label: "Value", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" },
++  upside: { label: "Low-owned upside", cls: "bg-amber-500/15 text-amber-300 border-amber-500/30" },
++};
++
+ interface OwnershipData {
+   slate: { id: number; sport: string; platform: string; startTime: string };
+   positions: Record<string, OwnershipPlayer[]>;
+@@ -452,6 +481,18 @@ export default function OwnershipHeatmap() {
+     staleTime: 60000,
+   });
+ 
++  const { data: contrarianData } = useQuery<ContrarianData>({
++    queryKey: ["/api/ownership", activeSlate?.id, "contrarian", contestType],
++    queryFn: async () => {
++      const res = await fetch(`/api/ownership/${activeSlate!.id}/contrarian?contestType=${contestType}`);
++      if (!res.ok) throw new Error("Failed to fetch contrarian plays");
++      return res.json();
++    },
++    enabled: !!activeSlate && hasAccess,
++    refetchInterval: 300000,
++    staleTime: 60000,
++  });
++
+   if (!user || !hasAccess) {
+     return (
+       <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-6">
+@@ -650,6 +691,53 @@ export default function OwnershipHeatmap() {
+               </div>
+             )}
+ 
++            {contrarianData && Object.keys(contrarianData.positions || {}).length > 0 && (
++              <section className="mb-8" data-testid="contrarian-plays-section">
++                <div className="flex items-center gap-2 mb-1">
++                  <Target className="w-5 h-5 text-purple-400" />
++                  <h2 className="text-lg font-black text-white">Contrarian Value Plays</h2>
++                </div>
++                <p className="text-xs text-slate-400 mb-4">
++                  Players who project well for their position and price but are estimated to be lightly owned
++                  {contrarianData.matchupDataUsed ? ", with extra credit for soft matchups against weak defenses" : ""}.
++                  Ownership here is a modeled estimate.
++                </p>
++                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
++                  {Object.entries(contrarianData.positions).map(([pos, plays]) => (
++                    <Card key={pos} className="bg-[#1E293B] border-purple-500/20 overflow-hidden" data-testid={`contrarian-card-${pos}`}>
++                      <div className="px-4 py-2.5 border-b border-slate-700/50 bg-purple-500/5">
++                        <span className="text-sm font-black text-purple-300">{pos}</span>
++                      </div>
++                      <div className="divide-y divide-slate-800/50">
++                        {plays.map(play => (
++                          <div key={play.playerId} className="px-4 py-3" data-testid={`contrarian-play-${play.playerId}`}>
++                            <div className="flex items-start justify-between gap-3">
++                              <div className="min-w-0">
++                                <p className="text-sm font-bold text-white truncate">{play.name}</p>
++                                <p className="text-[11px] text-slate-400">
++                                  {play.team}{play.opponent ? ` vs ${play.opponent}` : ""} · ${play.salary.toLocaleString()}
++                                </p>
++                              </div>
++                              <div className="text-right shrink-0">
++                                <p className="text-sm font-black text-purple-300">{play.ownership.toFixed(1)}%</p>
++                                <p className="text-[11px] text-slate-400">{play.projectedPoints.toFixed(1)} pts</p>
++                              </div>
++                            </div>
++                            <div className="mt-2 flex items-center gap-2 flex-wrap">
++                              <Badge className={`${CONTRARIAN_TAGS[play.tag].cls} border text-[10px] font-bold`}>
++                                {CONTRARIAN_TAGS[play.tag].label}
++                              </Badge>
++                            </div>
++                            <p className="mt-1.5 text-[11px] text-slate-400 leading-snug">{play.reason}</p>
++                          </div>
++                        ))}
++                      </div>
++                    </Card>
++                  ))}
++                </div>
++              </section>
++            )}
++
+             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+               {positionEntries.map(([position, players]) => (
+                 <Card key={position} className="bg-[#1E293B] border-slate-700/50 overflow-hidden" data-testid={`position-card-${position}`}>
+diff --git a/server/contrarian-plays.ts b/server/contrarian-plays.ts
+new file mode 100644
+index 0000000..74e5a0d
+--- /dev/null
++++ b/server/contrarian-plays.ts
+@@ -0,0 +1,132 @@
++// Contrarian value plays: players who project well for their position and price but are
++// projected to be lightly owned, with a boost for "sneaky" spots against weak defenses.
++// Pure function over data the ownership route already has, so it is cheap and testable.
++
++import type { Player } from "@shared/schema";
++import type { OwnershipResult } from "./ownership-engine";
++import type { DvPContext } from "./dvp-client";
++
++export interface ContrarianPlay {
++  playerId: number;
++  name: string;
++  team: string;
++  opponent: string | null;
++  position: string;
++  salary: number;
++  projectedPoints: number;
++  adjustedPoints: number;
++  ownership: number;
++  value: number;            // projected points per $1k
++  positionRank: number;     // 1 = best adjusted projection at the position
++  positionCount: number;
++  matchupMultiplier: number | null; // >1 = weak defense for this position
++  tag: "matchup" | "value" | "upside";
++  reason: string;
++  score: number;
++}
++
++const OUT = new Set(["OUT", "INJ", "O", "IR", "SUS", "NA", "DOUBTFUL"]);
++const MAX_OWNERSHIP = 10;       // never call a >10% player contrarian
++const MATCHUP_SNEAKY = 1.04;    // DvP multiplier that counts as a soft spot
++
++function median(values: number[]): number {
++  if (values.length === 0) return 0;
++  const s = [...values].sort((a, b) => a - b);
++  return s[Math.floor(s.length / 2)];
++}
++
++export function findContrarianPlays(
++  players: Player[],
++  ownership: OwnershipResult[],
++  opts: {
++    dvp?: DvPContext | null;
++    opponentMap?: Map<string, string>;
++    perPosition?: number;
++  } = {},
++): Record<string, ContrarianPlay[]> {
++  const perPosition = opts.perPosition ?? 3;
++  const ownById = new Map(ownership.map(o => [o.playerId, o.projectedOwnership]));
++  const groups = new Map<string, Player[]>();
++
++  for (const p of players) {
++    if (OUT.has((p.injuryStatus || "").toUpperCase().trim())) continue;
++    if (!(Number(p.projectedPoints) > 0) || !(p.salary > 0)) continue;
++    const pos = p.position.split("/")[0];
++    if (!groups.has(pos)) groups.set(pos, []);
++    groups.get(pos)!.push(p);
++  }
++
++  const result: Record<string, ContrarianPlay[]> = {};
++
++  for (const [pos, group] of Array.from(groups.entries())) {
++    if (group.length < 6) continue; // too few players to call anyone contrarian
++
++    const rows = group.map(p => {
++      const proj = Number(p.projectedPoints) || 0;
++      const team = (p.team || "").toUpperCase();
++      const opp = (opts.opponentMap?.get(team) || p.opponent || "").toUpperCase() || null;
++      const mult = opp && opts.dvp ? opts.dvp.get(`${opp}:${pos.toUpperCase()}`) ?? null : null;
++      const adjusted = mult ? proj * Math.max(0.9, Math.min(1.12, mult)) : proj;
++      return {
++        p, proj, adjusted, opp, mult,
++        own: ownById.get(p.id) ?? 0.5,
++        value: proj / Math.max(p.salary / 1000, 0.1),
++      };
++    });
++
++    const byAdjusted = [...rows].sort((a, b) => b.adjusted - a.adjusted);
++    const rank = new Map(byAdjusted.map((r, i) => [r.p.id, i + 1]));
++    const medProj = median(rows.map(r => r.adjusted)) || 1;
++    const medValue = median(rows.map(r => r.value)) || 1;
++    const medOwn = median(rows.map(r => r.own));
++    const ownCap = Math.min(MAX_OWNERSHIP, Math.max(3, medOwn));
++    const projFloor = medProj * 1.05;
++
++    const picks: ContrarianPlay[] = [];
++    for (const r of rows) {
++      if (r.own > ownCap) continue;
++      const strongProj = r.adjusted >= projFloor;
++      const strongValue = r.value >= medValue * 1.12;
++      const softSpot = (r.mult ?? 1) >= MATCHUP_SNEAKY;
++      if (!(strongProj || (strongValue && r.adjusted >= medProj))) continue;
++
++      const projRatio = r.adjusted / medProj;
++      const valueRatio = r.value / medValue;
++      const score = (projRatio * Math.sqrt(valueRatio)) / Math.pow(r.own + 1, 0.7);
++
++      const tag: ContrarianPlay["tag"] = softSpot ? "matchup" : strongValue ? "value" : "upside";
++      const parts = [
++        `#${rank.get(r.p.id)} of ${rows.length} ${pos}s by projection`,
++        `${r.own.toFixed(1)}% owned`,
++      ];
++      if (strongValue) parts.push(`${r.value.toFixed(1)} pts per $1k`);
++      if (softSpot && r.opp) {
++        parts.push(`${r.opp} defense allows ${Math.round(((r.mult as number) - 1) * 100)}% more than average to ${pos}`);
++      }
++
++      picks.push({
++        playerId: r.p.id,
++        name: r.p.name,
++        team: r.p.team,
++        opponent: r.opp,
++        position: pos,
++        salary: r.p.salary,
++        projectedPoints: Math.round(r.proj * 10) / 10,
++        adjustedPoints: Math.round(r.adjusted * 10) / 10,
++        ownership: Math.round(r.own * 10) / 10,
++        value: Math.round(r.value * 100) / 100,
++        positionRank: rank.get(r.p.id) ?? 0,
++        positionCount: rows.length,
++        matchupMultiplier: r.mult,
++        tag,
++        reason: parts.join(" · "),
++        score: Math.round(score * 1000) / 1000,
++      });
++    }
++
++    picks.sort((a, b) => b.score - a.score);
++    if (picks.length > 0) result[pos] = picks.slice(0, perPosition);
++  }
++
++  return result;
++}
+diff --git a/server/routes.ts b/server/routes.ts
+index 8a053a4..9e61e03 100644
+--- a/server/routes.ts
++++ b/server/routes.ts
+@@ -42,6 +42,7 @@ import { validateClassicEvidence } from "./nfl-classic-readiness";
+ import { nflPortfolioSettingsSchema, type NflPortfolioSettings, type NflPortfolioLineupPolicy, type NflPortfolioReport } from "@shared/nfl-portfolio";
+ import { buildVegasContext } from "./vegas-client";
+ import { buildDvPContext, applyDvPToProjections, buildOpponentMap } from "./dvp-client";
++import { findContrarianPlays } from "./contrarian-plays";
+ import { fetchStartingLineups, getStartingLineupsData, clearLineupsCache } from "./lineups-ingest";
+ import { projectionAccuracyRouter } from "./projection-accuracy-route";
+ import { registerRevenueRoutes, sportScopeViolation } from "./revenue";
+@@ -800,6 +801,53 @@ export async function registerRoutes(
+     }
+   });
+ 
++  // Contrarian value plays: strong projection / value at low projected ownership, with a
++  // boost for soft matchups. Same access rule as the ownership heatmap (Champion).
++  app.get("/api/ownership/:slateId/contrarian", async (req, res) => {
++    try {
++      const userId = getSessionUserId(req);
++      if (!userId) return res.status(401).json({ message: "Not authenticated" });
++
++      const dbUser = await storage.getUser(userId);
++      const isAdmin = dbUser?.isAdmin === true;
++      const sub = await storage.getSubscription(userId);
++      const tier = isAdmin ? "pro" : (sub?.tier || "free");
++      if (tier !== "pro") {
++        return res.status(403).json({ message: "Upgrade to Champion to access contrarian plays" });
++      }
++
++      const slateId = Number(req.params.slateId);
++      const slate = await storage.getSlate(slateId);
++      if (!slate) return res.status(404).json({ message: "Slate not found" });
++
++      const contestType = (req.query.contestType as ContestType) || "gpp_large";
++      const players = await storage.getPlayersBySlate(slateId);
++      if (!players || players.length === 0) {
++        return res.json({ slate: { id: slate.id, sport: slate.sport }, contestType, positions: {}, empty: true });
++      }
++
++      const bdlStats = await fetchBDLStats(slate.sport);
++      const ownershipResults = await calculateOwnership(players, slate.sport, contestType, bdlStats);
++
++      const opponentMap = buildOpponentMap(players);
++      const dvp = await Promise.race([
++        buildDvPContext(opponentMap, slate.sport),
++        new Promise<null>(r => setTimeout(() => r(null), 3000)),
++      ]).catch(() => null);
++
++      const positions = findContrarianPlays(players, ownershipResults, { dvp, opponentMap, perPosition: 3 });
++      res.json({
++        slate: { id: slate.id, sport: slate.sport },
++        contestType,
++        matchupDataUsed: !!dvp && dvp.size > 0,
++        positions,
++      });
++    } catch (err) {
++      console.error("[Contrarian] Error:", err);
++      res.status(500).json({ message: "Failed to fetch contrarian plays" });
++    }
++  });
++
+   app.get("/api/ownership/:slateId/projections", async (req, res) => {
+     try {
+       const userId = getSessionUserId(req);
+-- 
+2.43.0
+

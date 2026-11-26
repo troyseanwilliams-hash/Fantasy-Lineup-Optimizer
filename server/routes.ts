@@ -42,6 +42,7 @@ import { validateClassicEvidence } from "./nfl-classic-readiness";
 import { nflPortfolioSettingsSchema, type NflPortfolioSettings, type NflPortfolioLineupPolicy, type NflPortfolioReport } from "@shared/nfl-portfolio";
 import { buildVegasContext } from "./vegas-client";
 import { buildDvPContext, applyDvPToProjections, buildOpponentMap } from "./dvp-client";
+import { findContrarianPlays } from "./contrarian-plays";
 import { fetchStartingLineups, getStartingLineupsData, clearLineupsCache } from "./lineups-ingest";
 import { projectionAccuracyRouter } from "./projection-accuracy-route";
 import { registerRevenueRoutes, sportScopeViolation } from "./revenue";
@@ -797,6 +798,53 @@ export async function registerRoutes(
     } catch (err) {
       console.error("[Ownership] Error:", err);
       res.status(500).json({ message: "Failed to fetch ownership data" });
+    }
+  });
+
+  // Contrarian value plays: strong projection / value at low projected ownership, with a
+  // boost for soft matchups. Same access rule as the ownership heatmap (Champion).
+  app.get("/api/ownership/:slateId/contrarian", async (req, res) => {
+    try {
+      const userId = getSessionUserId(req);
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const dbUser = await storage.getUser(userId);
+      const isAdmin = dbUser?.isAdmin === true;
+      const sub = await storage.getSubscription(userId);
+      const tier = isAdmin ? "pro" : (sub?.tier || "free");
+      if (tier !== "pro") {
+        return res.status(403).json({ message: "Upgrade to Champion to access contrarian plays" });
+      }
+
+      const slateId = Number(req.params.slateId);
+      const slate = await storage.getSlate(slateId);
+      if (!slate) return res.status(404).json({ message: "Slate not found" });
+
+      const contestType = (req.query.contestType as ContestType) || "gpp_large";
+      const players = await storage.getPlayersBySlate(slateId);
+      if (!players || players.length === 0) {
+        return res.json({ slate: { id: slate.id, sport: slate.sport }, contestType, positions: {}, empty: true });
+      }
+
+      const bdlStats = await fetchBDLStats(slate.sport);
+      const ownershipResults = await calculateOwnership(players, slate.sport, contestType, bdlStats);
+
+      const opponentMap = buildOpponentMap(players);
+      const dvp = await Promise.race([
+        buildDvPContext(opponentMap, slate.sport),
+        new Promise<null>(r => setTimeout(() => r(null), 3000)),
+      ]).catch(() => null);
+
+      const positions = findContrarianPlays(players, ownershipResults, { dvp, opponentMap, perPosition: 3 });
+      res.json({
+        slate: { id: slate.id, sport: slate.sport },
+        contestType,
+        matchupDataUsed: !!dvp && dvp.size > 0,
+        positions,
+      });
+    } catch (err) {
+      console.error("[Contrarian] Error:", err);
+      res.status(500).json({ message: "Failed to fetch contrarian plays" });
     }
   });
 

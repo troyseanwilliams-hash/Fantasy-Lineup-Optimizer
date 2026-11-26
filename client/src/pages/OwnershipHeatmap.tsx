@@ -24,6 +24,35 @@ interface OwnershipPlayer {
   gameInfo: string;
 }
 
+interface ContrarianPlay {
+  playerId: number;
+  name: string;
+  team: string;
+  opponent: string | null;
+  position: string;
+  salary: number;
+  projectedPoints: number;
+  adjustedPoints: number;
+  ownership: number;
+  value: number;
+  positionRank: number;
+  positionCount: number;
+  matchupMultiplier: number | null;
+  tag: "matchup" | "value" | "upside";
+  reason: string;
+}
+
+interface ContrarianData {
+  positions: Record<string, ContrarianPlay[]>;
+  matchupDataUsed?: boolean;
+}
+
+const CONTRARIAN_TAGS: Record<ContrarianPlay["tag"], { label: string; cls: string }> = {
+  matchup: { label: "Sneaky matchup", cls: "bg-purple-500/15 text-purple-300 border-purple-500/30" },
+  value: { label: "Value", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" },
+  upside: { label: "Low-owned upside", cls: "bg-amber-500/15 text-amber-300 border-amber-500/30" },
+};
+
 interface OwnershipData {
   slate: { id: number; sport: string; platform: string; startTime: string };
   positions: Record<string, OwnershipPlayer[]>;
@@ -452,6 +481,18 @@ export default function OwnershipHeatmap() {
     staleTime: 60000,
   });
 
+  const { data: contrarianData } = useQuery<ContrarianData>({
+    queryKey: ["/api/ownership", activeSlate?.id, "contrarian", contestType],
+    queryFn: async () => {
+      const res = await fetch(`/api/ownership/${activeSlate!.id}/contrarian?contestType=${contestType}`);
+      if (!res.ok) throw new Error("Failed to fetch contrarian plays");
+      return res.json();
+    },
+    enabled: !!activeSlate && hasAccess,
+    refetchInterval: 300000,
+    staleTime: 60000,
+  });
+
   if (!user || !hasAccess) {
     return (
       <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-6">
@@ -648,6 +689,53 @@ export default function OwnershipHeatmap() {
                   </div>
                 </Card>
               </div>
+            )}
+
+            {contrarianData && Object.keys(contrarianData.positions || {}).length > 0 && (
+              <section className="mb-8" data-testid="contrarian-plays-section">
+                <div className="flex items-center gap-2 mb-1">
+                  <Target className="w-5 h-5 text-purple-400" />
+                  <h2 className="text-lg font-black text-white">Contrarian Value Plays</h2>
+                </div>
+                <p className="text-xs text-slate-400 mb-4">
+                  Players who project well for their position and price but are estimated to be lightly owned
+                  {contrarianData.matchupDataUsed ? ", with extra credit for soft matchups against weak defenses" : ""}.
+                  Ownership here is a modeled estimate.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {Object.entries(contrarianData.positions).map(([pos, plays]) => (
+                    <Card key={pos} className="bg-[#1E293B] border-purple-500/20 overflow-hidden" data-testid={`contrarian-card-${pos}`}>
+                      <div className="px-4 py-2.5 border-b border-slate-700/50 bg-purple-500/5">
+                        <span className="text-sm font-black text-purple-300">{pos}</span>
+                      </div>
+                      <div className="divide-y divide-slate-800/50">
+                        {plays.map(play => (
+                          <div key={play.playerId} className="px-4 py-3" data-testid={`contrarian-play-${play.playerId}`}>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-bold text-white truncate">{play.name}</p>
+                                <p className="text-[11px] text-slate-400">
+                                  {play.team}{play.opponent ? ` vs ${play.opponent}` : ""} · ${play.salary.toLocaleString()}
+                                </p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <p className="text-sm font-black text-purple-300">{play.ownership.toFixed(1)}%</p>
+                                <p className="text-[11px] text-slate-400">{play.projectedPoints.toFixed(1)} pts</p>
+                              </div>
+                            </div>
+                            <div className="mt-2 flex items-center gap-2 flex-wrap">
+                              <Badge className={`${CONTRARIAN_TAGS[play.tag].cls} border text-[10px] font-bold`}>
+                                {CONTRARIAN_TAGS[play.tag].label}
+                              </Badge>
+                            </div>
+                            <p className="mt-1.5 text-[11px] text-slate-400 leading-snug">{play.reason}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </section>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
