@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
 const BASE_TITLE = "EliteLineup AI";
-const BASE_URL = "https://fantasy-lineup-optimizer.replit.app";
+const BASE_URL = "https://www.elitelineup.com";
 
 interface PageMeta {
   title: string;

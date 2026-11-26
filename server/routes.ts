@@ -398,7 +398,7 @@ export async function registerRoutes(
   });
   registerPlayerConfiguration(app, storage);
 
-  const SITE_URL = "https://fantasy-lineup-optimizer.replit.app";
+  const SITE_URL = "https://www.elitelineup.com";
   app.get("/robots.txt", (_req, res) => {
     res.type("text/plain").send(
       `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /optimizer/\nDisallow: /optimizer-pro/\nDisallow: /api/\n\nSitemap: ${SITE_URL}/sitemap.xml`
