@@ -374,7 +374,7 @@ export async function registerRoutes(
 ): Promise<Server> {
   await setupAuth(app);
   registerAuthRoutes(app);
-  registerRevenueRoutes(app);
+  registerRevenueRoutes(app, { buildAdjustedPool });
   // Seasonal availability is reversible; keep historical records and scoring intact.
   app.use("/api", async (req, res, next) => {
     if (ACTIVE_SPORTS.includes("MLB")) return next();
@@ -975,6 +975,58 @@ export async function registerRoutes(
       }
     }
   });
+
+  /**
+   * Player pool with the same projection adjustments the standard optimizer applies
+   * (live injury status, starters, boosts, AI scout, market blend, the user's own overrides),
+   * plus the ids that must be excluded (out, inactive, or excluded by the user).
+   * Used by Late Swap so its numbers agree with the optimizer.
+   */
+  async function buildAdjustedPool(slate: Slate, userId: string): Promise<{ pool: Player[]; excludedIds: number[] }> {
+    let allPlayers = await storage.getPlayersBySlate(slate.id);
+    if (slate.platform === "draftkings") {
+      allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
+    }
+    allPlayers = await prepareClassicInputs(allPlayers, undefined, slate);
+
+    const overrides = resolveConfigurationOverrides(await storage.getPlayerOverrides(userId, slate.id), allPlayers);
+    const overrideMap = new Map(overrides.map((o: any) => [o.playerId, o]));
+    const scoutMap = buildScoutMap(slate.sport);
+
+    let pool: Player[] = allPlayers.map(p => {
+      const override: any = overrideMap.get(p.id);
+      const customProj = override?.customProjection != null ? Number(override.customProjection) : undefined;
+      let proj = customProj !== undefined ? customProj : Number(p.projectedPoints);
+      if (override?.boostPercent && override.boostPercent > 0) {
+        proj = Math.round(proj * (1 + override.boostPercent / 100) * 10) / 10;
+      }
+      if (p.isConfirmedStarter) proj = Math.round(proj * 1.05 * 10) / 10;
+      if (p.boostScore) {
+        const boostPct = Math.max(-0.08, Math.min(0.08, Number(p.boostScore) * 0.008));
+        proj = Math.round(proj * (1 + boostPct) * 10) / 10;
+      }
+      proj = applyScoutToProjection(proj, p.name, scoutMap, customProj !== undefined);
+      if (isPlayerOut(p.injuryStatus)) proj = 0;
+      else if (p.injuryStatus === "Questionable" || p.injuryStatus === "GTD") proj = proj * 0.75;
+      else if (p.injuryStatus === "Probable" || p.injuryStatus === "DTD") proj = proj * 0.9;
+      return { ...p, projectedPoints: proj.toString() };
+    });
+    pool = await applyActualAdjustedProjections(pool, slate.sport);
+    pool = await applyMarketProjectionBlend(pool, slate.sport);
+    pool = await applyWinningLineupAdjustment(pool, slate.sport);
+
+    const inactive = slate.platform === "draftkings"
+      ? (await getInactivePlayerIds(allPlayers, slate.sport)).inactiveIds
+      : [];
+    const excludedIds = [
+      ...new Set([
+        ...allPlayers.filter(p => isPlayerOut(p.injuryStatus)).map(p => p.id),
+        ...inactive,
+        ...overrides.filter((o: any) => o.isExcluded).map((o: any) => o.playerId),
+      ]),
+    ];
+    return { pool, excludedIds };
+  }
 
   async function applyLiveDKStatuses(players: Player[], draftGroupId: number | null, sport?: string): Promise<Player[]> {
     if (!draftGroupId) return players;

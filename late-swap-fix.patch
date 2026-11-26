@@ -1,0 +1,147 @@
+diff --git a/client/src/pages/Tracker.tsx b/client/src/pages/Tracker.tsx
+index 4af4258..538a5b8 100644
+--- a/client/src/pages/Tracker.tsx
++++ b/client/src/pages/Tracker.tsx
+@@ -402,10 +402,12 @@ export default function Tracker() {
+             </Card>
+           </div>
+ 
+-          <Card className="bg-slate-900/60 border-border p-5 mb-4">
+-            <h3 className="text-sm font-black text-white uppercase tracking-wider mb-2">Cumulative profit</h3>
+-            <ProfitLine rows={rows} />
+-          </Card>
++          {rows.filter(r => r.contestDate).length >= 2 && (
++            <Card className="bg-slate-900/60 border-border p-5 mb-4">
++              <h3 className="text-sm font-black text-white uppercase tracking-wider mb-2">Cumulative profit</h3>
++              <ProfitLine rows={rows} />
++            </Card>
++          )}
+ 
+           <div className="grid md:grid-cols-2 gap-4 mb-6">
+             <BucketTable title="By sport" buckets={bucketBy(rows, r => r.sport)} />
+diff --git a/server/revenue.ts b/server/revenue.ts
+index fde8b5e..7b613ec 100644
+--- a/server/revenue.ts
++++ b/server/revenue.ts
+@@ -146,10 +146,6 @@ function playerGameStart(player: Player, slate: Slate): Date | null {
+   return Number.isFinite(start.getTime()) ? start : null;
+ }
+ 
+-function isOut(player: Player): boolean {
+-  return /\bout\b/i.test(String(player.injuryStatus || ""));
+-}
+-
+ function trimPlayer(p: Player, locked: boolean, start: Date | null) {
+   return {
+     id: p.id,
+@@ -166,7 +162,12 @@ function trimPlayer(p: Player, locked: boolean, start: Date | null) {
+   };
+ }
+ 
+-export function registerRevenueRoutes(app: Express): void {
++export interface RevenueDeps {
++  /** Pool with the optimizer's projection adjustments, plus ids that must never be picked. */
++  buildAdjustedPool: (slate: Slate, userId: string) => Promise<{ pool: Player[]; excludedIds: number[] }>;
++}
++
++export function registerRevenueRoutes(app: Express, deps: RevenueDeps): void {
+   // ── One-time passes ────────────────────────────────────────────────────────
+   app.post("/api/subscription/pass-checkout", async (req, res) => {
+     const userId = sessionUserId(req);
+@@ -357,7 +358,7 @@ export function registerRevenueRoutes(app: Express): void {
+         return res.status(400).json({ message: "Late swap supports classic lineups only." });
+       }
+ 
+-      const players = await storage.getPlayersBySlate(slate.id);
++      const { pool: players, excludedIds: baseExcluded } = await deps.buildAdjustedPool(slate, access.userId);
+       const byId = new Map(players.map(p => [p.id, p]));
+       const current = lineup.playerIds.map(id => byId.get(id));
+       if (current.some(p => !p)) {
+@@ -393,9 +394,12 @@ export function registerRevenueRoutes(app: Express): void {
+         });
+       }
+ 
+-      const excludedPlayerIds = players
+-        .filter(p => !lockedSet.has(p.id) && (hasStarted(p) || isOut(p)))
+-        .map(p => p.id);
++      const excludedPlayerIds = [
++        ...new Set([
++          ...players.filter(p => !lockedSet.has(p.id) && hasStarted(p)).map(p => p.id),
++          ...baseExcluded.filter(id => !lockedSet.has(id)),
++        ]),
++      ];
+ 
+       const { solveLineup } = await import("./routes");
+       const result: any = solveLineup(
+diff --git a/server/routes.ts b/server/routes.ts
+index 8a053a4..8a9c476 100644
+--- a/server/routes.ts
++++ b/server/routes.ts
+@@ -374,7 +374,7 @@ export async function registerRoutes(
+ ): Promise<Server> {
+   await setupAuth(app);
+   registerAuthRoutes(app);
+-  registerRevenueRoutes(app);
++  registerRevenueRoutes(app, { buildAdjustedPool });
+   // Seasonal availability is reversible; keep historical records and scoring intact.
+   app.use("/api", async (req, res, next) => {
+     if (ACTIVE_SPORTS.includes("MLB")) return next();
+@@ -976,6 +976,58 @@ export async function registerRoutes(
+     }
+   });
+ 
++  /**
++   * Player pool with the same projection adjustments the standard optimizer applies
++   * (live injury status, starters, boosts, AI scout, market blend, the user's own overrides),
++   * plus the ids that must be excluded (out, inactive, or excluded by the user).
++   * Used by Late Swap so its numbers agree with the optimizer.
++   */
++  async function buildAdjustedPool(slate: Slate, userId: string): Promise<{ pool: Player[]; excludedIds: number[] }> {
++    let allPlayers = await storage.getPlayersBySlate(slate.id);
++    if (slate.platform === "draftkings") {
++      allPlayers = await applyLiveDKStatuses(allPlayers, slate.draftGroupId, slate.sport);
++    }
++    allPlayers = await prepareClassicInputs(allPlayers, undefined, slate);
++
++    const overrides = resolveConfigurationOverrides(await storage.getPlayerOverrides(userId, slate.id), allPlayers);
++    const overrideMap = new Map(overrides.map((o: any) => [o.playerId, o]));
++    const scoutMap = buildScoutMap(slate.sport);
++
++    let pool: Player[] = allPlayers.map(p => {
++      const override: any = overrideMap.get(p.id);
++      const customProj = override?.customProjection != null ? Number(override.customProjection) : undefined;
++      let proj = customProj !== undefined ? customProj : Number(p.projectedPoints);
++      if (override?.boostPercent && override.boostPercent > 0) {
++        proj = Math.round(proj * (1 + override.boostPercent / 100) * 10) / 10;
++      }
++      if (p.isConfirmedStarter) proj = Math.round(proj * 1.05 * 10) / 10;
++      if (p.boostScore) {
++        const boostPct = Math.max(-0.08, Math.min(0.08, Number(p.boostScore) * 0.008));
++        proj = Math.round(proj * (1 + boostPct) * 10) / 10;
++      }
++      proj = applyScoutToProjection(proj, p.name, scoutMap, customProj !== undefined);
++      if (isPlayerOut(p.injuryStatus)) proj = 0;
++      else if (p.injuryStatus === "Questionable" || p.injuryStatus === "GTD") proj = proj * 0.75;
++      else if (p.injuryStatus === "Probable" || p.injuryStatus === "DTD") proj = proj * 0.9;
++      return { ...p, projectedPoints: proj.toString() };
++    });
++    pool = await applyActualAdjustedProjections(pool, slate.sport);
++    pool = await applyMarketProjectionBlend(pool, slate.sport);
++    pool = await applyWinningLineupAdjustment(pool, slate.sport);
++
++    const inactive = slate.platform === "draftkings"
++      ? (await getInactivePlayerIds(allPlayers, slate.sport)).inactiveIds
++      : [];
++    const excludedIds = [
++      ...new Set([
++        ...allPlayers.filter(p => isPlayerOut(p.injuryStatus)).map(p => p.id),
++        ...inactive,
++        ...overrides.filter((o: any) => o.isExcluded).map((o: any) => o.playerId),
++      ]),
++    ];
++    return { pool, excludedIds };
++  }
++
+   async function applyLiveDKStatuses(players: Player[], draftGroupId: number | null, sport?: string): Promise<Player[]> {
+     if (!draftGroupId) return players;
+     let draftables: Awaited<ReturnType<typeof fetchDraftables>> = [];

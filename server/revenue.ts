@@ -146,10 +146,6 @@ function playerGameStart(player: Player, slate: Slate): Date | null {
   return Number.isFinite(start.getTime()) ? start : null;
 }
 
-function isOut(player: Player): boolean {
-  return /\bout\b/i.test(String(player.injuryStatus || ""));
-}
-
 function trimPlayer(p: Player, locked: boolean, start: Date | null) {
   return {
     id: p.id,
@@ -166,7 +162,12 @@ function trimPlayer(p: Player, locked: boolean, start: Date | null) {
   };
 }
 
-export function registerRevenueRoutes(app: Express): void {
+export interface RevenueDeps {
+  /** Pool with the optimizer's projection adjustments, plus ids that must never be picked. */
+  buildAdjustedPool: (slate: Slate, userId: string) => Promise<{ pool: Player[]; excludedIds: number[] }>;
+}
+
+export function registerRevenueRoutes(app: Express, deps: RevenueDeps): void {
   // ── One-time passes ────────────────────────────────────────────────────────
   app.post("/api/subscription/pass-checkout", async (req, res) => {
     const userId = sessionUserId(req);
@@ -357,7 +358,7 @@ export function registerRevenueRoutes(app: Express): void {
         return res.status(400).json({ message: "Late swap supports classic lineups only." });
       }
 
-      const players = await storage.getPlayersBySlate(slate.id);
+      const { pool: players, excludedIds: baseExcluded } = await deps.buildAdjustedPool(slate, access.userId);
       const byId = new Map(players.map(p => [p.id, p]));
       const current = lineup.playerIds.map(id => byId.get(id));
       if (current.some(p => !p)) {
@@ -393,9 +394,12 @@ export function registerRevenueRoutes(app: Express): void {
         });
       }
 
-      const excludedPlayerIds = players
-        .filter(p => !lockedSet.has(p.id) && (hasStarted(p) || isOut(p)))
-        .map(p => p.id);
+      const excludedPlayerIds = [
+        ...new Set([
+          ...players.filter(p => !lockedSet.has(p.id) && hasStarted(p)).map(p => p.id),
+          ...baseExcluded.filter(id => !lockedSet.has(id)),
+        ]),
+      ];
 
       const { solveLineup } = await import("./routes");
       const result: any = solveLineup(

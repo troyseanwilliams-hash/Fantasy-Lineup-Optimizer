@@ -402,10 +402,12 @@ export default function Tracker() {
             </Card>
           </div>
 
-          <Card className="bg-slate-900/60 border-border p-5 mb-4">
-            <h3 className="text-sm font-black text-white uppercase tracking-wider mb-2">Cumulative profit</h3>
-            <ProfitLine rows={rows} />
-          </Card>
+          {rows.filter(r => r.contestDate).length >= 2 && (
+            <Card className="bg-slate-900/60 border-border p-5 mb-4">
+              <h3 className="text-sm font-black text-white uppercase tracking-wider mb-2">Cumulative profit</h3>
+              <ProfitLine rows={rows} />
+            </Card>
+          )}
 
           <div className="grid md:grid-cols-2 gap-4 mb-6">
             <BucketTable title="By sport" buckets={bucketBy(rows, r => r.sport)} />
