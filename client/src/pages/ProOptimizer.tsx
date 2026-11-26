@@ -1278,10 +1278,10 @@ export default function ProOptimizer() {
         </button>
       </div>}
       {/* Top Controls Bar */}
-      {!playerFocus && <div className="border-b border-slate-800 bg-slate-900/60 px-4 py-2">
-        <div className="flex flex-col gap-2 md:gap-0">
+      {!playerFocus && <div className="border-b border-slate-800 bg-slate-900/60 px-4 py-3">
+        <div className="flex flex-col gap-3">
           {/* Row 1: Slate info + selector */}
-          <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
             <Badge className={`text-[11px] font-black flex-shrink-0 ${pColors.bg} ${pColors.text} ${pColors.border}`} data-testid="badge-platform">
               {config.shortLabel} {sport}
             </Badge>
@@ -1399,7 +1399,7 @@ export default function ProOptimizer() {
 
           {/* Row 2 (Desktop): Max Exposure + Salary Range */}
           {(isPro && (simMode ? numSims : lineupCount) > 1 || (players && players.length > 0)) && (
-            <div className="hidden md:flex items-center gap-3 overflow-x-auto scrollbar-hide">
+            <div className="hidden md:flex flex-wrap items-center gap-x-4 gap-y-3">
               <div className="flex items-center gap-2 bg-slate-800/60 rounded-lg px-2 py-1 border border-slate-700/50 flex-shrink-0">
                 <LabelTip text="Exclude players whose base projection is below this cutoff. Custom projections and manual +pts boosts are included; automatic, Scout, and simulation adjustments do not affect eligibility."><label htmlFor="input-min-projection" className="text-[10px] font-black text-emerald-400 uppercase whitespace-nowrap">Min Projection</label></LabelTip>
                 <input

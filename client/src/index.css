@@ -248,6 +248,13 @@
     border: 1px solid rgba(59,130,246,0.2);
   }
   /* Scrollbar styling */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
   .scrollbar-thin::-webkit-scrollbar {
     height: 4px;
     width: 4px;
