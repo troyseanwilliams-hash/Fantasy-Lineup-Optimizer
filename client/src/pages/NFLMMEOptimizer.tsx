@@ -98,7 +98,7 @@ function ownershipColor(pct: number) {
 function PlatformToggle({ value, onChange }: { value: Platform; onChange: (v: Platform) => void }) {
   return (
     <div className="inline-flex bg-slate-800/60 border border-slate-700 rounded-xl p-1 gap-1">
-      {(["draftkings", "fanduel"] as Platform[]).map(p => (
+      {(["draftkings"] as Platform[]).map(p => (
         <button
           key={p}
           onClick={() => onChange(p)}
@@ -589,7 +589,7 @@ export function generateMockLineups(settings: MMESettings, count: number): Gener
 export default function NFLMMEOptimizer() {
   usePageMeta({
     title: "NFL MME Optimizer — EliteLineup AI",
-    description: "Multi-entry max optimizer for NFL DraftKings and FanDuel contests. Generate up to 150 diversified lineups with exposure controls, QB stacking, and ownership leverage.",
+    description: "Multi-entry max optimizer for NFL DraftKings contests. Generate up to 150 diversified lineups with exposure controls, QB stacking, and ownership leverage.",
     path: "/nfl-mme",
   });
 
@@ -667,7 +667,7 @@ export default function NFLMMEOptimizer() {
               NFL <span style={{ color: "#60a5fa" }}>MME Optimizer</span>
             </h1>
             <p className="text-slate-400 text-sm max-w-xl">
-              Multi-entry max for DraftKings & FanDuel NFL contests. Generate up to 150 diversified, correlated lineups with full exposure controls, stacking rules, and ownership leverage.
+              Multi-entry max for DraftKings NFL contests. Generate up to 150 diversified, correlated lineups with full exposure controls, stacking rules, and ownership leverage.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -793,7 +793,7 @@ export default function NFLMMEOptimizer() {
               <Shield className="w-12 h-12 text-blue-400/30 mb-4" />
               <p className="text-base font-black text-white mb-1">Ready to Dominate</p>
               <p className="text-sm text-slate-500 max-w-sm">
-                Configure your settings and hit Generate to build your MME lineup portfolio. Works with any NFL slate on DraftKings or FanDuel.
+                Configure your settings and hit Generate to build your MME lineup portfolio. Works with any NFL slate on DraftKings.
               </p>
             </div>
           )}

@@ -1,4 +1,4 @@
-import { ALL_PLATFORMS, PLATFORM_COLORS, isPlatformSupported, type Platform, type Sport } from "@shared/platform-config";
+import { ALL_PLATFORMS, FANDUEL_ENABLED, PLATFORM_COLORS, isPlatformSupported, type Platform, type Sport } from "@shared/platform-config";
 import { Crown } from "lucide-react";
 
 interface PlatformSelectorProps {
@@ -28,6 +28,7 @@ export function PlatformSelector({
     >
       {ALL_PLATFORMS.map(({ value: p, label, shortLabel }) => {
         if (!isPlatformSupported(sport as Sport, p)) return null;
+        if (p === "fanduel" && !FANDUEL_ENABLED && !isAdmin) return null;
 
         const colors = PLATFORM_COLORS[p];
         const isActive = value === p;

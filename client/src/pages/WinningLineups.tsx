@@ -23,11 +23,10 @@ import { usePageMeta } from "@/hooks/use-page-meta";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 
 const SPORTS = ACTIVE_SPORTS;
-const PLATFORMS = ["draftkings", "fanduel"] as const;
+const PLATFORMS = ["draftkings"] as const;
 type PlatformType = typeof PLATFORMS[number];
 const PLATFORM_LABELS: Record<PlatformType, string> = {
   draftkings: "DraftKings",
-  fanduel: "FanDuel",
 };
 
 const SPORT_COLORS: Record<string, string> = {

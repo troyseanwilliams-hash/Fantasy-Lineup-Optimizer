@@ -60,7 +60,7 @@ const REASONS = [
 export default function About() {
   usePageMeta({
     title: "About EliteLineup AI",
-    description: "Learn about EliteLineup AI, the advanced DFS lineup optimizer powered by Monte Carlo simulations, AI-driven prop analysis, and real-time data for DraftKings and FanDuel.",
+    description: "Learn about EliteLineup AI, the advanced DFS lineup optimizer powered by Monte Carlo simulations, AI-driven prop analysis, and real-time data for DraftKings.",
     path: "/about",
   });
   return (

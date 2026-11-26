@@ -1273,10 +1273,10 @@ function NFLFallTeaser() {
               NFL MME Optimizer
             </h3>
             <p className="text-slate-400 text-sm leading-relaxed mb-4">
-              Multi-entry max optimizer for DraftKings & FanDuel NFL contests. Generate 20–150 diversified lineups with exposure controls, QB-WR stacking, correlation engine, and ownership leverage — ready for Week 1.
+              Multi-entry max optimizer for DraftKings NFL contests. Generate 20–150 diversified lineups with exposure controls, QB-WR stacking, correlation engine, and ownership leverage — ready for Week 1.
             </p>
             <div className="flex flex-wrap gap-2">
-              {["DraftKings", "FanDuel", "Up to 150 Lineups", "Exposure Control", "QB Stacks", "GPP & Cash"].map(tag => (
+              {["DraftKings", "Up to 150 Lineups", "Exposure Control", "QB Stacks", "GPP & Cash"].map(tag => (
                 <span key={tag} className="text-[11px] font-bold text-blue-300 bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-full">{tag}</span>
               ))}
             </div>
@@ -1447,7 +1447,7 @@ function LandingTopPlays() {
 export default function Home() {
   const { user } = useAuth();
   usePageMeta({
-    title: "EliteLineup AI - DFS Lineup Optimizer for DraftKings & FanDuel",
+    title: "EliteLineup AI - DFS Lineup Optimizer for DraftKings",
     description: "AI-powered Daily Fantasy Sports lineup optimizer. Build winning lineups for NBA, NFL and Golf with Monte Carlo simulations, prop analysis, and ownership projections.",
     path: "/",
   });
@@ -1463,7 +1463,6 @@ export default function Home() {
     ];
     const platforms = [
       { id: "dk", icon: Zap, name: "DraftKings", text: "Real salaries, LP-based optimization and instant lineup building." },
-      { id: "fd", icon: Swords, name: "FanDuel", text: "Platform-specific salary caps and positions, with contest-ready CSV export." },
       { id: "pp", icon: TrendingUp, name: "PrizePicks", text: "Entry builder with live projections and smart pick combinations." },
     ];
     return (
@@ -1481,7 +1480,7 @@ export default function Home() {
               Build sharper DFS lineups for tonight&apos;s slate.
             </h1>
             <p className="text-lg md:text-xl text-slate-400 leading-relaxed mb-8 max-w-2xl">
-              AI lineup optimizer for DraftKings and FanDuel. Monte Carlo simulation, ownership projections, prop picks and multi-entry tools in one place.
+              AI lineup optimizer for DraftKings. Monte Carlo simulation, ownership projections, prop picks and multi-entry tools in one place.
             </p>
             <div className="flex items-center gap-3 flex-wrap mb-5">
               <Button
@@ -1553,7 +1552,7 @@ export default function Home() {
               {[
                 ["1. Pick a slate", "Choose your sport, platform and contest from the day's slates."],
                 ["2. Tune and simulate", "Lock, exclude and boost players, then run simulations on your pool."],
-                ["3. Export and enter", "Download a CSV formatted for DraftKings or FanDuel."],
+                ["3. Export and enter", "Download a CSV formatted for DraftKings."],
               ].map(([t, d]) => (
                 <div key={t} className="border-t-2 border-volt-500 pt-4">
                   <div className="font-bold text-volt-400 mb-1">{t}</div>

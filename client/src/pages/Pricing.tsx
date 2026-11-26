@@ -196,7 +196,7 @@ export default function Pricing() {
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <span>DraftKings & FanDuel support</span>
+              <span>DraftKings support</span>
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
@@ -287,7 +287,7 @@ export default function Pricing() {
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <span>DraftKings & FanDuel support</span>
+              <span>DraftKings support</span>
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
@@ -429,7 +429,7 @@ export default function Pricing() {
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
-              <span>DraftKings & FanDuel support</span>
+              <span>DraftKings support</span>
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />

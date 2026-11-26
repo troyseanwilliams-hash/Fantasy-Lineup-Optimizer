@@ -662,6 +662,8 @@ export const PLATFORM_COLORS: Record<Platform, { bg: string; text: string; borde
   yahoo:      { bg: "bg-purple-500/10",  text: "text-purple-400",  border: "border-purple-500/20"  },
 };
 
+/** FanDuel is hidden from customers until its data and CSV export are verified. Admins can still see it. */
+export const FANDUEL_ENABLED = false;
 // Yahoo is no longer offered in the optimizers (set to [] to hide the Yahoo tab everywhere).
 export const YAHOO_SUPPORTED_SPORTS: Sport[] = [];
 

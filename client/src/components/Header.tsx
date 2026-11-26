@@ -160,8 +160,7 @@ export function Header() {
                     const Icon = meta.icon;
                     const dkSlate = mainSlates.find(s => s.sport === sport && s.platform === "draftkings");
                     const bestSlate = dkSlate
-                      || mainSlates.find(s => s.sport === sport && s.platform === "fanduel")
-                      || mainSlates.find(s => s.sport === sport && s.platform === "yahoo");
+                      ;
                     const builderLabel = dkSlate ? `${sport} DK Builder` : bestSlate ? `${sport} Builder` : `${sport} DK Builder`;
 
                     return (
@@ -835,8 +834,7 @@ export function Header() {
                   const Icon = meta.icon;
                   const dkSlate = mainSlates.find(s => s.sport === sport && s.platform === "draftkings");
                   const bestSlate = dkSlate
-                    || mainSlates.find(s => s.sport === sport && s.platform === "fanduel")
-                    || mainSlates.find(s => s.sport === sport && s.platform === "yahoo");
+                    ;
                   const builderLabel = dkSlate ? `DK Builder ${sport}` : bestSlate ? `Builder ${sport}` : `DK Builder ${sport}`;
 
                   return (

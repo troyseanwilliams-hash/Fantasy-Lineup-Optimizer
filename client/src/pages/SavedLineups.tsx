@@ -1285,7 +1285,7 @@ export default function SavedLineups() {
           </div>
           <h1 className="text-3xl font-black text-white tracking-tight">The Vault</h1>
           <p className="text-slate-400 text-lg leading-relaxed">
-            Your personal lineup vault stores every optimized lineup you build. Save your best lineups, compare strategies across sports, swap players, and export to CSV for DraftKings, FanDuel, or Yahoo upload.
+            Your personal lineup vault stores every optimized lineup you build. Save your best lineups, compare strategies across sports, swap players, and export to CSV for DraftKings upload.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
             <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2" data-testid="vault-feature-save">
@@ -1323,7 +1323,7 @@ export default function SavedLineups() {
               <div className="bg-slate-800/50 border border-amber-500/20 rounded-xl p-4 space-y-2" data-testid="vault-feature-dk-export">
                 <FileUp className="w-5 h-5 text-amber-400 mx-auto" />
                 <div className="text-sm font-bold text-white">DK Contest Export</div>
-                <div className="text-xs text-slate-400">Export lineups in DraftKings, FanDuel, or Yahoo contest-ready CSV format for instant upload</div>
+                <div className="text-xs text-slate-400">Export lineups in DraftKings contest-ready CSV format for instant upload</div>
               </div>
             </div>
           </div>

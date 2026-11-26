@@ -1,0 +1,320 @@
+diff --git a/client/index.html b/client/index.html
+index 9bbe890..2fa49be 100644
+--- a/client/index.html
++++ b/client/index.html
+@@ -4,24 +4,24 @@
+     <meta charset="UTF-8" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+ 
+-    <title>EliteLineup AI - DFS Lineup Optimizer for DraftKings & FanDuel</title>
+-    <meta name="description" content="AI-powered Daily Fantasy Sports lineup optimizer for DraftKings and FanDuel. Build winning lineups for NBA, NFL, MLB, NHL, and Golf with Monte Carlo simulations, prop analysis, and ownership projections." />
++    <title>EliteLineup AI - DFS Lineup Optimizer for DraftKings</title>
++    <meta name="description" content="AI-powered Daily Fantasy Sports lineup optimizer for DraftKings. Build winning lineups for NBA, NFL, MLB, NHL, and Golf with Monte Carlo simulations, prop analysis, and ownership projections." />
+     <link rel="canonical" href="https://elitelineup.com/" />
+ 
+     <meta property="og:type" content="website" />
+     <meta property="og:url" content="https://elitelineup.com/" />
+-    <meta property="og:title" content="EliteLineup AI - DFS Lineup Optimizer for DraftKings & FanDuel" />
++    <meta property="og:title" content="EliteLineup AI - DFS Lineup Optimizer for DraftKings" />
+     <meta property="og:description" content="AI-powered Daily Fantasy Sports lineup optimizer. Build winning lineups with Monte Carlo simulations, prop analysis, and ownership projections across NBA, NFL, MLB, NHL, and Golf." />
+     <meta property="og:image" content="https://elitelineup.com/images/hero-bg.png" />
+     <meta property="og:site_name" content="EliteLineup AI" />
+ 
+     <meta name="twitter:card" content="summary_large_image" />
+     <meta name="twitter:title" content="EliteLineup AI - DFS Lineup Optimizer" />
+-    <meta name="twitter:description" content="AI-powered DFS lineup optimizer for DraftKings & FanDuel. Monte Carlo simulations, prop analysis, and ownership projections." />
++    <meta name="twitter:description" content="AI-powered DFS lineup optimizer for DraftKings. Monte Carlo simulations, prop analysis, and ownership projections." />
+     <meta name="twitter:image" content="https://elitelineup.com/images/hero-bg.png" />
+ 
+     <meta name="robots" content="index, follow" />
+-    <meta name="keywords" content="DFS lineup optimizer, DraftKings optimizer, FanDuel optimizer, daily fantasy sports, NBA DFS, NFL DFS, MLB DFS, NHL DFS, Golf DFS, lineup builder, prop bets, parlay builder, PrizePicks, Monte Carlo simulation, fantasy sports AI" />
++    <meta name="keywords" content="DFS lineup optimizer, DraftKings optimizer, daily fantasy sports, NBA DFS, NFL DFS, MLB DFS, NHL DFS, Golf DFS, lineup builder, prop bets, parlay builder, PrizePicks, Monte Carlo simulation, fantasy sports AI" />
+     <meta name="author" content="EliteLineup AI" />
+ 
+     <link rel="icon" type="image/x-icon" href="/favicon.ico?v=volt" />
+@@ -35,7 +35,7 @@
+       "@type": "WebApplication",
+       "name": "EliteLineup AI",
+       "url": "https://elitelineup.com",
+-      "description": "AI-powered Daily Fantasy Sports lineup optimizer for DraftKings and FanDuel. Build winning lineups with Monte Carlo simulations, prop analysis, and ownership projections.",
++      "description": "AI-powered Daily Fantasy Sports lineup optimizer for DraftKings. Build winning lineups with Monte Carlo simulations, prop analysis, and ownership projections.",
+       "applicationCategory": "SportsApplication",
+       "operatingSystem": "Web",
+       "offers": [
+@@ -63,7 +63,6 @@
+       ],
+       "featureList": [
+         "DraftKings Lineup Optimizer",
+-        "FanDuel Lineup Optimizer",
+         "Monte Carlo Simulation Engine",
+         "Prop Bet Analysis",
+         "Parlay Builder",
+diff --git a/client/src/components/Header.tsx b/client/src/components/Header.tsx
+index 5e83182..8ce0f03 100644
+--- a/client/src/components/Header.tsx
++++ b/client/src/components/Header.tsx
+@@ -160,8 +160,7 @@ export function Header() {
+                     const Icon = meta.icon;
+                     const dkSlate = mainSlates.find(s => s.sport === sport && s.platform === "draftkings");
+                     const bestSlate = dkSlate
+-                      || mainSlates.find(s => s.sport === sport && s.platform === "fanduel")
+-                      || mainSlates.find(s => s.sport === sport && s.platform === "yahoo");
++                      ;
+                     const builderLabel = dkSlate ? `${sport} DK Builder` : bestSlate ? `${sport} Builder` : `${sport} DK Builder`;
+ 
+                     return (
+@@ -835,8 +834,7 @@ export function Header() {
+                   const Icon = meta.icon;
+                   const dkSlate = mainSlates.find(s => s.sport === sport && s.platform === "draftkings");
+                   const bestSlate = dkSlate
+-                    || mainSlates.find(s => s.sport === sport && s.platform === "fanduel")
+-                    || mainSlates.find(s => s.sport === sport && s.platform === "yahoo");
++                    ;
+                   const builderLabel = dkSlate ? `DK Builder ${sport}` : bestSlate ? `Builder ${sport}` : `DK Builder ${sport}`;
+ 
+                   return (
+diff --git a/client/src/components/PlatformSelector.tsx b/client/src/components/PlatformSelector.tsx
+index a7f9d90..0e3d98b 100644
+--- a/client/src/components/PlatformSelector.tsx
++++ b/client/src/components/PlatformSelector.tsx
+@@ -1,4 +1,4 @@
+-import { ALL_PLATFORMS, PLATFORM_COLORS, isPlatformSupported, type Platform, type Sport } from "@shared/platform-config";
++import { ALL_PLATFORMS, FANDUEL_ENABLED, PLATFORM_COLORS, isPlatformSupported, type Platform, type Sport } from "@shared/platform-config";
+ import { Crown } from "lucide-react";
+ 
+ interface PlatformSelectorProps {
+@@ -28,6 +28,7 @@ export function PlatformSelector({
+     >
+       {ALL_PLATFORMS.map(({ value: p, label, shortLabel }) => {
+         if (!isPlatformSupported(sport as Sport, p)) return null;
++        if (p === "fanduel" && !FANDUEL_ENABLED && !isAdmin) return null;
+ 
+         const colors = PLATFORM_COLORS[p];
+         const isActive = value === p;
+diff --git a/client/src/components/TutorialOverlay.tsx b/client/src/components/TutorialOverlay.tsx
+index 74b8e3d..9eac5ef 100644
+--- a/client/src/components/TutorialOverlay.tsx
++++ b/client/src/components/TutorialOverlay.tsx
+@@ -23,7 +23,7 @@ const TUTORIAL_STEPS: TutorialStep[] = [
+   {
+     target: "[data-testid='dashboard-sport-selector']",
+     title: "Pick Your Sport",
+-    description: "Start by selecting an active sport across DraftKings and FanDuel. Off-season sports return when enabled.",
++    description: "Start by selecting an active sport across DraftKings. Off-season sports return when enabled.",
+     icon: Target,
+     iconColor: "text-orange-400",
+     position: "bottom",
+diff --git a/client/src/pages/About.tsx b/client/src/pages/About.tsx
+index 5dcfee3..1c2aedb 100644
+--- a/client/src/pages/About.tsx
++++ b/client/src/pages/About.tsx
+@@ -60,7 +60,7 @@ const REASONS = [
+ export default function About() {
+   usePageMeta({
+     title: "About EliteLineup AI",
+-    description: "Learn about EliteLineup AI, the advanced DFS lineup optimizer powered by Monte Carlo simulations, AI-driven prop analysis, and real-time data for DraftKings and FanDuel.",
++    description: "Learn about EliteLineup AI, the advanced DFS lineup optimizer powered by Monte Carlo simulations, AI-driven prop analysis, and real-time data for DraftKings.",
+     path: "/about",
+   });
+   return (
+diff --git a/client/src/pages/Home.tsx b/client/src/pages/Home.tsx
+index 3a122fc..3184f39 100644
+--- a/client/src/pages/Home.tsx
++++ b/client/src/pages/Home.tsx
+@@ -1273,10 +1273,10 @@ function NFLFallTeaser() {
+               NFL MME Optimizer
+             </h3>
+             <p className="text-slate-400 text-sm leading-relaxed mb-4">
+-              Multi-entry max optimizer for DraftKings & FanDuel NFL contests. Generate 20–150 diversified lineups with exposure controls, QB-WR stacking, correlation engine, and ownership leverage — ready for Week 1.
++              Multi-entry max optimizer for DraftKings NFL contests. Generate 20–150 diversified lineups with exposure controls, QB-WR stacking, correlation engine, and ownership leverage — ready for Week 1.
+             </p>
+             <div className="flex flex-wrap gap-2">
+-              {["DraftKings", "FanDuel", "Up to 150 Lineups", "Exposure Control", "QB Stacks", "GPP & Cash"].map(tag => (
++              {["DraftKings", "Up to 150 Lineups", "Exposure Control", "QB Stacks", "GPP & Cash"].map(tag => (
+                 <span key={tag} className="text-[11px] font-bold text-blue-300 bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-full">{tag}</span>
+               ))}
+             </div>
+@@ -1447,7 +1447,7 @@ function LandingTopPlays() {
+ export default function Home() {
+   const { user } = useAuth();
+   usePageMeta({
+-    title: "EliteLineup AI - DFS Lineup Optimizer for DraftKings & FanDuel",
++    title: "EliteLineup AI - DFS Lineup Optimizer for DraftKings",
+     description: "AI-powered Daily Fantasy Sports lineup optimizer. Build winning lineups for NBA, NFL and Golf with Monte Carlo simulations, prop analysis, and ownership projections.",
+     path: "/",
+   });
+@@ -1463,7 +1463,6 @@ export default function Home() {
+     ];
+     const platforms = [
+       { id: "dk", icon: Zap, name: "DraftKings", text: "Real salaries, LP-based optimization and instant lineup building." },
+-      { id: "fd", icon: Swords, name: "FanDuel", text: "Platform-specific salary caps and positions, with contest-ready CSV export." },
+       { id: "pp", icon: TrendingUp, name: "PrizePicks", text: "Entry builder with live projections and smart pick combinations." },
+     ];
+     return (
+@@ -1481,7 +1480,7 @@ export default function Home() {
+               Build sharper DFS lineups for tonight&apos;s slate.
+             </h1>
+             <p className="text-lg md:text-xl text-slate-400 leading-relaxed mb-8 max-w-2xl">
+-              AI lineup optimizer for DraftKings and FanDuel. Monte Carlo simulation, ownership projections, prop picks and multi-entry tools in one place.
++              AI lineup optimizer for DraftKings. Monte Carlo simulation, ownership projections, prop picks and multi-entry tools in one place.
+             </p>
+             <div className="flex items-center gap-3 flex-wrap mb-5">
+               <Button
+@@ -1553,7 +1552,7 @@ export default function Home() {
+               {[
+                 ["1. Pick a slate", "Choose your sport, platform and contest from the day's slates."],
+                 ["2. Tune and simulate", "Lock, exclude and boost players, then run simulations on your pool."],
+-                ["3. Export and enter", "Download a CSV formatted for DraftKings or FanDuel."],
++                ["3. Export and enter", "Download a CSV formatted for DraftKings."],
+               ].map(([t, d]) => (
+                 <div key={t} className="border-t-2 border-volt-500 pt-4">
+                   <div className="font-bold text-volt-400 mb-1">{t}</div>
+diff --git a/client/src/pages/LineupBuilderInfo.tsx b/client/src/pages/LineupBuilderInfo.tsx
+index 435b2de..edad30d 100644
+--- a/client/src/pages/LineupBuilderInfo.tsx
++++ b/client/src/pages/LineupBuilderInfo.tsx
+@@ -92,7 +92,7 @@ const HOW_IT_WORKS = [
+ ];
+ 
+ export default function LineupBuilderInfo() {
+-  usePageMeta({ title: "DFS Lineup Builder - Optimize Your DraftKings & FanDuel Lineups", description: "Build winning DFS lineups with AI-powered optimization. Supports DraftKings and FanDuel across NBA, NFL, MLB, NHL, Golf, and Soccer.", path: "/lineup-builder" });
++  usePageMeta({ title: "DFS Lineup Builder - Optimize Your DraftKings Lineups", description: "Build winning DFS lineups with AI-powered optimization. Supports DraftKings across NBA, NFL, MLB, NHL, Golf, and Soccer.", path: "/lineup-builder" });
+   return (
+     <div className="bg-[#0F172A] min-h-screen" data-testid="lineup-builder-info-page">
+       <div className="relative overflow-hidden">
+diff --git a/client/src/pages/Login.tsx b/client/src/pages/Login.tsx
+index 2d9af2a..bc78029 100644
+--- a/client/src/pages/Login.tsx
++++ b/client/src/pages/Login.tsx
+@@ -17,7 +17,7 @@ import { FEATURE_VISIBILITY, PUBLIC_SIGNUP_ENABLED } from "@shared/platform-conf
+ // Marketing panel content — shown beside the form so every visitor sees what
+ // the product does before they type a character.
+ const FEATURES = [
+-  { icon: Zap, color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/25", title: "AI Lineup Optimizer", desc: "LP-solved lineups with Monte Carlo simulation for DraftKings & FanDuel." },
++  { icon: Zap, color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/25", title: "AI Lineup Optimizer", desc: "LP-solved lineups with Monte Carlo simulation for DraftKings." },
+   { icon: TrendingUp, color: "text-purple-400", bg: "bg-purple-500/15 border-purple-500/25", title: "Prop Betting Picks", desc: "Sportsbook prop lines analyzed and graded across every active sport." },
+   { icon: Trophy, color: "text-amber-400", bg: "bg-amber-500/15 border-amber-500/25", title: "Live Draft Hub", desc: "Live ESPN-ranked fantasy draft board, Mock Draft Simulator & cheat sheets." },
+   { icon: Target, color: "text-cyan-400", bg: "bg-cyan-500/15 border-cyan-500/25", title: "PrizePicks Builder", desc: "AI-built entries with correlation-aware pick combos and line movement." },
+diff --git a/client/src/pages/NFLMMEOptimizer.tsx b/client/src/pages/NFLMMEOptimizer.tsx
+index 3d580d4..b409d9c 100644
+--- a/client/src/pages/NFLMMEOptimizer.tsx
++++ b/client/src/pages/NFLMMEOptimizer.tsx
+@@ -98,7 +98,7 @@ function ownershipColor(pct: number) {
+ function PlatformToggle({ value, onChange }: { value: Platform; onChange: (v: Platform) => void }) {
+   return (
+     <div className="inline-flex bg-slate-800/60 border border-slate-700 rounded-xl p-1 gap-1">
+-      {(["draftkings", "fanduel"] as Platform[]).map(p => (
++      {(["draftkings"] as Platform[]).map(p => (
+         <button
+           key={p}
+           onClick={() => onChange(p)}
+@@ -589,7 +589,7 @@ export function generateMockLineups(settings: MMESettings, count: number): Gener
+ export default function NFLMMEOptimizer() {
+   usePageMeta({
+     title: "NFL MME Optimizer — EliteLineup AI",
+-    description: "Multi-entry max optimizer for NFL DraftKings and FanDuel contests. Generate up to 150 diversified lineups with exposure controls, QB stacking, and ownership leverage.",
++    description: "Multi-entry max optimizer for NFL DraftKings contests. Generate up to 150 diversified lineups with exposure controls, QB stacking, and ownership leverage.",
+     path: "/nfl-mme",
+   });
+ 
+@@ -667,7 +667,7 @@ export default function NFLMMEOptimizer() {
+               NFL <span style={{ color: "#60a5fa" }}>MME Optimizer</span>
+             </h1>
+             <p className="text-slate-400 text-sm max-w-xl">
+-              Multi-entry max for DraftKings & FanDuel NFL contests. Generate up to 150 diversified, correlated lineups with full exposure controls, stacking rules, and ownership leverage.
++              Multi-entry max for DraftKings NFL contests. Generate up to 150 diversified, correlated lineups with full exposure controls, stacking rules, and ownership leverage.
+             </p>
+           </div>
+           <div className="flex items-center gap-2 shrink-0">
+@@ -792,7 +792,7 @@ export default function NFLMMEOptimizer() {
+               <Shield className="w-12 h-12 text-blue-400/30 mb-4" />
+               <p className="text-base font-black text-white mb-1">Ready to Dominate</p>
+               <p className="text-sm text-slate-500 max-w-sm">
+-                Configure your settings and hit Generate to build your MME lineup portfolio. Works with any NFL slate on DraftKings or FanDuel.
++                Configure your settings and hit Generate to build your MME lineup portfolio. Works with any NFL slate on DraftKings.
+               </p>
+             </div>
+           )}
+diff --git a/client/src/pages/Pricing.tsx b/client/src/pages/Pricing.tsx
+index 02acae9..0b62457 100644
+--- a/client/src/pages/Pricing.tsx
++++ b/client/src/pages/Pricing.tsx
+@@ -196,7 +196,7 @@ export default function Pricing() {
+             </li>
+             <li className="flex items-center gap-3 text-sm text-slate-300">
+               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+-              <span>DraftKings & FanDuel support</span>
++              <span>DraftKings support</span>
+             </li>
+             <li className="flex items-center gap-3 text-sm text-slate-300">
+               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+@@ -287,7 +287,7 @@ export default function Pricing() {
+             </li>
+             <li className="flex items-center gap-3 text-sm text-slate-300">
+               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+-              <span>DraftKings & FanDuel support</span>
++              <span>DraftKings support</span>
+             </li>
+             <li className="flex items-center gap-3 text-sm text-slate-300">
+               <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+@@ -429,7 +429,7 @@ export default function Pricing() {
+             </li>
+             <li className="flex items-center gap-3 text-sm text-slate-300">
+               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
+-              <span>DraftKings & FanDuel support</span>
++              <span>DraftKings support</span>
+             </li>
+             <li className="flex items-center gap-3 text-sm text-slate-300">
+               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
+diff --git a/client/src/pages/SavedLineups.tsx b/client/src/pages/SavedLineups.tsx
+index 019c06f..3c88a2a 100644
+--- a/client/src/pages/SavedLineups.tsx
++++ b/client/src/pages/SavedLineups.tsx
+@@ -1285,7 +1285,7 @@ export default function SavedLineups() {
+           </div>
+           <h1 className="text-3xl font-black text-white tracking-tight">The Vault</h1>
+           <p className="text-slate-400 text-lg leading-relaxed">
+-            Your personal lineup vault stores every optimized lineup you build. Save your best lineups, compare strategies across sports, swap players, and export to CSV for DraftKings, FanDuel, or Yahoo upload.
++            Your personal lineup vault stores every optimized lineup you build. Save your best lineups, compare strategies across sports, swap players, and export to CSV for DraftKings upload.
+           </p>
+           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+             <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2" data-testid="vault-feature-save">
+@@ -1323,7 +1323,7 @@ export default function SavedLineups() {
+               <div className="bg-slate-800/50 border border-amber-500/20 rounded-xl p-4 space-y-2" data-testid="vault-feature-dk-export">
+                 <FileUp className="w-5 h-5 text-amber-400 mx-auto" />
+                 <div className="text-sm font-bold text-white">DK Contest Export</div>
+-                <div className="text-xs text-slate-400">Export lineups in DraftKings, FanDuel, or Yahoo contest-ready CSV format for instant upload</div>
++                <div className="text-xs text-slate-400">Export lineups in DraftKings contest-ready CSV format for instant upload</div>
+               </div>
+             </div>
+           </div>
+diff --git a/client/src/pages/WinningLineups.tsx b/client/src/pages/WinningLineups.tsx
+index a423696..f8f32b5 100644
+--- a/client/src/pages/WinningLineups.tsx
++++ b/client/src/pages/WinningLineups.tsx
+@@ -23,11 +23,10 @@ import { usePageMeta } from "@/hooks/use-page-meta";
+ import { ACTIVE_SPORTS } from "@shared/platform-config";
+ 
+ const SPORTS = ACTIVE_SPORTS;
+-const PLATFORMS = ["draftkings", "fanduel"] as const;
++const PLATFORMS = ["draftkings"] as const;
+ type PlatformType = typeof PLATFORMS[number];
+ const PLATFORM_LABELS: Record<PlatformType, string> = {
+   draftkings: "DraftKings",
+-  fanduel: "FanDuel",
+ };
+ 
+ const SPORT_COLORS: Record<string, string> = {
+diff --git a/shared/platform-config.ts b/shared/platform-config.ts
+index d5cf60d..3e3ca84 100644
+--- a/shared/platform-config.ts
++++ b/shared/platform-config.ts
+@@ -662,6 +662,8 @@ export const PLATFORM_COLORS: Record<Platform, { bg: string; text: string; borde
+   yahoo:      { bg: "bg-purple-500/10",  text: "text-purple-400",  border: "border-purple-500/20"  },
+ };
+ 
++/** FanDuel is hidden from customers until its data and CSV export are verified. Admins can still see it. */
++export const FANDUEL_ENABLED = false;
+ // Yahoo is no longer offered in the optimizers (set to [] to hide the Yahoo tab everywhere).
+ export const YAHOO_SUPPORTED_SPORTS: Sport[] = [];
+ 
