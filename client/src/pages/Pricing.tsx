@@ -10,6 +10,8 @@ import { usePageMeta } from "@/hooks/use-page-meta";
 import { Check, Crown, Lock, Trophy, Sparkles, Calendar, Tag, Loader2, AlertTriangle, CreditCard, Gift, Dice5 } from "lucide-react";
 import { PaymentModal } from "@/components/PaymentForm";
 import { FEATURE_VISIBILITY } from "@shared/platform-config";
+import { PASSES, SPORT_PLAN_SPORTS, SPORT_PLAN_MONTHLY_CENTS, formatUsd } from "@shared/plans";
+import { Ticket, Copy, Users } from "lucide-react";
 
 type BillingCycle = "monthly" | "annual";
 
@@ -18,11 +20,13 @@ export default function Pricing() {
   const { toast } = useToast();
   usePageMeta({
     title: "Pricing - DFS Optimizer Plans",
-    description: "Choose your EliteLineup AI plan. Free Contender tier, Sharpshooter at $19.99/mo, or Champion at $39.99/mo. Monte Carlo simulations, AI Scout, prop analysis, and more.",
+    description: "Choose your EliteLineup AI plan. Free Contender tier, single-sport plans from $9.99/mo, Sharpshooter at $19.99/mo, or Champion at $39.99/mo. Slate and Week passes with no subscription.",
     path: "/pricing",
   });
   const [billing, setBilling] = useState<BillingCycle>("monthly");
   const [paymentTier, setPaymentTier] = useState<"star" | "pro" | null>(null);
+  const [paymentSport, setPaymentSport] = useState<string | null>(null);
+  const [passBusy, setPassBusy] = useState<string | null>(null);
 
   const { data: subData } = useQuery<{
     tier: string;
@@ -33,6 +37,8 @@ export default function Pricing() {
     stripeSubscriptionId: string | null;
     currentPeriodEnd: string | null;
     isAdmin?: boolean;
+    sportScope?: string | null;
+    passExpiresAt?: string | null;
   }>({
     queryKey: ["/api/subscription"],
     enabled: !!user,
@@ -57,6 +63,12 @@ export default function Pricing() {
         description: "Your plan has been upgraded successfully. Enjoy your new features!",
       });
       window.history.replaceState({}, "", "/pricing");
+    } else if (params.get("pass_success")) {
+      toast({
+        title: "Pass activated",
+        description: "Your pass is live. It can take a few seconds to show up, so refresh if you do not see it yet.",
+      });
+      window.history.replaceState({}, "", "/pricing");
     } else if (params.get("canceled") === "true") {
       toast({
         title: "Checkout Canceled",
@@ -67,12 +79,36 @@ export default function Pricing() {
     }
   }, []);
 
-  const openPaymentForm = (tier: "star" | "pro") => {
+  const openPaymentForm = (tier: "star" | "pro", sportScope: string | null = null) => {
     if (!user) {
       window.location.href = "/login";
       return;
     }
+    setPaymentSport(sportScope);
     setPaymentTier(tier);
+  };
+
+  const buyPass = async (passId: string) => {
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+    setPassBusy(passId);
+    try {
+      const res = await fetch("/api/subscription/pass-checkout", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ passId }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.message || "Could not start checkout");
+      if (body.url) window.location.href = body.url;
+    } catch (err: any) {
+      toast({ title: "Could not start checkout", description: err?.message || "Please try again.", variant: "destructive" });
+    } finally {
+      setPassBusy(null);
+    }
   };
 
   const portalMutation = useMutation({
@@ -108,6 +144,22 @@ export default function Pricing() {
         <div className="mb-8 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-3 max-w-3xl mx-auto" data-testid="admin-banner">
           <Crown className="w-5 h-5 text-amber-400 shrink-0" />
           <p className="text-sm font-bold text-amber-300">Admin account — full Champion access at $0</p>
+        </div>
+      )}
+      {!isAdmin && subData?.passExpiresAt && !hasActiveStripeSubscription && (
+        <div className="mb-8 p-4 rounded-xl bg-volt-500/10 border border-volt-500/30 flex items-start gap-3 max-w-3xl mx-auto" data-testid="pass-banner">
+          <Ticket className="w-5 h-5 text-volt-400 shrink-0 mt-0.5" />
+          <p className="text-sm font-bold text-volt-300">
+            Pass active until {new Date(subData.passExpiresAt).toLocaleString()}. Buy another pass to extend it, or subscribe to keep going.
+          </p>
+        </div>
+      )}
+      {!isAdmin && subData?.sportScope && (
+        <div className="mb-8 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-3 max-w-3xl mx-auto" data-testid="sport-plan-banner">
+          <Trophy className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+          <p className="text-sm font-bold text-emerald-300">
+            You are on the {subData.sportScope} plan. Upgrade to Sharpshooter or Champion to unlock every sport.
+          </p>
         </div>
       )}
       {!isAdmin && isTrialing && trialEndsAt && (
@@ -505,6 +557,14 @@ export default function Pricing() {
             </li>
             <li className="flex items-center gap-3 text-sm text-slate-300">
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <span className="font-bold text-amber-300">Bankroll Tracker: profit and ROI by sport</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <span className="font-bold text-amber-300">Late Swap: re-optimize after games start</span>
+            </li>
+            <li className="flex items-center gap-3 text-sm text-slate-300">
+              <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
               <span className="font-bold text-amber-300">Bulk lineup regeneration</span>
             </li>
             {FEATURE_VISIBILITY.draftHub && <li className="flex items-center gap-3 text-sm text-slate-300">
@@ -552,6 +612,69 @@ export default function Pricing() {
       </div>
 
       <p className="text-center text-xs text-slate-500 mt-6">No refunds. Cancel at any time.</p>
+
+      {/* Passes and single-sport plans */}
+      <div className="max-w-5xl mx-auto mt-16" data-testid="flex-options">
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-black text-white tracking-tight">Not ready to subscribe?</h2>
+          <p className="text-slate-400 mt-2">Pay for one slate, one week, or just the sport you play.</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card className="bg-[#0F1A2E] border-volt-500/20 p-6 relative overflow-hidden" data-testid="passes-card">
+            <img src="/images/art/pass.svg" alt="" className="absolute -right-6 -top-6 w-40 opacity-60 pointer-events-none" />
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-1"><Ticket className="w-5 h-5 text-volt-400" /><h3 className="text-xl font-black text-white">One-time passes</h3></div>
+              <p className="text-xs text-slate-400 mb-5">Full Sharpshooter access, every sport, no recurring charge.</p>
+              <div className="space-y-3">
+                {Object.values(PASSES).map(pass => (
+                  <div key={pass.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-700/60 bg-slate-900/50 p-4">
+                    <div>
+                      <p className="font-black text-white">{pass.label} <span className="text-volt-400">{formatUsd(pass.amountCents)}</span></p>
+                      <p className="text-xs text-slate-400">{pass.blurb}</p>
+                    </div>
+                    <Button
+                      className="bg-volt-500 hover:bg-volt-400 text-black font-black shrink-0"
+                      disabled={passBusy !== null || currentTier === "pro" || hasActiveStripeSubscription}
+                      onClick={() => buyPass(pass.id)}
+                      data-testid={`buy-pass-${pass.id}`}
+                    >
+                      {passBusy === pass.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Buy"}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              {(currentTier === "pro" || hasActiveStripeSubscription) && !isAdmin && (
+                <p className="text-xs text-slate-500 mt-3">Passes are for accounts without an active plan.</p>
+              )}
+            </div>
+          </Card>
+
+          <Card className="bg-[#0F1A2E] border-emerald-500/20 p-6" data-testid="sport-plans-card">
+            <div className="flex items-center gap-2 mb-1"><Trophy className="w-5 h-5 text-emerald-400" /><h3 className="text-xl font-black text-white">Single-sport plans</h3></div>
+            <p className="text-xs text-slate-400 mb-5">Sharpshooter tools for one sport at {formatUsd(SPORT_PLAN_MONTHLY_CENTS)}/month. Cancel any time.</p>
+            <div className="space-y-3">
+              {SPORT_PLAN_SPORTS.map(sport => (
+                <div key={sport} className="flex items-center justify-between gap-3 rounded-xl border border-slate-700/60 bg-slate-900/50 p-4">
+                  <div>
+                    <p className="font-black text-white">{sport} <span className="text-emerald-400">{formatUsd(SPORT_PLAN_MONTHLY_CENTS)}/mo</span></p>
+                    <p className="text-xs text-slate-400">Everything in Sharpshooter, {sport} only.</p>
+                  </div>
+                  <Button
+                    className="bg-emerald-500 hover:bg-emerald-600 text-black font-black shrink-0"
+                    disabled={hasActiveStripeSubscription || isAdmin}
+                    onClick={() => openPaymentForm("star", sport)}
+                    data-testid={`buy-sport-${sport.toLowerCase()}`}
+                  >
+                    {trialEligible ? "Try free" : "Subscribe"}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+
+        {user && <ReferralCard />}
+      </div>
 
       {/* Standalone Draft Hub */}
       {FEATURE_VISIBILITY.draftHub && <div className="max-w-2xl mx-auto mt-12">
@@ -623,6 +746,7 @@ export default function Pricing() {
         <PaymentModal
           tier={paymentTier}
           billing={billing}
+          sportScope={paymentSport}
           onSuccess={() => {
             setPaymentTier(null);
             toast({
@@ -630,9 +754,47 @@ export default function Pricing() {
               description: "Your plan has been upgraded successfully. Enjoy your new features!",
             });
           }}
-          onCancel={() => setPaymentTier(null)}
+          onCancel={() => { setPaymentTier(null); setPaymentSport(null); }}
         />
       )}
     </div>
+  );
+}
+
+
+function ReferralCard() {
+  const { toast } = useToast();
+  const { data } = useQuery<{ code: string; pending: number; rewarded: number }>({ queryKey: ["/api/referral"] });
+  if (!data) return null;
+  const link = `${window.location.origin}/?ref=${data.code}`;
+  return (
+    <Card className="bg-[#0F1A2E] border-amber-500/20 p-6 mt-6" data-testid="referral-card">
+      <div className="flex flex-col md:flex-row md:items-center gap-5">
+        <img src="/images/art/referral.svg" alt="" className="w-28 h-28 shrink-0 hidden md:block" />
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1"><Users className="w-5 h-5 text-amber-400" /><h3 className="text-xl font-black text-white">Give a friend a month, get a month</h3></div>
+          <p className="text-sm text-slate-400 mb-4">
+            When someone signs up with your link and makes their first paid subscription payment, you get one month free. Subscribers receive a credit on their next bill. Everyone else gets a 30-day pass.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input readOnly value={link} className="flex-1 h-10 rounded-md bg-slate-950 border border-border px-3 text-sm text-slate-200" aria-label="Your referral link" />
+            <Button
+              className="bg-amber-500 hover:bg-amber-600 text-black font-black"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(link);
+                  toast({ title: "Link copied" });
+                } catch {
+                  toast({ title: "Copy failed", description: "Select the link and copy it manually.", variant: "destructive" });
+                }
+              }}
+            >
+              <Copy className="w-4 h-4 mr-2" />Copy link
+            </Button>
+          </div>
+          <p className="text-xs text-slate-500 mt-3">{data.rewarded} rewarded, {data.pending} waiting on a first payment. Up to 12 rewards a year.</p>
+        </div>
+      </div>
+    </Card>
   );
 }

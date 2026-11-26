@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Users, Settings2, BarChart3, Award, Swords, Circle, Shield, GitBranch } from "lucide-react";
+import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Users, Settings2, BarChart3, Award, Swords, Circle, Shield, GitBranch, Wallet, Repeat } from "lucide-react";
 import { ACTIVE_SPORTS, COMING_SOON_SPORTS, FEATURE_VISIBILITY } from "@shared/platform-config";
 import type { Slate } from "@shared/schema";
 import { LogoBanner } from "@/components/Logo";
@@ -388,7 +388,7 @@ export function Header() {
                 <DropdownMenuTrigger asChild>
                   <button
                     className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer outline-none ${
-                      ["/lineups", "/live-scores", "/performance", "/track-record", "/winning-lineups"].includes(currentPath)
+                      ["/lineups", "/live-scores", "/performance", "/track-record", "/winning-lineups", "/tracker", "/late-swap"].includes(currentPath)
                         ? "text-volt-400"
                         : "text-slate-400 hover:text-white"
                     }`}
@@ -432,6 +432,20 @@ export function Header() {
                   {(isPro || user?.isAdmin) && (
                     <>
                       <DropdownMenuSeparator className="bg-slate-800" />
+                      <Link href="/tracker">
+                        <DropdownMenuItem className="cursor-pointer" data-testid="nav-tracker">
+                          <Wallet className="w-4 h-4 mr-2 text-amber-400" />
+                          <span className="text-sm font-bold text-amber-300">Bankroll Tracker</span>
+                          <Crown className="w-3 h-3 text-amber-400 ml-auto" />
+                        </DropdownMenuItem>
+                      </Link>
+                      <Link href="/late-swap">
+                        <DropdownMenuItem className="cursor-pointer" data-testid="nav-late-swap">
+                          <Repeat className="w-4 h-4 mr-2 text-amber-400" />
+                          <span className="text-sm font-bold text-amber-300">Late Swap</span>
+                          <Crown className="w-3 h-3 text-amber-400 ml-auto" />
+                        </DropdownMenuItem>
+                      </Link>
                       <Link href="/winning-lineups">
                         <DropdownMenuItem className="cursor-pointer" data-testid="nav-winning-lineups">
                           <Trophy className="w-4 h-4 mr-2 text-amber-400" />
@@ -798,6 +812,32 @@ export function Header() {
               >
                 <Award className="w-5 h-5 shrink-0" />
                 <span>Track Record</span>
+              </button>
+            )}
+            {(isPro || user?.isAdmin) && (
+              <button
+                onClick={() => mobileNav("/tracker")}
+                className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                  currentPath === "/tracker" ? "bg-volt-500/10 text-volt-400" : "text-white hover:bg-slate-800"
+                }`}
+                data-testid="mobile-nav-tracker"
+              >
+                <Wallet className="w-5 h-5 shrink-0" />
+                <span>Bankroll Tracker</span>
+                <Crown className="w-3 h-3 text-amber-400 ml-auto" />
+              </button>
+            )}
+            {(isPro || user?.isAdmin) && (
+              <button
+                onClick={() => mobileNav("/late-swap")}
+                className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
+                  currentPath === "/late-swap" ? "bg-volt-500/10 text-volt-400" : "text-white hover:bg-slate-800"
+                }`}
+                data-testid="mobile-nav-late-swap"
+              >
+                <Repeat className="w-5 h-5 shrink-0" />
+                <span>Late Swap</span>
+                <Crown className="w-3 h-3 text-amber-400 ml-auto" />
               </button>
             )}
             {(isPaid || user?.isAdmin) && (

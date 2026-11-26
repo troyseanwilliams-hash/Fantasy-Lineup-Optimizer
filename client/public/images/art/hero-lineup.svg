@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-label="A glowing lineup of connected players on a field">
+  <defs>
+    <radialGradient id="glowbg" cx=".5" cy=".5" r=".6"><stop offset="0" stop-color="#C4F82E" stop-opacity=".16"/><stop offset="1" stop-color="#C4F82E" stop-opacity="0"/></radialGradient>
+    <linearGradient id="field" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#111827"/><stop offset="1" stop-color="#0A0A0C"/></linearGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="6"/></filter>
+    <g id="n"><circle r="26" fill="#C4F82E" opacity=".28" filter="url(#blur)"/><circle r="17" fill="#C4F82E"/><circle r="7" fill="#0A0A0C"/></g>
+  </defs>
+  <rect width="640" height="420" rx="26" fill="url(#field)"/>
+  <rect width="640" height="420" rx="26" fill="url(#glowbg)"/>
+  <g fill="none" stroke="#1f2937" stroke-width="2">
+    <rect x="40" y="36" width="560" height="348" rx="14"/><path d="M320 36V384"/><circle cx="320" cy="210" r="56"/>
+    <path d="M40 140H110V280H40M600 140H530V280H600"/>
+  </g>
+  <g stroke="#C4F82E" stroke-width="2.5" stroke-opacity=".55" fill="none">
+    <path d="M320 320L170 250L190 130L320 90L450 130L470 250Z"/><path d="M320 320L320 90M170 250L470 250M190 130L450 130"/>
+  </g>
+  <g>
+    <use href="#n" x="320" y="320"/><use href="#n" x="170" y="250"/><use href="#n" x="470" y="250"/>
+    <use href="#n" x="190" y="130"/><use href="#n" x="450" y="130"/><use href="#n" x="320" y="90"/>
+  </g>
+  <g font-family="Inter,Arial,sans-serif" font-weight="800" font-size="13" fill="#e5e7eb" text-anchor="middle">
+    <text x="320" y="364">PG</text><text x="170" y="294">SG</text><text x="470" y="294">SF</text>
+    <text x="190" y="174">PF</text><text x="450" y="174">C</text><text x="320" y="134">UTIL</text>
+  </g>
+  <g transform="translate(432 40)"><rect width="150" height="54" rx="12" fill="#0A0A0C" stroke="#C4F82E" stroke-opacity=".5"/>
+    <text x="14" y="23" font-family="Inter,Arial,sans-serif" font-weight="700" font-size="11" fill="#94a3b8">PROJECTED</text>
+    <text x="14" y="44" font-family="Inter,Arial,sans-serif" font-weight="900" font-size="20" fill="#C4F82E">312.4 pts</text></g>
+</svg>

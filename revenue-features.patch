@@ -1,0 +1,2381 @@
+diff --git a/client/public/images/art/hero-lineup.svg b/client/public/images/art/hero-lineup.svg
+new file mode 100644
+index 0000000..3a7634f
+--- /dev/null
++++ b/client/public/images/art/hero-lineup.svg
+@@ -0,0 +1,28 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-label="A glowing lineup of connected players on a field">
++  <defs>
++    <radialGradient id="glowbg" cx=".5" cy=".5" r=".6"><stop offset="0" stop-color="#C4F82E" stop-opacity=".16"/><stop offset="1" stop-color="#C4F82E" stop-opacity="0"/></radialGradient>
++    <linearGradient id="field" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#111827"/><stop offset="1" stop-color="#0A0A0C"/></linearGradient>
++    <filter id="blur"><feGaussianBlur stdDeviation="6"/></filter>
++    <g id="n"><circle r="26" fill="#C4F82E" opacity=".28" filter="url(#blur)"/><circle r="17" fill="#C4F82E"/><circle r="7" fill="#0A0A0C"/></g>
++  </defs>
++  <rect width="640" height="420" rx="26" fill="url(#field)"/>
++  <rect width="640" height="420" rx="26" fill="url(#glowbg)"/>
++  <g fill="none" stroke="#1f2937" stroke-width="2">
++    <rect x="40" y="36" width="560" height="348" rx="14"/><path d="M320 36V384"/><circle cx="320" cy="210" r="56"/>
++    <path d="M40 140H110V280H40M600 140H530V280H600"/>
++  </g>
++  <g stroke="#C4F82E" stroke-width="2.5" stroke-opacity=".55" fill="none">
++    <path d="M320 320L170 250L190 130L320 90L450 130L470 250Z"/><path d="M320 320L320 90M170 250L470 250M190 130L450 130"/>
++  </g>
++  <g>
++    <use href="#n" x="320" y="320"/><use href="#n" x="170" y="250"/><use href="#n" x="470" y="250"/>
++    <use href="#n" x="190" y="130"/><use href="#n" x="450" y="130"/><use href="#n" x="320" y="90"/>
++  </g>
++  <g font-family="Inter,Arial,sans-serif" font-weight="800" font-size="13" fill="#e5e7eb" text-anchor="middle">
++    <text x="320" y="364">PG</text><text x="170" y="294">SG</text><text x="470" y="294">SF</text>
++    <text x="190" y="174">PF</text><text x="450" y="174">C</text><text x="320" y="134">UTIL</text>
++  </g>
++  <g transform="translate(432 40)"><rect width="150" height="54" rx="12" fill="#0A0A0C" stroke="#C4F82E" stroke-opacity=".5"/>
++    <text x="14" y="23" font-family="Inter,Arial,sans-serif" font-weight="700" font-size="11" fill="#94a3b8">PROJECTED</text>
++    <text x="14" y="44" font-family="Inter,Arial,sans-serif" font-weight="900" font-size="20" fill="#C4F82E">312.4 pts</text></g>
++</svg>
+diff --git a/client/public/images/art/late-swap.svg b/client/public/images/art/late-swap.svg
+new file mode 100644
+index 0000000..8d54ff9
+--- /dev/null
++++ b/client/public/images/art/late-swap.svg
+@@ -0,0 +1,26 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300" role="img" aria-label="Two players swapping places while one slot is locked">
++  <defs>
++    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#111827"/><stop offset="1" stop-color="#0A0A0C"/></linearGradient>
++    <filter id="glow"><feGaussianBlur stdDeviation="5"/></filter>
++  </defs>
++  <rect width="480" height="300" rx="20" fill="url(#bg)"/>
++  <g>
++    <rect x="36" y="48" width="170" height="52" rx="12" fill="#1f2937"/>
++    <circle cx="64" cy="74" r="14" fill="#334155"/><rect x="88" y="62" width="80" height="9" rx="4" fill="#475569"/><rect x="88" y="78" width="52" height="8" rx="4" fill="#334155"/>
++    <path d="M178 66v-6a8 8 0 0 1 16 0v6" fill="none" stroke="#94a3b8" stroke-width="3"/><rect x="172" y="66" width="28" height="22" rx="5" fill="#94a3b8"/>
++    <rect x="36" y="120" width="170" height="52" rx="12" fill="#3b1d1d" stroke="#f87171" stroke-opacity=".6"/>
++    <circle cx="64" cy="146" r="14" fill="#7f1d1d"/><rect x="88" y="134" width="80" height="9" rx="4" fill="#b91c1c"/><rect x="88" y="150" width="52" height="8" rx="4" fill="#7f1d1d"/>
++    <rect x="36" y="192" width="170" height="52" rx="12" fill="#1f2937"/>
++    <circle cx="64" cy="218" r="14" fill="#334155"/><rect x="88" y="206" width="80" height="9" rx="4" fill="#475569"/><rect x="88" y="222" width="52" height="8" rx="4" fill="#334155"/>
++  </g>
++  <g transform="translate(218 118)">
++    <circle cx="22" cy="28" r="26" fill="#C4F82E" opacity=".25" filter="url(#glow)"/>
++    <circle cx="22" cy="28" r="22" fill="#C4F82E"/>
++    <path d="M12 22h18l-5-5M32 34H14l5 5" fill="none" stroke="#0A0A0C" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
++  </g>
++  <g>
++    <rect x="274" y="120" width="170" height="52" rx="12" fill="#1c2a0b" stroke="#C4F82E" stroke-opacity=".7"/>
++    <circle cx="302" cy="146" r="14" fill="#3f6212"/><rect x="326" y="134" width="80" height="9" rx="4" fill="#C4F82E"/><rect x="326" y="150" width="52" height="8" rx="4" fill="#65a30d"/>
++    <rect x="274" y="48" width="170" height="52" rx="12" fill="#1f2937" opacity=".5"/><rect x="274" y="192" width="170" height="52" rx="12" fill="#1f2937" opacity=".5"/>
++  </g>
++</svg>
+diff --git a/client/public/images/art/pass.svg b/client/public/images/art/pass.svg
+new file mode 100644
+index 0000000..d75875a
+--- /dev/null
++++ b/client/public/images/art/pass.svg
+@@ -0,0 +1,11 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Ticket">
++  <defs><filter id="g"><feGaussianBlur stdDeviation="6"/></filter></defs>
++  <g transform="rotate(-18 100 100)">
++    <rect x="20" y="62" width="160" height="76" rx="12" fill="#C4F82E" opacity=".35" filter="url(#g)"/>
++    <path d="M32 62h136a12 12 0 0 1 12 12v12a14 14 0 0 0 0 28v12a12 12 0 0 1-12 12H32a12 12 0 0 1-12-12v-12a14 14 0 0 0 0-28V74a12 12 0 0 1 12-12Z" fill="#C4F82E"/>
++    <path d="M128 66v68" stroke="#0A0A0C" stroke-opacity=".35" stroke-width="3" stroke-dasharray="5 6"/>
++    <circle cx="74" cy="100" r="20" fill="none" stroke="#0A0A0C" stroke-width="5"/>
++    <path d="M62 100h24M74 88v24" stroke="#0A0A0C" stroke-width="5" stroke-linecap="round"/>
++    <rect x="140" y="88" width="26" height="6" rx="3" fill="#0A0A0C" opacity=".6"/><rect x="140" y="102" width="18" height="6" rx="3" fill="#0A0A0C" opacity=".4"/>
++  </g>
++</svg>
+diff --git a/client/public/images/art/referral.svg b/client/public/images/art/referral.svg
+new file mode 100644
+index 0000000..abb0607
+--- /dev/null
++++ b/client/public/images/art/referral.svg
+@@ -0,0 +1,9 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Gift box">
++  <defs><filter id="g"><feGaussianBlur stdDeviation="7"/></filter></defs>
++  <circle cx="100" cy="108" r="64" fill="#f59e0b" opacity=".25" filter="url(#g)"/>
++  <rect x="42" y="84" width="116" height="84" rx="12" fill="#f59e0b"/>
++  <rect x="34" y="66" width="132" height="30" rx="10" fill="#fbbf24"/>
++  <rect x="90" y="66" width="20" height="102" fill="#0A0A0C" opacity=".75"/>
++  <path d="M100 66c-10-26-40-26-40-10s26 10 40 10Zm0 0c10-26 40-26 40-10s-26 10-40 10Z" fill="none" stroke="#fbbf24" stroke-width="7" stroke-linejoin="round"/>
++  <circle cx="156" cy="40" r="5" fill="#C4F82E"/><circle cx="40" cy="48" r="4" fill="#C4F82E" opacity=".7"/><circle cx="172" cy="96" r="3" fill="#fbbf24"/>
++</svg>
+diff --git a/client/public/images/art/tracker.svg b/client/public/images/art/tracker.svg
+new file mode 100644
+index 0000000..b4492c3
+--- /dev/null
++++ b/client/public/images/art/tracker.svg
+@@ -0,0 +1,23 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300" role="img" aria-label="Rising profit chart">
++  <defs>
++    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#111827"/><stop offset="1" stop-color="#0A0A0C"/></linearGradient>
++    <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C4F82E" stop-opacity=".35"/><stop offset="1" stop-color="#C4F82E" stop-opacity="0"/></linearGradient>
++    <filter id="glow"><feGaussianBlur stdDeviation="4"/></filter>
++  </defs>
++  <rect width="480" height="300" rx="20" fill="url(#bg)"/>
++  <g stroke="#1f2937" stroke-width="1">
++    <path d="M40 70H440M40 120H440M40 170H440M40 220H440"/>
++  </g>
++  <g fill="#334155">
++    <rect x="62" y="190" width="28" height="40" rx="5"/><rect x="108" y="170" width="28" height="60" rx="5"/>
++    <rect x="154" y="182" width="28" height="48" rx="5"/><rect x="200" y="150" width="28" height="80" rx="5"/>
++    <rect x="246" y="160" width="28" height="70" rx="5"/><rect x="292" y="120" width="28" height="110" rx="5"/>
++    <rect x="338" y="104" width="28" height="126" rx="5"/><rect x="384" y="80" width="28" height="150" rx="5"/>
++  </g>
++  <path d="M40 215 L100 190 L150 200 L215 150 L260 158 L306 112 L352 96 L398 56 L440 44 L440 240 L40 240Z" fill="url(#fill)"/>
++  <path d="M40 215 L100 190 L150 200 L215 150 L260 158 L306 112 L352 96 L398 56 L440 44" fill="none" stroke="#C4F82E" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" filter="url(#glow)" opacity=".6"/>
++  <path d="M40 215 L100 190 L150 200 L215 150 L260 158 L306 112 L352 96 L398 56 L440 44" fill="none" stroke="#C4F82E" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
++  <circle cx="440" cy="44" r="8" fill="#C4F82E"/><circle cx="440" cy="44" r="14" fill="none" stroke="#C4F82E" stroke-opacity=".4"/>
++  <text x="40" y="36" font-family="Inter,Arial,sans-serif" font-weight="800" font-size="16" fill="#e5e7eb">ROI</text>
++  <text x="84" y="36" font-family="Inter,Arial,sans-serif" font-weight="800" font-size="16" fill="#C4F82E">+18.4%</text>
++</svg>
+diff --git a/client/src/App.tsx b/client/src/App.tsx
+index 629c1f8..a567b02 100644
+--- a/client/src/App.tsx
++++ b/client/src/App.tsx
+@@ -40,6 +40,9 @@ import NFLDraft from "@/pages/NFLDraft";
+ import Support from "@/pages/Support";
+ import TopStacks from "@/pages/TopStacks";
+ import MmaOptimizer from "@/pages/MmaOptimizer";
++import Tracker from "@/pages/Tracker";
++import LateSwap from "@/pages/LateSwap";
++import { ReferralCapture } from "@/components/ReferralCapture";
+ 
+ import NotFound from "@/pages/not-found";
+ import { Header } from "@/components/Header";
+@@ -74,6 +77,7 @@ function Router() {
+ 
+   return (
+     <div className={`flex flex-col ${isOptimizer ? "h-[100dvh] overflow-hidden" : isOnboarding || isLoginPage ? "" : "min-h-screen"} bg-[#0A0A0C]`}>
++      <ReferralCapture />
+       {!isOnboarding && !isLoginPage && <Header />}
+       <main className={isOptimizer ? "min-h-0 flex-1 overflow-y-auto" : "flex-grow"} data-testid={isOptimizer ? "optimizer-page-scroll" : undefined}>
+         <Switch>
+@@ -111,6 +115,8 @@ function Router() {
+           <Route path="/nfl-mme" component={NFLMMEOptimizer} />
+           <Route path="/nfl-draft" component={NFLDraft} />
+           <Route path="/support" component={Support} />
++          <Route path="/tracker" component={Tracker} />
++          <Route path="/late-swap" component={LateSwap} />
+           <Route component={NotFound} />
+         </Switch>
+       </main>
+diff --git a/client/src/components/Header.tsx b/client/src/components/Header.tsx
+index 8ce0f03..c413b5b 100644
+--- a/client/src/components/Header.tsx
++++ b/client/src/components/Header.tsx
+@@ -13,7 +13,7 @@ import {
+   DropdownMenuSeparator,
+   DropdownMenuLabel,
+ } from "@/components/ui/dropdown-menu";
+-import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Users, Settings2, BarChart3, Award, Swords, Circle, Shield, GitBranch } from "lucide-react";
++import { Zap, Archive, LogOut, ShieldAlert, Crown, TrendingUp, ChevronDown, Dribbble, Activity, Target, Newspaper, LayoutGrid, Bell, Lock, Sparkles, AlertTriangle, Info, XCircle, CreditCard, Trophy, Flag, Layers, Menu, X, Users, Settings2, BarChart3, Award, Swords, Circle, Shield, GitBranch, Wallet, Repeat } from "lucide-react";
+ import { ACTIVE_SPORTS, COMING_SOON_SPORTS, FEATURE_VISIBILITY } from "@shared/platform-config";
+ import type { Slate } from "@shared/schema";
+ import { LogoBanner } from "@/components/Logo";
+@@ -388,7 +388,7 @@ export function Header() {
+                 <DropdownMenuTrigger asChild>
+                   <button
+                     className={`flex items-center space-x-2 font-bold text-sm tracking-wide transition-colors cursor-pointer outline-none ${
+-                      ["/lineups", "/live-scores", "/performance", "/track-record", "/winning-lineups"].includes(currentPath)
++                      ["/lineups", "/live-scores", "/performance", "/track-record", "/winning-lineups", "/tracker", "/late-swap"].includes(currentPath)
+                         ? "text-volt-400"
+                         : "text-slate-400 hover:text-white"
+                     }`}
+@@ -432,6 +432,20 @@ export function Header() {
+                   {(isPro || user?.isAdmin) && (
+                     <>
+                       <DropdownMenuSeparator className="bg-slate-800" />
++                      <Link href="/tracker">
++                        <DropdownMenuItem className="cursor-pointer" data-testid="nav-tracker">
++                          <Wallet className="w-4 h-4 mr-2 text-amber-400" />
++                          <span className="text-sm font-bold text-amber-300">Bankroll Tracker</span>
++                          <Crown className="w-3 h-3 text-amber-400 ml-auto" />
++                        </DropdownMenuItem>
++                      </Link>
++                      <Link href="/late-swap">
++                        <DropdownMenuItem className="cursor-pointer" data-testid="nav-late-swap">
++                          <Repeat className="w-4 h-4 mr-2 text-amber-400" />
++                          <span className="text-sm font-bold text-amber-300">Late Swap</span>
++                          <Crown className="w-3 h-3 text-amber-400 ml-auto" />
++                        </DropdownMenuItem>
++                      </Link>
+                       <Link href="/winning-lineups">
+                         <DropdownMenuItem className="cursor-pointer" data-testid="nav-winning-lineups">
+                           <Trophy className="w-4 h-4 mr-2 text-amber-400" />
+@@ -800,6 +814,32 @@ export function Header() {
+                 <span>Track Record</span>
+               </button>
+             )}
++            {(isPro || user?.isAdmin) && (
++              <button
++                onClick={() => mobileNav("/tracker")}
++                className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
++                  currentPath === "/tracker" ? "bg-volt-500/10 text-volt-400" : "text-white hover:bg-slate-800"
++                }`}
++                data-testid="mobile-nav-tracker"
++              >
++                <Wallet className="w-5 h-5 shrink-0" />
++                <span>Bankroll Tracker</span>
++                <Crown className="w-3 h-3 text-amber-400 ml-auto" />
++              </button>
++            )}
++            {(isPro || user?.isAdmin) && (
++              <button
++                onClick={() => mobileNav("/late-swap")}
++                className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-bold transition-colors ${
++                  currentPath === "/late-swap" ? "bg-volt-500/10 text-volt-400" : "text-white hover:bg-slate-800"
++                }`}
++                data-testid="mobile-nav-late-swap"
++              >
++                <Repeat className="w-5 h-5 shrink-0" />
++                <span>Late Swap</span>
++                <Crown className="w-3 h-3 text-amber-400 ml-auto" />
++              </button>
++            )}
+             {(isPaid || user?.isAdmin) && (
+               <button
+                 onClick={() => mobileNav("/notifications")}
+diff --git a/client/src/components/PaymentForm.tsx b/client/src/components/PaymentForm.tsx
+index 793e815..832c724 100644
+--- a/client/src/components/PaymentForm.tsx
++++ b/client/src/components/PaymentForm.tsx
+@@ -17,6 +17,8 @@ const stripePromise = loadStripe(import.meta.env.VITE_ELITELINEUP_STRIPE_PUBLISH
+ interface PaymentFormProps {
+   tier: "star" | "pro";
+   billing: "monthly" | "annual";
++  /** Set for single-sport plans (Sharpshooter limited to one sport). */
++  sportScope?: string | null;
+   onSuccess: () => void;
+   onCancel: () => void;
+ }
+@@ -209,13 +211,13 @@ function CheckoutForm({ tier, isTrial, onSuccess, onCancel }: { tier: "star" | "
+   );
+ }
+ 
+-export function PaymentModal({ tier, billing, onSuccess, onCancel }: PaymentFormProps) {
++export function PaymentModal({ tier, billing, sportScope, onSuccess, onCancel }: PaymentFormProps) {
+   const { toast } = useToast();
+   const hasMutated = useRef(false);
+ 
+   const createIntentMutation = useMutation({
+     mutationFn: async () => {
+-      const res = await apiRequest("POST", "/api/subscription/create-intent", { tier, billing });
++      const res = await apiRequest("POST", "/api/subscription/create-intent", { tier, billing, ...(sportScope ? { sportScope } : {}) });
+       return res.json();
+     },
+     onError: (error: Error) => {
+@@ -234,10 +236,12 @@ export function PaymentModal({ tier, billing, onSuccess, onCancel }: PaymentForm
+     }
+   }, [tier, billing]);
+ 
+-  const tierName = tier === "pro" ? "Champion" : "Sharpshooter";
++  const tierName = tier === "pro" ? "Champion" : sportScope ? `${sportScope} Plan` : "Sharpshooter";
+   const price = tier === "pro"
+     ? (billing === "annual" ? "$399.90/year" : "$39.99/month")
+-    : (billing === "annual" ? "$199.90/year" : "$19.99/month");
++    : sportScope
++      ? "$9.99/month"
++      : (billing === "annual" ? "$199.90/year" : "$19.99/month");
+   const isTrial = createIntentMutation.data?.isTrial ?? false;
+ 
+   return (
+diff --git a/client/src/components/ReferralCapture.tsx b/client/src/components/ReferralCapture.tsx
+new file mode 100644
+index 0000000..c6afccd
+--- /dev/null
++++ b/client/src/components/ReferralCapture.tsx
+@@ -0,0 +1,48 @@
++import { useEffect } from "react";
++import { useAuth } from "@/hooks/use-auth";
++
++const KEY = "elitelineup_ref";
++
++/**
++ * Remembers ?ref=CODE from the URL, then applies it once the visitor is signed in.
++ * Renders nothing. Storage failures are ignored on purpose (private browsing etc.).
++ */
++export function ReferralCapture() {
++  const { user } = useAuth();
++
++  useEffect(() => {
++    try {
++      const code = new URLSearchParams(window.location.search).get("ref");
++      if (code && /^[A-Za-z0-9]{6,12}$/.test(code)) localStorage.setItem(KEY, code.toUpperCase());
++    } catch {
++      // ignore
++    }
++  }, []);
++
++  useEffect(() => {
++    if (!user) return;
++    let code: string | null = null;
++    try {
++      code = localStorage.getItem(KEY);
++    } catch {
++      return;
++    }
++    if (!code) return;
++    fetch("/api/referral/redeem", {
++      method: "POST",
++      credentials: "include",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({ code }),
++    })
++      .catch(() => undefined)
++      .finally(() => {
++        try {
++          localStorage.removeItem(KEY);
++        } catch {
++          // ignore
++        }
++      });
++  }, [user]);
++
++  return null;
++}
+diff --git a/client/src/pages/Home.tsx b/client/src/pages/Home.tsx
+index 3184f39..c1109bf 100644
+--- a/client/src/pages/Home.tsx
++++ b/client/src/pages/Home.tsx
+@@ -1471,6 +1471,7 @@ export default function Home() {
+         <div className="absolute inset-x-0 top-0 h-[640px] bg-gradient-to-b from-[#0B0F14]/40 via-[#0B0F14]/80 to-[#0B0F14]" />
+         <div className="relative z-10 max-w-6xl mx-auto px-6">
+ 
++          <div className="lg:grid lg:grid-cols-[1.15fr_0.85fr] lg:gap-10 lg:items-center">
+           <section className="pt-16 md:pt-24 pb-14 max-w-3xl">
+             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-volt-500/10 border border-volt-500/25 text-volt-400 text-sm font-semibold mb-6" data-testid="landing-nba-highlight">
+               <span className="w-2 h-2 rounded-full bg-volt-500" />
+@@ -1511,6 +1512,13 @@ export default function Home() {
+               {FEATURE_VISIBILITY.draftHub && <Badge className="bg-amber-500/10 text-amber-300 border-amber-500/25 font-semibold text-sm px-3 py-1.5">NFL Draft Hub</Badge>}
+             </div>
+           </section>
++          <img
++            src="/images/art/hero-lineup.svg"
++            alt="A lineup of six connected players with a projected score"
++            className="hidden lg:block w-full rounded-3xl border border-white/5 shadow-2xl shadow-volt-500/5"
++            data-testid="landing-hero-art"
++          />
++          </div>
+ 
+           {FEATURE_VISIBILITY.draftHub && <DraftHubHero />}
+           <LandingTopPlays />
+@@ -1544,6 +1552,22 @@ export default function Home() {
+                 </div>
+               ))}
+             </div>
++            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5" data-testid="landing-tool-art">
++              <figure className="bg-[#121820] border border-slate-800 rounded-xl overflow-hidden">
++                <img src="/images/art/late-swap.svg" alt="Late swap keeps locked players and replaces the rest" className="w-full" loading="lazy" />
++                <figcaption className="p-5">
++                  <h3 className="text-lg font-bold text-white mb-1">Late swap</h3>
++                  <p className="text-sm text-slate-400 leading-relaxed">Games started and a player is out? Keep the locked players and rebuild only the open slots.</p>
++                </figcaption>
++              </figure>
++              <figure className="bg-[#121820] border border-slate-800 rounded-xl overflow-hidden">
++                <img src="/images/art/tracker.svg" alt="Profit chart rising over time" className="w-full" loading="lazy" />
++                <figcaption className="p-5">
++                  <h3 className="text-lg font-bold text-white mb-1">Bankroll tracker</h3>
++                  <p className="text-sm text-slate-400 leading-relaxed">Upload your DraftKings contest history and see profit and ROI by sport and contest type.</p>
++                </figcaption>
++              </figure>
++            </div>
+           </section>
+ 
+           <section className="pb-14">
+@@ -1565,7 +1589,7 @@ export default function Home() {
+           <section className="mb-14 bg-[#121820] border border-slate-800 rounded-2xl p-8 md:p-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+             <div>
+               <h2 className="text-2xl md:text-3xl font-black text-white mb-2">Start free. Upgrade when it pays for itself.</h2>
+-              <p className="text-slate-400">Contender is free. Sharpshooter is $19.99 a month and Champion is $39.99, each with a 7-day free trial.</p>
++              <p className="text-slate-400">Contender is free. Single-sport plans start at $9.99 a month, Sharpshooter is $19.99 and Champion is $39.99, each with a 7-day free trial. Or grab a Slate Pass for $4.99 or a Week Pass for $9.99 with no subscription.</p>
+             </div>
+             <Link href="/pricing">
+               <Button className="h-14 px-8 text-lg font-black bg-volt-500 hover:bg-volt-600 text-[#0B0F14] shrink-0">Compare plans</Button>
+diff --git a/client/src/pages/LateSwap.tsx b/client/src/pages/LateSwap.tsx
+new file mode 100644
+index 0000000..7d2457f
+--- /dev/null
++++ b/client/src/pages/LateSwap.tsx
+@@ -0,0 +1,206 @@
++import { useMemo, useState } from "react";
++import { Link } from "wouter";
++import { useMutation, useQuery } from "@tanstack/react-query";
++import { useAuth } from "@/hooks/use-auth";
++import { useLineups } from "@/hooks/use-lineups";
++import { apiRequest } from "@/lib/queryClient";
++import { Button } from "@/components/ui/button";
++import { Card } from "@/components/ui/card";
++import { Badge } from "@/components/ui/badge";
++import { usePageMeta } from "@/hooks/use-page-meta";
++import { ArrowRight, Crown, Loader2, Lock, Repeat } from "lucide-react";
++
++interface SwapPlayer {
++  id: number;
++  name: string;
++  team: string;
++  position: string;
++  salary: number;
++  projectedPoints: number;
++  opponent: string | null;
++  game: string;
++  injuryStatus: string | null;
++  locked: boolean;
++  gameStart: string | null;
++}
++
++interface SwapResult {
++  message?: string;
++  original: SwapPlayer[];
++  suggested: SwapPlayer[];
++  swaps: { out: SwapPlayer; in: SwapPlayer | null }[];
++  projectionBefore: number;
++  projectionAfter: number;
++  gain: number;
++  salaryBefore?: number;
++  salaryAfter?: number;
++  lockedCount: number;
++}
++
++function PlayerRow({ p, tone }: { p: SwapPlayer; tone?: "out" | "in" }) {
++  return (
++    <div className={`flex items-center justify-between gap-3 px-3 py-2 rounded-lg border ${
++      tone === "out" ? "border-red-500/30 bg-red-500/5" : tone === "in" ? "border-volt-500/40 bg-volt-500/5" : "border-slate-800 bg-slate-900/40"
++    }`}>
++      <div className="flex items-center gap-2 min-w-0">
++        <span className="w-9 text-[11px] font-black text-slate-500">{p.position}</span>
++        <div className="min-w-0">
++          <p className="text-sm font-bold text-white truncate">{p.name}</p>
++          <p className="text-[11px] text-slate-500 truncate">{p.team}{p.game ? ` · ${p.game}` : ""}</p>
++        </div>
++      </div>
++      <div className="flex items-center gap-3 shrink-0">
++        {p.locked && <Lock className="w-3.5 h-3.5 text-slate-500" aria-label="Game started" />}
++        {p.injuryStatus && <span className="text-[10px] font-black text-red-400 uppercase">{p.injuryStatus}</span>}
++        <span className="text-xs text-slate-400">${(p.salary / 1000).toFixed(1)}K</span>
++        <span className="text-sm font-black text-white w-12 text-right">{p.projectedPoints.toFixed(1)}</span>
++      </div>
++    </div>
++  );
++}
++
++export default function LateSwap() {
++  const { user } = useAuth();
++  usePageMeta({
++    title: "Late Swap - Re-optimize After Games Start",
++    description: "Keep the players whose games have started and let the optimizer rebuild the rest of your lineup.",
++    path: "/late-swap",
++  });
++  const { data: sub } = useQuery<{ tier: string }>({ queryKey: ["/api/subscription"], enabled: !!user });
++  const isChampion = sub?.tier === "pro";
++  const { data: lineups, isLoading } = useLineups();
++  const [selected, setSelected] = useState<number | null>(null);
++  const [error, setError] = useState<string | null>(null);
++
++  const recent = useMemo(() => {
++    const list = (lineups ?? []).filter(l => (l.platform || "draftkings") === "draftkings");
++    return [...list]
++      .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
++      .slice(0, 30);
++  }, [lineups]);
++
++  const swapMutation = useMutation({
++    mutationFn: async (lineupId: number): Promise<SwapResult> => {
++      const res = await apiRequest("POST", "/api/late-swap", { lineupId });
++      return res.json();
++    },
++    onMutate: () => setError(null),
++    onError: (e: Error) => {
++      const m = e.message.match(/"message":"([^"]+)"/);
++      setError(m ? m[1] : e.message);
++    },
++  });
++
++  if (!user) {
++    return (
++      <div className="container mx-auto px-4 py-16 max-w-xl text-center">
++        <p className="text-slate-300 mb-4">Sign in to use Late Swap.</p>
++        <Link href="/login"><Button className="bg-volt-500 text-black font-black">Sign in</Button></Link>
++      </div>
++    );
++  }
++
++  if (sub && !isChampion) {
++    return (
++      <div className="container mx-auto px-4 py-16 max-w-2xl text-center" data-testid="late-swap-upsell">
++        <img src="/images/art/late-swap.svg" alt="" className="mx-auto w-full max-w-md mb-8" />
++        <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 font-bold mb-4"><Crown className="w-3.5 h-3.5 mr-1" />Champion</Badge>
++        <h1 className="text-4xl font-black text-white mb-3">Late Swap</h1>
++        <p className="text-slate-400 mb-6">A player is out and half your games have started? Keep the locked players and rebuild the open slots in one click.</p>
++        <Link href="/pricing"><Button className="bg-amber-500 hover:bg-amber-600 text-black font-black h-12 px-8">See Champion</Button></Link>
++      </div>
++    );
++  }
++
++  const result = swapMutation.data;
++
++  return (
++    <div className="container mx-auto px-4 py-8 max-w-4xl" data-testid="late-swap-page">
++      <div className="flex items-center gap-3 mb-6">
++        <div className="w-11 h-11 rounded-xl bg-volt-500/10 flex items-center justify-center"><Repeat className="w-6 h-6 text-volt-400" /></div>
++        <div>
++          <h1 className="text-3xl font-black text-white tracking-tight">Late Swap</h1>
++          <p className="text-sm text-slate-400">Games that have started stay locked. Only the open slots change.</p>
++        </div>
++      </div>
++
++      <Card className="bg-slate-900/60 border-border p-5 mb-6">
++        <h2 className="text-sm font-black text-white uppercase tracking-wider mb-3">Pick a saved lineup</h2>
++        {isLoading ? (
++          <Loader2 className="w-5 h-5 text-volt-400 animate-spin" />
++        ) : recent.length === 0 ? (
++          <p className="text-sm text-slate-400">No saved DraftKings lineups yet. Build one in an optimizer first.</p>
++        ) : (
++          <div className="flex flex-col sm:flex-row gap-3">
++            <select
++              value={selected ?? ""}
++              onChange={e => setSelected(e.target.value ? Number(e.target.value) : null)}
++              className="h-11 flex-1 rounded-md bg-slate-950 border border-border px-3 text-sm text-white"
++              aria-label="Saved lineup"
++              data-testid="late-swap-select"
++            >
++              <option value="">Choose a lineup</option>
++              {recent.map(l => (
++                <option key={l.id} value={l.id}>
++                  {l.sport} · {l.name || `Lineup #${l.id}`} · {parseFloat(String(l.totalProjectedPoints)).toFixed(1)} pts
++                </option>
++              ))}
++            </select>
++            <Button
++              className="h-11 bg-volt-500 hover:bg-volt-400 text-black font-black"
++              disabled={selected == null || swapMutation.isPending}
++              onClick={() => selected != null && swapMutation.mutate(selected)}
++              data-testid="late-swap-run"
++            >
++              {swapMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Repeat className="w-4 h-4 mr-2" />}
++              Find swaps
++            </Button>
++          </div>
++        )}
++        {error && <p className="text-sm text-red-400 mt-3" role="alert">{error}</p>}
++      </Card>
++
++      {result && (
++        <div data-testid="late-swap-result">
++          <div className="grid grid-cols-3 gap-3 mb-4">
++            <Card className="bg-slate-900/60 border-border p-4">
++              <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider">Before</p>
++              <p className="text-2xl font-black text-white">{result.projectionBefore.toFixed(1)}</p>
++            </Card>
++            <Card className="bg-slate-900/60 border-border p-4">
++              <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider">After</p>
++              <p className="text-2xl font-black text-white">{result.projectionAfter.toFixed(1)}</p>
++            </Card>
++            <Card className="bg-slate-900/60 border-border p-4">
++              <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider">Change</p>
++              <p className={`text-2xl font-black ${result.gain >= 0 ? "text-volt-400" : "text-red-400"}`}>{result.gain >= 0 ? "+" : ""}{result.gain.toFixed(1)}</p>
++            </Card>
++          </div>
++
++          {result.message && <p className="text-sm text-slate-400 mb-4">{result.message}</p>}
++
++          {result.swaps.length > 0 && (
++            <Card className="bg-slate-900/60 border-border p-5 mb-4">
++              <h3 className="text-sm font-black text-white uppercase tracking-wider mb-3">Suggested swaps</h3>
++              <div className="space-y-3">
++                {result.swaps.map((s, i) => (
++                  <div key={i} className="grid md:grid-cols-[1fr_auto_1fr] items-center gap-2">
++                    <PlayerRow p={s.out} tone="out" />
++                    <ArrowRight className="w-4 h-4 text-slate-500 mx-auto rotate-90 md:rotate-0" />
++                    {s.in ? <PlayerRow p={s.in} tone="in" /> : <span className="text-sm text-slate-500">Open slot</span>}
++                  </div>
++                ))}
++              </div>
++              <p className="text-xs text-slate-500 mt-4">Make these changes in DraftKings before each player's game starts. Your saved lineup here is not changed.</p>
++            </Card>
++          )}
++
++          <Card className="bg-slate-900/60 border-border p-5">
++            <h3 className="text-sm font-black text-white uppercase tracking-wider mb-3">Full lineup after swaps ({result.lockedCount} locked)</h3>
++            <div className="space-y-2">{result.suggested.map(p => <PlayerRow key={p.id} p={p} />)}</div>
++          </Card>
++        </div>
++      )}
++    </div>
++  );
++}
+diff --git a/client/src/pages/Pricing.tsx b/client/src/pages/Pricing.tsx
+index 0b62457..fd6bea7 100644
+--- a/client/src/pages/Pricing.tsx
++++ b/client/src/pages/Pricing.tsx
+@@ -10,6 +10,8 @@ import { usePageMeta } from "@/hooks/use-page-meta";
+ import { Check, Crown, Lock, Trophy, Sparkles, Calendar, Tag, Loader2, AlertTriangle, CreditCard, Gift, Dice5 } from "lucide-react";
+ import { PaymentModal } from "@/components/PaymentForm";
+ import { FEATURE_VISIBILITY } from "@shared/platform-config";
++import { PASSES, SPORT_PLAN_SPORTS, SPORT_PLAN_MONTHLY_CENTS, formatUsd } from "@shared/plans";
++import { Ticket, Copy, Users } from "lucide-react";
+ 
+ type BillingCycle = "monthly" | "annual";
+ 
+@@ -18,11 +20,13 @@ export default function Pricing() {
+   const { toast } = useToast();
+   usePageMeta({
+     title: "Pricing - DFS Optimizer Plans",
+-    description: "Choose your EliteLineup AI plan. Free Contender tier, Sharpshooter at $19.99/mo, or Champion at $39.99/mo. Monte Carlo simulations, AI Scout, prop analysis, and more.",
++    description: "Choose your EliteLineup AI plan. Free Contender tier, single-sport plans from $9.99/mo, Sharpshooter at $19.99/mo, or Champion at $39.99/mo. Slate and Week passes with no subscription.",
+     path: "/pricing",
+   });
+   const [billing, setBilling] = useState<BillingCycle>("monthly");
+   const [paymentTier, setPaymentTier] = useState<"star" | "pro" | null>(null);
++  const [paymentSport, setPaymentSport] = useState<string | null>(null);
++  const [passBusy, setPassBusy] = useState<string | null>(null);
+ 
+   const { data: subData } = useQuery<{
+     tier: string;
+@@ -33,6 +37,8 @@ export default function Pricing() {
+     stripeSubscriptionId: string | null;
+     currentPeriodEnd: string | null;
+     isAdmin?: boolean;
++    sportScope?: string | null;
++    passExpiresAt?: string | null;
+   }>({
+     queryKey: ["/api/subscription"],
+     enabled: !!user,
+@@ -57,6 +63,12 @@ export default function Pricing() {
+         description: "Your plan has been upgraded successfully. Enjoy your new features!",
+       });
+       window.history.replaceState({}, "", "/pricing");
++    } else if (params.get("pass_success")) {
++      toast({
++        title: "Pass activated",
++        description: "Your pass is live. It can take a few seconds to show up, so refresh if you do not see it yet.",
++      });
++      window.history.replaceState({}, "", "/pricing");
+     } else if (params.get("canceled") === "true") {
+       toast({
+         title: "Checkout Canceled",
+@@ -67,14 +79,38 @@ export default function Pricing() {
+     }
+   }, []);
+ 
+-  const openPaymentForm = (tier: "star" | "pro") => {
++  const openPaymentForm = (tier: "star" | "pro", sportScope: string | null = null) => {
+     if (!user) {
+       window.location.href = "/login";
+       return;
+     }
++    setPaymentSport(sportScope);
+     setPaymentTier(tier);
+   };
+ 
++  const buyPass = async (passId: string) => {
++    if (!user) {
++      window.location.href = "/login";
++      return;
++    }
++    setPassBusy(passId);
++    try {
++      const res = await fetch("/api/subscription/pass-checkout", {
++        method: "POST",
++        credentials: "include",
++        headers: { "Content-Type": "application/json" },
++        body: JSON.stringify({ passId }),
++      });
++      const body = await res.json().catch(() => ({}));
++      if (!res.ok) throw new Error(body?.message || "Could not start checkout");
++      if (body.url) window.location.href = body.url;
++    } catch (err: any) {
++      toast({ title: "Could not start checkout", description: err?.message || "Please try again.", variant: "destructive" });
++    } finally {
++      setPassBusy(null);
++    }
++  };
++
+   const portalMutation = useMutation({
+     mutationFn: async () => {
+       const res = await apiRequest("POST", "/api/subscription/portal");
+@@ -110,6 +146,22 @@ export default function Pricing() {
+           <p className="text-sm font-bold text-amber-300">Admin account — full Champion access at $0</p>
+         </div>
+       )}
++      {!isAdmin && subData?.passExpiresAt && !hasActiveStripeSubscription && (
++        <div className="mb-8 p-4 rounded-xl bg-volt-500/10 border border-volt-500/30 flex items-start gap-3 max-w-3xl mx-auto" data-testid="pass-banner">
++          <Ticket className="w-5 h-5 text-volt-400 shrink-0 mt-0.5" />
++          <p className="text-sm font-bold text-volt-300">
++            Pass active until {new Date(subData.passExpiresAt).toLocaleString()}. Buy another pass to extend it, or subscribe to keep going.
++          </p>
++        </div>
++      )}
++      {!isAdmin && subData?.sportScope && (
++        <div className="mb-8 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-3 max-w-3xl mx-auto" data-testid="sport-plan-banner">
++          <Trophy className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
++          <p className="text-sm font-bold text-emerald-300">
++            You are on the {subData.sportScope} plan. Upgrade to Sharpshooter or Champion to unlock every sport.
++          </p>
++        </div>
++      )}
+       {!isAdmin && isTrialing && trialEndsAt && (
+         <div className="mb-8 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-3 max-w-3xl mx-auto" data-testid="trial-banner">
+           <Gift className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+@@ -503,6 +555,14 @@ export default function Pricing() {
+               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
+               <span className="font-bold text-amber-300">DraftKings entries import</span>
+             </li>
++            <li className="flex items-center gap-3 text-sm text-slate-300">
++              <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
++              <span className="font-bold text-amber-300">Bankroll Tracker: profit and ROI by sport</span>
++            </li>
++            <li className="flex items-center gap-3 text-sm text-slate-300">
++              <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
++              <span className="font-bold text-amber-300">Late Swap: re-optimize after games start</span>
++            </li>
+             <li className="flex items-center gap-3 text-sm text-slate-300">
+               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
+               <span className="font-bold text-amber-300">Bulk lineup regeneration</span>
+@@ -553,6 +613,69 @@ export default function Pricing() {
+ 
+       <p className="text-center text-xs text-slate-500 mt-6">No refunds. Cancel at any time.</p>
+ 
++      {/* Passes and single-sport plans */}
++      <div className="max-w-5xl mx-auto mt-16" data-testid="flex-options">
++        <div className="text-center mb-8">
++          <h2 className="text-3xl font-black text-white tracking-tight">Not ready to subscribe?</h2>
++          <p className="text-slate-400 mt-2">Pay for one slate, one week, or just the sport you play.</p>
++        </div>
++        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
++          <Card className="bg-[#0F1A2E] border-volt-500/20 p-6 relative overflow-hidden" data-testid="passes-card">
++            <img src="/images/art/pass.svg" alt="" className="absolute -right-6 -top-6 w-40 opacity-60 pointer-events-none" />
++            <div className="relative">
++              <div className="flex items-center gap-2 mb-1"><Ticket className="w-5 h-5 text-volt-400" /><h3 className="text-xl font-black text-white">One-time passes</h3></div>
++              <p className="text-xs text-slate-400 mb-5">Full Sharpshooter access, every sport, no recurring charge.</p>
++              <div className="space-y-3">
++                {Object.values(PASSES).map(pass => (
++                  <div key={pass.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-700/60 bg-slate-900/50 p-4">
++                    <div>
++                      <p className="font-black text-white">{pass.label} <span className="text-volt-400">{formatUsd(pass.amountCents)}</span></p>
++                      <p className="text-xs text-slate-400">{pass.blurb}</p>
++                    </div>
++                    <Button
++                      className="bg-volt-500 hover:bg-volt-400 text-black font-black shrink-0"
++                      disabled={passBusy !== null || currentTier === "pro" || hasActiveStripeSubscription}
++                      onClick={() => buyPass(pass.id)}
++                      data-testid={`buy-pass-${pass.id}`}
++                    >
++                      {passBusy === pass.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Buy"}
++                    </Button>
++                  </div>
++                ))}
++              </div>
++              {(currentTier === "pro" || hasActiveStripeSubscription) && !isAdmin && (
++                <p className="text-xs text-slate-500 mt-3">Passes are for accounts without an active plan.</p>
++              )}
++            </div>
++          </Card>
++
++          <Card className="bg-[#0F1A2E] border-emerald-500/20 p-6" data-testid="sport-plans-card">
++            <div className="flex items-center gap-2 mb-1"><Trophy className="w-5 h-5 text-emerald-400" /><h3 className="text-xl font-black text-white">Single-sport plans</h3></div>
++            <p className="text-xs text-slate-400 mb-5">Sharpshooter tools for one sport at {formatUsd(SPORT_PLAN_MONTHLY_CENTS)}/month. Cancel any time.</p>
++            <div className="space-y-3">
++              {SPORT_PLAN_SPORTS.map(sport => (
++                <div key={sport} className="flex items-center justify-between gap-3 rounded-xl border border-slate-700/60 bg-slate-900/50 p-4">
++                  <div>
++                    <p className="font-black text-white">{sport} <span className="text-emerald-400">{formatUsd(SPORT_PLAN_MONTHLY_CENTS)}/mo</span></p>
++                    <p className="text-xs text-slate-400">Everything in Sharpshooter, {sport} only.</p>
++                  </div>
++                  <Button
++                    className="bg-emerald-500 hover:bg-emerald-600 text-black font-black shrink-0"
++                    disabled={hasActiveStripeSubscription || isAdmin}
++                    onClick={() => openPaymentForm("star", sport)}
++                    data-testid={`buy-sport-${sport.toLowerCase()}`}
++                  >
++                    {trialEligible ? "Try free" : "Subscribe"}
++                  </Button>
++                </div>
++              ))}
++            </div>
++          </Card>
++        </div>
++
++        {user && <ReferralCard />}
++      </div>
++
+       {/* Standalone Draft Hub */}
+       {FEATURE_VISIBILITY.draftHub && <div className="max-w-2xl mx-auto mt-12">
+         <div className="text-center mb-4">
+@@ -623,6 +746,7 @@ export default function Pricing() {
+         <PaymentModal
+           tier={paymentTier}
+           billing={billing}
++          sportScope={paymentSport}
+           onSuccess={() => {
+             setPaymentTier(null);
+             toast({
+@@ -630,9 +754,47 @@ export default function Pricing() {
+               description: "Your plan has been upgraded successfully. Enjoy your new features!",
+             });
+           }}
+-          onCancel={() => setPaymentTier(null)}
++          onCancel={() => { setPaymentTier(null); setPaymentSport(null); }}
+         />
+       )}
+     </div>
+   );
+ }
++
++
++function ReferralCard() {
++  const { toast } = useToast();
++  const { data } = useQuery<{ code: string; pending: number; rewarded: number }>({ queryKey: ["/api/referral"] });
++  if (!data) return null;
++  const link = `${window.location.origin}/?ref=${data.code}`;
++  return (
++    <Card className="bg-[#0F1A2E] border-amber-500/20 p-6 mt-6" data-testid="referral-card">
++      <div className="flex flex-col md:flex-row md:items-center gap-5">
++        <img src="/images/art/referral.svg" alt="" className="w-28 h-28 shrink-0 hidden md:block" />
++        <div className="flex-1">
++          <div className="flex items-center gap-2 mb-1"><Users className="w-5 h-5 text-amber-400" /><h3 className="text-xl font-black text-white">Give a friend a month, get a month</h3></div>
++          <p className="text-sm text-slate-400 mb-4">
++            When someone signs up with your link and makes their first paid subscription payment, you get one month free. Subscribers receive a credit on their next bill. Everyone else gets a 30-day pass.
++          </p>
++          <div className="flex flex-col sm:flex-row gap-2">
++            <input readOnly value={link} className="flex-1 h-10 rounded-md bg-slate-950 border border-border px-3 text-sm text-slate-200" aria-label="Your referral link" />
++            <Button
++              className="bg-amber-500 hover:bg-amber-600 text-black font-black"
++              onClick={async () => {
++                try {
++                  await navigator.clipboard.writeText(link);
++                  toast({ title: "Link copied" });
++                } catch {
++                  toast({ title: "Copy failed", description: "Select the link and copy it manually.", variant: "destructive" });
++                }
++              }}
++            >
++              <Copy className="w-4 h-4 mr-2" />Copy link
++            </Button>
++          </div>
++          <p className="text-xs text-slate-500 mt-3">{data.rewarded} rewarded, {data.pending} waiting on a first payment. Up to 12 rewards a year.</p>
++        </div>
++      </div>
++    </Card>
++  );
++}
+diff --git a/client/src/pages/Tracker.tsx b/client/src/pages/Tracker.tsx
+new file mode 100644
+index 0000000..4af4258
+--- /dev/null
++++ b/client/src/pages/Tracker.tsx
+@@ -0,0 +1,484 @@
++import { useMemo, useRef, useState } from "react";
++import { Link } from "wouter";
++import { useMutation, useQuery } from "@tanstack/react-query";
++import { useAuth } from "@/hooks/use-auth";
++import { apiRequest, queryClient } from "@/lib/queryClient";
++import { Button } from "@/components/ui/button";
++import { Card } from "@/components/ui/card";
++import { Badge } from "@/components/ui/badge";
++import { Input } from "@/components/ui/input";
++import { useToast } from "@/hooks/use-toast";
++import { usePageMeta } from "@/hooks/use-page-meta";
++import { Crown, Loader2, Upload, Wallet, Trash2, Plus, TrendingUp, TrendingDown } from "lucide-react";
++
++interface TrackerRow {
++  id: number;
++  sport: string;
++  gameType: string | null;
++  contestName: string | null;
++  contestDate: string | null;
++  entryFee: number;
++  winnings: number;
++  place: number | null;
++  points: number | null;
++  contestEntries: number | null;
++  source: string;
++}
++
++interface ImportRow {
++  entryKey: string;
++  sport: string;
++  gameType: string | null;
++  contestName: string | null;
++  contestDate: string | null;
++  entryFee: number;
++  winnings: number;
++  place: number | null;
++  points: number | null;
++  contestEntries: number | null;
++}
++
++// ---- CSV helpers -----------------------------------------------------------
++
++function parseCsv(text: string): string[][] {
++  const rows: string[][] = [];
++  let row: string[] = [];
++  let cell = "";
++  let inQuotes = false;
++  for (let i = 0; i < text.length; i++) {
++    const ch = text[i];
++    if (inQuotes) {
++      if (ch === '"') {
++        if (text[i + 1] === '"') {
++          cell += '"';
++          i++;
++        } else {
++          inQuotes = false;
++        }
++      } else {
++        cell += ch;
++      }
++    } else if (ch === '"') {
++      inQuotes = true;
++    } else if (ch === ",") {
++      row.push(cell);
++      cell = "";
++    } else if (ch === "\n" || ch === "\r") {
++      if (ch === "\r" && text[i + 1] === "\n") i++;
++      row.push(cell);
++      cell = "";
++      if (row.some(c => c.trim() !== "")) rows.push(row);
++      row = [];
++    } else {
++      cell += ch;
++    }
++  }
++  row.push(cell);
++  if (row.some(c => c.trim() !== "")) rows.push(row);
++  return rows;
++}
++
++const norm = (h: string) => h.toLowerCase().replace(/[^a-z0-9]/g, "");
++
++function toMoney(v: string | undefined): number {
++  if (!v) return 0;
++  const n = parseFloat(v.replace(/[$,\s]/g, ""));
++  return Number.isFinite(n) && n > 0 ? n : 0;
++}
++
++function toInt(v: string | undefined): number | null {
++  if (!v) return null;
++  const n = parseInt(v.replace(/[,\s]/g, ""), 10);
++  return Number.isFinite(n) && n >= 0 ? n : null;
++}
++
++function toIsoDate(v: string | undefined): string | null {
++  if (!v) return null;
++  const d = new Date(v.replace(" ", "T"));
++  if (Number.isFinite(d.getTime())) return d.toISOString();
++  const d2 = new Date(v);
++  return Number.isFinite(d2.getTime()) ? d2.toISOString() : null;
++}
++
++/** Turns a DraftKings "Contest History" CSV into rows the server accepts. */
++function rowsFromDraftKingsCsv(text: string): ImportRow[] {
++  const table = parseCsv(text);
++  if (table.length < 2) return [];
++  const headers = table[0].map(norm);
++  const col = (...names: string[]) => {
++    for (const n of names) {
++      const i = headers.indexOf(n);
++      if (i >= 0) return i;
++    }
++    return -1;
++  };
++  const iKey = col("entrykey", "entryid");
++  const iSport = col("sport");
++  const iType = col("gametype");
++  const iEntry = col("entry", "contestname");
++  const iDate = col("contestdateest", "contestdate", "date");
++  const iPlace = col("place");
++  const iPoints = col("points");
++  const iCash = col("winningsnonticket", "winnings");
++  const iTicket = col("winningsticket");
++  const iEntries = col("contestentries");
++  const iFee = col("entryfee", "entryfeeusd");
++  if (iKey < 0) return [];
++
++  const out: ImportRow[] = [];
++  for (const r of table.slice(1)) {
++    const key = (r[iKey] || "").trim();
++    if (!key) continue;
++    const name = iEntry >= 0 ? (r[iEntry] || "").trim() : "";
++    let fee = iFee >= 0 ? toMoney(r[iFee]) : 0;
++    if (fee === 0) {
++      const m = name.match(/\$([\d,]+(?:\.\d+)?)/);
++      if (m) fee = toMoney(m[1]);
++    }
++    const winnings = (iCash >= 0 ? toMoney(r[iCash]) : 0) + (iTicket >= 0 ? toMoney(r[iTicket]) : 0);
++    const points = iPoints >= 0 ? parseFloat(r[iPoints]) : NaN;
++    out.push({
++      entryKey: key,
++      sport: ((iSport >= 0 ? r[iSport] : "") || "OTHER").trim().toUpperCase().slice(0, 20),
++      gameType: iType >= 0 ? (r[iType] || "").trim().slice(0, 60) || null : null,
++      contestName: name ? name.slice(0, 300) : null,
++      contestDate: iDate >= 0 ? toIsoDate(r[iDate]) : null,
++      entryFee: fee,
++      winnings,
++      place: iPlace >= 0 ? toInt(r[iPlace]) : null,
++      points: Number.isFinite(points) ? points : null,
++      contestEntries: iEntries >= 0 ? toInt(r[iEntries]) : null,
++    });
++  }
++  return out;
++}
++
++// ---- Stats -----------------------------------------------------------------
++
++const usd = (n: number) => `${n < 0 ? "-" : ""}$${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
++const pct = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`;
++
++interface Bucket {
++  label: string;
++  entries: number;
++  fees: number;
++  winnings: number;
++}
++
++function bucketBy(rows: TrackerRow[], key: (r: TrackerRow) => string): Bucket[] {
++  const map = new Map<string, Bucket>();
++  for (const r of rows) {
++    const label = key(r) || "Other";
++    const b = map.get(label) || { label, entries: 0, fees: 0, winnings: 0 };
++    b.entries += 1;
++    b.fees += r.entryFee;
++    b.winnings += r.winnings;
++    map.set(label, b);
++  }
++  return Array.from(map.values()).sort((a, b) => b.fees - a.fees);
++}
++
++function ProfitLine({ rows }: { rows: TrackerRow[] }) {
++  const points = useMemo(() => {
++    const dated = rows
++      .filter(r => r.contestDate)
++      .sort((a, b) => new Date(a.contestDate!).getTime() - new Date(b.contestDate!).getTime());
++    let running = 0;
++    return dated.map(r => (running += r.winnings - r.entryFee));
++  }, [rows]);
++  if (points.length < 2) return null;
++  const w = 640;
++  const h = 140;
++  const min = Math.min(0, ...points);
++  const max = Math.max(0, ...points);
++  const span = max - min || 1;
++  const x = (i: number) => (i / (points.length - 1)) * w;
++  const y = (v: number) => h - ((v - min) / span) * (h - 12) - 6;
++  const path = points.map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
++  const up = points[points.length - 1] >= 0;
++  return (
++    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-36" role="img" aria-label="Cumulative profit over time" data-testid="tracker-profit-line">
++      <line x1="0" x2={w} y1={y(0)} y2={y(0)} stroke="#334155" strokeDasharray="4 4" />
++      <path d={path} fill="none" stroke={up ? "#C4F82E" : "#f87171"} strokeWidth="2.5" strokeLinejoin="round" />
++    </svg>
++  );
++}
++
++function BucketTable({ title, buckets }: { title: string; buckets: Bucket[] }) {
++  if (buckets.length === 0) return null;
++  return (
++    <Card className="bg-slate-900/60 border-border p-5">
++      <h3 className="text-sm font-black text-white uppercase tracking-wider mb-3">{title}</h3>
++      <div className="space-y-2">
++        {buckets.slice(0, 8).map(b => {
++          const profit = b.winnings - b.fees;
++          const roi = b.fees > 0 ? (profit / b.fees) * 100 : 0;
++          return (
++            <div key={b.label} className="flex items-center justify-between text-sm">
++              <div>
++                <span className="font-bold text-slate-200">{b.label}</span>
++                <span className="text-slate-500 ml-2 text-xs">{b.entries} entries</span>
++              </div>
++              <div className="text-right">
++                <span className={`font-black ${profit >= 0 ? "text-volt-400" : "text-red-400"}`}>{usd(profit)}</span>
++                <span className="text-slate-500 text-xs ml-2">{pct(roi)}</span>
++              </div>
++            </div>
++          );
++        })}
++      </div>
++    </Card>
++  );
++}
++
++// ---- Page ------------------------------------------------------------------
++
++export default function Tracker() {
++  const { user } = useAuth();
++  const { toast } = useToast();
++  usePageMeta({
++    title: "Bankroll Tracker - DFS ROI by Sport and Contest",
++    description: "Upload your DraftKings contest history and see profit, ROI and results by sport and contest type.",
++    path: "/tracker",
++  });
++  const fileRef = useRef<HTMLInputElement>(null);
++  const [manual, setManual] = useState({ sport: "NBA", name: "", fee: "", won: "" });
++
++  const { data: sub } = useQuery<{ tier: string }>({ queryKey: ["/api/subscription"], enabled: !!user });
++  const isChampion = sub?.tier === "pro";
++
++  const { data, isLoading } = useQuery<{ rows: TrackerRow[] }>({
++    queryKey: ["/api/tracker"],
++    enabled: !!user && isChampion,
++  });
++  const rows = data?.rows ?? [];
++
++  const refresh = () => queryClient.invalidateQueries({ queryKey: ["/api/tracker"] });
++
++  const importMutation = useMutation({
++    mutationFn: async (parsed: ImportRow[]) => {
++      let inserted = 0;
++      let duplicates = 0;
++      for (let i = 0; i < parsed.length; i += 2000) {
++        const res = await apiRequest("POST", "/api/tracker/import", { rows: parsed.slice(i, i + 2000) });
++        const body = await res.json();
++        inserted += body.inserted;
++        duplicates += body.duplicates;
++      }
++      return { inserted, duplicates };
++    },
++    onSuccess: ({ inserted, duplicates }) => {
++      refresh();
++      toast({ title: "Import complete", description: `${inserted} new entries added${duplicates ? `, ${duplicates} already on file` : ""}.` });
++    },
++    onError: (e: Error) => toast({ title: "Import failed", description: e.message, variant: "destructive" }),
++  });
++
++  const addMutation = useMutation({
++    mutationFn: async () => {
++      await apiRequest("POST", "/api/tracker/entry", {
++        sport: manual.sport,
++        contestName: manual.name || "Manual entry",
++        entryFee: Number(manual.fee) || 0,
++        winnings: Number(manual.won) || 0,
++      });
++    },
++    onSuccess: () => {
++      setManual({ ...manual, name: "", fee: "", won: "" });
++      refresh();
++    },
++    onError: (e: Error) => toast({ title: "Could not add entry", description: e.message, variant: "destructive" }),
++  });
++
++  const deleteMutation = useMutation({
++    mutationFn: async (id: number) => {
++      await apiRequest("DELETE", `/api/tracker/${id}`);
++    },
++    onSuccess: refresh,
++  });
++
++  const clearMutation = useMutation({
++    mutationFn: async () => {
++      await apiRequest("DELETE", "/api/tracker");
++    },
++    onSuccess: refresh,
++  });
++
++  const onFile = async (file: File | undefined) => {
++    if (!file) return;
++    const parsed = rowsFromDraftKingsCsv(await file.text());
++    if (parsed.length === 0) {
++      toast({
++        title: "No entries found",
++        description: "Upload the contest history CSV from DraftKings (Account > Contest History > Export).",
++        variant: "destructive",
++      });
++      return;
++    }
++    importMutation.mutate(parsed);
++    if (fileRef.current) fileRef.current.value = "";
++  };
++
++  const totals = useMemo(() => {
++    const fees = rows.reduce((s, r) => s + r.entryFee, 0);
++    const winnings = rows.reduce((s, r) => s + r.winnings, 0);
++    const profit = winnings - fees;
++    const cashed = rows.filter(r => r.winnings > 0).length;
++    return { fees, winnings, profit, roi: fees > 0 ? (profit / fees) * 100 : 0, cashRate: rows.length ? (cashed / rows.length) * 100 : 0 };
++  }, [rows]);
++
++  if (!user) {
++    return (
++      <div className="container mx-auto px-4 py-16 max-w-xl text-center">
++        <p className="text-slate-300 mb-4">Sign in to use the Bankroll Tracker.</p>
++        <Link href="/login"><Button className="bg-volt-500 text-black font-black">Sign in</Button></Link>
++      </div>
++    );
++  }
++
++  if (sub && !isChampion) {
++    return (
++      <div className="container mx-auto px-4 py-16 max-w-2xl text-center" data-testid="tracker-upsell">
++        <img src="/images/art/tracker.svg" alt="" className="mx-auto w-full max-w-md mb-8" />
++        <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 font-bold mb-4"><Crown className="w-3.5 h-3.5 mr-1" />Champion</Badge>
++        <h1 className="text-4xl font-black text-white mb-3">Bankroll Tracker</h1>
++        <p className="text-slate-400 mb-6">Upload your DraftKings contest history and see exactly where you make and lose money, by sport and by contest type.</p>
++        <Link href="/pricing"><Button className="bg-amber-500 hover:bg-amber-600 text-black font-black h-12 px-8">See Champion</Button></Link>
++      </div>
++    );
++  }
++
++  return (
++    <div className="container mx-auto px-4 py-8 max-w-5xl" data-testid="tracker-page">
++      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
++        <div className="flex items-center gap-3">
++          <div className="w-11 h-11 rounded-xl bg-volt-500/10 flex items-center justify-center"><Wallet className="w-6 h-6 text-volt-400" /></div>
++          <div>
++            <h1 className="text-3xl font-black text-white tracking-tight">Bankroll Tracker</h1>
++            <p className="text-sm text-slate-400">Your real results, in one place.</p>
++          </div>
++        </div>
++        <div className="flex gap-2">
++          <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={e => onFile(e.target.files?.[0])} data-testid="tracker-file" />
++          <Button className="bg-volt-500 hover:bg-volt-400 text-black font-black" onClick={() => fileRef.current?.click()} disabled={importMutation.isPending} data-testid="tracker-upload">
++            {importMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
++            Upload DraftKings CSV
++          </Button>
++        </div>
++      </div>
++
++      {isLoading ? (
++        <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 text-volt-400 animate-spin" /></div>
++      ) : rows.length === 0 ? (
++        <Card className="bg-slate-900/60 border-border p-8 text-center">
++          <img src="/images/art/tracker.svg" alt="" className="mx-auto w-full max-w-sm mb-6" />
++          <h2 className="text-xl font-black text-white mb-2">Add your first results</h2>
++          <p className="text-slate-400 text-sm max-w-md mx-auto">
++            On DraftKings, open your account, go to Contest History and export the CSV. Upload it here. Re-uploading later only adds new entries.
++          </p>
++        </Card>
++      ) : (
++        <>
++          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4" data-testid="tracker-summary">
++            <Card className="bg-slate-900/60 border-border p-4">
++              <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider">Profit</p>
++              <p className={`text-2xl font-black flex items-center gap-1 ${totals.profit >= 0 ? "text-volt-400" : "text-red-400"}`}>
++                {totals.profit >= 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}{usd(totals.profit)}
++              </p>
++            </Card>
++            <Card className="bg-slate-900/60 border-border p-4">
++              <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider">ROI</p>
++              <p className={`text-2xl font-black ${totals.roi >= 0 ? "text-volt-400" : "text-red-400"}`}>{pct(totals.roi)}</p>
++            </Card>
++            <Card className="bg-slate-900/60 border-border p-4">
++              <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider">Entry fees</p>
++              <p className="text-2xl font-black text-white">{usd(totals.fees)}</p>
++              <p className="text-xs text-slate-500">{rows.length} entries</p>
++            </Card>
++            <Card className="bg-slate-900/60 border-border p-4">
++              <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider">Cash rate</p>
++              <p className="text-2xl font-black text-white">{totals.cashRate.toFixed(0)}%</p>
++              <p className="text-xs text-slate-500">{usd(totals.winnings)} won</p>
++            </Card>
++          </div>
++
++          <Card className="bg-slate-900/60 border-border p-5 mb-4">
++            <h3 className="text-sm font-black text-white uppercase tracking-wider mb-2">Cumulative profit</h3>
++            <ProfitLine rows={rows} />
++          </Card>
++
++          <div className="grid md:grid-cols-2 gap-4 mb-6">
++            <BucketTable title="By sport" buckets={bucketBy(rows, r => r.sport)} />
++            <BucketTable title="By contest type" buckets={bucketBy(rows, r => r.gameType || "Other")} />
++          </div>
++        </>
++      )}
++
++      <Card className="bg-slate-900/60 border-border p-5 mb-6" data-testid="tracker-manual">
++        <h3 className="text-sm font-black text-white uppercase tracking-wider mb-3">Add an entry by hand</h3>
++        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
++          <select
++            value={manual.sport}
++            onChange={e => setManual({ ...manual, sport: e.target.value })}
++            className="h-10 rounded-md bg-slate-950 border border-border px-3 text-sm text-white"
++            aria-label="Sport"
++          >
++            {["NBA", "NFL", "GOLF", "MLB", "NHL", "OTHER"].map(s => <option key={s} value={s}>{s}</option>)}
++          </select>
++          <Input placeholder="Contest" value={manual.name} onChange={e => setManual({ ...manual, name: e.target.value })} className="md:col-span-2" />
++          <Input placeholder="Entry fee" inputMode="decimal" value={manual.fee} onChange={e => setManual({ ...manual, fee: e.target.value })} />
++          <Input placeholder="Won" inputMode="decimal" value={manual.won} onChange={e => setManual({ ...manual, won: e.target.value })} />
++        </div>
++        <Button className="mt-3 bg-slate-800 hover:bg-slate-700 text-white font-bold" onClick={() => addMutation.mutate()} disabled={addMutation.isPending || !manual.fee}>
++          <Plus className="w-4 h-4 mr-2" />Add entry
++        </Button>
++      </Card>
++
++      {rows.length > 0 && (
++        <Card className="bg-slate-900/60 border-border p-5">
++          <div className="flex items-center justify-between mb-3">
++            <h3 className="text-sm font-black text-white uppercase tracking-wider">Recent entries</h3>
++            <Button
++              variant="ghost"
++              className="text-red-400 hover:text-red-300 text-xs"
++              onClick={() => { if (window.confirm("Delete all tracker entries? This cannot be undone.")) clearMutation.mutate(); }}
++            >
++              Clear all
++            </Button>
++          </div>
++          <div className="overflow-x-auto">
++            <table className="w-full text-sm">
++              <thead>
++                <tr className="text-left text-[11px] uppercase tracking-wider text-slate-500">
++                  <th className="py-2 pr-3">Date</th><th className="pr-3">Sport</th><th className="pr-3">Contest</th>
++                  <th className="pr-3 text-right">Fee</th><th className="pr-3 text-right">Won</th><th className="text-right">Net</th><th />
++                </tr>
++              </thead>
++              <tbody>
++                {rows.slice(0, 50).map(r => {
++                  const net = r.winnings - r.entryFee;
++                  return (
++                    <tr key={r.id} className="border-t border-slate-800">
++                      <td className="py-2 pr-3 text-slate-400 whitespace-nowrap">{r.contestDate ? new Date(r.contestDate).toLocaleDateString() : "-"}</td>
++                      <td className="pr-3 font-bold text-slate-200">{r.sport}</td>
++                      <td className="pr-3 text-slate-300 max-w-[260px] truncate">{r.contestName || "-"}</td>
++                      <td className="pr-3 text-right text-slate-300">{usd(r.entryFee)}</td>
++                      <td className="pr-3 text-right text-slate-300">{usd(r.winnings)}</td>
++                      <td className={`text-right font-black ${net >= 0 ? "text-volt-400" : "text-red-400"}`}>{usd(net)}</td>
++                      <td className="pl-2 text-right">
++                        <button aria-label="Delete entry" className="text-slate-600 hover:text-red-400" onClick={() => deleteMutation.mutate(r.id)}>
++                          <Trash2 className="w-4 h-4" />
++                        </button>
++                      </td>
++                    </tr>
++                  );
++                })}
++              </tbody>
++            </table>
++          </div>
++          {rows.length > 50 && <p className="text-xs text-slate-500 mt-3">Showing the 50 most recent of {rows.length} entries. Totals include all of them.</p>}
++        </Card>
++      )}
++    </div>
++  );
++}
+diff --git a/server/revenue.ts b/server/revenue.ts
+new file mode 100644
+index 0000000..fde8b5e
+--- /dev/null
++++ b/server/revenue.ts
+@@ -0,0 +1,460 @@
++import type { Express, Request, Response } from "express";
++import { randomBytes, randomUUID } from "crypto";
++import { z } from "zod";
++import { and, desc, eq, sql } from "drizzle-orm";
++import { db } from "./db";
++import { storage } from "./storage";
++import {
++  contestResults,
++  referralCodes,
++  referralRedemptions,
++  type Player,
++  type Slate,
++  type Subscription,
++} from "@shared/schema";
++import { getPlatformConfig, type Platform } from "@shared/platform-config";
++import { getDraftKingsStartMarker, sanitizeGameInfo } from "@shared/game-info";
++import { PASSES, isPassId } from "@shared/plans";
++import { parseEasternTime } from "./balldontlie";
++
++function sessionUserId(req: Request): string | null {
++  return (req.session as any)?.userId || null;
++}
++
++/** Returns a message when a single-sport plan does not cover `sport`, otherwise null. */
++export function sportScopeViolation(sub: Subscription | undefined | null, sport: string): string | null {
++  const scope = sub?.sportScope;
++  if (!scope) return null;
++  if (scope.toUpperCase() === String(sport).toUpperCase()) return null;
++  return `Your ${scope} plan covers ${scope} only. Upgrade to Sharpshooter to use ${sport}.`;
++}
++
++interface Access {
++  userId: string;
++  isAdmin: boolean;
++  tier: string;
++}
++
++async function loadAccess(req: Request): Promise<Access | null> {
++  const userId = sessionUserId(req);
++  if (!userId) return null;
++  const [sub, user] = await Promise.all([storage.getSubscription(userId), storage.getUser(userId)]);
++  const isAdmin = user?.isAdmin === true;
++  return { userId, isAdmin, tier: isAdmin ? "pro" : sub?.tier || "free" };
++}
++
++/** Champion-only features (tracker, late swap). */
++async function requireChampion(req: Request, res: Response): Promise<Access | null> {
++  const access = await loadAccess(req);
++  if (!access) {
++    res.sendStatus(401);
++    return null;
++  }
++  if (access.tier !== "pro") {
++    res.status(403).json({ message: "This tool is part of the Champion plan.", requiresUpgrade: true });
++    return null;
++  }
++  return access;
++}
++
++// ---------------------------------------------------------------------------
++// Referral codes
++// ---------------------------------------------------------------------------
++const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
++
++function makeCode(): string {
++  const bytes = randomBytes(8);
++  let out = "";
++  for (let i = 0; i < 8; i++) out += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
++  return out;
++}
++
++async function getOrCreateReferralCode(userId: string): Promise<string> {
++  const [existing] = await db.select().from(referralCodes).where(eq(referralCodes.userId, userId));
++  if (existing) return existing.code;
++  for (let attempt = 0; attempt < 5; attempt++) {
++    const code = makeCode();
++    const inserted = await db.insert(referralCodes).values({ userId, code }).onConflictDoNothing().returning();
++    if (inserted.length > 0) return inserted[0].code;
++    // Either our code collided or another request created this user's row first.
++    const [again] = await db.select().from(referralCodes).where(eq(referralCodes.userId, userId));
++    if (again) return again.code;
++  }
++  throw new Error("Could not create referral code");
++}
++
++// ---------------------------------------------------------------------------
++// Tracker CSV rows
++// ---------------------------------------------------------------------------
++const money = z.number().finite().min(0).max(1_000_000);
++
++const trackerRowSchema = z.object({
++  entryKey: z.string().min(1).max(120),
++  sport: z.string().max(20).default("OTHER"),
++  gameType: z.string().max(60).nullish(),
++  contestName: z.string().max(300).nullish(),
++  contestDate: z.string().max(40).nullish(),
++  entryFee: money,
++  winnings: money,
++  place: z.number().int().min(0).max(100_000_000).nullish(),
++  points: z.number().finite().nullish(),
++  contestEntries: z.number().int().min(0).max(100_000_000).nullish(),
++});
++
++const importSchema = z.object({ rows: z.array(trackerRowSchema).min(1).max(5000) });
++
++const manualSchema = z.object({
++  sport: z.string().max(20).default("OTHER"),
++  contestName: z.string().max(300).default("Manual entry"),
++  contestDate: z.string().max(40).nullish(),
++  entryFee: money,
++  winnings: money,
++});
++
++function parseDate(value: string | null | undefined): Date | null {
++  if (!value) return null;
++  const d = new Date(value);
++  return Number.isFinite(d.getTime()) ? d : null;
++}
++
++// ---------------------------------------------------------------------------
++// Late swap helpers
++// ---------------------------------------------------------------------------
++function playerGameStart(player: Player, slate: Slate): Date | null {
++  const marker = getDraftKingsStartMarker(player.gameInfo);
++  if (marker) {
++    try {
++      const exact = parseEasternTime(marker);
++      if (Number.isFinite(exact.getTime())) return exact;
++    } catch {
++      // fall through to the display-time parser
++    }
++  }
++  const match = String(player.gameInfo || "").match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s*ET/i);
++  if (!match) return null;
++  const parts = new Intl.DateTimeFormat("en-US", {
++    timeZone: "America/New_York",
++    year: "numeric",
++    month: "2-digit",
++    day: "2-digit",
++  }).formatToParts(new Date(slate.startTime));
++  const get = (type: string) => parts.find(p => p.type === type)?.value;
++  let hour = Number(match[1]);
++  if (match[3].toUpperCase() === "PM" && hour !== 12) hour += 12;
++  if (match[3].toUpperCase() === "AM" && hour === 12) hour = 0;
++  const start = parseEasternTime(`${get("year")}-${get("month")}-${get("day")}T${String(hour).padStart(2, "0")}:${match[2]}:00`);
++  return Number.isFinite(start.getTime()) ? start : null;
++}
++
++function isOut(player: Player): boolean {
++  return /\bout\b/i.test(String(player.injuryStatus || ""));
++}
++
++function trimPlayer(p: Player, locked: boolean, start: Date | null) {
++  return {
++    id: p.id,
++    name: p.name,
++    team: p.team,
++    position: p.position,
++    salary: p.salary,
++    projectedPoints: Number(p.projectedPoints),
++    opponent: p.opponent,
++    game: sanitizeGameInfo(p.gameInfo),
++    injuryStatus: p.injuryStatus,
++    locked,
++    gameStart: start ? start.toISOString() : null,
++  };
++}
++
++export function registerRevenueRoutes(app: Express): void {
++  // ── One-time passes ────────────────────────────────────────────────────────
++  app.post("/api/subscription/pass-checkout", async (req, res) => {
++    const userId = sessionUserId(req);
++    if (!userId) return res.sendStatus(401);
++    const passId = req.body?.passId;
++    if (!isPassId(passId)) return res.status(400).json({ message: "Unknown pass" });
++    const user = await storage.getUser(userId);
++    if (!user) return res.status(404).json({ message: "User not found" });
++    try {
++      const { createPassCheckoutSession } = await import("./stripe");
++      const protocol = req.headers["x-forwarded-proto"] || "https";
++      const baseUrl = `${protocol}://${req.headers.host}`;
++      const url = await createPassCheckoutSession(
++        userId,
++        user.email || "",
++        passId,
++        `${baseUrl}/pricing?pass_success=${PASSES[passId].id}`,
++        `${baseUrl}/pricing?canceled=true`,
++      );
++      res.json({ url });
++    } catch (err: any) {
++      console.error("[pass] checkout error:", err);
++      res.status(400).json({ message: err?.message || "Could not start checkout" });
++    }
++  });
++
++  // ── Referrals ──────────────────────────────────────────────────────────────
++  app.get("/api/referral", async (req, res) => {
++    const userId = sessionUserId(req);
++    if (!userId) return res.sendStatus(401);
++    try {
++      const code = await getOrCreateReferralCode(userId);
++      const rows = await db.select({
++        status: referralRedemptions.status,
++        count: sql<number>`count(*)::int`,
++      }).from(referralRedemptions).where(eq(referralRedemptions.referrerId, userId)).groupBy(referralRedemptions.status);
++      const stats = { pending: 0, rewarded: 0 };
++      for (const r of rows) {
++        if (r.status === "pending") stats.pending = r.count;
++        if (r.status === "rewarded") stats.rewarded = r.count;
++      }
++      res.json({ code, ...stats });
++    } catch (err) {
++      console.error("[referral] load failed:", err);
++      res.status(500).json({ message: "Could not load referral info" });
++    }
++  });
++
++  app.post("/api/referral/redeem", async (req, res) => {
++    const userId = sessionUserId(req);
++    if (!userId) return res.sendStatus(401);
++    const code = String(req.body?.code || "").trim().toUpperCase();
++    if (!/^[A-Z0-9]{6,12}$/.test(code)) return res.status(400).json({ message: "Invalid code" });
++    try {
++      const [owner] = await db.select().from(referralCodes).where(eq(referralCodes.code, code));
++      if (!owner) return res.status(404).json({ message: "Referral code not found" });
++      if (owner.userId === userId) return res.status(400).json({ message: "You cannot use your own code" });
++
++      const sub = await storage.getSubscription(userId);
++      if (sub?.stripeSubscriptionId) {
++        return res.status(400).json({ message: "Referral codes are for new subscribers only" });
++      }
++      const inserted = await db.insert(referralRedemptions)
++        .values({ referrerId: owner.userId, referredId: userId })
++        .onConflictDoNothing()
++        .returning();
++      res.json({ ok: true, alreadyRedeemed: inserted.length === 0 });
++    } catch (err) {
++      console.error("[referral] redeem failed:", err);
++      res.status(500).json({ message: "Could not apply referral code" });
++    }
++  });
++
++  // ── Bankroll tracker (Champion) ────────────────────────────────────────────
++  app.get("/api/tracker", async (req, res) => {
++    const access = await requireChampion(req, res);
++    if (!access) return;
++    const rows = await db.select().from(contestResults)
++      .where(eq(contestResults.userId, access.userId))
++      .orderBy(desc(contestResults.contestDate))
++      .limit(5000);
++    res.json({
++      rows: rows.map(r => ({
++        id: r.id,
++        sport: r.sport,
++        gameType: r.gameType,
++        contestName: r.contestName,
++        contestDate: r.contestDate ? r.contestDate.toISOString() : null,
++        entryFee: Number(r.entryFee),
++        winnings: Number(r.winnings),
++        place: r.place,
++        points: r.points == null ? null : Number(r.points),
++        contestEntries: r.contestEntries,
++        source: r.source,
++      })),
++    });
++  });
++
++  app.post("/api/tracker/import", async (req, res) => {
++    const access = await requireChampion(req, res);
++    if (!access) return;
++    const parsed = importSchema.safeParse(req.body);
++    if (!parsed.success) {
++      return res.status(400).json({ message: parsed.error.errors[0]?.message || "Invalid import data" });
++    }
++    try {
++      const values = parsed.data.rows.map(r => ({
++        userId: access.userId,
++        entryKey: r.entryKey,
++        sport: r.sport.toUpperCase(),
++        gameType: r.gameType ?? null,
++        contestName: r.contestName ?? null,
++        contestDate: parseDate(r.contestDate),
++        entryFee: String(r.entryFee),
++        winnings: String(r.winnings),
++        place: r.place ?? null,
++        points: r.points == null ? null : String(r.points),
++        contestEntries: r.contestEntries ?? null,
++        source: "dk_csv",
++      }));
++      let inserted = 0;
++      for (let i = 0; i < values.length; i += 500) {
++        const chunk = values.slice(i, i + 500);
++        const done = await db.insert(contestResults).values(chunk).onConflictDoNothing().returning({ id: contestResults.id });
++        inserted += done.length;
++      }
++      res.json({ received: values.length, inserted, duplicates: values.length - inserted });
++    } catch (err) {
++      console.error("[tracker] import failed:", err);
++      res.status(500).json({ message: "Import failed" });
++    }
++  });
++
++  app.post("/api/tracker/entry", async (req, res) => {
++    const access = await requireChampion(req, res);
++    if (!access) return;
++    const parsed = manualSchema.safeParse(req.body);
++    if (!parsed.success) {
++      return res.status(400).json({ message: parsed.error.errors[0]?.message || "Invalid entry" });
++    }
++    const d = parsed.data;
++    const [row] = await db.insert(contestResults).values({
++      userId: access.userId,
++      entryKey: `manual-${randomUUID()}`,
++      sport: d.sport.toUpperCase(),
++      contestName: d.contestName,
++      contestDate: parseDate(d.contestDate) ?? new Date(),
++      entryFee: String(d.entryFee),
++      winnings: String(d.winnings),
++      source: "manual",
++    }).returning({ id: contestResults.id });
++    res.json({ ok: true, id: row.id });
++  });
++
++  app.delete("/api/tracker/:id", async (req, res) => {
++    const access = await requireChampion(req, res);
++    if (!access) return;
++    const id = Number(req.params.id);
++    if (!Number.isInteger(id)) return res.status(400).json({ message: "Invalid id" });
++    await db.delete(contestResults).where(and(eq(contestResults.id, id), eq(contestResults.userId, access.userId)));
++    res.json({ ok: true });
++  });
++
++  app.delete("/api/tracker", async (req, res) => {
++    const access = await requireChampion(req, res);
++    if (!access) return;
++    await db.delete(contestResults).where(eq(contestResults.userId, access.userId));
++    res.json({ ok: true });
++  });
++
++  // ── Late swap (Champion) ───────────────────────────────────────────────────
++  // Keeps every player whose game has started and re-optimizes only the open slots.
++  app.post("/api/late-swap", async (req, res) => {
++    const access = await requireChampion(req, res);
++    if (!access) return;
++    try {
++      const lineupId = Number(req.body?.lineupId);
++      if (!Number.isInteger(lineupId)) return res.status(400).json({ message: "lineupId is required" });
++
++      const lineup = await storage.getLineup(lineupId);
++      if (!lineup || lineup.userId !== access.userId) return res.status(404).json({ message: "Lineup not found" });
++      const slate = await storage.getSlate(lineup.slateId);
++      if (!slate) return res.status(404).json({ message: "Slate not found" });
++
++      const platform = (lineup.platform || slate.platform || "draftkings") as Platform;
++      const config = getPlatformConfig(slate.sport, platform);
++      if (lineup.playerIds.length !== config.rosterSize) {
++        return res.status(400).json({ message: "Late swap supports classic lineups only." });
++      }
++
++      const players = await storage.getPlayersBySlate(slate.id);
++      const byId = new Map(players.map(p => [p.id, p]));
++      const current = lineup.playerIds.map(id => byId.get(id));
++      if (current.some(p => !p)) {
++        return res.status(400).json({ message: "Some players in this lineup are no longer on the slate." });
++      }
++      const currentPlayers = current as Player[];
++
++      const now = Date.now();
++      const startOf = new Map<number, Date | null>(players.map(p => [p.id, playerGameStart(p, slate)]));
++      const hasStarted = (p: Player) => {
++        const s = startOf.get(p.id);
++        return !!s && s.getTime() <= now;
++      };
++
++      const lockedIds = currentPlayers.filter(hasStarted).map(p => p.id);
++      const lockedSet = new Set(lockedIds);
++      const openSlots = currentPlayers.length - lockedIds.length;
++
++      const baseProjection = currentPlayers.reduce((sum, p) => sum + Number(p.projectedPoints), 0);
++      const baseSalary = currentPlayers.reduce((sum, p) => sum + p.salary, 0);
++      const originalView = currentPlayers.map(p => trimPlayer(p, lockedSet.has(p.id), startOf.get(p.id) ?? null));
++
++      if (openSlots === 0) {
++        return res.json({
++          message: "Every game in this lineup has started, so there is nothing left to swap.",
++          original: originalView,
++          suggested: originalView,
++          swaps: [],
++          projectionBefore: baseProjection,
++          projectionAfter: baseProjection,
++          gain: 0,
++          lockedCount: lockedIds.length,
++        });
++      }
++
++      const excludedPlayerIds = players
++        .filter(p => !lockedSet.has(p.id) && (hasStarted(p) || isOut(p)))
++        .map(p => p.id);
++
++      const { solveLineup } = await import("./routes");
++      const result: any = solveLineup(
++        players,
++        {
++          slateId: slate.id,
++          platform,
++          lockedPlayerIds: lockedIds,
++          excludedPlayerIds,
++          playerProjections: {},
++          contestType: "cash",
++          outperformerMode: false,
++          deterministicObjective: true,
++        } as any,
++        slate.sport,
++        platform,
++        undefined,
++        { deadline: Date.now() + 12_000, timeoutMs: 8_000 } as any,
++      );
++
++      if (result.error || !Array.isArray(result.lineup) || result.lineup.length !== config.rosterSize) {
++        return res.status(400).json({
++          message: result.error || "No valid swap exists with the players still available.",
++        });
++      }
++
++      const suggestedPlayers: Player[] = result.lineup;
++      const currentIds = new Set(currentPlayers.map(p => p.id));
++      const suggestedIds = new Set(suggestedPlayers.map(p => p.id));
++      const outgoing = currentPlayers.filter(p => !suggestedIds.has(p.id));
++      const incoming = suggestedPlayers.filter(p => !currentIds.has(p.id));
++
++      // Pair each outgoing player with an incoming one at the same position where possible.
++      const remaining = [...incoming];
++      const swaps = outgoing.map(out => {
++        const idx = remaining.findIndex(p => p.position === out.position);
++        const pick = idx >= 0 ? remaining.splice(idx, 1)[0] : remaining.shift();
++        return {
++          out: trimPlayer(out, false, startOf.get(out.id) ?? null),
++          in: pick ? trimPlayer(pick, false, startOf.get(pick.id) ?? null) : null,
++        };
++      });
++
++      const afterProjection = suggestedPlayers.reduce((sum, p) => sum + Number(p.projectedPoints), 0);
++      res.json({
++        message: swaps.length === 0 ? "Your open slots are already the best available options." : undefined,
++        original: originalView,
++        suggested: suggestedPlayers.map(p => trimPlayer(p, lockedSet.has(p.id), startOf.get(p.id) ?? null)),
++        swaps,
++        projectionBefore: baseProjection,
++        projectionAfter: afterProjection,
++        gain: afterProjection - baseProjection,
++        salaryBefore: baseSalary,
++        salaryAfter: suggestedPlayers.reduce((sum, p) => sum + p.salary, 0),
++        lockedCount: lockedIds.length,
++      });
++    } catch (err) {
++      console.error("[late-swap] failed:", err);
++      res.status(500).json({ message: "Late swap failed" });
++    }
++  });
++}
+diff --git a/server/routes.ts b/server/routes.ts
+index 9c0e2f0..8a053a4 100644
+--- a/server/routes.ts
++++ b/server/routes.ts
+@@ -44,6 +44,8 @@ import { buildVegasContext } from "./vegas-client";
+ import { buildDvPContext, applyDvPToProjections, buildOpponentMap } from "./dvp-client";
+ import { fetchStartingLineups, getStartingLineupsData, clearLineupsCache } from "./lineups-ingest";
+ import { projectionAccuracyRouter } from "./projection-accuracy-route";
++import { registerRevenueRoutes, sportScopeViolation } from "./revenue";
++import { isSportPlanSport } from "@shared/plans";
+ import { deactivateExpiredSlates, getLatestGameStart } from "./slate-lifecycle";
+ import { solveWithBudget, validatedIntegralResult, remainingSolverTime, yieldToEventLoop, type SolverBudget } from "./solver-guard";
+ import { createLineupEnrichmentLoader } from "./lineups-enrichment";
+@@ -372,6 +374,7 @@ export async function registerRoutes(
+ ): Promise<Server> {
+   await setupAuth(app);
+   registerAuthRoutes(app);
++  registerRevenueRoutes(app);
+   // Seasonal availability is reversible; keep historical records and scoring intact.
+   app.use("/api", async (req, res, next) => {
+     if (ACTIVE_SPORTS.includes("MLB")) return next();
+@@ -1056,6 +1059,8 @@ export async function registerRoutes(
+         const sub = await storage.getSubscription(userId);
+         const optUser = await storage.getUser(userId);
+         const tier = optUser?.isAdmin ? "pro" : (sub?.tier || "free");
++        const scopeMessage = optUser?.isAdmin ? null : sportScopeViolation(sub, slate.sport);
++        if (scopeMessage) return res.status(403).json({ message: scopeMessage, requiresUpgrade: true });
+         if (tier === "free") {
+           const lineupCount = await storage.getLineupCount(userId);
+           if (lineupCount >= 1) {
+@@ -3446,6 +3451,8 @@ export async function registerRoutes(
+       stripeSubscriptionId: sub?.stripeSubscriptionId || null,
+       currentPeriodEnd: sub?.currentPeriodEnd?.toISOString() || null,
+       draftAccess: isAdmin || tier === "pro" || sub?.draftAccess === true,
++      sportScope: isAdmin ? null : sub?.sportScope || null,
++      passExpiresAt: isAdmin ? null : sub?.passExpiresAt?.toISOString() || null,
+     });
+   });
+ 
+@@ -3459,7 +3466,14 @@ export async function registerRoutes(
+     if (!tier || !["star", "pro"].includes(tier)) {
+       return res.status(400).json({ message: "Invalid tier" });
+     }
+-    const billingCycle = billing === "annual" ? "annual" : "monthly";
++    const sportScope = isSportPlanSport(req.body?.sportScope) ? req.body.sportScope : null;
++    if (req.body?.sportScope && !sportScope) {
++      return res.status(400).json({ message: "Unknown sport plan" });
++    }
++    if (sportScope && tier !== "star") {
++      return res.status(400).json({ message: "Single-sport plans are Sharpshooter only" });
++    }
++    const billingCycle = sportScope || billing !== "annual" ? "monthly" : "annual";
+ 
+     try {
+       const { createCheckoutSession } = await import("./stripe");
+@@ -3473,7 +3487,8 @@ export async function registerRoutes(
+         tier,
+         billingCycle,
+         `${baseUrl}/pricing?success=true`,
+-        `${baseUrl}/pricing?canceled=true`
++        `${baseUrl}/pricing?canceled=true`,
++        sportScope
+       );
+       res.json({ url });
+     } catch (err: any) {
+@@ -3492,7 +3507,14 @@ export async function registerRoutes(
+     if (!tier || !["star", "pro"].includes(tier)) {
+       return res.status(400).json({ message: "Invalid tier" });
+     }
+-    const billingCycle = billing === "annual" ? "annual" : "monthly";
++    const sportScope = isSportPlanSport(req.body?.sportScope) ? req.body.sportScope : null;
++    if (req.body?.sportScope && !sportScope) {
++      return res.status(400).json({ message: "Unknown sport plan" });
++    }
++    if (sportScope && tier !== "star") {
++      return res.status(400).json({ message: "Single-sport plans are Sharpshooter only" });
++    }
++    const billingCycle = sportScope || billing !== "annual" ? "monthly" : "annual";
+ 
+     try {
+       const { createSubscriptionWithIntent } = await import("./stripe");
+@@ -3500,7 +3522,8 @@ export async function registerRoutes(
+         userId,
+         user.email || "",
+         tier,
+-        billingCycle
++        billingCycle,
++        sportScope
+       );
+       res.json(result);
+     } catch (err: any) {
+@@ -5330,6 +5353,8 @@ export async function registerRoutes(
+       constraints.lineupCount = Math.min(constraints.lineupCount, maxLineupCount);
+       const slate = await storage.getSlate(constraints.slateId);
+       if (!slate) return res.status(404).json({ message: "Slate not found" });
++      const proScopeMessage = isAdmin ? null : sportScopeViolation(sub, slate.sport);
++      if (proScopeMessage) return res.status(403).json({ message: proScopeMessage, requiresUpgrade: true });
+ 
+       if (new Date(slate.startTime) <= new Date()) {
+         return res.status(400).json({ message: "This slate has already started. Lineups can no longer be generated." });
+@@ -5782,6 +5807,8 @@ export async function registerRoutes(
+       const slate = await storage.getSlate(input.slateId);
+       if (!slate) return res.status(404).json({ message: "Slate not found" });
+       if (slate.isActive === false) return res.status(410).json({ message: "This slate has ended." });
++      const simScopeMessage = isAdmin ? null : sportScopeViolation(sub, slate.sport);
++      if (simScopeMessage) return res.status(403).json({ message: simScopeMessage, requiresUpgrade: true });
+ 
+       if (input.favoriteStackIds.length > 0 && !isClassicSlate(slate)) {
+         return res.status(400).json({ message: "Favorite stacks are available only for classic slates." });
+diff --git a/server/storage.ts b/server/storage.ts
+index d8956e2..d0a6aa5 100644
+--- a/server/storage.ts
++++ b/server/storage.ts
+@@ -640,6 +640,19 @@ export class DatabaseStorage implements IStorage {
+ 
+   async getSubscription(userId: string): Promise<Subscription | undefined> {
+     const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId));
++    if (sub && sub.passExpiresAt && sub.passExpiresAt.getTime() <= Date.now()) {
++      // A one-time pass has run out. Anyone with a live Stripe subscription keeps their plan
++      // and only loses the stale pass marker; everyone else drops back to the free tier.
++      const hasLiveStripeSub = !!sub.stripeSubscriptionId &&
++        (sub.status === "active" || sub.status === "trialing" || sub.status === "past_due");
++      const [cleaned] = await db.update(subscriptions)
++        .set(hasLiveStripeSub
++          ? { passExpiresAt: null, updatedAt: new Date() }
++          : { tier: "free", status: "active", passExpiresAt: null, sportScope: null, currentPeriodEnd: null, updatedAt: new Date() })
++        .where(eq(subscriptions.userId, userId))
++        .returning();
++      return cleaned;
++    }
+     return sub;
+   }
+ 
+diff --git a/server/stripe.ts b/server/stripe.ts
+index 150b9c6..2f2f198 100644
+--- a/server/stripe.ts
++++ b/server/stripe.ts
+@@ -1,6 +1,19 @@
+ import Stripe from "stripe";
+ import { storage } from "./storage";
+ import { recordFunnelEvent } from "./funnel";
++import { db } from "./db";
++import { and, eq, gte, sql } from "drizzle-orm";
++import { referralRedemptions } from "@shared/schema";
++import {
++  PASSES,
++  SPORT_PLAN_MONTHLY_CENTS,
++  REFERRAL_MAX_REWARDS_PER_YEAR,
++  REFERRAL_FREE_PASS_DAYS,
++  TIER_MONTHLY_CENTS,
++  isPassId,
++  isSportPlanSport,
++  type PassId,
++} from "@shared/plans";
+ 
+ const stripeSecretKey = process.env.ELITELINEUP_STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
+ if (!stripeSecretKey) {
+@@ -19,6 +32,7 @@ const PRICE_CONFIGS: Record<string, { amount: number; name: string }> = {
+ };
+ 
+ const AMOUNT_TO_TIER: Record<number, string> = {
++  [SPORT_PLAN_MONTHLY_CENTS]: "star",
+   1999: "star",
+   3999: "pro",
+   4999: "pro",
+@@ -29,13 +43,21 @@ const AMOUNT_TO_TIER: Record<number, string> = {
+ 
+ let priceCache: Record<string, string> = {};
+ 
+-async function getOrCreatePrice(tier: string, billing: "monthly" | "annual"): Promise<string> {
++async function getOrCreatePrice(tier: string, billing: "monthly" | "annual", sportScope?: string | null): Promise<string> {
+   if (!stripe) throw new Error("Stripe not configured");
+ 
+-  const cacheKey = `${tier}_${billing}`;
++  const scope = sportScope && isSportPlanSport(sportScope) ? sportScope : null;
++  if (sportScope && !scope) throw new Error(`Invalid sport plan: ${sportScope}`);
++  if (scope && (tier !== "star" || billing !== "monthly")) {
++    throw new Error("Single-sport plans are Sharpshooter monthly only");
++  }
++
++  const cacheKey = scope ? `star_monthly_${scope.toLowerCase()}` : `${tier}_${billing}`;
+   if (priceCache[cacheKey]) return priceCache[cacheKey];
+ 
+-  const priceConfig = PRICE_CONFIGS[cacheKey];
++  const priceConfig = scope
++    ? { amount: SPORT_PLAN_MONTHLY_CENTS, name: `EliteLineup AI ${scope} Plan` }
++    : PRICE_CONFIGS[cacheKey];
+   if (!priceConfig) throw new Error(`Invalid tier/billing: ${cacheKey}`);
+ 
+   const existingProducts = await stripe.products.list({ limit: 100 });
+@@ -44,7 +66,7 @@ async function getOrCreatePrice(tier: string, billing: "monthly" | "annual"): Pr
+   if (!product) {
+     product = await stripe.products.create({
+       name: priceConfig.name,
+-      metadata: { tier, billing },
++      metadata: scope ? { tier, billing, sportScope: scope } : { tier, billing },
+     });
+   }
+ 
+@@ -118,11 +140,12 @@ export async function createSubscriptionWithIntent(
+   userId: string,
+   email: string,
+   tier: string,
+-  billing: "monthly" | "annual"
++  billing: "monthly" | "annual",
++  sportScope?: string | null
+ ): Promise<{ subscriptionId: string; clientSecret: string; isTrial: boolean }> {
+   if (!stripe) throw new Error("Stripe not configured");
+ 
+-  const priceId = await getOrCreatePrice(tier, billing);
++  const priceId = await getOrCreatePrice(tier, billing, sportScope);
+ 
+   const sub = await storage.getSubscription(userId);
+   const customerId = await getOrCreateValidCustomer(userId, email, sub);
+@@ -136,7 +159,7 @@ export async function createSubscriptionWithIntent(
+     items: [{ price: priceId }],
+     payment_behavior: "default_incomplete",
+     payment_settings: { save_default_payment_method: "on_subscription" },
+-    metadata: { userId, tier },
++    metadata: sportScope ? { userId, tier, sportScope } : { userId, tier },
+   };
+ 
+   if (!hasHadTrial) {
+@@ -188,11 +211,12 @@ export async function createCheckoutSession(
+   tier: string,
+   billing: "monthly" | "annual",
+   successUrl: string,
+-  cancelUrl: string
++  cancelUrl: string,
++  sportScope?: string | null
+ ): Promise<string> {
+   if (!stripe) throw new Error("Stripe not configured");
+ 
+-  const priceId = await getOrCreatePrice(tier, billing);
++  const priceId = await getOrCreatePrice(tier, billing, sportScope);
+ 
+   const sub = await storage.getSubscription(userId);
+   const customerId = await getOrCreateValidCustomer(userId, email, sub);
+@@ -204,9 +228,9 @@ export async function createCheckoutSession(
+     line_items: [{ price: priceId, quantity: 1 }],
+     success_url: successUrl,
+     cancel_url: cancelUrl,
+-    metadata: { userId, tier },
++    metadata: sportScope ? { userId, tier, sportScope } : { userId, tier },
+     subscription_data: {
+-      metadata: { userId, tier },
++      metadata: sportScope ? { userId, tier, sportScope } : { userId, tier },
+     },
+   });
+ 
+@@ -261,6 +285,124 @@ export async function createDraftHubCheckoutSession(
+   return session.url!;
+ }
+ 
++/** One-time Slate/Week pass. Refused for anyone who already has a live subscription. */
++export async function createPassCheckoutSession(
++  userId: string,
++  email: string,
++  passId: PassId,
++  successUrl: string,
++  cancelUrl: string
++): Promise<string> {
++  if (!stripe) throw new Error("Stripe not configured");
++  if (!isPassId(passId)) throw new Error("Unknown pass");
++  const pass = PASSES[passId];
++
++  const sub = await storage.getSubscription(userId);
++  const liveStripeSub = !!sub?.stripeSubscriptionId && (sub.status === "active" || sub.status === "trialing" || sub.status === "past_due");
++  if (liveStripeSub) throw new Error("You already have an active plan, so a pass is not needed.");
++  if (sub?.tier === "pro") throw new Error("You already have Champion access.");
++
++  const customerId = await getOrCreateValidCustomer(userId, email, sub);
++
++  const session = await stripe.checkout.sessions.create({
++    customer: customerId,
++    payment_method_types: ["card"],
++    mode: "payment",
++    line_items: [{
++      quantity: 1,
++      price_data: {
++        currency: "usd",
++        unit_amount: pass.amountCents,
++        product_data: {
++          name: `EliteLineup AI ${pass.label}`,
++          description: pass.blurb,
++          metadata: { type: "pass", passId },
++        },
++      },
++    }],
++    success_url: successUrl,
++    cancel_url: cancelUrl,
++    metadata: { userId, type: "pass", passId },
++  });
++
++  recordFunnelEvent("checkout_started", { email, errorReason: `pass=${passId}` });
++  return session.url!;
++}
++
++/** Grants (or extends) Sharpshooter access for a fixed number of days with no Stripe subscription. */
++export async function grantPassDays(userId: string, days: number, opts: { sessionId?: string; customerId?: string | null } = {}): Promise<boolean> {
++  const existing = await storage.getSubscription(userId);
++  if (opts.sessionId && existing?.lastPassSessionId === opts.sessionId) return false; // retried webhook
++  const liveStripeSub = !!existing?.stripeSubscriptionId && (existing.status === "active" || existing.status === "trialing" || existing.status === "past_due");
++  if (liveStripeSub || existing?.tier === "pro") return false;
++
++  const base = existing?.passExpiresAt && existing.passExpiresAt.getTime() > Date.now()
++    ? existing.passExpiresAt.getTime()
++    : Date.now();
++  const passExpiresAt = new Date(base + days * 24 * 60 * 60 * 1000);
++
++  await storage.upsertSubscription({
++    userId,
++    stripeCustomerId: opts.customerId ?? existing?.stripeCustomerId ?? null,
++    stripeSubscriptionId: existing?.stripeSubscriptionId ?? null,
++    tier: "star",
++    status: "active",
++    currentPeriodEnd: passExpiresAt,
++    graceEndsAt: null,
++    passExpiresAt,
++    sportScope: null,
++    ...(opts.sessionId ? { lastPassSessionId: opts.sessionId } : {}),
++  });
++  return true;
++}
++
++/**
++ * Called when a referred user's first real subscription payment lands. Rewards the referrer
++ * once: a Stripe balance credit worth one month if they subscribe, otherwise a 30-day pass.
++ * Capped per referrer per year so a ring of fake accounts cannot farm it.
++ */
++export async function rewardReferralIfDue(referredUserId: string): Promise<void> {
++  try {
++    const [redemption] = await db.select().from(referralRedemptions)
++      .where(and(eq(referralRedemptions.referredId, referredUserId), eq(referralRedemptions.status, "pending")));
++    if (!redemption) return;
++
++    const yearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
++    const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(referralRedemptions)
++      .where(and(
++        eq(referralRedemptions.referrerId, redemption.referrerId),
++        eq(referralRedemptions.status, "rewarded"),
++        gte(referralRedemptions.rewardedAt, yearAgo),
++      ));
++    // Claim first so two concurrent webhooks cannot both pay out.
++    const claimed = await db.update(referralRedemptions)
++      .set({ status: count >= REFERRAL_MAX_REWARDS_PER_YEAR ? "capped" : "rewarded", rewardedAt: new Date() })
++      .where(and(eq(referralRedemptions.id, redemption.id), eq(referralRedemptions.status, "pending")))
++      .returning();
++    if (claimed.length === 0 || claimed[0].status === "capped") return;
++
++    const referrerSub = await storage.getSubscription(redemption.referrerId);
++    const liveStripeSub = !!referrerSub?.stripeSubscriptionId && !!referrerSub.stripeCustomerId &&
++      (referrerSub.status === "active" || referrerSub.status === "trialing" || referrerSub.status === "past_due");
++
++    if (liveStripeSub && stripe) {
++      const credit = TIER_MONTHLY_CENTS[referrerSub!.tier] ?? SPORT_PLAN_MONTHLY_CENTS;
++      await stripe.customers.createBalanceTransaction(referrerSub!.stripeCustomerId!, {
++        amount: -credit,
++        currency: "usd",
++        description: "EliteLineup referral reward: one month free",
++      });
++      console.log(`[referral] Credited ${credit} cents to referrer ${redemption.referrerId}`);
++    } else {
++      await grantPassDays(redemption.referrerId, REFERRAL_FREE_PASS_DAYS);
++      console.log(`[referral] Granted ${REFERRAL_FREE_PASS_DAYS}-day pass to referrer ${redemption.referrerId}`);
++    }
++  } catch (err) {
++    // Never let a reward problem break subscription webhooks.
++    console.error("[referral] reward failed:", err);
++  }
++}
++
+ export async function createPortalSession(userId: string, email: string, returnUrl: string): Promise<string> {
+   if (!stripe) throw new Error("Stripe not configured");
+ 
+@@ -314,6 +456,16 @@ export async function handleWebhookEvent(event: Stripe.Event): Promise<void> {
+         errorReason: session.metadata?.type ?? session.metadata?.tier ?? null,
+       });
+ 
++      // One-time Slate/Week pass
++      if (session.metadata?.type === "pass" && userId && isPassId(session.metadata?.passId)) {
++        const granted = await grantPassDays(userId, PASSES[session.metadata!.passId as PassId].days, {
++          sessionId: session.id,
++          customerId: typeof session.customer === "string" ? session.customer : null,
++        });
++        console.log(`[stripe] Pass ${session.metadata!.passId} for user ${userId}: ${granted ? "granted" : "skipped"}`);
++        break;
++      }
++
+       // One-time Draft Hub purchase
+       if (session.metadata?.type === "draft_hub_2026" && userId) {
+         const accessEnd = new Date("2027-01-31T00:00:00Z"); // access through end of 2026 season
+@@ -346,6 +498,8 @@ export async function handleWebhookEvent(event: Stripe.Event): Promise<void> {
+         status: "active",
+         currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000),
+         graceEndsAt: null,
++        passExpiresAt: null,
++        sportScope: isSportPlanSport(session.metadata?.sportScope) ? session.metadata!.sportScope : null,
+       });
+       console.log(`[stripe] Checkout completed: user ${userId} upgraded to ${tier}`);
+       break;
+@@ -368,8 +522,12 @@ export async function handleWebhookEvent(event: Stripe.Event): Promise<void> {
+           status: subscription.status,
+           currentPeriodEnd: periodEnd,
+           graceEndsAt: null,
++          passExpiresAt: null,
++          sportScope: isSportPlanSport(subscription.metadata?.sportScope) ? subscription.metadata.sportScope : null,
+         });
+         console.log(`[stripe] Subscription ${subscription.status}: user ${userId}, tier=${tier}`);
++        // The first real payment (trial converting, or no trial) is what earns the referrer a reward.
++        if (subscription.status === "active") await rewardReferralIfDue(userId);
+       } else if (subscription.status === "past_due" || subscription.status === "unpaid") {
+         await storage.upsertSubscription({
+           userId,
+@@ -399,6 +557,7 @@ export async function handleWebhookEvent(event: Stripe.Event): Promise<void> {
+             stripeSubscriptionId: null,
+             currentPeriodEnd: null,
+             graceEndsAt: null,
++            sportScope: null,
+           });
+           console.log(`[stripe] Subscription canceled & expired: user ${userId} reverted to free`);
+         }
+@@ -418,6 +577,7 @@ export async function handleWebhookEvent(event: Stripe.Event): Promise<void> {
+         stripeSubscriptionId: null,
+         currentPeriodEnd: null,
+         graceEndsAt: null,
++        sportScope: null,
+       });
+       console.log(`[stripe] Subscription deleted: user ${userId} reverted to free`);
+       break;
+diff --git a/shared/plans.ts b/shared/plans.ts
+new file mode 100644
+index 0000000..f6be179
+--- /dev/null
++++ b/shared/plans.ts
+@@ -0,0 +1,61 @@
++/**
++ * Single source of truth for everything that costs money besides the two main tiers.
++ * Amounts are in cents. Used by the server (Stripe) and the pricing page.
++ */
++
++/** Sports a single-sport plan can be bought for. Must be a subset of ACTIVE_SPORTS. */
++export const SPORT_PLAN_SPORTS = ["NBA", "NFL", "GOLF"] as const;
++export type SportPlanSport = (typeof SPORT_PLAN_SPORTS)[number];
++
++export const SPORT_PLAN_MONTHLY_CENTS = 999;
++
++export function isSportPlanSport(value: unknown): value is SportPlanSport {
++  return typeof value === "string" && (SPORT_PLAN_SPORTS as readonly string[]).includes(value);
++}
++
++export type PassId = "slate" | "week";
++
++export interface PassConfig {
++  id: PassId;
++  label: string;
++  amountCents: number;
++  /** How long access lasts after purchase. */
++  days: number;
++  blurb: string;
++}
++
++export const PASSES: Record<PassId, PassConfig> = {
++  slate: {
++    id: "slate",
++    label: "Slate Pass",
++    amountCents: 499,
++    days: 2,
++    blurb: "48 hours of Sharpshooter. Built for one big Sunday or one big night.",
++  },
++  week: {
++    id: "week",
++    label: "Week Pass",
++    amountCents: 999,
++    days: 7,
++    blurb: "7 days of Sharpshooter across every sport. No subscription.",
++  },
++};
++
++export function isPassId(value: unknown): value is PassId {
++  return value === "slate" || value === "week";
++}
++
++/** Referral program */
++export const REFERRAL_MAX_REWARDS_PER_YEAR = 12;
++/** Days of Sharpshooter granted as a pass when the referrer has no active subscription. */
++export const REFERRAL_FREE_PASS_DAYS = 30;
++
++/** Monthly price in cents per tier, used to size a "free month" credit. */
++export const TIER_MONTHLY_CENTS: Record<string, number> = {
++  star: 1999,
++  pro: 3999,
++};
++
++export function formatUsd(cents: number): string {
++  return `$${(cents / 100).toFixed(2)}`;
++}
+diff --git a/shared/schema.ts b/shared/schema.ts
+index 3e92702..db5d709 100644
+--- a/shared/schema.ts
++++ b/shared/schema.ts
+@@ -1,4 +1,4 @@
+-import { pgTable, text, serial, integer, boolean, timestamp, numeric, date, jsonb } from "drizzle-orm/pg-core";
++import { pgTable, text, serial, integer, boolean, timestamp, numeric, date, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+ import { createInsertSchema } from "drizzle-zod";
+ import { z } from "zod";
+ import { nflPortfolioSettingsSchema, type NflPortfolioReport } from "./nfl-portfolio";
+@@ -126,6 +126,12 @@ export const subscriptions = pgTable("subscriptions", {
+   currentPeriodEnd: timestamp("current_period_end"),
+   graceEndsAt: timestamp("grace_ends_at"),
+   draftAccess: boolean("draft_access").default(false),
++  // One-time passes: access ends at passExpiresAt (no Stripe subscription involved).
++  passExpiresAt: timestamp("pass_expires_at"),
++  // Single-sport plans: when set (e.g. "NBA"), optimizers are limited to that sport.
++  sportScope: text("sport_scope"),
++  // Stripe Checkout session that last granted a pass, so a retried webhook cannot extend it twice.
++  lastPassSessionId: text("last_pass_session_id"),
+   createdAt: timestamp("created_at").defaultNow(),
+   // Note: kept current via the subscriptions_updated_at trigger. See migration note.
+   updatedAt: timestamp("updated_at").defaultNow(),
+@@ -568,3 +574,47 @@ export type ProOptimizeResponse = z.infer<typeof proOptimizeResponseSchema>;
+  *
+  * ============================================================
+  */
++
++
++// --- REFERRALS ---
++export const referralCodes = pgTable("referral_codes", {
++  userId: text("user_id").primaryKey().references(() => users.id),
++  code: text("code").notNull().unique(),
++  createdAt: timestamp("created_at").defaultNow(),
++});
++
++export const referralRedemptions = pgTable("referral_redemptions", {
++  id: serial("id").primaryKey(),
++  referrerId: text("referrer_id").notNull().references(() => users.id),
++  referredId: text("referred_id").notNull().references(() => users.id).unique(),
++  // pending until the referred user makes their first paid subscription payment
++  status: text("status").notNull().default("pending"),
++  createdAt: timestamp("created_at").defaultNow(),
++  rewardedAt: timestamp("rewarded_at"),
++});
++
++export type ReferralRedemption = typeof referralRedemptions.$inferSelect;
++
++// --- CONTEST RESULTS (BANKROLL TRACKER) ---
++export const contestResults = pgTable("contest_results", {
++  id: serial("id").primaryKey(),
++  userId: text("user_id").notNull().references(() => users.id),
++  // DraftKings Entry_Key for CSV imports; a generated key for manual entries.
++  entryKey: text("entry_key").notNull(),
++  sport: text("sport").notNull().default("OTHER"),
++  gameType: text("game_type"),
++  contestName: text("contest_name"),
++  contestDate: timestamp("contest_date"),
++  entryFee: numeric("entry_fee").notNull().default("0"),
++  winnings: numeric("winnings").notNull().default("0"),
++  place: integer("place"),
++  points: numeric("points"),
++  contestEntries: integer("contest_entries"),
++  source: text("source").notNull().default("dk_csv"),
++  createdAt: timestamp("created_at").defaultNow(),
++}, (t) => ({
++  userEntryUnique: uniqueIndex("contest_results_user_entry_idx").on(t.userId, t.entryKey),
++}));
++
++export type ContestResult = typeof contestResults.$inferSelect;
++export type InsertContestResult = typeof contestResults.$inferInsert;

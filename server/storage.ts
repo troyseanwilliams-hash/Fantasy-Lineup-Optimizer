@@ -640,6 +640,19 @@ export class DatabaseStorage implements IStorage {
 
   async getSubscription(userId: string): Promise<Subscription | undefined> {
     const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId));
+    if (sub && sub.passExpiresAt && sub.passExpiresAt.getTime() <= Date.now()) {
+      // A one-time pass has run out. Anyone with a live Stripe subscription keeps their plan
+      // and only loses the stale pass marker; everyone else drops back to the free tier.
+      const hasLiveStripeSub = !!sub.stripeSubscriptionId &&
+        (sub.status === "active" || sub.status === "trialing" || sub.status === "past_due");
+      const [cleaned] = await db.update(subscriptions)
+        .set(hasLiveStripeSub
+          ? { passExpiresAt: null, updatedAt: new Date() }
+          : { tier: "free", status: "active", passExpiresAt: null, sportScope: null, currentPeriodEnd: null, updatedAt: new Date() })
+        .where(eq(subscriptions.userId, userId))
+        .returning();
+      return cleaned;
+    }
     return sub;
   }
 

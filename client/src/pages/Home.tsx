@@ -1471,6 +1471,7 @@ export default function Home() {
         <div className="absolute inset-x-0 top-0 h-[640px] bg-gradient-to-b from-[#0B0F14]/40 via-[#0B0F14]/80 to-[#0B0F14]" />
         <div className="relative z-10 max-w-6xl mx-auto px-6">
 
+          <div className="lg:grid lg:grid-cols-[1.15fr_0.85fr] lg:gap-10 lg:items-center">
           <section className="pt-16 md:pt-24 pb-14 max-w-3xl">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-volt-500/10 border border-volt-500/25 text-volt-400 text-sm font-semibold mb-6" data-testid="landing-nba-highlight">
               <span className="w-2 h-2 rounded-full bg-volt-500" />
@@ -1511,6 +1512,13 @@ export default function Home() {
               {FEATURE_VISIBILITY.draftHub && <Badge className="bg-amber-500/10 text-amber-300 border-amber-500/25 font-semibold text-sm px-3 py-1.5">NFL Draft Hub</Badge>}
             </div>
           </section>
+          <img
+            src="/images/art/hero-lineup.svg"
+            alt="A lineup of six connected players with a projected score"
+            className="hidden lg:block w-full rounded-3xl border border-white/5 shadow-2xl shadow-volt-500/5"
+            data-testid="landing-hero-art"
+          />
+          </div>
 
           {FEATURE_VISIBILITY.draftHub && <DraftHubHero />}
           <LandingTopPlays />
@@ -1544,6 +1552,22 @@ export default function Home() {
                 </div>
               ))}
             </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5" data-testid="landing-tool-art">
+              <figure className="bg-[#121820] border border-slate-800 rounded-xl overflow-hidden">
+                <img src="/images/art/late-swap.svg" alt="Late swap keeps locked players and replaces the rest" className="w-full" loading="lazy" />
+                <figcaption className="p-5">
+                  <h3 className="text-lg font-bold text-white mb-1">Late swap</h3>
+                  <p className="text-sm text-slate-400 leading-relaxed">Games started and a player is out? Keep the locked players and rebuild only the open slots.</p>
+                </figcaption>
+              </figure>
+              <figure className="bg-[#121820] border border-slate-800 rounded-xl overflow-hidden">
+                <img src="/images/art/tracker.svg" alt="Profit chart rising over time" className="w-full" loading="lazy" />
+                <figcaption className="p-5">
+                  <h3 className="text-lg font-bold text-white mb-1">Bankroll tracker</h3>
+                  <p className="text-sm text-slate-400 leading-relaxed">Upload your DraftKings contest history and see profit and ROI by sport and contest type.</p>
+                </figcaption>
+              </figure>
+            </div>
           </section>
 
           <section className="pb-14">
@@ -1565,7 +1589,7 @@ export default function Home() {
           <section className="mb-14 bg-[#121820] border border-slate-800 rounded-2xl p-8 md:p-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
             <div>
               <h2 className="text-2xl md:text-3xl font-black text-white mb-2">Start free. Upgrade when it pays for itself.</h2>
-              <p className="text-slate-400">Contender is free. Sharpshooter is $19.99 a month and Champion is $39.99, each with a 7-day free trial.</p>
+              <p className="text-slate-400">Contender is free. Single-sport plans start at $9.99 a month, Sharpshooter is $19.99 and Champion is $39.99, each with a 7-day free trial. Or grab a Slate Pass for $4.99 or a Week Pass for $9.99 with no subscription.</p>
             </div>
             <Link href="/pricing">
               <Button className="h-14 px-8 text-lg font-black bg-volt-500 hover:bg-volt-600 text-[#0B0F14] shrink-0">Compare plans</Button>

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300" role="img" aria-label="Two players swapping places while one slot is locked">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#111827"/><stop offset="1" stop-color="#0A0A0C"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="5"/></filter>
+  </defs>
+  <rect width="480" height="300" rx="20" fill="url(#bg)"/>
+  <g>
+    <rect x="36" y="48" width="170" height="52" rx="12" fill="#1f2937"/>
+    <circle cx="64" cy="74" r="14" fill="#334155"/><rect x="88" y="62" width="80" height="9" rx="4" fill="#475569"/><rect x="88" y="78" width="52" height="8" rx="4" fill="#334155"/>
+    <path d="M178 66v-6a8 8 0 0 1 16 0v6" fill="none" stroke="#94a3b8" stroke-width="3"/><rect x="172" y="66" width="28" height="22" rx="5" fill="#94a3b8"/>
+    <rect x="36" y="120" width="170" height="52" rx="12" fill="#3b1d1d" stroke="#f87171" stroke-opacity=".6"/>
+    <circle cx="64" cy="146" r="14" fill="#7f1d1d"/><rect x="88" y="134" width="80" height="9" rx="4" fill="#b91c1c"/><rect x="88" y="150" width="52" height="8" rx="4" fill="#7f1d1d"/>
+    <rect x="36" y="192" width="170" height="52" rx="12" fill="#1f2937"/>
+    <circle cx="64" cy="218" r="14" fill="#334155"/><rect x="88" y="206" width="80" height="9" rx="4" fill="#475569"/><rect x="88" y="222" width="52" height="8" rx="4" fill="#334155"/>
+  </g>
+  <g transform="translate(218 118)">
+    <circle cx="22" cy="28" r="26" fill="#C4F82E" opacity=".25" filter="url(#glow)"/>
+    <circle cx="22" cy="28" r="22" fill="#C4F82E"/>
+    <path d="M12 22h18l-5-5M32 34H14l5 5" fill="none" stroke="#0A0A0C" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g>
+    <rect x="274" y="120" width="170" height="52" rx="12" fill="#1c2a0b" stroke="#C4F82E" stroke-opacity=".7"/>
+    <circle cx="302" cy="146" r="14" fill="#3f6212"/><rect x="326" y="134" width="80" height="9" rx="4" fill="#C4F82E"/><rect x="326" y="150" width="52" height="8" rx="4" fill="#65a30d"/>
+    <rect x="274" y="48" width="170" height="52" rx="12" fill="#1f2937" opacity=".5"/><rect x="274" y="192" width="170" height="52" rx="12" fill="#1f2937" opacity=".5"/>
+  </g>
+</svg>

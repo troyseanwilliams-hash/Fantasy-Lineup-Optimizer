@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300" role="img" aria-label="Rising profit chart">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#111827"/><stop offset="1" stop-color="#0A0A0C"/></linearGradient>
+    <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C4F82E" stop-opacity=".35"/><stop offset="1" stop-color="#C4F82E" stop-opacity="0"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="4"/></filter>
+  </defs>
+  <rect width="480" height="300" rx="20" fill="url(#bg)"/>
+  <g stroke="#1f2937" stroke-width="1">
+    <path d="M40 70H440M40 120H440M40 170H440M40 220H440"/>
+  </g>
+  <g fill="#334155">
+    <rect x="62" y="190" width="28" height="40" rx="5"/><rect x="108" y="170" width="28" height="60" rx="5"/>
+    <rect x="154" y="182" width="28" height="48" rx="5"/><rect x="200" y="150" width="28" height="80" rx="5"/>
+    <rect x="246" y="160" width="28" height="70" rx="5"/><rect x="292" y="120" width="28" height="110" rx="5"/>
+    <rect x="338" y="104" width="28" height="126" rx="5"/><rect x="384" y="80" width="28" height="150" rx="5"/>
+  </g>
+  <path d="M40 215 L100 190 L150 200 L215 150 L260 158 L306 112 L352 96 L398 56 L440 44 L440 240 L40 240Z" fill="url(#fill)"/>
+  <path d="M40 215 L100 190 L150 200 L215 150 L260 158 L306 112 L352 96 L398 56 L440 44" fill="none" stroke="#C4F82E" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" filter="url(#glow)" opacity=".6"/>
+  <path d="M40 215 L100 190 L150 200 L215 150 L260 158 L306 112 L352 96 L398 56 L440 44" fill="none" stroke="#C4F82E" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="440" cy="44" r="8" fill="#C4F82E"/><circle cx="440" cy="44" r="14" fill="none" stroke="#C4F82E" stroke-opacity=".4"/>
+  <text x="40" y="36" font-family="Inter,Arial,sans-serif" font-weight="800" font-size="16" fill="#e5e7eb">ROI</text>
+  <text x="84" y="36" font-family="Inter,Arial,sans-serif" font-weight="800" font-size="16" fill="#C4F82E">+18.4%</text>
+</svg>

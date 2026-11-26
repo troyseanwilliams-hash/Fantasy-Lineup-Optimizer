@@ -40,6 +40,9 @@ import NFLDraft from "@/pages/NFLDraft";
 import Support from "@/pages/Support";
 import TopStacks from "@/pages/TopStacks";
 import MmaOptimizer from "@/pages/MmaOptimizer";
+import Tracker from "@/pages/Tracker";
+import LateSwap from "@/pages/LateSwap";
+import { ReferralCapture } from "@/components/ReferralCapture";
 
 import NotFound from "@/pages/not-found";
 import { Header } from "@/components/Header";
@@ -74,6 +77,7 @@ function Router() {
 
   return (
     <div className={`flex flex-col ${isOptimizer ? "h-[100dvh] overflow-hidden" : isOnboarding || isLoginPage ? "" : "min-h-screen"} bg-[#0A0A0C]`}>
+      <ReferralCapture />
       {!isOnboarding && !isLoginPage && <Header />}
       <main className={isOptimizer ? "min-h-0 flex-1 overflow-y-auto" : "flex-grow"} data-testid={isOptimizer ? "optimizer-page-scroll" : undefined}>
         <Switch>
@@ -111,6 +115,8 @@ function Router() {
           <Route path="/nfl-mme" component={NFLMMEOptimizer} />
           <Route path="/nfl-draft" component={NFLDraft} />
           <Route path="/support" component={Support} />
+          <Route path="/tracker" component={Tracker} />
+          <Route path="/late-swap" component={LateSwap} />
           <Route component={NotFound} />
         </Switch>
       </main>

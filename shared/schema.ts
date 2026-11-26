@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, numeric, date, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, numeric, date, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { nflPortfolioSettingsSchema, type NflPortfolioReport } from "./nfl-portfolio";
@@ -126,6 +126,12 @@ export const subscriptions = pgTable("subscriptions", {
   currentPeriodEnd: timestamp("current_period_end"),
   graceEndsAt: timestamp("grace_ends_at"),
   draftAccess: boolean("draft_access").default(false),
+  // One-time passes: access ends at passExpiresAt (no Stripe subscription involved).
+  passExpiresAt: timestamp("pass_expires_at"),
+  // Single-sport plans: when set (e.g. "NBA"), optimizers are limited to that sport.
+  sportScope: text("sport_scope"),
+  // Stripe Checkout session that last granted a pass, so a retried webhook cannot extend it twice.
+  lastPassSessionId: text("last_pass_session_id"),
   createdAt: timestamp("created_at").defaultNow(),
   // Note: kept current via the subscriptions_updated_at trigger. See migration note.
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -568,3 +574,47 @@ export type ProOptimizeResponse = z.infer<typeof proOptimizeResponseSchema>;
  *
  * ============================================================
  */
+
+
+// --- REFERRALS ---
+export const referralCodes = pgTable("referral_codes", {
+  userId: text("user_id").primaryKey().references(() => users.id),
+  code: text("code").notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const referralRedemptions = pgTable("referral_redemptions", {
+  id: serial("id").primaryKey(),
+  referrerId: text("referrer_id").notNull().references(() => users.id),
+  referredId: text("referred_id").notNull().references(() => users.id).unique(),
+  // pending until the referred user makes their first paid subscription payment
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
+  rewardedAt: timestamp("rewarded_at"),
+});
+
+export type ReferralRedemption = typeof referralRedemptions.$inferSelect;
+
+// --- CONTEST RESULTS (BANKROLL TRACKER) ---
+export const contestResults = pgTable("contest_results", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  // DraftKings Entry_Key for CSV imports; a generated key for manual entries.
+  entryKey: text("entry_key").notNull(),
+  sport: text("sport").notNull().default("OTHER"),
+  gameType: text("game_type"),
+  contestName: text("contest_name"),
+  contestDate: timestamp("contest_date"),
+  entryFee: numeric("entry_fee").notNull().default("0"),
+  winnings: numeric("winnings").notNull().default("0"),
+  place: integer("place"),
+  points: numeric("points"),
+  contestEntries: integer("contest_entries"),
+  source: text("source").notNull().default("dk_csv"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => ({
+  userEntryUnique: uniqueIndex("contest_results_user_entry_idx").on(t.userId, t.entryKey),
+}));
+
+export type ContestResult = typeof contestResults.$inferSelect;
+export type InsertContestResult = typeof contestResults.$inferInsert;

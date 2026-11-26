@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Gift box">
+  <defs><filter id="g"><feGaussianBlur stdDeviation="7"/></filter></defs>
+  <circle cx="100" cy="108" r="64" fill="#f59e0b" opacity=".25" filter="url(#g)"/>
+  <rect x="42" y="84" width="116" height="84" rx="12" fill="#f59e0b"/>
+  <rect x="34" y="66" width="132" height="30" rx="10" fill="#fbbf24"/>
+  <rect x="90" y="66" width="20" height="102" fill="#0A0A0C" opacity=".75"/>
+  <path d="M100 66c-10-26-40-26-40-10s26 10 40 10Zm0 0c10-26 40-26 40-10s-26 10-40 10Z" fill="none" stroke="#fbbf24" stroke-width="7" stroke-linejoin="round"/>
+  <circle cx="156" cy="40" r="5" fill="#C4F82E"/><circle cx="40" cy="48" r="4" fill="#C4F82E" opacity=".7"/><circle cx="172" cy="96" r="3" fill="#fbbf24"/>
+</svg>

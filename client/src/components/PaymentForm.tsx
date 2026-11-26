@@ -17,6 +17,8 @@ const stripePromise = loadStripe(import.meta.env.VITE_ELITELINEUP_STRIPE_PUBLISH
 interface PaymentFormProps {
   tier: "star" | "pro";
   billing: "monthly" | "annual";
+  /** Set for single-sport plans (Sharpshooter limited to one sport). */
+  sportScope?: string | null;
   onSuccess: () => void;
   onCancel: () => void;
 }
@@ -209,13 +211,13 @@ function CheckoutForm({ tier, isTrial, onSuccess, onCancel }: { tier: "star" | "
   );
 }
 
-export function PaymentModal({ tier, billing, onSuccess, onCancel }: PaymentFormProps) {
+export function PaymentModal({ tier, billing, sportScope, onSuccess, onCancel }: PaymentFormProps) {
   const { toast } = useToast();
   const hasMutated = useRef(false);
 
   const createIntentMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/subscription/create-intent", { tier, billing });
+      const res = await apiRequest("POST", "/api/subscription/create-intent", { tier, billing, ...(sportScope ? { sportScope } : {}) });
       return res.json();
     },
     onError: (error: Error) => {
@@ -234,10 +236,12 @@ export function PaymentModal({ tier, billing, onSuccess, onCancel }: PaymentForm
     }
   }, [tier, billing]);
 
-  const tierName = tier === "pro" ? "Champion" : "Sharpshooter";
+  const tierName = tier === "pro" ? "Champion" : sportScope ? `${sportScope} Plan` : "Sharpshooter";
   const price = tier === "pro"
     ? (billing === "annual" ? "$399.90/year" : "$39.99/month")
-    : (billing === "annual" ? "$199.90/year" : "$19.99/month");
+    : sportScope
+      ? "$9.99/month"
+      : (billing === "annual" ? "$199.90/year" : "$19.99/month");
   const isTrial = createIntentMutation.data?.isTrial ?? false;
 
   return (

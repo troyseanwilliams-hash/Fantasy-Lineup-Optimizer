@@ -44,6 +44,8 @@ import { buildVegasContext } from "./vegas-client";
 import { buildDvPContext, applyDvPToProjections, buildOpponentMap } from "./dvp-client";
 import { fetchStartingLineups, getStartingLineupsData, clearLineupsCache } from "./lineups-ingest";
 import { projectionAccuracyRouter } from "./projection-accuracy-route";
+import { registerRevenueRoutes, sportScopeViolation } from "./revenue";
+import { isSportPlanSport } from "@shared/plans";
 import { deactivateExpiredSlates, getLatestGameStart } from "./slate-lifecycle";
 import { solveWithBudget, validatedIntegralResult, remainingSolverTime, yieldToEventLoop, type SolverBudget } from "./solver-guard";
 import { createLineupEnrichmentLoader } from "./lineups-enrichment";
@@ -372,6 +374,7 @@ export async function registerRoutes(
 ): Promise<Server> {
   await setupAuth(app);
   registerAuthRoutes(app);
+  registerRevenueRoutes(app);
   // Seasonal availability is reversible; keep historical records and scoring intact.
   app.use("/api", async (req, res, next) => {
     if (ACTIVE_SPORTS.includes("MLB")) return next();
@@ -1056,6 +1059,8 @@ export async function registerRoutes(
         const sub = await storage.getSubscription(userId);
         const optUser = await storage.getUser(userId);
         const tier = optUser?.isAdmin ? "pro" : (sub?.tier || "free");
+        const scopeMessage = optUser?.isAdmin ? null : sportScopeViolation(sub, slate.sport);
+        if (scopeMessage) return res.status(403).json({ message: scopeMessage, requiresUpgrade: true });
         if (tier === "free") {
           const lineupCount = await storage.getLineupCount(userId);
           if (lineupCount >= 1) {
@@ -3446,6 +3451,8 @@ export async function registerRoutes(
       stripeSubscriptionId: sub?.stripeSubscriptionId || null,
       currentPeriodEnd: sub?.currentPeriodEnd?.toISOString() || null,
       draftAccess: isAdmin || tier === "pro" || sub?.draftAccess === true,
+      sportScope: isAdmin ? null : sub?.sportScope || null,
+      passExpiresAt: isAdmin ? null : sub?.passExpiresAt?.toISOString() || null,
     });
   });
 
@@ -3459,7 +3466,14 @@ export async function registerRoutes(
     if (!tier || !["star", "pro"].includes(tier)) {
       return res.status(400).json({ message: "Invalid tier" });
     }
-    const billingCycle = billing === "annual" ? "annual" : "monthly";
+    const sportScope = isSportPlanSport(req.body?.sportScope) ? req.body.sportScope : null;
+    if (req.body?.sportScope && !sportScope) {
+      return res.status(400).json({ message: "Unknown sport plan" });
+    }
+    if (sportScope && tier !== "star") {
+      return res.status(400).json({ message: "Single-sport plans are Sharpshooter only" });
+    }
+    const billingCycle = sportScope || billing !== "annual" ? "monthly" : "annual";
 
     try {
       const { createCheckoutSession } = await import("./stripe");
@@ -3473,7 +3487,8 @@ export async function registerRoutes(
         tier,
         billingCycle,
         `${baseUrl}/pricing?success=true`,
-        `${baseUrl}/pricing?canceled=true`
+        `${baseUrl}/pricing?canceled=true`,
+        sportScope
       );
       res.json({ url });
     } catch (err: any) {
@@ -3492,7 +3507,14 @@ export async function registerRoutes(
     if (!tier || !["star", "pro"].includes(tier)) {
       return res.status(400).json({ message: "Invalid tier" });
     }
-    const billingCycle = billing === "annual" ? "annual" : "monthly";
+    const sportScope = isSportPlanSport(req.body?.sportScope) ? req.body.sportScope : null;
+    if (req.body?.sportScope && !sportScope) {
+      return res.status(400).json({ message: "Unknown sport plan" });
+    }
+    if (sportScope && tier !== "star") {
+      return res.status(400).json({ message: "Single-sport plans are Sharpshooter only" });
+    }
+    const billingCycle = sportScope || billing !== "annual" ? "monthly" : "annual";
 
     try {
       const { createSubscriptionWithIntent } = await import("./stripe");
@@ -3500,7 +3522,8 @@ export async function registerRoutes(
         userId,
         user.email || "",
         tier,
-        billingCycle
+        billingCycle,
+        sportScope
       );
       res.json(result);
     } catch (err: any) {
@@ -5330,6 +5353,8 @@ export async function registerRoutes(
       constraints.lineupCount = Math.min(constraints.lineupCount, maxLineupCount);
       const slate = await storage.getSlate(constraints.slateId);
       if (!slate) return res.status(404).json({ message: "Slate not found" });
+      const proScopeMessage = isAdmin ? null : sportScopeViolation(sub, slate.sport);
+      if (proScopeMessage) return res.status(403).json({ message: proScopeMessage, requiresUpgrade: true });
 
       if (new Date(slate.startTime) <= new Date()) {
         return res.status(400).json({ message: "This slate has already started. Lineups can no longer be generated." });
@@ -5782,6 +5807,8 @@ export async function registerRoutes(
       const slate = await storage.getSlate(input.slateId);
       if (!slate) return res.status(404).json({ message: "Slate not found" });
       if (slate.isActive === false) return res.status(410).json({ message: "This slate has ended." });
+      const simScopeMessage = isAdmin ? null : sportScopeViolation(sub, slate.sport);
+      if (simScopeMessage) return res.status(403).json({ message: simScopeMessage, requiresUpgrade: true });
 
       if (input.favoriteStackIds.length > 0 && !isClassicSlate(slate)) {
         return res.status(400).json({ message: "Favorite stacks are available only for classic slates." });
