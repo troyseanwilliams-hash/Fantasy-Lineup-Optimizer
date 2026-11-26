@@ -1,0 +1,68 @@
+From 39d7850ed54d43b36154f97545ef29024004abbf Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 26 Nov 2026 00:26:01 -0500
+Subject: [PATCH] Open public signups (PUBLIC_SIGNUP_ENABLED = true); update
+ login e2e tests
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Jw7aU3J2KgRx4m56V7Bypi
+---
+ shared/platform-config.ts          |  4 ++--
+ tests/e2e/login-responsive.spec.ts | 23 ++++-------------------
+ 2 files changed, 6 insertions(+), 21 deletions(-)
+
+diff --git a/shared/platform-config.ts b/shared/platform-config.ts
+index 3e3ca84..5ae022e 100644
+--- a/shared/platform-config.ts
++++ b/shared/platform-config.ts
+@@ -17,8 +17,8 @@ export const WORLD_CUP_ENABLED = false;
+ export const FEATURE_VISIBILITY = {
+   draftHub: false,
+ } as const;
+-/** Keep false to block public account creation while existing users can sign in. */
+-export const PUBLIC_SIGNUP_ENABLED = false;
++/** Set false to block public account creation while existing users can sign in. */
++export const PUBLIC_SIGNUP_ENABLED = true;
+ 
+ export interface PlatformConfig {
+   platform: Platform;
+diff --git a/tests/e2e/login-responsive.spec.ts b/tests/e2e/login-responsive.spec.ts
+index 221a3ec..e2f85f9 100644
+--- a/tests/e2e/login-responsive.spec.ts
++++ b/tests/e2e/login-responsive.spec.ts
+@@ -31,27 +31,12 @@ test("keeps the compact banner and login form visible without horizontal overflo
+   expect(dimensions.documentWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
+ });
+ 
+-test("keeps sign-in available while public registration is closed", async ({ page }) => {
++test("offers sign-up alongside sign-in while public registration is open", async ({ page }) => {
+   await expect(page.getByTestId("input-email")).toBeVisible();
+   await expect(page.getByTestId("input-password")).toBeVisible();
+   await expect(page.getByTestId("toggle-password-visibility")).toBeVisible();
+   await expect(page.getByTestId("btn-submit-login")).toBeVisible();
+-  await expect(page.getByTestId("signup-closed-notice")).toBeVisible();
+-  await expect(page.getByTestId("btn-toggle-auth-mode")).toHaveCount(0);
+-  await expect(page.getByTestId("input-first-name")).toHaveCount(0);
+-  await expect(page.getByTestId("input-phone")).toHaveCount(0);
++  await expect(page.getByTestId("signup-closed-notice")).toHaveCount(0);
++  await page.getByTestId("btn-toggle-auth-mode").click();
++  await expect(page.getByTestId("input-first-name")).toBeVisible();
+ });
+-
+-test("rejects direct registration API requests", async ({ page }) => {
+-  const result = await page.evaluate(async () => {
+-    const response = await fetch("/api/auth/register", {
+-      method: "POST",
+-      headers: { "Content-Type": "application/json" },
+-      body: JSON.stringify({ email: "signup-block-test@example.com", password: "ValidPassword123!" }),
+-    });
+-    return { status: response.status, body: await response.json() };
+-  });
+-
+-  expect(result.status).toBe(403);
+-  expect(result.body.message).toBe("New account registration is temporarily closed.");
+-});
+\ No newline at end of file
+-- 
+2.43.0
+

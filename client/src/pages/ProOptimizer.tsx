@@ -53,7 +53,7 @@ type SortDir = "asc" | "desc";
 
 interface PlayerWithOwnership extends Player {
   ownershipProjection?: number;
-  ownershipSource?: "supplied" | "sportsdata" | "estimated";
+  ownershipSource?: "supplied" | "estimated";
   ownershipSourceLabel?: string;
 }
 
@@ -2413,7 +2413,7 @@ export default function ProOptimizer() {
                               title={player.ownershipSourceLabel || "Model-estimated projected ownership"}
                               data-testid={`ownership-source-${player.id}`}
                             >
-                              {player.ownershipSource === "supplied" ? "Supplied" : player.ownershipSource === "sportsdata" ? "Proj." : "Est."}
+                              {player.ownershipSource === "supplied" ? "Supplied" : "Est."}
                             </span>
                           </div>
                         </td>

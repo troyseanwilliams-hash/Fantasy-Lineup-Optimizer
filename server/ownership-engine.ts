@@ -2,7 +2,6 @@ import type { Player, PlayerHistory } from "@shared/schema";
 import type { PlayerStatsMap } from "./balldontlie-stats";
 import { normalizeName } from "./balldontlie-stats";
 import { storage } from "./storage";
-import { sportsDataOwnershipForPool, SPORTSDATA_OWNERSHIP_LABEL } from "./sportsdata-ownership";
 import { suppliedOwnershipForPool, SUPPLIED_OWNERSHIP_LABEL, type OwnershipScope } from "./supplied-nfl-ownership";
 
 // Cache metadata only, never ownership/player results: projections and overrides
@@ -124,6 +123,19 @@ function getConfig(sport: string): SportConfig {
   return SPORT_CONFIGS[sport.toUpperCase()] || SPORT_CONFIGS.NBA;
 }
 
+const OUT_STATUSES = new Set(["OUT", "INJ", "O", "IR", "SUS", "NA"]);
+
+// Typical main-slate game counts. Fewer games concentrates the field on fewer players.
+const TYPICAL_GAMES: Record<string, number> = { NFL: 12, NBA: 8, NHL: 6, MLB: 10 };
+
+function slateSizeFactor(players: Player[], sport: string): number {
+  const base = TYPICAL_GAMES[sport.toUpperCase()];
+  if (!base) return 1;
+  const teams = new Set(players.map(p => p.team)).size;
+  const games = Math.max(1, Math.round(teams / 2));
+  return Math.max(0.8, Math.min(1.4, Math.sqrt(base / games)));
+}
+
 interface PlayerPopularityScore {
   playerId: number;
   player: Player;
@@ -162,6 +174,28 @@ function computePopularityScores(
   const rankMap = new Map<number, number>();
   sorted.forEach((p, i) => rankMap.set(p.id, i));
 
+  // Availability: production vacated by OUT teammates flows to the cheaper players left behind.
+  const vacatedByTeam = new Map<string, number>();
+  const teamTotals = new Map<string, number>();
+  for (const p of players) {
+    const pts = Number(p.fppg) || Number(p.projectedPoints) || 0;
+    teamTotals.set(p.team, (teamTotals.get(p.team) || 0) + pts);
+    if (OUT_STATUSES.has((p.injuryStatus || "").toUpperCase().trim())) {
+      vacatedByTeam.set(p.team, (vacatedByTeam.get(p.team) || 0) + pts);
+    }
+  }
+  const valuesByPos: Record<string, number[]> = {};
+  for (const p of players) {
+    const pos = p.position.split("/")[0];
+    (valuesByPos[pos] ||= []).push((Number(p.projectedPoints) || 0) / Math.max(p.salary / 1000, 0.1));
+  }
+  const medianValueByPos: Record<string, number> = {};
+  for (const [pos, vals] of Object.entries(valuesByPos)) {
+    const sortedVals = [...vals].sort((a, b) => a - b);
+    medianValueByPos[pos] = sortedVals[Math.floor(sortedVals.length / 2)] || 0;
+  }
+  const anyConfirmed = players.some(p => p.isConfirmedStarter);
+
   const hasBDL = bdlStats && Object.keys(bdlStats).length > 0;
   const maxBDLFantasy = hasBDL ? Math.max(...Object.values(bdlStats!).map(s => s.fantasyScore), 1) : 1;
 
@@ -176,6 +210,7 @@ function computePopularityScores(
 
     let recencyScore = 0.5;
     let consistencyScore = 0.5;
+    let hotFormMultiplier = 1;
     const key = normalizeName(player.name);
     if (historyMap) {
       const history = historyMap.get(key);
@@ -183,6 +218,17 @@ function computePopularityScores(
         const recentProjs = history.slice(0, 5).map(h => Number(h.projectedPoints) || 0);
         const avg = recentProjs.reduce((a, b) => a + b, 0) / recentProjs.length;
         recencyScore = avg > 0 ? Math.min(1, proj / avg) : 0.5;
+
+        // Past results: players who beat their projection lately draw extra attention.
+        const scored = history.filter(h => h.actualPoints != null).slice(0, 3);
+        if (scored.length >= 2) {
+          const actualAvg = scored.reduce((a, h) => a + (Number(h.actualPoints) || 0), 0) / scored.length;
+          const projAvg = scored.reduce((a, h) => a + (Number(h.projectedPoints) || 0), 0) / scored.length;
+          if (projAvg > 0) {
+            const hot = Math.max(0.7, Math.min(1.4, actualAvg / projAvg));
+            hotFormMultiplier = 1 + (hot - 1) * 0.25;
+          }
+        }
 
         if (history.length >= 3) {
           const stdDev = Math.sqrt(recentProjs.reduce((sum, v) => sum + (v - avg) ** 2, 0) / recentProjs.length);
@@ -213,7 +259,7 @@ function computePopularityScores(
     //                and breaking the ownership distribution sum.
     // Doubtful:      near-zero (0.05) — same reasoning, even more suppressed.
     // Probable:      slight suppression (0.90) — most Probable players suit up.
-    const outStatuses = new Set(["OUT", "INJ", "O", "IR", "SUS", "NA"]);
+    const outStatuses = OUT_STATUSES;
     const upperStatus = (player.injuryStatus || "").toUpperCase().trim();
     const injuryPenalty =
       outStatuses.has(upperStatus) ? 0
@@ -222,6 +268,21 @@ function computePopularityScores(
       : upperStatus === "PROBABLE" || upperStatus === "DTD" ? 0.90
       : 1.0;
 
+    // Value relative to the player's own position (a $3k RB and a $10k QB are judged separately).
+    const posMedian = medianValueByPos[primaryPos] || 0;
+    const valueVsPos = posMedian > 0 ? valueRaw / posMedian : 1;
+    const valuePriceMultiplier = 1 + Math.max(-0.2, Math.min(0.4, (valueVsPos - 1) * 0.5)) * 0.3;
+
+    // Teammate-out bump: only players still active, scaled by how much of the team's output left.
+    const vacated = vacatedByTeam.get(player.team) || 0;
+    const teamTotal = teamTotals.get(player.team) || 0;
+    const vacatedShare = teamTotal > 0 ? vacated / teamTotal : 0;
+    const cheapForTeam = player.salary <= (maxSalary || 1) * 0.6 ? 1 : 0.4;
+    const availabilityMultiplier = injuryPenalty === 0 ? 1 : 1 + Math.min(0.3, vacatedShare * 0.8) * cheapForTeam;
+
+    // Confirmed lineups: once any starters are confirmed, unconfirmed players are less certain.
+    const startMultiplier = player.isConfirmedStarter ? 1.05 : anyConfirmed ? 0.93 : 1;
+
     const raw = (
       projScore * config.projectionWeight +
       salaryScore * config.salaryWeight +
@@ -229,7 +290,8 @@ function computePopularityScores(
       recencyScore * config.recencyWeight +
       consistencyScore * config.consistencyWeight +
       starPowerScore * config.starPowerWeight
-    ) * posChalk * scarcityBonus * injuryPenalty;
+    ) * posChalk * scarcityBonus * injuryPenalty
+      * hotFormMultiplier * valuePriceMultiplier * availabilityMultiplier * startMultiplier;
 
     return {
       playerId: player.id,
@@ -305,6 +367,81 @@ function getRosterSize(sport: string): number {
   return sizes[sport.toUpperCase()] || 8;
 }
 
+
+// ---------------------------------------------------------------------------
+// Calibration against past results. player_history.ownership holds the actual
+// field ownership recorded after earlier slates. We rerun the model on those
+// slates (without the history features, so it cannot see its own answer),
+// compare predicted vs actual by salary tier, and nudge today's output by the
+// shrunken ratio. Needs a minimum sample per tier; otherwise it does nothing.
+// ---------------------------------------------------------------------------
+const CALIBRATION_TTL_MS = 6 * 60 * 60 * 1000;
+const MIN_TIER_SAMPLES = 15;
+const SHRINK_K = 30;
+const calibrationCache = new Map<string, { expires: number; tiers: number[] }>();
+
+function salaryTier(salaryShare: number): number {
+  return salaryShare < 0.45 ? 0 : salaryShare < 0.6 ? 1 : salaryShare < 0.8 ? 2 : 3;
+}
+
+function buildCalibration(history: PlayerHistory[], sport: string, contestType: ContestType): number[] {
+  const neutral = [1, 1, 1, 1];
+  const withOwn = history.filter(h => h.ownership != null && Number(h.ownership) > 0);
+  if (withOwn.length < MIN_TIER_SAMPLES) return neutral;
+  const scale = Math.max(...withOwn.map(h => Number(h.ownership))) <= 1 ? 100 : 1;
+
+  const bySlate = new Map<string, PlayerHistory[]>();
+  for (const h of withOwn) {
+    const key = String(h.slateId ?? h.slateDate);
+    if (!bySlate.has(key)) bySlate.set(key, []);
+    bySlate.get(key)!.push(h);
+  }
+
+  const config = getConfig(sport);
+  const predicted = [0, 0, 0, 0];
+  const actual = [0, 0, 0, 0];
+  const counts = [0, 0, 0, 0];
+
+  for (const rows of Array.from(bySlate.values())) {
+    if (rows.length < 12) continue;
+    const pseudo = rows.map((h, i) => ({
+      id: i + 1, slateId: 0, name: h.playerName, team: h.team, position: h.position,
+      salary: h.salary, fppg: h.projectedPoints, projectedPoints: h.projectedPoints,
+      opponent: null, gameInfo: null, injuryStatus: null, injuryDetail: null,
+      boostScore: null, boostReason: null, draftKingsPlayerId: h.draftKingsPlayerId,
+      fanDuelPlayerId: null, yahooPlayerId: null, fanDuelSalary: null, yahooSalary: null,
+      isConfirmedStarter: false,
+    })) as Player[];
+    const scores = computePopularityScores(pseudo, sport);
+    const probs = softmaxTransform(scores, config.softmaxTemperature[contestType] * slateSizeFactor(pseudo, sport));
+    const pred = normalizeOwnership(probs, sport, contestType, pseudo.length);
+    const maxSalary = Math.max(...pseudo.map(p => p.salary)) || 1;
+    pseudo.forEach((p, i) => {
+      const tier = salaryTier(p.salary / maxSalary);
+      predicted[tier] += pred.get(p.id) ?? 0;
+      actual[tier] += Number(rows[i].ownership) * scale;
+      counts[tier] += 1;
+    });
+  }
+
+  return predicted.map((pred, t) => {
+    if (counts[t] < MIN_TIER_SAMPLES || pred <= 0) return 1;
+    const raw = actual[t] / pred;
+    const shrunk = 1 + (raw - 1) * (counts[t] / (counts[t] + SHRINK_K));
+    return Math.max(0.6, Math.min(1.6, shrunk));
+  });
+}
+
+function getCalibration(history: PlayerHistory[], sport: string, contestType: ContestType): number[] {
+  const key = `${sport.toUpperCase()}:${contestType}`;
+  const hit = calibrationCache.get(key);
+  if (hit && hit.expires > Date.now()) return hit.tiers;
+  let tiers = [1, 1, 1, 1];
+  try { tiers = buildCalibration(history, sport, contestType); } catch { /* calibration is best-effort */ }
+  calibrationCache.set(key, { expires: Date.now() + CALIBRATION_TTL_MS, tiers });
+  return tiers;
+}
+
 export interface OwnershipResult {
   playerId: number;
   name: string;
@@ -314,7 +451,7 @@ export interface OwnershipResult {
   projectedPoints: number;
   projectedOwnership: number;
   ownershipTier: "chalk" | "popular" | "mid" | "low" | "contrarian";
-  ownershipSource?: "supplied" | "sportsdata" | "estimated";
+  ownershipSource?: "supplied" | "estimated";
   ownershipSourceLabel?: string;
 }
 
@@ -338,8 +475,11 @@ export async function calculateOwnership(
   const temperature = config.softmaxTemperature[contestType];
 
   let historyMap: Map<string, PlayerHistory[]> | undefined;
+  let historyRows: PlayerHistory[] = [];
   try {
-    const history = await storage.getPlayerHistoryBySport(sport, 1000);
+    // Newest-first per player but ordered by name, so a small LIMIT drops late-alphabet players.
+    const history = await storage.getPlayerHistoryBySport(sport, 8000);
+    historyRows = history;
     if (history.length > 0) {
       historyMap = new Map();
       for (const h of history) {
@@ -352,8 +492,18 @@ export async function calculateOwnership(
   }
 
   const popularityScores = computePopularityScores(players, sport, bdlStats, historyMap);
-  const probabilities = softmaxTransform(popularityScores, temperature);
+  const probabilities = softmaxTransform(popularityScores, temperature * slateSizeFactor(players, sport));
   const ownershipMap = normalizeOwnership(probabilities, sport, contestType, players.length);
+
+  const tierMultipliers = getCalibration(historyRows, sport, contestType);
+  const poolMaxSalary = Math.max(...players.map(p => p.salary)) || 1;
+  const ceiling = config.ownershipCeiling[contestType];
+  const calibrated = new Map<number, number>();
+  for (const p of players) {
+    const base = ownershipMap.get(p.id) ?? config.ownershipFloor;
+    const adj = base * tierMultipliers[salaryTier(p.salary / poolMaxSalary)];
+    calibrated.set(p.id, Math.round(Math.max(config.ownershipFloor, Math.min(ceiling, adj)) * 10) / 10);
+  }
 
   const scopes = new Map<number, OwnershipScope | undefined>();
   if (["NFL", "NBA"].includes(sport.toUpperCase())) {
@@ -362,12 +512,11 @@ export async function calculateOwnership(
     }));
   }
   const supplied = suppliedOwnershipForPool(players, scopes);
-  // Real projections beat the model; the audited NFL snapshot still wins for its one slate.
-  const real = await sportsDataOwnershipForPool(players, scopes).catch(() => new Map<number, number>());
+  // The audited NFL snapshot wins for its one slate; everything else is modeled.
 
   return players.map(player => {
-    const source = supplied.has(player.id) ? "supplied" as const : real.has(player.id) ? "sportsdata" as const : "estimated" as const;
-    const ownership = supplied.get(player.id) ?? real.get(player.id) ?? ownershipMap.get(player.id) ?? config.ownershipFloor;
+    const source = supplied.has(player.id) ? "supplied" as const : "estimated" as const;
+    const ownership = supplied.get(player.id) ?? calibrated.get(player.id) ?? config.ownershipFloor;
     return {
       playerId: player.id,
       name: player.name,
@@ -378,7 +527,7 @@ export async function calculateOwnership(
       projectedOwnership: ownership,
       ownershipTier: assignTier(ownership),
       ownershipSource: source,
-      ownershipSourceLabel: source === "supplied" ? SUPPLIED_OWNERSHIP_LABEL : source === "sportsdata" ? SPORTSDATA_OWNERSHIP_LABEL : "Modeled ownership estimate",
+      ownershipSourceLabel: source === "supplied" ? SUPPLIED_OWNERSHIP_LABEL : "Modeled ownership estimate",
     };
   }).sort((a, b) => b.projectedOwnership - a.projectedOwnership);
 }
@@ -386,7 +535,7 @@ export async function calculateOwnership(
 export function computeOwnershipForPlayers(
   players: Player[],
   ownershipResults: OwnershipResult[]
-): (Player & { ownershipProjection: number; ownershipSource: "supplied" | "sportsdata" | "estimated"; ownershipSourceLabel?: string })[] {
+): (Player & { ownershipProjection: number; ownershipSource: "supplied" | "estimated"; ownershipSourceLabel?: string })[] {
   const ownershipMap = new Map(ownershipResults.map(r => [r.playerId, r]));
   return players.map(p => ({
     ...p,

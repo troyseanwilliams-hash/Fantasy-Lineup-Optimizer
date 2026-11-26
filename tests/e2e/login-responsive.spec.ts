@@ -31,27 +31,12 @@ test("keeps the compact banner and login form visible without horizontal overflo
   expect(dimensions.documentWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
 });
 
-test("keeps sign-in available while public registration is closed", async ({ page }) => {
+test("offers sign-up alongside sign-in while public registration is open", async ({ page }) => {
   await expect(page.getByTestId("input-email")).toBeVisible();
   await expect(page.getByTestId("input-password")).toBeVisible();
   await expect(page.getByTestId("toggle-password-visibility")).toBeVisible();
   await expect(page.getByTestId("btn-submit-login")).toBeVisible();
-  await expect(page.getByTestId("signup-closed-notice")).toBeVisible();
-  await expect(page.getByTestId("btn-toggle-auth-mode")).toHaveCount(0);
-  await expect(page.getByTestId("input-first-name")).toHaveCount(0);
-  await expect(page.getByTestId("input-phone")).toHaveCount(0);
-});
-
-test("rejects direct registration API requests", async ({ page }) => {
-  const result = await page.evaluate(async () => {
-    const response = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "signup-block-test@example.com", password: "ValidPassword123!" }),
-    });
-    return { status: response.status, body: await response.json() };
-  });
-
-  expect(result.status).toBe(403);
-  expect(result.body.message).toBe("New account registration is temporarily closed.");
+  await expect(page.getByTestId("signup-closed-notice")).toHaveCount(0);
+  await page.getByTestId("btn-toggle-auth-mode").click();
+  await expect(page.getByTestId("input-first-name")).toBeVisible();
 });

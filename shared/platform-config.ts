@@ -17,8 +17,8 @@ export const WORLD_CUP_ENABLED = false;
 export const FEATURE_VISIBILITY = {
   draftHub: false,
 } as const;
-/** Keep false to block public account creation while existing users can sign in. */
-export const PUBLIC_SIGNUP_ENABLED = false;
+/** Set false to block public account creation while existing users can sign in. */
+export const PUBLIC_SIGNUP_ENABLED = true;
 
 export interface PlatformConfig {
   platform: Platform;
