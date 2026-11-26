@@ -1,0 +1,63 @@
+diff --git a/client/index.html b/client/index.html
+index c03fb86..ba2d002 100644
+--- a/client/index.html
++++ b/client/index.html
+@@ -6,19 +6,19 @@
+ 
+     <title>EliteLineup AI - DFS Lineup Optimizer for DraftKings, FanDuel & Yahoo</title>
+     <meta name="description" content="AI-powered Daily Fantasy Sports lineup optimizer for DraftKings, FanDuel, and Yahoo. Build winning lineups for NBA, NFL, MLB, NHL, and Golf with Monte Carlo simulations, prop analysis, and ownership projections." />
+-    <link rel="canonical" href="https://fantasy-lineup-optimizer.replit.app/" />
++    <link rel="canonical" href="https://elitelineup.com/" />
+ 
+     <meta property="og:type" content="website" />
+-    <meta property="og:url" content="https://fantasy-lineup-optimizer.replit.app/" />
++    <meta property="og:url" content="https://elitelineup.com/" />
+     <meta property="og:title" content="EliteLineup AI - DFS Lineup Optimizer for DraftKings, FanDuel & Yahoo" />
+     <meta property="og:description" content="AI-powered Daily Fantasy Sports lineup optimizer. Build winning lineups with Monte Carlo simulations, prop analysis, and ownership projections across NBA, NFL, MLB, NHL, and Golf." />
+-    <meta property="og:image" content="https://fantasy-lineup-optimizer.replit.app/images/hero-bg.png" />
++    <meta property="og:image" content="https://elitelineup.com/images/hero-bg.png" />
+     <meta property="og:site_name" content="EliteLineup AI" />
+ 
+     <meta name="twitter:card" content="summary_large_image" />
+     <meta name="twitter:title" content="EliteLineup AI - DFS Lineup Optimizer" />
+     <meta name="twitter:description" content="AI-powered DFS lineup optimizer for DraftKings, FanDuel & Yahoo. Monte Carlo simulations, prop analysis, and ownership projections." />
+-    <meta name="twitter:image" content="https://fantasy-lineup-optimizer.replit.app/images/hero-bg.png" />
++    <meta name="twitter:image" content="https://elitelineup.com/images/hero-bg.png" />
+ 
+     <meta name="robots" content="index, follow" />
+     <meta name="keywords" content="DFS lineup optimizer, DraftKings optimizer, FanDuel optimizer, Yahoo DFS, daily fantasy sports, NBA DFS, NFL DFS, MLB DFS, NHL DFS, Golf DFS, lineup builder, prop bets, parlay builder, PrizePicks, Monte Carlo simulation, fantasy sports AI" />
+@@ -34,7 +34,7 @@
+       "@context": "https://schema.org",
+       "@type": "WebApplication",
+       "name": "EliteLineup AI",
+-      "url": "https://fantasy-lineup-optimizer.replit.app",
++      "url": "https://elitelineup.com",
+       "description": "AI-powered Daily Fantasy Sports lineup optimizer for DraftKings, FanDuel, and Yahoo. Build winning lineups with Monte Carlo simulations, prop analysis, and ownership projections.",
+       "applicationCategory": "SportsApplication",
+       "operatingSystem": "Web",
+diff --git a/client/src/hooks/use-page-meta.ts b/client/src/hooks/use-page-meta.ts
+index b771435..7d0fd9e 100644
+--- a/client/src/hooks/use-page-meta.ts
++++ b/client/src/hooks/use-page-meta.ts
+@@ -1,7 +1,7 @@
+ import { useEffect } from "react";
+ 
+ const BASE_TITLE = "EliteLineup AI";
+-const BASE_URL = "https://fantasy-lineup-optimizer.replit.app";
++const BASE_URL = "https://elitelineup.com";
+ 
+ interface PageMeta {
+   title: string;
+diff --git a/server/routes.ts b/server/routes.ts
+index b1e4f1b..9c0e2f0 100644
+--- a/server/routes.ts
++++ b/server/routes.ts
+@@ -398,7 +398,7 @@ export async function registerRoutes(
+   });
+   registerPlayerConfiguration(app, storage);
+ 
+-  const SITE_URL = "https://fantasy-lineup-optimizer.replit.app";
++  const SITE_URL = "https://elitelineup.com";
+   app.get("/robots.txt", (_req, res) => {
+     res.type("text/plain").send(
+       `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /optimizer/\nDisallow: /optimizer-pro/\nDisallow: /api/\n\nSitemap: ${SITE_URL}/sitemap.xml`
