@@ -10,7 +10,8 @@ type Game = { key: string; label: string; teams: string[]; players: Player[]; pr
 
 const points = (player: Player) => Number(player.projection ?? player.projectedPoints ?? 0);
 const isClassic = (slate: SlateLike) => String(slate.gameType ?? "Classic").toLowerCase() === "classic";
-const STACKABLE_SPORTS = new Set(["NFL", "NBA", "MLB", "NHL", "SOCCER"]);
+// Stack suggestions only make sense for NFL (QB + pass catchers).
+const STACKABLE_SPORTS = new Set(["NFL"]);
 const isStackableSlate = (slate: SlateLike) => isClassic(slate) && STACKABLE_SPORTS.has(String(slate.sport ?? "").toUpperCase());
 const displayPosition = (position: string) => position.split("/")[0] || "UTIL";
 

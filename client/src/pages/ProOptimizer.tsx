@@ -53,7 +53,7 @@ type SortDir = "asc" | "desc";
 
 interface PlayerWithOwnership extends Player {
   ownershipProjection?: number;
-  ownershipSource?: "supplied" | "estimated";
+  ownershipSource?: "supplied" | "sportsdata" | "estimated";
   ownershipSourceLabel?: string;
 }
 
@@ -1832,7 +1832,7 @@ export default function ProOptimizer() {
                         </button>
                       ))}
                     </div>
-                    {isClassic && selectableFavoriteStacks.length > 0 && (
+                    {isNflClassic && selectableFavoriteStacks.length > 0 && (
                       <div className="mt-2 space-y-1.5 border-t border-violet-500/10 pt-2">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[9px] font-black uppercase tracking-wider text-violet-300">
@@ -2413,7 +2413,7 @@ export default function ProOptimizer() {
                               title={player.ownershipSourceLabel || "Model-estimated projected ownership"}
                               data-testid={`ownership-source-${player.id}`}
                             >
-                              {player.ownershipSource === "supplied" ? "Supplied" : "Est."}
+                              {player.ownershipSource === "supplied" ? "Supplied" : player.ownershipSource === "sportsdata" ? "Proj." : "Est."}
                             </span>
                           </div>
                         </td>

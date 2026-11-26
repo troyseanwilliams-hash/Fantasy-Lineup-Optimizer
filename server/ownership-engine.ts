@@ -2,6 +2,7 @@ import type { Player, PlayerHistory } from "@shared/schema";
 import type { PlayerStatsMap } from "./balldontlie-stats";
 import { normalizeName } from "./balldontlie-stats";
 import { storage } from "./storage";
+import { sportsDataOwnershipForPool, SPORTSDATA_OWNERSHIP_LABEL } from "./sportsdata-ownership";
 import { suppliedOwnershipForPool, SUPPLIED_OWNERSHIP_LABEL, type OwnershipScope } from "./supplied-nfl-ownership";
 
 // Cache metadata only, never ownership/player results: projections and overrides
@@ -313,7 +314,7 @@ export interface OwnershipResult {
   projectedPoints: number;
   projectedOwnership: number;
   ownershipTier: "chalk" | "popular" | "mid" | "low" | "contrarian";
-  ownershipSource?: "supplied" | "estimated";
+  ownershipSource?: "supplied" | "sportsdata" | "estimated";
   ownershipSourceLabel?: string;
 }
 
@@ -355,15 +356,18 @@ export async function calculateOwnership(
   const ownershipMap = normalizeOwnership(probabilities, sport, contestType, players.length);
 
   const scopes = new Map<number, OwnershipScope | undefined>();
-  if (sport.toUpperCase() === "NFL") {
+  if (["NFL", "NBA"].includes(sport.toUpperCase())) {
     await Promise.all(Array.from(new Set(players.map(p => p.slateId))).map(async id => {
       scopes.set(id, await getOwnershipScope(id));
     }));
   }
   const supplied = suppliedOwnershipForPool(players, scopes);
+  // Real projections beat the model; the audited NFL snapshot still wins for its one slate.
+  const real = await sportsDataOwnershipForPool(players, scopes).catch(() => new Map<number, number>());
 
   return players.map(player => {
-    const ownership = supplied.get(player.id) ?? ownershipMap.get(player.id) ?? config.ownershipFloor;
+    const source = supplied.has(player.id) ? "supplied" as const : real.has(player.id) ? "sportsdata" as const : "estimated" as const;
+    const ownership = supplied.get(player.id) ?? real.get(player.id) ?? ownershipMap.get(player.id) ?? config.ownershipFloor;
     return {
       playerId: player.id,
       name: player.name,
@@ -373,8 +377,8 @@ export async function calculateOwnership(
       projectedPoints: Number(player.projectedPoints) || 0,
       projectedOwnership: ownership,
       ownershipTier: assignTier(ownership),
-      ownershipSource: supplied.has(player.id) ? "supplied" as const : "estimated" as const,
-      ownershipSourceLabel: supplied.has(player.id) ? SUPPLIED_OWNERSHIP_LABEL : "Modeled ownership estimate",
+      ownershipSource: source,
+      ownershipSourceLabel: source === "supplied" ? SUPPLIED_OWNERSHIP_LABEL : source === "sportsdata" ? SPORTSDATA_OWNERSHIP_LABEL : "Modeled ownership estimate",
     };
   }).sort((a, b) => b.projectedOwnership - a.projectedOwnership);
 }
@@ -382,7 +386,7 @@ export async function calculateOwnership(
 export function computeOwnershipForPlayers(
   players: Player[],
   ownershipResults: OwnershipResult[]
-): (Player & { ownershipProjection: number; ownershipSource: "supplied" | "estimated"; ownershipSourceLabel?: string })[] {
+): (Player & { ownershipProjection: number; ownershipSource: "supplied" | "sportsdata" | "estimated"; ownershipSourceLabel?: string })[] {
   const ownershipMap = new Map(ownershipResults.map(r => [r.playerId, r]));
   return players.map(p => ({
     ...p,

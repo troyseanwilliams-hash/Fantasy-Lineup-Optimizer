@@ -1,0 +1,241 @@
+From 3a20cad2cb411bde181896962d4e40f5944c9c9e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 25 Nov 2026 23:44:24 -0500
+Subject: [PATCH] Real SportsDataIO ownership (NFL/NBA) with model fallback;
+ Top Stacks NFL-only
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Jw7aU3J2KgRx4m56V7Bypi
+---
+ client/src/pages/ProOptimizer.tsx |   6 +-
+ client/src/pages/TopStacks.tsx    |   3 +-
+ server/ownership-engine.ts        |  16 +++--
+ server/sportsdata-ownership.ts    | 109 ++++++++++++++++++++++++++++++
+ 4 files changed, 124 insertions(+), 10 deletions(-)
+ create mode 100644 server/sportsdata-ownership.ts
+
+diff --git a/client/src/pages/ProOptimizer.tsx b/client/src/pages/ProOptimizer.tsx
+index 9a93413..65766eb 100644
+--- a/client/src/pages/ProOptimizer.tsx
++++ b/client/src/pages/ProOptimizer.tsx
+@@ -53,7 +53,7 @@ type SortDir = "asc" | "desc";
+ 
+ interface PlayerWithOwnership extends Player {
+   ownershipProjection?: number;
+-  ownershipSource?: "supplied" | "estimated";
++  ownershipSource?: "supplied" | "sportsdata" | "estimated";
+   ownershipSourceLabel?: string;
+ }
+ 
+@@ -1832,7 +1832,7 @@ export default function ProOptimizer() {
+                         </button>
+                       ))}
+                     </div>
+-                    {isClassic && selectableFavoriteStacks.length > 0 && (
++                    {isNflClassic && selectableFavoriteStacks.length > 0 && (
+                       <div className="mt-2 space-y-1.5 border-t border-violet-500/10 pt-2">
+                         <div className="flex items-center justify-between gap-2">
+                           <span className="text-[9px] font-black uppercase tracking-wider text-violet-300">
+@@ -2413,7 +2413,7 @@ export default function ProOptimizer() {
+                               title={player.ownershipSourceLabel || "Model-estimated projected ownership"}
+                               data-testid={`ownership-source-${player.id}`}
+                             >
+-                              {player.ownershipSource === "supplied" ? "Supplied" : "Est."}
++                              {player.ownershipSource === "supplied" ? "Supplied" : player.ownershipSource === "sportsdata" ? "Proj." : "Est."}
+                             </span>
+                           </div>
+                         </td>
+diff --git a/client/src/pages/TopStacks.tsx b/client/src/pages/TopStacks.tsx
+index 28ee2bc..5300e6e 100644
+--- a/client/src/pages/TopStacks.tsx
++++ b/client/src/pages/TopStacks.tsx
+@@ -10,7 +10,8 @@ type Game = { key: string; label: string; teams: string[]; players: Player[]; pr
+ 
+ const points = (player: Player) => Number(player.projection ?? player.projectedPoints ?? 0);
+ const isClassic = (slate: SlateLike) => String(slate.gameType ?? "Classic").toLowerCase() === "classic";
+-const STACKABLE_SPORTS = new Set(["NFL", "NBA", "MLB", "NHL", "SOCCER"]);
++// Stack suggestions only make sense for NFL (QB + pass catchers).
++const STACKABLE_SPORTS = new Set(["NFL"]);
+ const isStackableSlate = (slate: SlateLike) => isClassic(slate) && STACKABLE_SPORTS.has(String(slate.sport ?? "").toUpperCase());
+ const displayPosition = (position: string) => position.split("/")[0] || "UTIL";
+ 
+diff --git a/server/ownership-engine.ts b/server/ownership-engine.ts
+index 341d191..5c468d2 100644
+--- a/server/ownership-engine.ts
++++ b/server/ownership-engine.ts
+@@ -2,6 +2,7 @@ import type { Player, PlayerHistory } from "@shared/schema";
+ import type { PlayerStatsMap } from "./balldontlie-stats";
+ import { normalizeName } from "./balldontlie-stats";
+ import { storage } from "./storage";
++import { sportsDataOwnershipForPool, SPORTSDATA_OWNERSHIP_LABEL } from "./sportsdata-ownership";
+ import { suppliedOwnershipForPool, SUPPLIED_OWNERSHIP_LABEL, type OwnershipScope } from "./supplied-nfl-ownership";
+ 
+ // Cache metadata only, never ownership/player results: projections and overrides
+@@ -313,7 +314,7 @@ export interface OwnershipResult {
+   projectedPoints: number;
+   projectedOwnership: number;
+   ownershipTier: "chalk" | "popular" | "mid" | "low" | "contrarian";
+-  ownershipSource?: "supplied" | "estimated";
++  ownershipSource?: "supplied" | "sportsdata" | "estimated";
+   ownershipSourceLabel?: string;
+ }
+ 
+@@ -355,15 +356,18 @@ export async function calculateOwnership(
+   const ownershipMap = normalizeOwnership(probabilities, sport, contestType, players.length);
+ 
+   const scopes = new Map<number, OwnershipScope | undefined>();
+-  if (sport.toUpperCase() === "NFL") {
++  if (["NFL", "NBA"].includes(sport.toUpperCase())) {
+     await Promise.all(Array.from(new Set(players.map(p => p.slateId))).map(async id => {
+       scopes.set(id, await getOwnershipScope(id));
+     }));
+   }
+   const supplied = suppliedOwnershipForPool(players, scopes);
++  // Real projections beat the model; the audited NFL snapshot still wins for its one slate.
++  const real = await sportsDataOwnershipForPool(players, scopes).catch(() => new Map<number, number>());
+ 
+   return players.map(player => {
+-    const ownership = supplied.get(player.id) ?? ownershipMap.get(player.id) ?? config.ownershipFloor;
++    const source = supplied.has(player.id) ? "supplied" as const : real.has(player.id) ? "sportsdata" as const : "estimated" as const;
++    const ownership = supplied.get(player.id) ?? real.get(player.id) ?? ownershipMap.get(player.id) ?? config.ownershipFloor;
+     return {
+       playerId: player.id,
+       name: player.name,
+@@ -373,8 +377,8 @@ export async function calculateOwnership(
+       projectedPoints: Number(player.projectedPoints) || 0,
+       projectedOwnership: ownership,
+       ownershipTier: assignTier(ownership),
+-      ownershipSource: supplied.has(player.id) ? "supplied" as const : "estimated" as const,
+-      ownershipSourceLabel: supplied.has(player.id) ? SUPPLIED_OWNERSHIP_LABEL : "Modeled ownership estimate",
++      ownershipSource: source,
++      ownershipSourceLabel: source === "supplied" ? SUPPLIED_OWNERSHIP_LABEL : source === "sportsdata" ? SPORTSDATA_OWNERSHIP_LABEL : "Modeled ownership estimate",
+     };
+   }).sort((a, b) => b.projectedOwnership - a.projectedOwnership);
+ }
+@@ -382,7 +386,7 @@ export async function calculateOwnership(
+ export function computeOwnershipForPlayers(
+   players: Player[],
+   ownershipResults: OwnershipResult[]
+-): (Player & { ownershipProjection: number; ownershipSource: "supplied" | "estimated"; ownershipSourceLabel?: string })[] {
++): (Player & { ownershipProjection: number; ownershipSource: "supplied" | "sportsdata" | "estimated"; ownershipSourceLabel?: string })[] {
+   const ownershipMap = new Map(ownershipResults.map(r => [r.playerId, r]));
+   return players.map(p => ({
+     ...p,
+diff --git a/server/sportsdata-ownership.ts b/server/sportsdata-ownership.ts
+new file mode 100644
+index 0000000..44a8278
+--- /dev/null
++++ b/server/sportsdata-ownership.ts
+@@ -0,0 +1,109 @@
++import type { Player, Slate } from "@shared/schema";
++
++/**
++ * Real GPP ownership projections from SportsDataIO (NFL + NBA, DraftKings classic slates).
++ * Flow: DfsSlatesByDate/{date} -> find the DraftKings slate whose OperatorSlateID equals our
++ * draftGroupId -> DfsSlateOwnershipProjectionsBySlateID/{SlateID}. Anything that fails or
++ * is empty returns an empty map so the caller falls back to the modeled estimate.
++ */
++export const SPORTSDATA_OWNERSHIP_LABEL = "SportsDataIO projected GPP ownership";
++const SLUGS: Record<string, string> = { NFL: "nfl", NBA: "nba" };
++const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
++const TTL_MS = 10 * 60_000;
++const FAIL_TTL_MS = 2 * 60_000;
++
++type SlateKey = Pick<Slate, "id" | "sport" | "platform" | "startTime" | "draftGroupId" | "gameType">;
++// Keyed by DraftKings player id (as a string).
++const cache = new Map<number, { expires: number; byDkId: Map<string, number> }>();
++
++export function sportsDataOwnershipSupported(slate: SlateKey | undefined): slate is SlateKey {
++  if (!slate || !process.env.SPORTSDATA_API_KEY) return false;
++  return !!SLUGS[slate.sport.toUpperCase()] && slate.platform === "draftkings" && !!slate.draftGroupId &&
++    (slate.gameType || "Classic").trim().toLowerCase() === "classic";
++}
++
++async function getJson(url: string, apiKey: string): Promise<any> {
++  const res = await fetch(url, { headers: { "Ocp-Apim-Subscription-Key": apiKey } });
++  if (!res.ok) throw new Error(`HTTP ${res.status}`);
++  return res.json();
++}
++
++function easternDate(d: Date): string {
++  const [y, m, day] = d.toLocaleDateString("en-CA", { timeZone: "America/New_York" }).split("-");
++  return `${y}-${MONTHS[Number(m) - 1]}-${day}`;
++}
++
++async function load(slate: SlateKey): Promise<Map<string, number>> {
++  const apiKey = process.env.SPORTSDATA_API_KEY!;
++  const slug = SLUGS[slate.sport.toUpperCase()];
++  const base = `https://api.sportsdata.io/v3/${slug}/projections/json`;
++  const date = easternDate(new Date(slate.startTime));
++
++  const slates: any[] = await getJson(`${base}/DfsSlatesByDate/${date}`, apiKey);
++  const dk = (Array.isArray(slates) ? slates : []).filter(s => s.Operator === "DraftKings" && !s.RemovedByOperator);
++  const match = dk.find(s => Number(s.OperatorSlateID) === slate.draftGroupId);
++  if (!match) return new Map();
++
++  const projections: any = await getJson(`${base}/DfsSlateOwnershipProjectionsBySlateID/${match.SlateID}`, apiKey);
++  const rows: any[] = projections?.SlateOwnershipProjections ?? [];
++  if (!rows.length) return new Map();
++
++  // Ownership rows carry SportsDataIO ids; the slate's player list maps them to DraftKings ids.
++  const dkIdBySlatePlayer = new Map<number, string>();
++  const dkIdByPlayer = new Map<number, string>();
++  for (const sp of match.DfsSlatePlayers ?? []) {
++    const id = sp.OperatorPlayerID != null ? String(sp.OperatorPlayerID) : "";
++    if (!id) continue;
++    if (sp.SlatePlayerID != null) dkIdBySlatePlayer.set(Number(sp.SlatePlayerID), id);
++    if (sp.PlayerID != null) dkIdByPlayer.set(Number(sp.PlayerID), id);
++  }
++
++  const out = new Map<string, number>();
++  for (const r of rows) {
++    const pct = Number(r.ProjectedOwnershipPercentage);
++    if (!Number.isFinite(pct) || pct < 0) continue;
++    const dkId =
++      (r.SlatePlayerID != null ? dkIdBySlatePlayer.get(Number(r.SlatePlayerID)) : undefined) ??
++      (r.PlayerID != null ? dkIdByPlayer.get(Number(r.PlayerID)) : undefined);
++    if (dkId) out.set(dkId, Math.round(pct * 10) / 10);
++  }
++  return out;
++}
++
++async function forSlate(slate: SlateKey): Promise<Map<string, number>> {
++  const hit = cache.get(slate.id);
++  if (hit && hit.expires > Date.now()) return hit.byDkId;
++  let byDkId = new Map<string, number>();
++  let ttl = TTL_MS;
++  try {
++    byDkId = await load(slate);
++    if (byDkId.size === 0) ttl = FAIL_TTL_MS;
++  } catch (err: any) {
++    console.warn(`[Ownership] SportsDataIO ${slate.sport} slate ${slate.id}: ${err?.message ?? err}`);
++    ttl = FAIL_TTL_MS;
++  }
++  if (cache.size >= 200) cache.clear();
++  cache.set(slate.id, { expires: Date.now() + ttl, byDkId });
++  return byDkId;
++}
++
++/** playerId -> projected ownership for every pool player SportsDataIO covers. */
++export async function sportsDataOwnershipForPool(
++  players: Player[],
++  scopes: ReadonlyMap<number, SlateKey | undefined>,
++): Promise<Map<number, number>> {
++  const result = new Map<number, number>();
++  const slateIds = Array.from(new Set(players.map(p => p.slateId)));
++  await Promise.all(slateIds.map(async slateId => {
++    const slate = scopes.get(slateId);
++    if (!sportsDataOwnershipSupported(slate)) return;
++    const byDkId = await forSlate(slate);
++    if (!byDkId.size) return;
++    for (const p of players) {
++      if (p.slateId !== slateId || p.draftKingsPlayerId == null) continue;
++      const pct = byDkId.get(String(p.draftKingsPlayerId));
++      if (pct != null) result.set(p.id, pct);
++    }
++  }));
++  return result;
++}
+-- 
+2.43.0
+
