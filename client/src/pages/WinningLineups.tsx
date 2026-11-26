@@ -23,12 +23,11 @@ import { usePageMeta } from "@/hooks/use-page-meta";
 import { ACTIVE_SPORTS } from "@shared/platform-config";
 
 const SPORTS = ACTIVE_SPORTS;
-const PLATFORMS = ["draftkings", "fanduel", "yahoo"] as const;
+const PLATFORMS = ["draftkings", "fanduel"] as const;
 type PlatformType = typeof PLATFORMS[number];
 const PLATFORM_LABELS: Record<PlatformType, string> = {
   draftkings: "DraftKings",
   fanduel: "FanDuel",
-  yahoo: "Yahoo",
 };
 
 const SPORT_COLORS: Record<string, string> = {
@@ -488,7 +487,7 @@ export default function WinningLineups() {
                         <div className="text-white font-bold flex items-center gap-2">
                           {lineup.slateDate}
                           <Badge variant="outline" className="text-[10px] border-slate-600 text-slate-400">
-                            {lineup.platform === "fanduel" ? "FD" : lineup.platform === "yahoo" ? "Yahoo" : "DK"}
+                            {lineup.platform === "fanduel" ? "FD" : "DK"}
                           </Badge>
                         </div>
                         <div className="text-xs text-slate-500 mt-0.5">

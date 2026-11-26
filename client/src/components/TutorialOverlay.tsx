@@ -23,7 +23,7 @@ const TUTORIAL_STEPS: TutorialStep[] = [
   {
     target: "[data-testid='dashboard-sport-selector']",
     title: "Pick Your Sport",
-    description: "Start by selecting an active sport across DraftKings, FanDuel, and Yahoo. Off-season sports return when enabled.",
+    description: "Start by selecting an active sport across DraftKings and FanDuel. Off-season sports return when enabled.",
     icon: Target,
     iconColor: "text-orange-400",
     position: "bottom",

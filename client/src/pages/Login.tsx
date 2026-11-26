@@ -17,7 +17,7 @@ import { FEATURE_VISIBILITY, PUBLIC_SIGNUP_ENABLED } from "@shared/platform-conf
 // Marketing panel content — shown beside the form so every visitor sees what
 // the product does before they type a character.
 const FEATURES = [
-  { icon: Zap, color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/25", title: "AI Lineup Optimizer", desc: "LP-solved lineups with Monte Carlo simulation for DraftKings, FanDuel & Yahoo." },
+  { icon: Zap, color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/25", title: "AI Lineup Optimizer", desc: "LP-solved lineups with Monte Carlo simulation for DraftKings & FanDuel." },
   { icon: TrendingUp, color: "text-purple-400", bg: "bg-purple-500/15 border-purple-500/25", title: "Prop Betting Picks", desc: "Sportsbook prop lines analyzed and graded across every active sport." },
   { icon: Trophy, color: "text-amber-400", bg: "bg-amber-500/15 border-amber-500/25", title: "Live Draft Hub", desc: "Live ESPN-ranked fantasy draft board, Mock Draft Simulator & cheat sheets." },
   { icon: Target, color: "text-cyan-400", bg: "bg-cyan-500/15 border-cyan-500/25", title: "PrizePicks Builder", desc: "AI-built entries with correlation-aware pick combos and line movement." },

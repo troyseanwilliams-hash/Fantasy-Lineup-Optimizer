@@ -662,7 +662,8 @@ export const PLATFORM_COLORS: Record<Platform, { bg: string; text: string; borde
   yahoo:      { bg: "bg-purple-500/10",  text: "text-purple-400",  border: "border-purple-500/20"  },
 };
 
-export const YAHOO_SUPPORTED_SPORTS: Sport[] = ["NBA", "NFL", "MLB", "NHL", "GOLF"];
+// Yahoo is no longer offered in the optimizers (set to [] to hide the Yahoo tab everywhere).
+export const YAHOO_SUPPORTED_SPORTS: Sport[] = [];
 
 export function isPlatformSupported(sport: Sport, platform: Platform): boolean {
   if (platform === "yahoo") return YAHOO_SUPPORTED_SPORTS.includes(sport);

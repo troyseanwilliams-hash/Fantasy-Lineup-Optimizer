@@ -1,0 +1,18 @@
+diff --git a/server/routes.ts b/server/routes.ts
+index 9c0e2f0..aa3e557 100644
+--- a/server/routes.ts
++++ b/server/routes.ts
+@@ -7649,6 +7649,13 @@ export function solveLineup(
+       if (variable[position]) variable[constraintName] = 1;
+     }
+ 
++    // FanDuel rule: no more than 4 players from the same team (NFL, NBA, NHL, MLB).
++    if (platform === "fanduel" && p.team && ["NFL", "NBA", "NHL", "MLB"].includes(sport.toUpperCase())) {
++      const fdTeamKey = `fd_team_${String(p.team).replace(/[^A-Za-z0-9]/g, "_")}`;
++      model.constraints[fdTeamKey] = { max: 4 };
++      variable[fdTeamKey] = 1;
++    }
++
+     model.variables[variableName] = variable;
+     model.ints[variableName] = 1;
+ 
