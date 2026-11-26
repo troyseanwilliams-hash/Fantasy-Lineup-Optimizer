@@ -28,7 +28,7 @@ export function PlatformSelector({
     >
       {ALL_PLATFORMS.map(({ value: p, label, shortLabel }) => {
         if (!isPlatformSupported(sport as Sport, p)) return null;
-        if (p === "fanduel" && !FANDUEL_ENABLED && !isAdmin) return null;
+        if (p === "fanduel" && !FANDUEL_ENABLED) return null;
 
         const colors = PLATFORM_COLORS[p];
         const isActive = value === p;

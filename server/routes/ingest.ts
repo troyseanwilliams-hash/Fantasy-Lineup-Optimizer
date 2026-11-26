@@ -27,6 +27,7 @@ import multer from "multer";
 import cron from "node-cron";
 import { storage } from "../storage";
 import { ingestFanDuelSlate, ingestAllFanDuelSlates, type FDSport } from "../fanduel-ingest";
+import { FANDUEL_ENABLED } from "@shared/platform-config";
 import { ingestYahooSlate, ingestAllYahooSlates, ingestYahooCSV, type YahooSport } from "../yahoo-ingest";
 
 // ── Multer setup (memory storage for CSV upload) ──────────────────────────────
@@ -199,9 +200,10 @@ ingestRouter.get("/status", async (_req: Request, res: Response) => {
 // ── Cron Scheduler ──────────────────────────────────────────────────────────
 
 async function runFullIngest(label: string) {
-  console.log(`[${label}] Starting FD + Yahoo ingestion…`);
+  console.log(`[${label}] Starting scheduled ingestion (FanDuel ${FANDUEL_ENABLED ? "on" : "off"}, Yahoo off)…`);
 
   try {
+    if (!FANDUEL_ENABLED) throw new Error("skipped: FanDuel is disabled (FANDUEL_ENABLED=false)");
     const fdResults = await ingestAllFanDuelSlates();
     for (const [sport, result] of Object.entries(fdResults)) {
       console.log(`[${label}] FD ${sport}: ${result.message}`);
@@ -210,14 +212,8 @@ async function runFullIngest(label: string) {
     console.error(`[${label}] FD ingestion failed:`, err.message);
   }
 
-  try {
-    const yahooResults = await ingestAllYahooSlates();
-    for (const [sport, result] of Object.entries(yahooResults)) {
-      console.log(`[${label}] Yahoo ${sport}: ${result.message}`);
-    }
-  } catch (err: any) {
-    console.error(`[${label}] Yahoo ingestion failed:`, err.message);
-  }
+  // Yahoo was removed from the product, so it is no longer ingested on the schedule.
+  // Manual admin ingest routes above still work if it ever returns.
 
   console.log(`[${label}] Ingestion complete.`);
 }
@@ -227,7 +223,7 @@ export function startIngestScheduler() {
     timezone: "America/New_York",
   });
 
-  console.log("[Ingest Cron] Scheduled daily FD + Yahoo ingestion at 5 AM ET");
+  console.log("[Ingest Cron] Scheduled daily ingestion at 5 AM ET (FanDuel only when FANDUEL_ENABLED)");
 
   setTimeout(() => runFullIngest("Ingest Startup"), 15000);
 }
