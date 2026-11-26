@@ -5,6 +5,15 @@ import bcrypt from "bcryptjs";
 import { authStorage } from "./storage";
 import { recordFunnelEvent } from "../../funnel";
 import { PUBLIC_SIGNUP_ENABLED } from "@shared/platform-config";
+import { isPlausibleEmail, normalizeEmail, rateLimit } from "../../auth-guards";
+
+const registerLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 10 });
+const loginIpLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
+const loginEmailLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 8,
+  key: (req) => `email:${normalizeEmail(req.body?.email) || req.ip}`,
+});
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000;
@@ -33,19 +42,24 @@ export async function setupAuth(app: Express) {
   app.set("trust proxy", 1);
   app.use(getSession());
 
-  app.post("/api/auth/register", async (req, res) => {
+  app.post("/api/auth/register", registerLimiter, async (req, res) => {
     if (!PUBLIC_SIGNUP_ENABLED) {
       return res.status(403).json({ message: "New account registration is temporarily closed." });
     }
 
     try {
-      const { email, password, firstName, lastName, phone, smsConsent, emailConsent } = req.body;
+      const { email: rawEmail, password, firstName, lastName, phone, smsConsent, emailConsent } = req.body;
+      const email = normalizeEmail(rawEmail);
       recordFunnelEvent("signup_attempt", { email, req });
       if (!email || !password) {
         recordFunnelEvent("signup_error", { email, errorReason: "missing email or password", req });
         return res.status(400).json({ message: "Email and password are required." });
       }
-      if (password.length < 6) {
+      if (!isPlausibleEmail(email)) {
+        recordFunnelEvent("signup_error", { email, errorReason: "invalid email format", req });
+        return res.status(400).json({ message: "Please enter a valid email address." });
+      }
+      if (typeof password !== "string" || password.length < 6) {
         recordFunnelEvent("signup_error", { email, errorReason: "password too short", req });
         return res.status(400).json({ message: "Password must be at least 6 characters." });
       }
@@ -82,10 +96,11 @@ export async function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", loginIpLimiter, loginEmailLimiter, async (req, res) => {
     try {
-      const { email, password } = req.body;
-      if (!email || !password) {
+      const email = normalizeEmail(req.body?.email);
+      const password = req.body?.password;
+      if (!email || typeof password !== "string" || !password) {
         return res.status(400).json({ message: "Email and password are required." });
       }
 
