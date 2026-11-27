@@ -2106,7 +2106,7 @@ function PricingCTA() {
           </ul>
         </div>
         <div className="rounded-xl bg-gradient-to-b from-purple-900/40 to-blue-900/40 border border-purple-500/30 p-4 text-left">
-          <div className="text-purple-400 font-bold text-sm mb-1">👑 Champion — $19.99/mo</div>
+          <div className="text-purple-400 font-bold text-sm mb-1">👑 Champion — $39.99/mo</div>
           <ul className="text-xs text-slate-400 space-y-1">
             <li>✓ Everything in Sharpshooter</li>
             <li>✓ Live Draft Assistant</li>
