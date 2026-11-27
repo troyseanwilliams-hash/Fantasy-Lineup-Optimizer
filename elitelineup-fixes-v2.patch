@@ -1,0 +1,53 @@
+diff --git a/client/src/pages/NFLDraft.tsx b/client/src/pages/NFLDraft.tsx
+index 1bd1581..560f981 100644
+--- a/client/src/pages/NFLDraft.tsx
++++ b/client/src/pages/NFLDraft.tsx
+@@ -2106,7 +2106,7 @@ function PricingCTA() {
+           </ul>
+         </div>
+         <div className="rounded-xl bg-gradient-to-b from-purple-900/40 to-blue-900/40 border border-purple-500/30 p-4 text-left">
+-          <div className="text-purple-400 font-bold text-sm mb-1">👑 Champion — $19.99/mo</div>
++          <div className="text-purple-400 font-bold text-sm mb-1">👑 Champion — $39.99/mo</div>
+           <ul className="text-xs text-slate-400 space-y-1">
+             <li>✓ Everything in Sharpshooter</li>
+             <li>✓ Live Draft Assistant</li>
+diff --git a/client/src/pages/ShowdownBuilder.tsx b/client/src/pages/ShowdownBuilder.tsx
+index 53c0132..d480ea7 100644
+--- a/client/src/pages/ShowdownBuilder.tsx
++++ b/client/src/pages/ShowdownBuilder.tsx
+@@ -15,7 +15,7 @@ import {
+   TrendingUp, TrendingDown, AlertTriangle, Settings2, EyeOff,
+   Activity, Clock, RotateCcw, Flame, Percent, ArrowUpDown, CheckCheck,
+ } from "lucide-react";
+-import { ACTIVE_SPORTS } from "@shared/platform-config";
++import { ACTIVE_SPORTS, SHOWDOWN_CONFIGS } from "@shared/platform-config";
+ import { sanitizeGameInfo } from "@/lib/game-info";
+ import { InfoTip, LabelTip } from "@/components/InfoTip";
+ import { Slider } from "@/components/ui/slider";
+@@ -127,7 +127,7 @@ const SIGNAL_META: Record<string, { label: string; colorClass: string; icon: str
+   out:               { label: "OUT",            colorClass: "text-red-400 bg-red-500/20 border-red-500/40",         icon: "❌" },
+ };
+ 
+-const SHOWDOWN_SPORTS = ACTIVE_SPORTS.filter(s => s !== "GOLF");
++const SHOWDOWN_SPORTS = ACTIVE_SPORTS.filter(s => s !== "GOLF" && SHOWDOWN_CONFIGS[s]);
+ 
+ // ─────────────────────────────────────────────────────────────────────────────
+ // Component
+diff --git a/shared/platform-config.ts b/shared/platform-config.ts
+index ce98c32..40b7a31 100644
+--- a/shared/platform-config.ts
++++ b/shared/platform-config.ts
+@@ -6,11 +6,11 @@ export type Sport = "NBA" | "NHL" | "MLB" | "NFL" | "GOLF" | "SOCCER";
+ // NBA is enabled and featured; retain the other active sports.
+ export const SPORT_ORDER: Sport[] = ["NBA", "MLB", "NFL", "GOLF", "SOCCER", "NHL"];
+ /** Sports currently in-season and available for DFS contests */
+-export const ACTIVE_SPORTS: Sport[] = ["NBA", "NFL", "GOLF"];
++export const ACTIVE_SPORTS: Sport[] = ["NBA", "NFL", "GOLF", "NHL"];
+ /** Sports off-season now but returning soon — shown in nav with a "Coming Soon" badge */
+ export const COMING_SOON_SPORTS: Sport[] = [];
+ /** Sports fully off-season — hidden from nav and disabled */
+-export const OFF_SEASON_SPORTS: Sport[] = ["MLB", "NHL", "SOCCER"];
++export const OFF_SEASON_SPORTS: Sport[] = ["MLB", "SOCCER"];
+ /** World Cup-specific promotions, pages, and API responses are currently disabled. */
+ export const WORLD_CUP_ENABLED = false;
+ /** User-facing product promotion visibility. Routes and entitlements remain available when hidden. */

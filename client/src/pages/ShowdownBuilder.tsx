@@ -15,7 +15,7 @@ import {
   TrendingUp, TrendingDown, AlertTriangle, Settings2, EyeOff,
   Activity, Clock, RotateCcw, Flame, Percent, ArrowUpDown, CheckCheck,
 } from "lucide-react";
-import { ACTIVE_SPORTS } from "@shared/platform-config";
+import { ACTIVE_SPORTS, SHOWDOWN_CONFIGS } from "@shared/platform-config";
 import { sanitizeGameInfo } from "@/lib/game-info";
 import { InfoTip, LabelTip } from "@/components/InfoTip";
 import { Slider } from "@/components/ui/slider";
@@ -127,7 +127,7 @@ const SIGNAL_META: Record<string, { label: string; colorClass: string; icon: str
   out:               { label: "OUT",            colorClass: "text-red-400 bg-red-500/20 border-red-500/40",         icon: "❌" },
 };
 
-const SHOWDOWN_SPORTS = ACTIVE_SPORTS.filter(s => s !== "GOLF");
+const SHOWDOWN_SPORTS = ACTIVE_SPORTS.filter(s => s !== "GOLF" && SHOWDOWN_CONFIGS[s]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Component
